@@ -10,6 +10,8 @@ const ProductCard = ({ product }) => {
     Fruit: 'bg-orange-100 text-orange-700',
     Grain: 'bg-yellow-100 text-yellow-700',
     Spice: 'bg-red-100 text-red-700',
+    'Fresh Meat': 'bg-pink-100 text-pink-700',
+    Seafood: 'bg-blue-100 text-blue-700',
     Other: 'bg-gray-100 text-gray-700',
   };
 

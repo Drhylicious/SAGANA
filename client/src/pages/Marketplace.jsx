@@ -1,22 +1,70 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
-import ProductCard from '../components/ProductCard';
+import { useAuth } from '../context/AuthContext';
+import PageWrapper from '../components/PageWrapper';
+
+const categoryIcons = {
+  All: '🌾',
+  Vegetable: '🥦',
+  Fruit: '🍎',
+  Grain: '🌾',
+  Spice: '🌶️',
+  'Fresh Meat': '🥩',
+  Seafood: '🐟',
+  Other: '📦',
+};
 
 const Marketplace = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('All');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [cart, setCart] = useState([]);
 
-  const categories = ['All', 'Vegetable', 'Fruit', 'Grain', 'Spice', 'Other'];
+  const categories = ['All', 'Vegetable', 'Fruit', 'Grain', 'Spice', 'Fresh Meat', 'Seafood'];
+
+  const carouselSlides = [
+    {
+      title: 'Fresh from Local Farmers',
+      subtitle: 'Quality produce from Boac, Marinduque every day',
+      className: 'from-green-700 to-green-500',
+    },
+    {
+      title: 'SAGANA Daily Deals',
+      subtitle: 'Save on seasonal favorites and pantry staples',
+      className: 'from-emerald-700 to-lime-500',
+    },
+    {
+      title: 'Handpicked Quality',
+      subtitle: 'Premium fresh meat, seafood, and vegetables',
+      className: 'from-emerald-900 to-green-600',
+    },
+  ];
 
   useEffect(() => {
     fetchProducts();
   }, [category]);
 
+  useEffect(() => {
+    setSearch(searchParams.get('search') || '');
+  }, [searchParams]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % carouselSlides.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [carouselSlides.length]);
+
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const params = category && category !== 'All' ? `?category=${category}` : '';
+      const params = category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
       const { data } = await API.get(`/products${params}`);
       setProducts(data.data);
     } catch (error) {
@@ -26,48 +74,295 @@ const Marketplace = () => {
     }
   };
 
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.description?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const featuredProducts = filteredProducts.slice(0, 6);
+  const dealsProducts = filteredProducts
+    .filter((p) => ['Fresh Meat', 'Seafood', 'Spice', 'Grain', 'Vegetable'].includes(p.category))
+    .slice(0, 6);
+
+  const isCategoryView = category !== 'All';
+  const categoryListings = isCategoryView ? filteredProducts : [];
+
+  const addToCart = (product) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (user.role !== 'buyer') {
+      alert('Only buyers can purchase products');
+      return;
+    }
+
+    const existing = cart.find((item) => item._id === product._id);
+    if (existing) {
+      setCart(cart.map((item) => (item._id === product._id ? { ...item, qty: item.qty + 1 } : item)));
+    } else {
+      setCart([...cart, { ...product, qty: 1 }]);
+    }
+  };
+
+  const removeFromCart = (id) => {
+    setCart(cart.filter((item) => item._id !== id));
+  };
+
+  const cartTotal = cart.reduce((sum, item) => sum + item.pricePerUnit * item.qty, 0);
+
+  const categoryColors = {
+    Vegetable: 'bg-green-100 text-green-700',
+    Fruit: 'bg-orange-100 text-orange-700',
+    Grain: 'bg-yellow-100 text-yellow-700',
+    Spice: 'bg-red-100 text-red-700',
+    'Fresh Meat': 'bg-pink-100 text-pink-700',
+    Seafood: 'bg-blue-100 text-blue-700',
+    Other: 'bg-gray-100 text-gray-700',
+  };
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Hero */}
-      <div className="bg-primary text-white rounded-2xl p-8 mb-8 text-center">
-        <h1 className="text-4xl font-bold mb-2">🌾 SAGANA Marketplace</h1>
-        <p className="text-lg opacity-90">
-          Fresh produce directly from the cooperatives of Boac, Marinduque
-        </p>
-      </div>
+    <PageWrapper>
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex max-w-7xl mx-auto px-4 py-6 gap-6">
 
-      {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap mb-6">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat === 'All' ? '' : cat)}
-            className={`px-4 py-2 rounded-full text-sm font-semibold border transition
-              ${(category === '' && cat === 'All') || category === cat
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-primary hover:text-primary'
-              }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
+          <aside className="hidden lg:block w-60">
+            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden sticky top-24">
+              <div className="px-4 py-3 border-b">
+                <p className="font-bold text-gray-700 text-sm">Categories</p>
+              </div>
+              <div className="py-2">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategory(cat)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition text-left ${
+                      category === cat
+                        ? 'bg-primary/10 text-primary font-semibold border-r-4 border-primary'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-lg">{categoryIcons[cat]}</span>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
 
-      {/* Products Grid */}
-      {loading ? (
-        <div className="text-center py-20 text-gray-400 text-lg">Loading products...</div>
-      ) : products.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-lg">
-          No products available yet.
+          <main className="flex-1">
+            <div className="relative overflow-hidden rounded-2xl mb-6 h-56 sm:h-64 lg:h-72">
+              <div className={`absolute inset-0 bg-gradient-to-r ${carouselSlides[carouselIndex].className} transition-all duration-700`} />
+              <div className="absolute inset-0 bg-black/25" />
+              <div className="relative z-10 p-6 sm:p-8 h-full flex flex-col justify-center">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-wide mb-2">{carouselSlides[carouselIndex].title}</h1>
+                <p className="text-white/90 text-sm sm:text-base">{carouselSlides[carouselIndex].subtitle}</p>
+              </div>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                {carouselSlides.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCarouselIndex(idx)}
+                    className={`w-2 h-2 rounded-full ${carouselIndex === idx ? 'bg-white' : 'bg-white/50'}`}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {isCategoryView ? (
+              <section className="mb-12">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-primary">{category} Products</h2>
+                  <p className="text-sm text-gray-500">{categoryListings.length} products found</p>
+                </div>
+                {loading ? (
+                  <div className="text-center py-8 text-gray-400">Loading products...</div>
+                ) : categoryListings.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">No products in this category.</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {categoryListings.map((product) => (
+                      <div key={product._id} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
+                        <div className="h-36 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
+                        <div className="p-4">
+                          <div className="flex justify-between items-start mb-1">
+                            <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">{product.name}</h3>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[product.category]}`}>
+                              {product.category}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'High-quality produce.'}</p>
+                          <p className="text-xs text-gray-500 mb-2">Seller: {product.farmer?.name || 'Local Farm'}</p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-xl font-bold text-primary">₱{product.pricePerUnit}</span>
+                              <span className="text-xs text-gray-400">/{product.unit}</span>
+                            </div>
+                            <button
+                              onClick={() => addToCart(product)}
+                              className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
+                            >
+                              🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ) : (
+              <>
+                <section className="mb-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-primary">Featured Products</h2>
+                    <p className="text-sm text-gray-500">Popular picks from local producers</p>
+                  </div>
+                  {loading ? (
+                    <div className="text-center py-8 text-gray-400">Loading...</div>
+                  ) : featuredProducts.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">No featured products available.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {featuredProducts.map((product) => (
+                        <div key={`featured-${product._id}`} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
+                          <div className="h-36 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
+                          <div className="p-4">
+                            <div className="flex justify-between items-start mb-1">
+                              <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">{product.name}</h3>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[product.category]}`}>
+                                {product.category}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'Fresh and quality item.'}</p>
+                            <p className="text-xs text-gray-500 mb-3">Seller: {product.farmer?.name || 'Local Farm'}</p>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-xl font-bold text-primary">₱{product.pricePerUnit}</span>
+                                <span className="text-xs text-gray-400">/{product.unit}</span>
+                              </div>
+                              <button
+                                onClick={() => addToCart(product)}
+                                className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
+                              >
+                                🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="mb-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-primary">SAGANA Price Drop</h2>
+                    <p className="text-sm text-gray-500">Seasonal discounts from top categories</p>
+                  </div>
+                  {dealsProducts.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">No deals currently.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {dealsProducts.map((product) => (
+                        <div key={`deal-${product._id}`} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
+                          <div className="h-36 bg-gradient-to-br from-yellow-50 to-yellow-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
+                          <div className="p-4">
+                            <h3 className="font-semibold text-gray-800 text-sm mb-1 line-clamp-1">{product.name}</h3>
+                            <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'Special price for today.'}</p>
+                            <p className="text-xs text-gray-500 mb-3">Seller: {product.farmer?.name || 'SAGANA'}</p>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-lg font-bold text-red-500">₱{(product.pricePerUnit * 0.85).toFixed(2)}</span>
+                                <span className="text-xs text-gray-400 line-through ml-1">₱{product.pricePerUnit}</span>
+                              </div>
+                              <button
+                                onClick={() => addToCart(product)}
+                                className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
+                              >
+                                🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="mb-12">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-primary">All Products</h2>
+                    <p className="text-sm text-gray-500">{filteredProducts.length} products available</p>
+                  </div>
+                  {loading ? (
+                    <div className="text-center py-8 text-gray-400">Loading products...</div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">No products match your search.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredProducts.map((product) => (
+                        <div key={product._id} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
+                          <div className="h-36 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
+                          <div className="p-4">
+                            <div className="flex justify-between items-start mb-1">
+                              <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">{product.name}</h3>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[product.category]}`}>
+                                {product.category}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'Great quality produce.'}</p>
+                            <p className="text-xs text-gray-500 mb-2">Seller: {product.farmer?.name || 'Local Farm'}</p>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-xl font-bold text-primary">₱{product.pricePerUnit}</span>
+                                <span className="text-xs text-gray-400">/{product.unit}</span>
+                              </div>
+                              <button
+                                onClick={() => addToCart(product)}
+                                className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
+                              >
+                                🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+          </main>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <ProductCard key={product._id} product={product} />
-          ))}
-        </div>
-      )}
-    </div>
+        <footer className="bg-white border-t mt-4">
+          <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-600">
+            <div>
+              <h3 className="font-bold text-gray-800 mb-2">SAGANA</h3>
+              <p>Fresh produce and daily essentials delivered to your door.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-2">Help & Policies</h3>
+              <ul className="space-y-1">
+                <li><a className="hover:text-primary" href="/terms">Terms</a></li>
+                <li><a className="hover:text-primary" href="/faq">FAQs</a></li>
+                <li><a className="hover:text-primary" href="/contact">Contact Us</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-2">Account & Privacy</h3>
+              <ul className="space-y-1">
+                <li><a className="hover:text-primary" href="/account">My Account</a></li>
+                <li><a className="hover:text-primary" href="/privacy">Privacy Policy</a></li>
+                <li><a className="hover:text-primary" href="/cookies">Cookies</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t mt-4 pt-3 text-center text-xs text-gray-500">© {new Date().getFullYear()} SAGANA Marketplace. All rights reserved.</div>
+        </footer>
+      </div>
+    </PageWrapper>
   );
 };
 
