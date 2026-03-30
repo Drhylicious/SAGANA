@@ -11,6 +11,12 @@ import Marketplace from './pages/Marketplace';
 import AdminDashboard from './pages/AdminDashboard';
 import FarmerDashboard from './pages/FarmerDashboard';
 import BuyerDashboard from './pages/BuyerDashboard';
+import Terms from './pages/Terms';
+import FAQ from './pages/FAQ';
+import Contact from './pages/Contact';
+import Account from './pages/Account';
+import Privacy from './pages/Privacy';
+import Cookies from './pages/Cookies';
 
 function App() {
   const { user } = useAuth();
@@ -40,6 +46,12 @@ function App() {
           <Route path="/buyer" element={
             <ProtectedRoute role="buyer"><BuyerDashboard /></ProtectedRoute>
           } />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/cookies" element={<Cookies />} />
         </Routes>
       </AnimatePresence>
     </div>

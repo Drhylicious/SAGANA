@@ -1,7 +1,8 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, onAddedToCart }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -15,11 +16,13 @@ const ProductCard = ({ product }) => {
     Other: 'bg-gray-100 text-gray-700',
   };
 
-  const handleOrder = () => {
+  const { addToCart } = useCart();
+  const handleAddToCart = () => {
     if (!user) {
       navigate('/login');
     } else if (user.role === 'buyer') {
-      navigate('/buyer');
+      addToCart(product);
+      if (onAddedToCart) onAddedToCart();
     } else {
       navigate('/');
     }
@@ -57,10 +60,11 @@ const ProductCard = ({ product }) => {
         </p>
 
         <button
-          onClick={handleOrder}
-          className="w-full bg-primary text-white py-2 rounded-lg hover:bg-secondary transition font-semibold text-sm"
+          onClick={handleAddToCart}
+          className="w-full bg-primary text-white py-2 rounded-lg hover:bg-secondary transition font-semibold text-sm flex items-center justify-center gap-2"
         >
-          {user?.role === 'buyer' ? 'Order Now' : user ? 'View Marketplace' : 'Login to Order'}
+          <span className="text-lg">🛒</span>
+          {user?.role === 'buyer' ? 'Add to Cart' : user ? 'View Marketplace' : 'Login to Order'}
         </button>
       </div>
     </div>

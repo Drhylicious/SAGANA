@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import PageWrapper from '../components/PageWrapper';
+import ProductCard from '../components/ProductCard';
 
 const categoryIcons = {
   All: '🌾',
@@ -24,7 +25,7 @@ const Marketplace = () => {
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const [cart, setCart] = useState([]);
+  // Removed local cart state; use CartContext in ProductCard
 
   const categories = ['All', 'Vegetable', 'Fruit', 'Grain', 'Spice', 'Fresh Meat', 'Seafood'];
 
@@ -87,29 +88,7 @@ const Marketplace = () => {
   const isCategoryView = category !== 'All';
   const categoryListings = isCategoryView ? filteredProducts : [];
 
-  const addToCart = (product) => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (user.role !== 'buyer') {
-      alert('Only buyers can purchase products');
-      return;
-    }
-
-    const existing = cart.find((item) => item._id === product._id);
-    if (existing) {
-      setCart(cart.map((item) => (item._id === product._id ? { ...item, qty: item.qty + 1 } : item)));
-    } else {
-      setCart([...cart, { ...product, qty: 1 }]);
-    }
-  };
-
-  const removeFromCart = (id) => {
-    setCart(cart.filter((item) => item._id !== id));
-  };
-
-  const cartTotal = cart.reduce((sum, item) => sum + item.pricePerUnit * item.qty, 0);
+  // Removed addToCart, removeFromCart, cartTotal (handled by context)
 
   const categoryColors = {
     Vegetable: 'bg-green-100 text-green-700',
@@ -183,31 +162,7 @@ const Marketplace = () => {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {categoryListings.map((product) => (
-                      <div key={product._id} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
-                        <div className="h-36 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
-                        <div className="p-4">
-                          <div className="flex justify-between items-start mb-1">
-                            <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">{product.name}</h3>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[product.category]}`}>
-                              {product.category}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'High-quality produce.'}</p>
-                          <p className="text-xs text-gray-500 mb-2">Seller: {product.farmer?.name || 'Local Farm'}</p>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="text-xl font-bold text-primary">₱{product.pricePerUnit}</span>
-                              <span className="text-xs text-gray-400">/{product.unit}</span>
-                            </div>
-                            <button
-                              onClick={() => addToCart(product)}
-                              className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
-                            >
-                              🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      <ProductCard key={product._id} product={product} />
                     ))}
                   </div>
                 )}
@@ -226,31 +181,7 @@ const Marketplace = () => {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {featuredProducts.map((product) => (
-                        <div key={`featured-${product._id}`} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
-                          <div className="h-36 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start mb-1">
-                              <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">{product.name}</h3>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[product.category]}`}>
-                                {product.category}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'Fresh and quality item.'}</p>
-                            <p className="text-xs text-gray-500 mb-3">Seller: {product.farmer?.name || 'Local Farm'}</p>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="text-xl font-bold text-primary">₱{product.pricePerUnit}</span>
-                                <span className="text-xs text-gray-400">/{product.unit}</span>
-                              </div>
-                              <button
-                                onClick={() => addToCart(product)}
-                                className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
-                              >
-                                🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                        <ProductCard key={`featured-${product._id}`} product={product} />
                       ))}
                     </div>
                   )}
@@ -266,26 +197,7 @@ const Marketplace = () => {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {dealsProducts.map((product) => (
-                        <div key={`deal-${product._id}`} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
-                          <div className="h-36 bg-gradient-to-br from-yellow-50 to-yellow-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
-                          <div className="p-4">
-                            <h3 className="font-semibold text-gray-800 text-sm mb-1 line-clamp-1">{product.name}</h3>
-                            <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'Special price for today.'}</p>
-                            <p className="text-xs text-gray-500 mb-3">Seller: {product.farmer?.name || 'SAGANA'}</p>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="text-lg font-bold text-red-500">₱{(product.pricePerUnit * 0.85).toFixed(2)}</span>
-                                <span className="text-xs text-gray-400 line-through ml-1">₱{product.pricePerUnit}</span>
-                              </div>
-                              <button
-                                onClick={() => addToCart(product)}
-                                className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
-                              >
-                                🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                        <ProductCard key={`deal-${product._id}`} product={product} />
                       ))}
                     </div>
                   )}
@@ -303,31 +215,7 @@ const Marketplace = () => {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {filteredProducts.map((product) => (
-                        <div key={product._id} className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition overflow-hidden">
-                          <div className="h-36 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center text-6xl">{categoryIcons[product.category]}</div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start mb-1">
-                              <h3 className="font-semibold text-gray-800 text-sm line-clamp-1">{product.name}</h3>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[product.category]}`}>
-                                {product.category}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-400 mb-2 line-clamp-2">{product.description || 'Great quality produce.'}</p>
-                            <p className="text-xs text-gray-500 mb-2">Seller: {product.farmer?.name || 'Local Farm'}</p>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="text-xl font-bold text-primary">₱{product.pricePerUnit}</span>
-                                <span className="text-xs text-gray-400">/{product.unit}</span>
-                              </div>
-                              <button
-                                onClick={() => addToCart(product)}
-                                className="bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-secondary transition"
-                              >
-                                🛒 {!user ? 'Login to Order' : user.role !== 'buyer' ? 'Buyers Only' : 'Add to Cart'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                        <ProductCard key={product._id} product={product} />
                       ))}
                     </div>
                   )}

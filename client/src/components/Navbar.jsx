@@ -44,7 +44,7 @@ const Navbar = () => {
           <div className="relative">
             <input
               type="text"
-              placeholder="Search for r"
+              placeholder="Search for a product"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full px-4 py-2.5 rounded-full text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-white"
