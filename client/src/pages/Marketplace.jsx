@@ -22,6 +22,8 @@ const Marketplace = () => {
   const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [priceDropProducts, setPriceDropProducts] = useState([]);
+  const [loadingPriceDrops, setLoadingPriceDrops] = useState(true);
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -50,6 +52,21 @@ const Marketplace = () => {
   useEffect(() => {
     fetchProducts();
   }, [category]);
+
+  useEffect(() => {
+    const fetchPriceDrops = async () => {
+      try {
+        setLoadingPriceDrops(true);
+        const { data } = await API.get('/products/price-drops');
+        setPriceDropProducts(data.data || []);
+      } catch (error) {
+        setPriceDropProducts([]);
+      } finally {
+        setLoadingPriceDrops(false);
+      }
+    };
+    fetchPriceDrops();
+  }, []);
 
   useEffect(() => {
     setSearch(searchParams.get('search') || '');
@@ -81,9 +98,8 @@ const Marketplace = () => {
   );
 
   const featuredProducts = filteredProducts.slice(0, 6);
-  const dealsProducts = filteredProducts
-    .filter((p) => ['Fresh Meat', 'Seafood', 'Spice', 'Grain', 'Vegetable'].includes(p.category))
-    .slice(0, 6);
+  // Show actual price drop products from backend
+  const dealsProducts = priceDropProducts.slice(0, 6);
 
   const isCategoryView = category !== 'All';
   const categoryListings = isCategoryView ? filteredProducts : [];
@@ -192,7 +208,9 @@ const Marketplace = () => {
                     <h2 className="text-2xl font-bold text-primary">SAGANA Price Drop</h2>
                     <p className="text-sm text-gray-500">Seasonal discounts from top categories</p>
                   </div>
-                  {dealsProducts.length === 0 ? (
+                  {loadingPriceDrops ? (
+                    <div className="text-center py-8 text-gray-400">Loading price drops...</div>
+                  ) : dealsProducts.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">No deals currently.</div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

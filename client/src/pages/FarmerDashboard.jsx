@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import PageWrapper from '../components/PageWrapper';
@@ -12,10 +12,14 @@ const FarmerDashboard = () => {
   const [productForm, setProductForm] = useState({
     name: '', category: 'Vegetable', description: '', pricePerUnit: '', unit: ''
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef();
   const [inventoryForm, setInventoryForm] = useState({
     product: '', quantity: '', harvestDate: '', expiryDate: ''
   });
   const [message, setMessage] = useState('');
+  const [editingProduct, setEditingProduct] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -23,7 +27,7 @@ const FarmerDashboard = () => {
     try {
       setLoading(true);
       const [productsRes, inventoryRes] = await Promise.all([
-        API.get('/products?limit=100'),
+        API.get('/products/mine'),
         API.get('/inventory')
       ]);
       setProducts(productsRes.data.data);
@@ -35,15 +39,69 @@ const FarmerDashboard = () => {
     }
   };
 
+
   const handleCreateProduct = async (e) => {
     e.preventDefault();
     try {
-      await API.post('/products', productForm);
-      setMessage('✅ Product submitted for admin approval!');
+      const formData = new FormData();
+      formData.append('name', productForm.name);
+      formData.append('category', productForm.category);
+      formData.append('description', productForm.description);
+      formData.append('pricePerUnit', productForm.pricePerUnit);
+      formData.append('unit', productForm.unit);
+      if (imageFile) formData.append('image', imageFile);
+
+      if (editingProduct) {
+        // Update existing product
+        await API.put(`/products/${editingProduct._id}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setMessage('✅ Product updated!');
+        setEditingProduct(null);
+      } else {
+        // Create new product
+        if (!imageFile) {
+          setMessage('❌ Product image is required.');
+          return;
+        }
+        await API.post('/products', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setMessage('✅ Product submitted for admin approval!');
+      }
       setProductForm({ name: '', category: 'Vegetable', description: '', pricePerUnit: '', unit: '' });
+      setImageFile(null);
+      setImagePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       fetchData();
     } catch (error) {
-      setMessage('❌ ' + (error.response?.data?.message || 'Error creating product'));
+      setMessage('❌ ' + (error.response?.data?.message || 'Error creating/updating product'));
+    }
+  };
+
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setProductForm({
+      name: product.name,
+      category: product.category,
+      description: product.description || '',
+      pricePerUnit: product.pricePerUnit,
+      unit: product.unit
+    });
+    setImageFile(null);
+    setImagePreview(product.image ? `${import.meta.env.VITE_API_URL?.replace('/api/v1','') || 'http://localhost:5000' }${product.image}` : null);
+    setActiveTab('add-product');
+    setMessage('');
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    try {
+      await API.delete(`/products/${productId}`);
+      setMessage('✅ Product deleted!');
+      fetchData();
+    } catch (error) {
+      setMessage('❌ ' + (error.response?.data?.message || 'Error deleting product'));
     }
   };
 
@@ -183,8 +241,8 @@ const FarmerDashboard = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 flex gap-2">
-                      <button className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition">✏️ Edit</button>
-                      <button className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200 transition">🗑️ Delete</button>
+                      <button className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition" onClick={() => handleEditProduct(product)}>✏️ Edit</button>
+                      <button className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200 transition" onClick={() => handleDeleteProduct(product._id)}>🗑️ Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -230,8 +288,26 @@ const FarmerDashboard = () => {
         {/* Add Product Form */}
         {activeTab === 'add-product' && (
           <div className="bg-white rounded-xl shadow-sm border p-6 max-w-lg">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Submit New Product</h2>
-            <form onSubmit={handleCreateProduct} className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">{editingProduct ? 'Edit Product' : 'Submit New Product'}</h2>
+            <form onSubmit={handleCreateProduct} className="space-y-4" encType="multipart/form-data">
+                            <div>
+                              <label className="block font-semibold mb-1">Product Image <span className="text-red-500">*</span></label>
+                              {imagePreview && (
+                                <img src={imagePreview} alt="Preview" className="mb-2 w-32 h-32 object-cover rounded border" />
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                ref={fileInputRef}
+                                required={!editingProduct}
+                                onChange={e => {
+                                  const file = e.target.files[0];
+                                  setImageFile(file);
+                                  setImagePreview(file ? URL.createObjectURL(file) : null);
+                                }}
+                                className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
               <input type="text" placeholder="Product Name" required
                 value={productForm.name}
                 onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
@@ -265,8 +341,13 @@ const FarmerDashboard = () => {
               <button type="submit"
                 className="w-full bg-primary text-white py-2 rounded-lg hover:bg-secondary transition font-semibold"
               >
-                Submit for Approval
+                {editingProduct ? 'Update Product' : 'Submit for Approval'}
               </button>
+              {editingProduct && (
+                <button type="button" className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg mt-2 hover:bg-gray-300 transition font-semibold" onClick={() => { setEditingProduct(null); setProductForm({ name: '', category: 'Vegetable', description: '', pricePerUnit: '', unit: '' }); }}>
+                  Cancel Edit
+                </button>
+              )}
             </form>
           </div>
         )}

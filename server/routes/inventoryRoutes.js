@@ -9,8 +9,8 @@ const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/roleMiddleware');
 
 
-// Allow buyers to fetch available batches for a product
-router.get('/available', protect, authorize('buyer'), getAvailableBatches);
+// Allow buyers and farmers to fetch available batches for a product
+router.get('/available', protect, authorize('buyer', 'farmer'), getAvailableBatches);
 
 router.get('/', protect, authorize('admin', 'farmer'), getInventory);
 router.get('/:id', protect, authorize('admin', 'farmer'), getInventoryBatch);

@@ -7,7 +7,14 @@ const productSchema = new mongoose.Schema({
   description: { type: String },
   pricePerUnit: { type: Number, required: true, min: 0 },
   unit: { type: String, required: true },
-  isApproved: { type: Boolean, default: true }
+  isApproved: { type: Boolean, default: false },
+  priceHistory: [
+    {
+      price: { type: Number },
+      date: { type: Date, default: Date.now }
+    }
+  ],
+  image: { type: String, required: true } // URL or path to product image
 }, { timestamps: true });
 
 module.exports = mongoose.model('Product', productSchema);

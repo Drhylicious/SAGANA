@@ -35,6 +35,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('cart');
+    window.dispatchEvent(new Event('cart:clear'));
     setUser(null);
   };
 
