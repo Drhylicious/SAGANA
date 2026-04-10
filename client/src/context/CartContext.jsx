@@ -25,6 +25,12 @@ export const CartProvider = ({ children }) => {
 
   // Accepts product and inventoryBatch
   const addToCart = (product, inventoryBatch) => {
+    // Normalize image URL
+    let imageUrl = product.image;
+    if (imageUrl && !imageUrl.startsWith('http')) {
+      imageUrl = `${import.meta.env.VITE_API_URL?.replace('/api/v1','') || 'http://localhost:5000'}${imageUrl}`;
+    }
+    const productWithImage = { ...product, image: imageUrl };
     const existing = cart.find(
       (item) => item._id === product._id && item.inventoryBatch === inventoryBatch
     );
@@ -37,7 +43,7 @@ export const CartProvider = ({ children }) => {
         )
       );
     } else {
-      setCart([...cart, { ...product, qty: 1, inventoryBatch }]);
+      setCart([...cart, { ...productWithImage, qty: 1, inventoryBatch }]);
     }
   };
 

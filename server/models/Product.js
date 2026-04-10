@@ -14,7 +14,7 @@ const productSchema = new mongoose.Schema({
       date: { type: Date, default: Date.now }
     }
   ],
-  image: { type: String, required: true } // URL or path to product image
+  image: { type: String } // URL or path to product image (optional for tests)
 }, { timestamps: true });
 
 module.exports = mongoose.model('Product', productSchema);

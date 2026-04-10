@@ -120,4 +120,89 @@ const getOrder = async (req, res) => {
   }
 };
 
-module.exports = { getOrders, createOrder, updateOrderStatus, getOrder };
+// @desc    Edit order (quantity only, buyer only)
+// @route   PUT /api/v1/orders/:id
+// @access  Private (Buyer only, own order)
+const editOrder = async (req, res) => {
+  try {
+    const { quantityOrdered } = req.body;
+    if (!quantityOrdered || quantityOrdered < 1) {
+      return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
+    }
+
+    const order = await Order.findById(req.params.id).populate('inventoryBatch').populate('product');
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    // Only buyer can edit their own order
+    if (req.user.role !== 'buyer' || order.buyer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to edit this order' });
+    }
+
+    // Only allow editing if order is not Cancelled/Completed/Confirmed
+    if (["Cancelled", "Completed", "Confirmed"].includes(order.status)) {
+      return res.status(400).json({ success: false, message: 'Cannot edit an order that is Confirmed, Completed, or Cancelled' });
+    }
+
+    const batch = await InventoryBatch.findById(order.inventoryBatch._id);
+    if (!batch) {
+      return res.status(404).json({ success: false, message: 'Inventory batch not found' });
+    }
+
+    // Restore previous quantity
+    batch.quantity += order.quantityOrdered;
+    // Check if enough stock for new quantity
+    if (batch.quantity < quantityOrdered) {
+      return res.status(400).json({ success: false, message: 'Insufficient stock in selected batch' });
+    }
+    // Deduct new quantity
+    batch.quantity -= quantityOrdered;
+    if (batch.quantity === 0) batch.status = 'Sold';
+    else if (batch.status === 'Sold') batch.status = 'Listed';
+    await batch.save();
+
+    // Update order
+    order.quantityOrdered = quantityOrdered;
+    order.totalPrice = order.product.pricePerUnit * quantityOrdered;
+    await order.save();
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete order (buyer: own, admin: any)
+// @route   DELETE /api/v1/orders/:id
+// @access  Private (Buyer own, Admin any)
+const deleteOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id).populate('inventoryBatch');
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    // Buyer can only delete own order
+    if (req.user.role === 'buyer' && order.buyer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this order' });
+    }
+    // Only allow deleting if order is not Confirmed/Completed
+    if (["Confirmed", "Completed"].includes(order.status)) {
+      return res.status(400).json({ success: false, message: 'Cannot delete an order that is Confirmed or Completed' });
+    }
+    // Restore quantity to batch
+    if (order.inventoryBatch) {
+      const batch = await InventoryBatch.findById(order.inventoryBatch._id);
+      if (batch) {
+        batch.quantity += order.quantityOrdered;
+        if (batch.status === 'Sold') batch.status = 'Listed';
+        await batch.save();
+      }
+    }
+    await order.deleteOne();
+    res.status(200).json({ success: true, message: 'Order deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getOrders, createOrder, updateOrderStatus, getOrder, editOrder, deleteOrder };

@@ -11,7 +11,45 @@ const BuyerDashboard = () => {
   const [activeTab, setActiveTab] = useState('orders');
   const [loading, setLoading] = useState(true);
   const [orderForm, setOrderForm] = useState({ product: '', inventoryBatch: '', quantityOrdered: '' });
+
   const [message, setMessage] = useState('');
+  // Edit/Delete Order Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editOrderId, setEditOrderId] = useState(null);
+  const [editQuantity, setEditQuantity] = useState(1);
+  // --- Edit/Delete Order Logic ---
+  const openEditModal = (order) => {
+    setEditOrderId(order._id);
+    setEditQuantity(order.quantityOrdered);
+    setShowEditModal(true);
+  };
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setEditOrderId(null);
+  };
+
+  const handleEditOrder = async (e) => {
+    e.preventDefault();
+    try {
+      await API.put(`/orders/${editOrderId}`, { quantityOrdered: Number(editQuantity) });
+      setMessage('✅ Order updated successfully!');
+      closeEditModal();
+      fetchData();
+    } catch (error) {
+      setMessage('❌ ' + (error.response?.data?.message || 'Error updating order'));
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to delete this order?')) return;
+    try {
+      await API.delete(`/orders/${orderId}`);
+      setMessage('✅ Order deleted successfully!');
+      fetchData();
+    } catch (error) {
+      setMessage('❌ ' + (error.response?.data?.message || 'Error deleting order'));
+    }
+  };
 
   useEffect(() => { fetchData(); }, []);
 
@@ -164,6 +202,7 @@ const BuyerDashboard = () => {
                     <th className="text-left px-4 py-3">Total</th>
                     <th className="text-left px-4 py-3">Date</th>
                     <th className="text-left px-4 py-3">Status</th>
+                    <th className="text-left px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -181,11 +220,44 @@ const BuyerDashboard = () => {
                           {order.status}
                         </span>
                       </td>
+                      <td className="px-4 py-3 flex gap-2">
+                        <button
+                          className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 transition"
+                          onClick={() => openEditModal(order)}
+                        >Edit</button>
+                        <button
+                          className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 transition"
+                          onClick={() => handleDeleteOrder(order._id)}
+                        >Delete</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+          </div>
+        )}
+
+        {/* Edit Order Modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-xs shadow-lg">
+              <h2 className="text-lg font-bold mb-2">Edit Order Quantity</h2>
+              <form onSubmit={handleEditOrder} className="space-y-3">
+                <input
+                  type="number"
+                  min={1}
+                  value={editQuantity}
+                  onChange={e => setEditQuantity(e.target.value)}
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+                <div className="flex gap-2 justify-end">
+                  <button type="button" onClick={closeEditModal} className="px-3 py-1 rounded bg-gray-200">Cancel</button>
+                  <button type="submit" className="px-3 py-1 rounded bg-primary text-white">Save</button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 

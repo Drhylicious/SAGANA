@@ -161,7 +161,7 @@ const AdminDashboard = () => {
                 {/* Stat Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
                   {[
-                    { label: 'Total Products', value: products.length, icon: '📦', color: 'from-green-400 to-green-600' },
+                    { label: 'Total Products', value: products.filter(p => p.isApproved).length, icon: '📦', color: 'from-green-400 to-green-600' },
                     { label: 'Pending Approval', value: pendingProducts, icon: '⏳', color: 'from-yellow-400 to-yellow-600' },
                     { label: 'Total Orders', value: orders.length, icon: '🧾', color: 'from-blue-400 to-blue-600' },
                     { label: 'Pending Orders', value: pendingOrders, icon: '🕐', color: 'from-orange-400 to-orange-600' },
@@ -223,7 +223,7 @@ const AdminDashboard = () => {
                       <th className="text-left px-6 py-3">Farmer</th>
                       <th className="text-left px-6 py-3">Price</th>
                       <th className="text-left px-6 py-3">Status</th>
-                      <th className="text-left px-6 py-3">Actions</th>
+                      <th className="text-left px-6 py-3">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -277,7 +277,7 @@ const AdminDashboard = () => {
                       <th className="text-left px-6 py-3">Qty</th>
                       <th className="text-left px-6 py-3">Total</th>
                       <th className="text-left px-6 py-3">Status</th>
-                      <th className="text-left px-6 py-3">Actions</th>
+
                     </tr>
                   </thead>
                   <tbody>
@@ -288,15 +288,10 @@ const AdminDashboard = () => {
                         <td className="px-6 py-4">{order.quantityOrdered} {order.product?.unit}</td>
                         <td className="px-6 py-4 font-semibold text-primary">₱{order.totalPrice}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
                           <select
                             value={order.status}
-                            onChange={(e) => handleOrderStatus(order._id, e.target.value)}
-                            className="border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            onChange={e => handleOrderStatus(order._id, e.target.value)}
+                            className="border rounded px-2 py-1 text-xs"
                           >
                             <option value="Pending">Pending</option>
                             <option value="Confirmed">Confirmed</option>
@@ -310,6 +305,7 @@ const AdminDashboard = () => {
                 </table>
               </div>
             )}
+
 
             {/* ── USERS TAB ── */}
             {activeTab === 'users' && (
