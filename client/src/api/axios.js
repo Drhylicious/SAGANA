@@ -1,7 +1,11 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  baseURL:
+    import.meta.env.VITE_API_URL ||
+    (window?.location?.hostname === 'localhost'
+      ? 'http://localhost:5000/api/v1'
+      : 'https://sagana.onrender.com/api/v1'),
 });
 
 API.interceptors.request.use((config) => {
