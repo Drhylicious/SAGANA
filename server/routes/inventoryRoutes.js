@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { getCropAnalytics } = require('../controllers/inventoryController');
 const {
   getInventory, getInventoryBatch,
   createInventoryBatch, updateInventoryBatch,

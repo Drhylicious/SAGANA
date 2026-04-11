@@ -1,7 +1,11 @@
+
+
 import { useState, useEffect, useRef } from 'react';
+
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import PageWrapper from '../components/PageWrapper';
+import AnalyticsLineChart from '../components/AnalyticsLineChart';
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -9,127 +13,101 @@ const FarmerDashboard = () => {
   const [inventory, setInventory] = useState([]);
   const [activeTab, setActiveTab] = useState('products');
   const [loading, setLoading] = useState(true);
-  const [productForm, setProductForm] = useState({
-    name: '', category: 'Vegetable', description: '', pricePerUnit: '', unit: ''
-  });
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const fileInputRef = useRef();
-  const [inventoryForm, setInventoryForm] = useState({
-    product: '', quantity: '', harvestDate: '', expiryDate: ''
-  });
   const [message, setMessage] = useState('');
+
+  // Add Product form state
+  const [productForm, setProductForm] = useState({
+    name: '',
+    category: 'Vegetable',
+    description: '',
+    pricePerUnit: '',
+    unit: ''
+  });
   const [editingProduct, setEditingProduct] = useState(null);
 
-  useEffect(() => { fetchData(); }, []);
+  // Image upload state
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [productsRes, inventoryRes] = await Promise.all([
-        API.get('/products/mine'),
-        API.get('/inventory')
-      ]);
-      setProducts(productsRes.data.data);
-      setInventory(inventoryRes.data.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Log Harvest form state
+  const [inventoryForm, setInventoryForm] = useState({
+    product: '',
+    quantity: '',
+    harvestDate: '',
+    expiryDate: ''
+  });
 
-
-  const handleCreateProduct = async (e) => {
-    e.preventDefault();
-    try {
-      const formData = new FormData();
-      formData.append('name', productForm.name);
-      formData.append('category', productForm.category);
-      formData.append('description', productForm.description);
-      formData.append('pricePerUnit', productForm.pricePerUnit);
-      formData.append('unit', productForm.unit);
-      if (imageFile) formData.append('image', imageFile);
-
-      if (editingProduct) {
-        // Update existing product
-        await API.put(`/products/${editingProduct._id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        setMessage('✅ Product updated!');
-        setEditingProduct(null);
-      } else {
-        // Create new product
-        if (!imageFile) {
-          setMessage('❌ Product image is required.');
-          return;
-        }
-        await API.post('/products', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        setMessage('✅ Product submitted for admin approval!');
-      }
-      setProductForm({ name: '', category: 'Vegetable', description: '', pricePerUnit: '', unit: '' });
-      setImageFile(null);
-      setImagePreview(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      fetchData();
-    } catch (error) {
-      setMessage('❌ ' + (error.response?.data?.message || 'Error creating/updating product'));
-    }
-  };
-
-  const handleEditProduct = (product) => {
-    setEditingProduct(product);
-    setProductForm({
-      name: product.name,
-      category: product.category,
-      description: product.description || '',
-      pricePerUnit: product.pricePerUnit,
-      unit: product.unit
-    });
-    setImageFile(null);
-    setImagePreview(product.image ? `${import.meta.env.VITE_API_URL?.replace('/api/v1','') || 'http://localhost:5000' }${product.image}` : null);
-    setActiveTab('add-product');
-    setMessage('');
-  };
-
-  const handleDeleteProduct = async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
-    try {
-      await API.delete(`/products/${productId}`);
-      setMessage('✅ Product deleted!');
-      fetchData();
-    } catch (error) {
-      setMessage('❌ ' + (error.response?.data?.message || 'Error deleting product'));
-    }
-  };
-
-  const handleCreateInventory = async (e) => {
-    e.preventDefault();
-    try {
-      await API.post('/inventory', inventoryForm);
-      setMessage('✅ Harvest batch logged successfully!');
-      setInventoryForm({ product: '', quantity: '', harvestDate: '', expiryDate: '' });
-      fetchData();
-    } catch (error) {
-      setMessage('❌ ' + (error.response?.data?.message || 'Error logging batch'));
-    }
-  };
-
-  const statusColors = {
-    Harvested: 'bg-green-100 text-green-700',
+  const statusStyles = {
     Stored: 'bg-blue-100 text-blue-700',
     Listed: 'bg-purple-100 text-purple-700',
     Sold: 'bg-gray-100 text-gray-700',
     Expired: 'bg-red-100 text-red-700',
   };
+  const statusColors = {
+    Stored: 'bg-blue-100 text-blue-700',
+    Listed: 'bg-purple-100 text-purple-700',
+    Sold: 'bg-gray-100 text-gray-700',
+    Expired: 'bg-red-100 text-red-700',
+    Harvested: 'bg-green-100 text-green-700',
+  };
+
+  // Predictive analytics state
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // Fetch only this farmer's products
+        const [productsRes, inventoryRes] = await Promise.all([
+          API.get('/products/mine'),
+          API.get('/inventory'),
+        ]);
+        // API returns { success, count, data }
+        setProducts(Array.isArray(productsRes.data?.data) ? productsRes.data.data : []);
+        setInventory(Array.isArray(inventoryRes.data?.data) ? inventoryRes.data.data : []);
+      } catch (error) {
+        setMessage('❌ Failed to load data');
+        setProducts([]);
+        setInventory([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Fetch predictive analytics when selectedProductId changes
+  useEffect(() => {
+    if (!selectedProductId) {
+      setAnalytics(null);
+      setAnalyticsError('');
+      return;
+    }
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+    API.get(`/inventory/analytics?product=${selectedProductId}`)
+      .then(res => {
+        setAnalytics(res.data?.data || null);
+        setAnalyticsError(res.data?.message || '');
+      })
+      .catch(() => {
+        setAnalytics(null);
+        setAnalyticsError('Failed to load analytics');
+      })
+      .finally(() => setAnalyticsLoading(false));
+  }, [selectedProductId]);
 
   if (loading) return <div className="text-center py-20 text-gray-400">Loading...</div>;
 
 
   // Quick stats
-  const myProducts = products.filter(p => p.farmer?._id === user?._id || p.farmer === user?._id);
+  // All products are already this farmer's
+  const myProducts = products;
   const approvedProducts = myProducts.filter(p => p.isApproved);
   const pendingProducts = myProducts.filter(p => !p.isApproved);
   const inventoryValue = inventory.reduce((sum, batch) => {
@@ -199,6 +177,39 @@ const FarmerDashboard = () => {
                 : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
+        </div>
+
+        {/* Predictive Analytics */}
+        <div className="bg-white rounded-xl shadow border p-6 mb-8">
+          <h2 className="text-lg font-bold mb-2 flex items-center gap-2">Predictive Analytics <span>📈</span></h2>
+          <div className="flex flex-col md:flex-row md:items-end gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">Select Product</label>
+              <select
+                className="border rounded-lg px-4 py-2 min-w-[200px]"
+                value={selectedProductId}
+                onChange={e => setSelectedProductId(e.target.value)}
+              >
+                <option value="">-- Choose a product --</option>
+                {approvedProducts.map(p => (
+                  <option key={p._id} value={p._id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {analyticsLoading && <div className="text-gray-400">Loading analytics...</div>}
+          {analyticsError && !analyticsLoading && <div className="text-red-500 text-sm">{analyticsError}</div>}
+          {analytics && (
+            <div>
+              <div className="mb-2 text-sm text-gray-600">
+                <span className="font-semibold">Product:</span> {analytics.product}<br />
+                <span className="font-semibold">Avg. Growth Duration:</span> {analytics.avgGrowthDuration ? `${analytics.avgGrowthDuration} days` : 'N/A'}<br />
+                <span className="font-semibold">Optimal Harvest Months:</span> {analytics.optimalHarvestMonths?.map(m => new Date(2000, m).toLocaleString('default', { month: 'short' })).join(', ') || 'N/A'}<br />
+                <span className="font-semibold">Optimal Planting Months:</span> {analytics.optimalPlantingMonths?.map(m => new Date(2000, m).toLocaleString('default', { month: 'short' })).join(', ') || 'N/A'}
+              </div>
+              <AnalyticsLineChart data={analytics.monthlyYields} />
+            </div>
+          )}
         </div>
 
         {/* My Products */}

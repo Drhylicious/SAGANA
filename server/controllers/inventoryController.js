@@ -1,3 +1,81 @@
+const Product = require('../models/Product');
+
+// @desc    Get crop analytics for predictive planting calendar
+// @route   GET /api/v1/inventory/analytics?product=<productId>
+// @access  Private (Farmer)
+const getCropAnalytics = async (req, res) => {
+  try {
+    const { product } = req.query;
+    if (!product) {
+      return res.status(400).json({ success: false, message: 'Product ID is required' });
+    }
+
+    // Only show batches for this farmer and product
+    const batches = await InventoryBatch.find({
+      product,
+      farmer: req.user._id,
+      status: { $in: ['Harvested', 'Stored', 'Listed', 'Sold'] }
+    });
+
+    if (!batches.length) {
+      return res.status(200).json({
+        success: true,
+        data: null,
+        message: 'No harvest data available for this crop.'
+      });
+    }
+
+    // Calculate growth durations using plantingDate (days between harvestDate and plantingDate)
+    const growthDurations = batches.map(b => {
+      const planted = b.plantingDate || new Date(b.harvestDate.getTime() - 90 * 24 * 60 * 60 * 1000); // default 90 days before harvest
+      return (new Date(b.harvestDate) - planted) / (1000 * 60 * 60 * 24);
+    }).filter(d => d > 0 && d < 365); // reasonable crop growth 1-365 days
+
+    const avgGrowthDuration = growthDurations.length
+      ? Math.round(growthDurations.reduce((a, b) => a + b, 0) / growthDurations.length)
+      : null;
+
+
+    // Group harvests by month
+    const monthlyYields = Array(12).fill(0);
+    batches.forEach(b => {
+      const month = new Date(b.harvestDate).getMonth();
+      monthlyYields[month] += b.quantity;
+    });
+
+    // Find optimal harvest window (months with highest yields)
+    const maxYield = Math.max(...monthlyYields);
+    const optimalHarvestMonths = monthlyYields
+      .map((val, idx) => (val === maxYield ? idx : null))
+      .filter(idx => idx !== null);
+
+    // Estimate optimal planting window (harvest month - avg growth duration)
+    let optimalPlantingMonths = [];
+    if (avgGrowthDuration !== null) {
+      optimalPlantingMonths = optimalHarvestMonths.map(hMonth => {
+        let pMonth = hMonth - Math.round(avgGrowthDuration / 30);
+        if (pMonth < 0) pMonth += 12;
+        return pMonth;
+      });
+    }
+
+    // Get product name
+    const prod = await Product.findById(product);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        product: prod ? prod.name : '',
+        avgGrowthDuration,
+        optimalHarvestMonths,
+        optimalPlantingMonths,
+        monthlyYields
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 const InventoryBatch = require('../models/InventoryBatch');
 
 // @desc    Get all inventory batches
@@ -135,4 +213,4 @@ const getAvailableBatches = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, getInventoryBatch, createInventoryBatch, updateInventoryBatch, deleteInventoryBatch, getAvailableBatches };
+module.exports = { getInventory, getInventoryBatch, createInventoryBatch, updateInventoryBatch, deleteInventoryBatch, getAvailableBatches, getCropAnalytics };

@@ -4,11 +4,13 @@ const inventoryBatchSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   farmer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   quantity: { type: Number, required: true, min: 0 },
+  plantingDate: { type: Date }, // Optional: estimated planting date for analytics
   harvestDate: { type: Date, required: true },
   expiryDate: { type: Date, required: true },
   status: { type: String, enum: ['Harvested', 'Stored', 'Listed', 'Sold', 'Expired'], default: 'Harvested' },
   batchCode: { type: String, unique: true }
 }, { timestamps: true });
+
 
 // Auto-generate batch code before saving
 inventoryBatchSchema.pre('save', async function() {
