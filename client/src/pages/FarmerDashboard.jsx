@@ -1,8 +1,313 @@
+
 import { useState, useEffect, useRef } from 'react';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import PageWrapper from '../components/PageWrapper';
+<<<<<<< HEAD
 import AnalyticsLineChart from '../components/AnalyticsLineChart';
+=======
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+
+const cropData = {
+  Pechay: {
+    plantingWindow: 'October – February',
+    growthDuration: '25–35 days',
+    harvestWindow: 'November – March',
+    description: 'Pechay thrives in cool, dry conditions. Best planted during the northeast monsoon season in Marinduque.',
+    yieldData: [
+      { month: 'Jan', score: 80 }, { month: 'Feb', score: 75 }, { month: 'Mar', score: 50 },
+      { month: 'Apr', score: 20 }, { month: 'May', score: 10 }, { month: 'Jun', score: 10 },
+      { month: 'Jul', score: 15 }, { month: 'Aug', score: 20 }, { month: 'Sep', score: 40 },
+      { month: 'Oct', score: 70 }, { month: 'Nov', score: 90 }, { month: 'Dec', score: 85 },
+    ]
+  },
+  Kamote: {
+    plantingWindow: 'May – July',
+    growthDuration: '3–5 months',
+    harvestWindow: 'August – December',
+    description: 'Sweet potato (Kamote) grows well in well-drained sandy loam soils. Common in upland areas of Boac.',
+    yieldData: [
+      { month: 'Jan', score: 30 }, { month: 'Feb', score: 25 }, { month: 'Mar', score: 35 },
+      { month: 'Apr', score: 50 }, { month: 'May', score: 85 }, { month: 'Jun', score: 90 },
+      { month: 'Jul', score: 88 }, { month: 'Aug', score: 80 }, { month: 'Sep', score: 75 },
+      { month: 'Oct', score: 60 }, { month: 'Nov', score: 40 }, { month: 'Dec', score: 35 },
+    ]
+  },
+  Saging: {
+    plantingWindow: 'March – May',
+    growthDuration: '9–12 months',
+    harvestWindow: 'December – May',
+    description: 'Banana (Saging na Saba) is a year-round crop. Best planted at the start of wet season in Marinduque.',
+    yieldData: [
+      { month: 'Jan', score: 70 }, { month: 'Feb', score: 65 }, { month: 'Mar', score: 90 },
+      { month: 'Apr', score: 88 }, { month: 'May', score: 85 }, { month: 'Jun', score: 70 },
+      { month: 'Jul', score: 60 }, { month: 'Aug', score: 55 }, { month: 'Sep', score: 50 },
+      { month: 'Oct', score: 55 }, { month: 'Nov', score: 60 }, { month: 'Dec', score: 68 },
+    ]
+  },
+  Kangkong: {
+    plantingWindow: 'Year-round',
+    growthDuration: '3–4 weeks',
+    harvestWindow: 'Year-round',
+    description: 'Water spinach (Kangkong) grows throughout the year but yields best during wet season in Marinduque.',
+    yieldData: [
+      { month: 'Jan', score: 60 }, { month: 'Feb', score: 58 }, { month: 'Mar', score: 62 },
+      { month: 'Apr', score: 65 }, { month: 'May', score: 70 }, { month: 'Jun', score: 85 },
+      { month: 'Jul', score: 90 }, { month: 'Aug', score: 88 }, { month: 'Sep', score: 82 },
+      { month: 'Oct', score: 70 }, { month: 'Nov', score: 65 }, { month: 'Dec', score: 62 },
+    ]
+  },
+  Ampalaya: {
+    plantingWindow: 'February – April',
+    growthDuration: '55–65 days',
+    harvestWindow: 'April – June',
+    description: 'Bitter gourd (Ampalaya) prefers warm weather. Grows well in Boac lowland areas during dry season.',
+    yieldData: [
+      { month: 'Jan', score: 40 }, { month: 'Feb', score: 80 }, { month: 'Mar', score: 90 },
+      { month: 'Apr', score: 88 }, { month: 'May', score: 75 }, { month: 'Jun', score: 50 },
+      { month: 'Jul', score: 30 }, { month: 'Aug', score: 25 }, { month: 'Sep', score: 28 },
+      { month: 'Oct', score: 32 }, { month: 'Nov', score: 38 }, { month: 'Dec', score: 42 },
+    ]
+  },
+  Luya: {
+    plantingWindow: 'April – June',
+    growthDuration: '8–10 months',
+    harvestWindow: 'December – February',
+    description: 'Ginger (Luya) is a high-value spice crop. Grown in well-drained upland soils of Marinduque.',
+    yieldData: [
+      { month: 'Jan', score: 55 }, { month: 'Feb', score: 45 }, { month: 'Mar', score: 50 },
+      { month: 'Apr', score: 88 }, { month: 'May', score: 90 }, { month: 'Jun', score: 85 },
+      { month: 'Jul', score: 70 }, { month: 'Aug', score: 65 }, { month: 'Sep', score: 60 },
+      { month: 'Oct', score: 58 }, { month: 'Nov', score: 60 }, { month: 'Dec', score: 75 },
+    ]
+  },
+};
+
+const AnalyticsTab = () => {
+  const [selectedCrop, setSelectedCrop] = useState('');
+  const [stats, setStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [availableCrops, setAvailableCrops] = useState([]);
+
+  // Fetch crop list on mount
+  useEffect(() => {
+    const fetchCrops = async () => {
+      try {
+        const { data } = await API.get('/inventory/my-crops');
+        setAvailableCrops(data.crops);
+        if (data.crops.length > 0) setSelectedCrop(data.crops[0]);
+      } catch (error) {
+        setAvailableCrops([]);
+      }
+    };
+    fetchCrops();
+  }, []);
+
+  // Fetch stats for selected crop
+  useEffect(() => {
+    if (!selectedCrop) return;
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      try {
+        const { data } = await API.get(`/inventory/my-crop-stats?crop=${encodeURIComponent(selectedCrop)}`);
+        setStats(data.data);
+      } catch (error) {
+        setStats(null);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+    fetchStats();
+  }, [selectedCrop]);
+
+  if (!availableCrops.length) return <div className="text-center py-10 text-gray-400">No harvest data available for analytics.</div>;
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-primary to-secondary text-white rounded-2xl p-6">
+        <h2 className="text-2xl font-bold mb-1">🌱 Marinduque Smart Planting Calendar</h2>
+        <p className="text-white/80 text-sm">Optimize your crop yields with data-driven predictive analytics based on Marinduque soil data, weather patterns, and historical climate conditions.</p>
+      </div>
+
+      {/* Real Stats from MongoDB */}
+      {!loadingStats && stats && (
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'Total Batches Logged', value: stats.totalBatches, icon: '📦', color: 'bg-green-50 border-green-200 text-primary' },
+            { label: 'Total Quantity Harvested', value: `${stats.totalQuantity} kg`, icon: '🌾', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+            { label: 'Active Batches', value: stats.activeBatches, icon: '✅', color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
+          ].map((stat) => (
+            <div key={stat.label} className={`rounded-2xl border p-4 ${stat.color}`}>
+              <div className="text-2xl mb-1">{stat.icon}</div>
+              <p className={`text-2xl font-bold`}>{stat.value}</p>
+              <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Crop Selector */}
+      <div className="bg-white rounded-2xl border shadow-sm p-6">
+        <label className="block text-sm font-bold text-gray-700 mb-3">Select Crop for Analytics</label>
+        <select
+          value={selectedCrop}
+          onChange={(e) => setSelectedCrop(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-gray-50 font-medium"
+        >
+          {availableCrops.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Real Harvest Data from MongoDB */}
+      {loadingStats ? (
+        <div className="text-center py-10 text-gray-400">Loading crop analytics...</div>
+      ) : stats ? (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Total Batches Logged', value: stats.totalBatches, icon: '📦', color: 'bg-green-50 border-green-200 text-primary' },
+              { label: 'Total Quantity Harvested', value: `${stats.totalQuantity} kg`, icon: '🌾', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+              { label: 'Active Batches', value: stats.activeBatches, icon: '✅', color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
+            ].map((stat) => (
+              <div key={stat.label} className={`rounded-2xl border p-4 ${stat.color}`}>
+                <div className="text-2xl mb-1">{stat.icon}</div>
+                <p className={`text-2xl font-bold`}>{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Harvest History Bar Chart */}
+          <div className="bg-white rounded-2xl border shadow-sm p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">📦 Actual Harvest History — {selectedCrop}</h3>
+            <p className="text-xs text-gray-400 mb-4">Real data from your logged inventory batches in SAGANA</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={stats.monthlyStats}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip
+                  formatter={(value) => [`${value} kg`, 'Quantity Harvested']}
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #e0e0e0' }}
+                />
+                <Bar dataKey="quantity" fill="#2E7D32" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Recent Batches from MongoDB */}
+          {stats.recentBatches?.length > 0 && (
+            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="p-5 border-b">
+                <h3 className="text-lg font-bold text-gray-800">🕐 Recent Harvest Batches</h3>
+                <p className="text-xs text-gray-400">Your 5 most recent inventory entries from SAGANA</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="text-left px-5 py-3">Batch Code</th>
+                    <th className="text-left px-5 py-3">Product</th>
+                    <th className="text-left px-5 py-3">Quantity</th>
+                    <th className="text-left px-5 py-3">Harvest Date</th>
+                    <th className="text-left px-5 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.recentBatches.map((batch) => (
+                    <tr key={batch._id} className="border-t hover:bg-gray-50">
+                      <td className="px-5 py-3 font-mono text-xs">{batch.batchCode}</td>
+                      <td className="px-5 py-3 font-medium">{batch.product?.name || '—'}</td>
+                      <td className="px-5 py-3">{batch.quantity} {batch.product?.unit}</td>
+                      <td className="px-5 py-3 text-gray-500">{new Date(batch.harvestDate).toLocaleDateString()}</td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          batch.status === 'Harvested' ? 'bg-green-100 text-green-700' :
+                          batch.status === 'Stored' ? 'bg-blue-100 text-blue-700' :
+                          batch.status === 'Sold' ? 'bg-gray-100 text-gray-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {batch.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="text-center py-10 text-gray-400">No analytics data for this crop.</div>
+      )}
+
+      {/* Real Harvest Data from MongoDB */}
+      {!loadingStats && stats && stats.monthlyStats && (
+        <div className="bg-white rounded-2xl border shadow-sm p-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-1">📦 Your Actual Harvest History</h3>
+          <p className="text-xs text-gray-400 mb-4">Real data from your logged inventory batches in SAGANA</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={stats.monthlyStats}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip
+                formatter={(value) => [`${value} kg`, 'Quantity Harvested']}
+                contentStyle={{ borderRadius: '8px', border: '1px solid #e0e0e0' }}
+              />
+              <Bar dataKey="quantity" fill="#2E7D32" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Recent Batches from MongoDB */}
+      {!loadingStats && stats && stats.recentBatches?.length > 0 && (
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+          <div className="p-5 border-b">
+            <h3 className="text-lg font-bold text-gray-800">🕐 Recent Harvest Batches</h3>
+            <p className="text-xs text-gray-400">Your 5 most recent inventory entries from SAGANA</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                <th className="text-left px-5 py-3">Batch Code</th>
+                <th className="text-left px-5 py-3">Product</th>
+                <th className="text-left px-5 py-3">Quantity</th>
+                <th className="text-left px-5 py-3">Harvest Date</th>
+                <th className="text-left px-5 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.recentBatches.map((batch) => (
+                <tr key={batch._id} className="border-t hover:bg-gray-50">
+                  <td className="px-5 py-3 font-mono text-xs">{batch.batchCode}</td>
+                  <td className="px-5 py-3 font-medium">{batch.product?.name || '—'}</td>
+                  <td className="px-5 py-3">{batch.quantity} {batch.product?.unit}</td>
+                  <td className="px-5 py-3 text-gray-500">{new Date(batch.harvestDate).toLocaleDateString()}</td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      batch.status === 'Harvested' ? 'bg-green-100 text-green-700' :
+                      batch.status === 'Stored' ? 'bg-blue-100 text-blue-700' :
+                      batch.status === 'Sold' ? 'bg-gray-100 text-gray-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {batch.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+    </div>
+  );
+};
+>>>>>>> b85416897c4bba118edc82815cc1e099f0d1b3a8
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -173,7 +478,18 @@ const FarmerDashboard = () => {
     return sum + (prod ? prod.pricePerUnit * batch.quantity : 0);
   }, 0);
 
+<<<<<<< HEAD
   if (loading) return <div className="text-center py-20 text-gray-400">Loading...</div>;
+=======
+  // Tab icons
+  const tabIcons = {
+    products: '🧺',
+    inventory: '📦',
+    'add-product': '➕',
+    'add-inventory': '🌱',
+    analytics: '📊',
+  };
+>>>>>>> b85416897c4bba118edc82815cc1e099f0d1b3a8
 
   return (
     <PageWrapper>
@@ -212,7 +528,11 @@ const FarmerDashboard = () => {
         )}
 
         {/* Tabs */}
+<<<<<<< HEAD
         <div className="flex gap-2 mb-6 flex-wrap">
+=======
+        <div className="flex gap-2 mb-6">
+>>>>>>> b85416897c4bba118edc82815cc1e099f0d1b3a8
           {['products', 'inventory', 'add-product', 'add-inventory', 'analytics'].map((tab) => (
             <button
               key={tab}
@@ -544,6 +864,10 @@ const FarmerDashboard = () => {
             </form>
           </div>
         )}
+
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && <AnalyticsTab />}
 
       </div>
     </PageWrapper>
