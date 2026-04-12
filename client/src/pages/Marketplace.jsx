@@ -34,7 +34,7 @@ const Marketplace = () => {
   const carouselSlides = [
     {
       title: 'Fresh from Local Farmers',
-      subtitle: 'Quality produce from Boac, Marinduque every day',
+      subtitle: 'Quality produce from Torrijos, Marinduque every day',
       className: 'from-green-700 to-green-500',
     },
     {

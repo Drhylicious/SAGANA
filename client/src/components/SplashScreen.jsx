@@ -26,7 +26,7 @@ const SplashScreen = ({ onComplete }) => {
         transition={{ delay: 0.6, duration: 0.6 }}
         className="text-gray-500 text-base mt-2 text-center px-8"
       >
-        Empowering the Cooperatives of Boac, Marinduque
+        Empowering the Payanas Cooperative
       </motion.p>
 
       {/* Loading bar */}
