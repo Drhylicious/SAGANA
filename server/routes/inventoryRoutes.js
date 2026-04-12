@@ -10,6 +10,10 @@ const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/roleMiddleware');
 
 
+
+// Predictive analytics for farmers
+router.get('/analytics', protect, authorize('farmer'), getCropAnalytics);
+
 // Allow anyone to fetch available batches for a product (public)
 router.get('/available', getAvailableBatches);
 

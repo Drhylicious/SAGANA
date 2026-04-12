@@ -1,3 +1,5 @@
+
+const InventoryBatch = require('../models/InventoryBatch');
 const Product = require('../models/Product');
 
 // @desc    Get crop analytics for predictive planting calendar
@@ -10,57 +12,83 @@ const getCropAnalytics = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Product ID is required' });
     }
 
-    // Only show batches for this farmer and product
-    const batches = await InventoryBatch.find({
-      product,
-      farmer: req.user._id,
-      status: { $in: ['Harvested', 'Stored', 'Listed', 'Sold'] }
-    });
+    const batches = await InventoryBatch.find({ product, farmer: req.user._id });
+    const prod = await Product.findById(product);
 
     if (!batches.length) {
       return res.status(200).json({
         success: true,
-        data: null,
-        message: 'No harvest data available for this crop.'
+        data: {
+          product: prod ? prod.name : '',
+          avgGrowthDuration: null,
+          optimalHarvestMonths: [],
+          optimalPlantingMonths: [],
+          monthlyYields: Array(12).fill(0),
+          predictiveScores: Array(12).fill(0)
+        },
+        message: 'No harvest data yet for this crop.'
       });
     }
 
-    // Calculate growth durations using plantingDate (days between harvestDate and plantingDate)
-    const growthDurations = batches.map(b => {
-      const planted = b.plantingDate || new Date(b.harvestDate.getTime() - 90 * 24 * 60 * 60 * 1000); // default 90 days before harvest
-      return (new Date(b.harvestDate) - planted) / (1000 * 60 * 60 * 24);
-    }).filter(d => d > 0 && d < 365); // reasonable crop growth 1-365 days
-
-    const avgGrowthDuration = growthDurations.length
-      ? Math.round(growthDurations.reduce((a, b) => a + b, 0) / growthDurations.length)
-      : null;
-
-
-    // Group harvests by month
+    // ── ACTUAL HARVEST DATA ────────────────────────────────
     const monthlyYields = Array(12).fill(0);
     batches.forEach(b => {
       const month = new Date(b.harvestDate).getMonth();
       monthlyYields[month] += b.quantity;
     });
 
-    // Find optimal harvest window (months with highest yields)
-    const maxYield = Math.max(...monthlyYields);
-    const optimalHarvestMonths = monthlyYields
-      .map((val, idx) => (val === maxYield ? idx : null))
-      .filter(idx => idx !== null);
+    // ── AVERAGE GROWTH DURATION ────────────────────────────
+    const growthDurations = batches.map(b => {
+      if (b.harvestDate && b.expiryDate) {
+        const diff = (new Date(b.expiryDate) - new Date(b.harvestDate)) / (1000 * 60 * 60 * 24);
+        return diff > 0 && diff < 365 ? diff : 90;
+      }
+      return 90;
+    });
+    const avgGrowthDuration = Math.round(
+      growthDurations.reduce((a, b) => a + b, 0) / growthDurations.length
+    );
 
-    // Estimate optimal planting window (harvest month - avg growth duration)
-    let optimalPlantingMonths = [];
-    if (avgGrowthDuration !== null) {
-      optimalPlantingMonths = optimalHarvestMonths.map(hMonth => {
-        let pMonth = hMonth - Math.round(avgGrowthDuration / 30);
-        if (pMonth < 0) pMonth += 12;
-        return pMonth;
+    // ── OPTIMAL WINDOWS ────────────────────────────────────
+    const sorted = monthlyYields
+      .map((val, idx) => ({ val, idx }))
+      .sort((a, b) => b.val - a.val);
+    const optimalHarvestMonths = sorted.slice(0, 3).filter(m => m.val > 0).map(m => m.idx);
+    const optimalPlantingMonths = optimalHarvestMonths.map(hMonth => {
+      let pMonth = hMonth - Math.round(avgGrowthDuration / 30);
+      if (pMonth < 0) pMonth += 12;
+      return pMonth;
+    });
+
+    // ── PREDICTIVE YIELD SCORE (0-100) ─────────────────────
+    // Step 1: Normalize actual yields to 0-100 base score
+    const maxYield = Math.max(...monthlyYields, 1);
+    const normalizedScores = monthlyYields.map(y => (y / maxYield) * 100);
+
+    // Step 2: Apply 3-month weighted moving average for smoothing
+    const smoothed = normalizedScores.map((score, i) => {
+      const prev = normalizedScores[(i - 1 + 12) % 12];
+      const next = normalizedScores[(i + 1) % 12];
+      return (prev * 0.25 + score * 0.5 + next * 0.25);
+    });
+
+    // Step 3: Boost months adjacent to peak harvest months
+    // (months before peak = good planting, months of peak = good harvest)
+    const boosted = smoothed.map((score, i) => {
+      const isNearPeak = optimalHarvestMonths.some(peak => {
+        const dist = Math.min(Math.abs(i - peak), 12 - Math.abs(i - peak));
+        return dist <= 1;
       });
-    }
+      return isNearPeak ? Math.min(score * 1.3, 100) : score;
+    });
 
-    // Get product name
-    const prod = await Product.findById(product);
+    // Step 4: Apply seasonal trend factor based on Marinduque climate
+    // Wet season (Jun-Oct) slightly reduces field work productivity
+    // Dry season (Nov-May) is generally better for most crops
+    const seasonalFactor = [1.05, 1.05, 1.05, 1.0, 1.0, 0.9, 0.85, 0.85, 0.9, 0.95, 1.0, 1.05];
+    const predictiveScores = boosted.map((score, i) =>
+      Math.min(Math.round(score * seasonalFactor[i]), 100)
+    );
 
     res.status(200).json({
       success: true,
@@ -69,14 +97,16 @@ const getCropAnalytics = async (req, res) => {
         avgGrowthDuration,
         optimalHarvestMonths,
         optimalPlantingMonths,
-        monthlyYields
+        monthlyYields,
+        predictiveScores  // ← NEW separate from monthlyYields
       }
     });
   } catch (error) {
+    console.error('getCropAnalytics error:', error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const InventoryBatch = require('../models/InventoryBatch');
+
 
 // @desc    Get all inventory batches
 // @route   GET /api/v1/inventory
