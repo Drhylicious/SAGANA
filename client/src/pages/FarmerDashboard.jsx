@@ -1,8 +1,8 @@
-
 import { useState, useEffect, useRef } from 'react';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import PageWrapper from '../components/PageWrapper';
+import AnalyticsLineChart from '../components/AnalyticsLineChart';
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -173,18 +173,7 @@ const FarmerDashboard = () => {
     return sum + (prod ? prod.pricePerUnit * batch.quantity : 0);
   }, 0);
 
-<<<<<<< HEAD
   if (loading) return <div className="text-center py-20 text-gray-400">Loading...</div>;
-=======
-  // Tab icons
-  const tabIcons = {
-    products: '🧺',
-    inventory: '📦',
-    'add-product': '➕',
-    'add-inventory': '🌱',
-    analytics: '📊',
-  };
->>>>>>> b85416897c4bba118edc82815cc1e099f0d1b3a8
 
   return (
     <PageWrapper>
@@ -223,11 +212,7 @@ const FarmerDashboard = () => {
         )}
 
         {/* Tabs */}
-<<<<<<< HEAD
         <div className="flex gap-2 mb-6 flex-wrap">
-=======
-        <div className="flex gap-2 mb-6">
->>>>>>> b85416897c4bba118edc82815cc1e099f0d1b3a8
           {['products', 'inventory', 'add-product', 'add-inventory', 'analytics'].map((tab) => (
             <button
               key={tab}
@@ -559,10 +544,6 @@ const FarmerDashboard = () => {
             </form>
           </div>
         )}
-
-
-        {/* Analytics Tab */}
-        {activeTab === 'analytics' && <AnalyticsTab />}
 
       </div>
     </PageWrapper>
