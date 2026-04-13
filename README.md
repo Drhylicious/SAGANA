@@ -1,5 +1,5 @@
 # 🌿 SAGANA
-### A Web-Based Integrated Agricultural Supply Chain, Inventory, and Digital Marketplace System for the Cooperatives of Boac, Marinduque
+### A Web-Based Integrated Agricultural Supply Chain, Inventory, and Digital Marketplace System for the Payanas Cooperative of Torrijos, Marinduque
 
 ![MERN Stack](https://img.shields.io/badge/Stack-MERN-2E7D32?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-Academic-blue?style=for-the-badge)
@@ -35,13 +35,14 @@
 
 ## 📋 About SAGANA
 
-SAGANA addresses the operational inefficiencies of agricultural cooperatives in Boac, Marinduque — where manual and paper-based systems for inventory tracking, supply chain management, and market transactions result in post-harvest losses, inaccurate records, and limited market access for farmers.
+SAGANA addresses the operational inefficiencies of the Payanas Cooperative of Torrijos, Marinduque — where manual and paper-based systems for inventory tracking, supply chain management, and market transactions result in post-harvest losses, inaccurate records, and limited market access for farmers.
 
 The system integrates:
 - 🏪 **Digital Marketplace** — SM Markets-inspired layout with search, category sidebar, and cart drawer
 - 📦 **Inventory Management** — batch-level harvest tracking with real-time stock status and expiry alerts
 - 🔗 **Supply Chain Tracker** — end-to-end traceability from harvest to sale
 - 🔐 **Role-Based Access Control** — Admin, Farmer, and Buyer roles with JWT authentication
+- 📊 **Predictive Analytics** — Real MongoDB data-driven planting calendar with yield score charts
 - 🎨 **Animated UI** — Framer Motion splash screen, page transitions, and smooth interactions
 
 ---
@@ -50,15 +51,18 @@ The system integrates:
 
 | # | Change | Description |
 |---|--------|-------------|
-| 1 | **Product Image Display** | Product images now shown in marketplace cards and cart, with emoji fallback |
-| 2 | **Stock Status Fix** | Out of Stock status accurately reflects real inventory for all users including guests |
-| 3 | **Public Inventory Endpoint** | `/inventory/available` is now public — anyone can check stock status |
-| 4 | **Farmer Dashboard Fix** | Farmer dashboard now shows both approved and pending products via `/products/mine` |
-| 5 | **New API Endpoints** | Added `/products/mine`, `/products/all`, `/inventory/available`, and `/auth/users` |
-| 6 | **New Categories** | Added Fresh Meat and Seafood as product categories |
-| 7 | **Admin Dashboard Redesign** | Sidebar navigation with Home, Products, Orders, Users, and Marketplace tabs |
-| 8 | **Marketplace Redesign** | SM Markets-inspired layout with sticky search, left category sidebar, and cart drawer |
-| 9 | **Splash Screen** | Animated SAGANA logo splash screen on first load using Framer Motion |
+| 1 | **Product Image Display** | Product images shown in marketplace cards and cart, with emoji fallback |
+| 2 | **Stock Status Fix** | Out of Stock status reflects real inventory for all users including guests |
+| 3 | **Public Inventory Endpoint** | `/inventory/available` is public — anyone can check stock status |
+| 4 | **Farmer Dashboard Fix** | Shows both approved and pending products via `/products/mine` |
+| 5 | **Buyer Order Management** | Buyers can now edit quantity and delete their own orders |
+| 6 | **Predictive Analytics** | Real MongoDB data powers the Marinduque Smart Planting Calendar |
+| 7 | **Dual Analytics Charts** | Predictive Yield Score (0–100 smoothed) vs Actual Harvest History (raw data) |
+| 8 | **New Categories** | Added Fresh Meat and Seafood as product categories |
+| 9 | **Admin Dashboard Redesign** | Sidebar navigation with Home, Products, Orders, Users tabs |
+| 10 | **Marketplace Redesign** | SM Markets-inspired layout with sticky search, left category sidebar, and cart |
+| 11 | **Splash Screen** | Animated SAGANA logo splash screen on first load using Framer Motion |
+| 12 | **Branding Update** | Updated to Payanas Cooperative of Torrijos, Marinduque (SP3) |
 
 ---
 
@@ -66,7 +70,7 @@ The system integrates:
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React.js (Vite) + Tailwind CSS + React Router + Framer Motion |
+| Frontend | React.js (Vite) + Tailwind CSS + React Router + Framer Motion + Recharts |
 | Backend | Node.js + Express.js |
 | Database | MongoDB Atlas + Mongoose |
 | Authentication | JWT + bcryptjs |
@@ -137,13 +141,13 @@ SAGANA/
 │   ├── src/
 │   │   ├── api/              # Axios config with JWT interceptor
 │   │   ├── assets/           # SAGANA logo and static assets
-│   │   ├── components/       # Navbar, ProductCard, ProtectedRoute, SplashScreen, PageWrapper
+│   │   ├── components/       # Navbar, ProductCard, ProtectedRoute, SplashScreen, PageWrapper, AnalyticsLineChart
 │   │   ├── context/          # AuthContext (JWT state management)
 │   │   └── pages/            # Login, Register, Marketplace, AdminDashboard, FarmerDashboard, BuyerDashboard
 │   └── ...
 └── server/                   # Node.js/Express backend
     ├── config/               # MongoDB Atlas connection
-    ├── controllers/          # auth, product, inventory, order controllers
+    ├── controllers/          # auth, product, inventory (+ analytics), order controllers
     ├── middleware/            # authMiddleware (JWT), roleMiddleware (RBAC)
     ├── models/               # User, Product, InventoryBatch, Order
     ├── routes/               # auth, product, inventory, order routes
@@ -178,6 +182,7 @@ SAGANA/
 |--------|----------|--------|-------------|
 | GET | /api/v1/inventory | Admin/Farmer | Get all inventory batches |
 | GET | /api/v1/inventory/available | **Public** | Get available stock for stock status display |
+| GET | /api/v1/inventory/analytics | Farmer | Get predictive analytics — returns `monthlyYields` and `predictiveScores` |
 | GET | /api/v1/inventory/:id | Admin/Farmer | Get a single batch |
 | POST | /api/v1/inventory | Farmer | Log a new harvest batch |
 | PUT | /api/v1/inventory/:id | Farmer/Admin | Update a batch |
@@ -189,7 +194,9 @@ SAGANA/
 | GET | /api/v1/orders | Admin/Buyer | Get orders |
 | GET | /api/v1/orders/:id | Admin/Buyer | Get single order |
 | POST | /api/v1/orders | Buyer | Place a new order |
+| PUT | /api/v1/orders/:id | Buyer | Edit own order quantity |
 | PUT | /api/v1/orders/:id/status | Admin | Update order status |
+| DELETE | /api/v1/orders/:id | Buyer | Delete own order (auto-syncs with Admin Dashboard) |
 
 ---
 
@@ -207,12 +214,23 @@ SAGANA/
 
 ---
 
+## 📊 Predictive Analytics (Option 2 — Real MongoDB Data)
+
+The Farmer Dashboard includes a **Marinduque Smart Planting Calendar** powered by real inventory data:
+
+- **Actual Harvest History** — real `quantity` per month from `InventoryBatch` collection
+- **Predictive Yield Score (0–100)** — smoothed projection with Marinduque seasonal climate adjustments
+- **Optimal Planting & Harvest Windows** — calculated from actual harvest patterns
+- **Predicted Growth Duration** — derived from harvest and expiry date records
+
+---
+
 ## 📄 Project Proposal
 
 The full project proposal document is available in the `/docs` folder.
 
-**Certifying Agency:** Municipal Agricultural Office (MAO), Boac, Marinduque  
-**Contact:** Ms. Ederlinda V. Jasmin, Municipal Agriculturist
+**Certifying Organization:** Samahan ng Pagkakaisa sa Pag-unlad ng Payanas (SP3) Agriculture Cooperative  
+**Location:** Torrijos, Marinduque
 
 ---
 
@@ -223,6 +241,7 @@ SAGANA contributes to:
 - 🌍 United Nations SDG 2 (Zero Hunger)
 - 📈 Improved farmer income through direct market access
 - 📦 Reduced post-harvest losses through digital inventory tracking
+- 🌾 Empowering the Payanas Cooperative of Torrijos, Marinduque
 
 ---
 
