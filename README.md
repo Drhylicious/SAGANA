@@ -30,6 +30,7 @@
 | ⚙️ Backend API | https://sagana.onrender.com |
 | 📁 GitHub Repository | https://github.com/Drhylicious/SAGANA |
 | 📄 API Documentation | Postman Collection (see /docs folder) |
+| 📄 SAGANA PDF | [View SAGANA PDF](SAGANA.pdf) |
 
 ---
 
