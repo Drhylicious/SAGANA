@@ -214,7 +214,7 @@ SAGANA/
 
 ---
 
-## 📊 Predictive Analytics (Option 2 — Real MongoDB Data)
+## 📊 Predictive Analytics
 
 The Farmer Dashboard includes a **Marinduque Smart Planting Calendar** powered by real inventory data:
 
