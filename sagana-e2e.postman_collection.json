@@ -1,0 +1,377 @@
+{
+  "info": {
+    "_postman_id": "e2e-sagana-journey-2026",
+    "name": "Sagana E2E Cooperative User Journey",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Automated E2E tests for Sagana cooperative platform. Validates full user journey and API integration."
+  },
+  "item": [
+    {
+      "name": "Register Admin",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const rand = Math.floor(Math.random() * 100000);",
+              "pm.collectionVariables.set('adminEmail', `admin${rand}@sagana.com`);"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"JWT token returned\", function () { pm.expect(pm.response.json().token).to.be.a('string'); });",
+              "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/auth/register", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "auth", "register" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Admin\",\n  \"role\": \"admin\",\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"adminpass\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Register Farmer",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const rand = Math.floor(Math.random() * 100000);",
+              "pm.collectionVariables.set('farmerEmail', `farmer${rand}@sagana.com`);"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"JWT token returned\", function () { pm.expect(pm.response.json().token).to.be.a('string'); });",
+              "pm.collectionVariables.set('farmerToken', pm.response.json().token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/auth/register", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "auth", "register" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Farmer\",\n  \"role\": \"farmer\",\n  \"email\": \"{{farmerEmail}}\",\n  \"password\": \"farmerpass\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Register Buyer",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const rand = Math.floor(Math.random() * 100000);",
+              "pm.collectionVariables.set('buyerEmail', `buyer${rand}@sagana.com`);"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"JWT token returned\", function () { pm.expect(pm.response.json().token).to.be.a('string'); });",
+              "pm.collectionVariables.set('buyerToken', pm.response.json().token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/auth/register", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "auth", "register" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Buyer\",\n  \"role\": \"buyer\",\n  \"email\": \"{{buyerEmail}}\",\n  \"password\": \"buyerpass\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Farmer Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "auth", "login" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"farmer@sagana.com\",\n  \"password\": \"farmerpass\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"JWT token returned\", function () { pm.expect(pm.response.json().token).to.be.a('string'); });",
+              "pm.collectionVariables.set('farmerToken', pm.response.json().token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+      ,
+      {
+        "name": "Farmer Creates Product",
+        "request": {
+          "method": "POST",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "Authorization", "value": "Bearer {{farmerToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/products", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "products" ] },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"name\": \"Test Product\",\n  \"category\": \"Vegetable\",\n  \"description\": \"Test Desc\",\n  \"pricePerUnit\": 100,\n  \"unit\": \"kg\"\n}"
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                "pm.test(\"isApproved is false\", function () { pm.expect(pm.response.json().data.isApproved).to.eql(false); });",
+                "pm.collectionVariables.set('productId', pm.response.json().data._id);"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Admin Approves Product",
+        "request": {
+          "method": "PUT",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/products/{{productId}}/approve", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "products", "{{productId}}", "approve" ] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                "pm.test(\"isApproved is true\", function () { pm.expect(pm.response.json().data.isApproved).to.eql(true); });"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Farmer Logs Harvest Batch",
+        "request": {
+          "method": "POST",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "Authorization", "value": "Bearer {{farmerToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/inventory", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "inventory" ] },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"product\": \"{{productId}}\",\n  \"quantity\": 50,\n  \"harvestDate\": \"2026-04-01\",\n  \"expiryDate\": \"2026-05-01\"\n}"
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                "pm.test(\"batchCode assigned\", function () { pm.expect(pm.response.json().data.batchCode).to.be.a('string'); });",
+                "pm.collectionVariables.set('batchId', pm.response.json().data._id);"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Buyer Views Marketplace",
+        "request": {
+          "method": "GET",
+          "header": [
+            { "key": "Authorization", "value": "Bearer {{buyerToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/products", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "products" ] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                "pm.test(\"Approved products returned\", function () { pm.expect(pm.response.json().data).to.be.an('array'); });"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Buyer Places Order",
+        "request": {
+          "method": "POST",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "Authorization", "value": "Bearer {{buyerToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/orders", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "orders" ] },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"product\": \"{{productId}}\",\n  \"inventoryBatch\": \"{{batchId}}\",\n  \"quantityOrdered\": 5\n}"
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                "pm.test(\"Order status is Pending\", function () { pm.expect(pm.response.json().data.status).to.eql('Pending'); });",
+                "pm.collectionVariables.set('orderId', pm.response.json().data._id);",
+                "console.log('Order create response:', JSON.stringify(pm.response.json()));"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Guest Checks Stock Status",
+        "request": {
+          "method": "GET",
+          "url": { "raw": "{{baseUrl}}/api/v1/inventory/available?product={{productId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "inventory", "available" ], "query": [ { "key": "product", "value": "{{productId}}" } ] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                "pm.test(\"Available batches returned\", function () { pm.expect(pm.response.json().data).to.be.an('array'); });"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Farmer Views Predictive Analytics",
+        "request": {
+          "method": "GET",
+          "header": [
+            { "key": "Authorization", "value": "Bearer {{farmerToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/inventory/analytics?product={{productId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "inventory", "analytics" ], "query": [ { "key": "product", "value": "{{productId}}" } ] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                "pm.test(\"monthlyYields and predictiveScores returned\", function () { var json = pm.response.json().data; pm.expect(json.monthlyYields).to.be.an('array'); pm.expect(json.predictiveScores).to.be.an('array'); });"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Buyer Edits Order Quantity",
+        "request": {
+          "method": "PUT",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "Authorization", "value": "Bearer {{buyerToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/orders/{{orderId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "orders", "{{orderId}}" ] },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"quantityOrdered\": 10\n}"
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                "pm.test(\"quantityOrdered and totalPrice updated\", function () { pm.expect(pm.response.json().data.quantityOrdered).to.eql(10); pm.expect(pm.response.json().data.totalPrice).to.be.a('number'); });"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Admin Confirms Order",
+        "request": {
+          "method": "PUT",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+          ],
+          "url": { "raw": "{{baseUrl}}/api/v1/orders/{{orderId}}/status", "host": [ "{{baseUrl}}" ], "path": [ "api", "v1", "orders", "{{orderId}}", "status" ] },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"status\": \"Confirmed\"\n}"
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                "pm.test(\"Order status is Confirmed\", function () { pm.expect(pm.response.json().data.status).to.eql('Confirmed'); });"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+        }
+      ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" }
+  ]
+}
