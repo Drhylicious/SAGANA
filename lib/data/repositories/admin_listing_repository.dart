@@ -57,6 +57,16 @@ class AdminListingModel {
   bool get needsChanges => status == 'changes_required';
   bool get isSold => status == 'sold';
 
+  /// Matches MarketplaceListingModel.displayName — crop + variety when present.
+  String get displayName => variety != null && variety!.isNotEmpty
+      ? '$cropName ($variety)'
+      : cropName;
+
+  /// The admin query orders by created_at (no submitted_at column in the
+  /// select). Exposing this as submittedAt keeps the screen compatible with
+  /// the same pattern used on MarketplaceListingModel (submittedAt ?? createdAt).
+  DateTime get submittedAt => createdAt;
+
   String get statusLabel {
     switch (status) {
       case 'pending_review':
@@ -106,18 +116,8 @@ class AdminListingModel {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays == 1) return 'Yesterday';
     const m = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${m[createdAt.month - 1]} ${createdAt.day}';
   }
@@ -186,16 +186,12 @@ class ListingSummaryStats {
 class AdminListingRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
-  // ── Fetch pending listings (for shell tab) ──────────────────────────────────
-
   Future<List<AdminListingModel>> fetchPendingListings() async {
     return _fetchListings(statusFilter: 'pending_review');
   }
 
-  // ── Fetch all listings with optional status filter ──────────────────────────
-
   Future<List<AdminListingModel>> fetchAllListings({
-    String? statusFilter, // null = all
+    String? statusFilter,
     String? searchQuery,
     String? cropFilter,
   }) async {
@@ -206,15 +202,17 @@ class AdminListingRepository {
     );
   }
 
-  // ── Shared fetch implementation ─────────────────────────────────────────────
+  Future<List<AdminListingModel>> fetchRecentListings({int limit = 5}) async {
+    return _fetchListings(limit: limit);
+  }
 
   Future<List<AdminListingModel>> _fetchListings({
     String? statusFilter,
     String? searchQuery,
     String? cropFilter,
+    int? limit,
   }) async {
     try {
-      // 1. Fetch listings
       var query = _client
           .from('marketplace_listings')
           .select(
@@ -229,7 +227,8 @@ class AdminListingRepository {
         query = query.ilike('crop_name', '%$cropFilter%');
       }
 
-      final rows = await query.order('created_at', ascending: false);
+      final ordered = query.order('created_at', ascending: false);
+      final rows = limit != null ? await ordered.limit(limit) : await ordered;
 
       if (rows.isEmpty) return [];
 
@@ -247,14 +246,12 @@ class AdminListingRepository {
           .toSet()
           .toList();
 
-      // 2. Farmer info
       final infoRows = await _client
           .from('user_information')
           .select('user_id, full_name, profile_photo_url')
           .inFilter('user_id', farmerIds);
       final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
-      // 3. Batch available stock
       final batchMap = <String, double>{};
       if (batchIds.isNotEmpty) {
         final batchRows = await _client
@@ -266,7 +263,6 @@ class AdminListingRepository {
         }
       }
 
-      // 4. Market reference prices (latest per crop)
       final priceMap = <String, double>{};
       try {
         final priceRows = await _client
@@ -280,7 +276,6 @@ class AdminListingRepository {
         }
       } catch (_) {}
 
-      // 5. Farmer listing history
       final historyRows = await _client
           .from('marketplace_listings')
           .select('farmer_id, status')
@@ -304,7 +299,6 @@ class AdminListingRepository {
         }
       }
 
-      // 6. Farmer outstanding loans
       final loanMap = <String, double>{};
       try {
         final loanRows = await _client
@@ -322,7 +316,6 @@ class AdminListingRepository {
         }
       } catch (_) {}
 
-      // 7. Assemble models
       var result = rows.map((r) {
         final fid = r['farmer_id'] as String;
         final info = infoMap[fid] ?? {};
@@ -345,7 +338,6 @@ class AdminListingRepository {
         });
       }).toList();
 
-      // Client-side search filter
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final q = searchQuery.toLowerCase();
         result = result
@@ -363,8 +355,6 @@ class AdminListingRepository {
       return [];
     }
   }
-
-  // ── Fetch summary stats ─────────────────────────────────────────────────────
 
   Future<ListingSummaryStats> fetchSummaryStats() async {
     try {
@@ -399,8 +389,6 @@ class AdminListingRepository {
     }
   }
 
-  // ── Status updates (admin actions) ─────────────────────────────────────────
-
   Future<void> approveListing(String listingId) async {
     await _client
         .from('marketplace_listings')
@@ -426,8 +414,6 @@ class AdminListingRepository {
         .eq('id', listingId);
   }
 
-  // ── Fetch single listing by ID (for ListingReviewScreen) ──────────────────
-
   Future<AdminListingModel?> fetchListingById(String listingId) async {
     try {
       final row = await _client
@@ -445,7 +431,6 @@ class AdminListingRepository {
       final cn = row['crop_name'] as String;
       final batchId = row['inventory_batch_id'] as String?;
 
-      // Farmer info
       String farmerName = 'Farmer';
       String? farmerPhoto;
       try {
@@ -458,7 +443,6 @@ class AdminListingRepository {
         farmerPhoto = info?['profile_photo_url'] as String?;
       } catch (_) {}
 
-      // Batch available stock
       double? batchAvailableKg;
       if (batchId != null) {
         try {
@@ -473,7 +457,6 @@ class AdminListingRepository {
         } catch (_) {}
       }
 
-      // Market reference price
       double? marketRefPrice;
       try {
         final priceRow = await _client
@@ -488,7 +471,6 @@ class AdminListingRepository {
             : null;
       } catch (_) {}
 
-      // Farmer submission history
       int totalSubs = 0, approved = 0, rejected = 0;
       try {
         final histRows = await _client
@@ -502,7 +484,6 @@ class AdminListingRepository {
         }
       } catch (_) {}
 
-      // Outstanding loan balance
       double outstandingLoan = 0;
       try {
         final loanRows = await _client

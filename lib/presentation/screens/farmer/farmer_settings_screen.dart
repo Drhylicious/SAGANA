@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -25,10 +24,10 @@ class FarmerSettingsScreen extends StatefulWidget {
 
 class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   final _settingsRepo = SettingsRepository();
-  final _profileRepo  = FarmerProfileRepository();
+  final _profileRepo = FarmerProfileRepository();
 
   SettingsPrefs? _prefs;
-  bool _isLoading    = true;
+  bool _isLoading = true;
   bool _isSigningOut = false;
 
   @override
@@ -68,12 +67,15 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               label: l10n.languageEnglish,
               selected: _prefs!.localeCode == AppConstants.localeEnglish,
               onTap: () async {
-                await AppSettingsService.instance
-                    .setLocale(const Locale(AppConstants.localeEnglish));
+                await AppSettingsService.instance.setLocale(
+                  const Locale(AppConstants.localeEnglish),
+                );
                 if (mounted) {
-                  setState(() => _prefs = _prefs!.copyWith(
-                        localeCode: AppConstants.localeEnglish,
-                      ));
+                  setState(
+                    () => _prefs = _prefs!.copyWith(
+                      localeCode: AppConstants.localeEnglish,
+                    ),
+                  );
                 }
                 if (ctx.mounted) ctx.popRoute();
               },
@@ -82,12 +84,15 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               label: l10n.languageTagalog,
               selected: _prefs!.localeCode == AppConstants.localeTagalog,
               onTap: () async {
-                await AppSettingsService.instance
-                    .setLocale(const Locale(AppConstants.localeTagalog));
+                await AppSettingsService.instance.setLocale(
+                  const Locale(AppConstants.localeTagalog),
+                );
                 if (mounted) {
-                  setState(() => _prefs = _prefs!.copyWith(
-                        localeCode: AppConstants.localeTagalog,
-                      ));
+                  setState(
+                    () => _prefs = _prefs!.copyWith(
+                      localeCode: AppConstants.localeTagalog,
+                    ),
+                  );
                 }
                 if (ctx.mounted) ctx.popRoute();
               },
@@ -113,8 +118,9 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               onTap: () async {
                 await AppSettingsService.instance.setThemeMode(ThemeMode.light);
                 if (mounted) {
-                  setState(() => _prefs =
-                      _prefs!.copyWith(themeMode: ThemeMode.light));
+                  setState(
+                    () => _prefs = _prefs!.copyWith(themeMode: ThemeMode.light),
+                  );
                 }
                 if (ctx.mounted) ctx.popRoute();
               },
@@ -125,8 +131,9 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               onTap: () async {
                 await AppSettingsService.instance.setThemeMode(ThemeMode.dark);
                 if (mounted) {
-                  setState(() => _prefs =
-                      _prefs!.copyWith(themeMode: ThemeMode.dark));
+                  setState(
+                    () => _prefs = _prefs!.copyWith(themeMode: ThemeMode.dark),
+                  );
                 }
                 if (ctx.mounted) ctx.popRoute();
               },
@@ -141,7 +148,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
     final prefs = await _settingsRepo.loadPrefs();
     if (!mounted) return;
     setState(() {
-      _prefs     = prefs;
+      _prefs = prefs;
       _isLoading = false;
     });
   }
@@ -153,7 +160,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   // ── Edit Profile ────────────────────────────────────────────────────────────
 
   void _showEditProfileSheet() {
-    final nameCtrl  = TextEditingController();
+    final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     String? selectedSitio;
     bool isSaving = false;
@@ -164,105 +171,114 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setModal) {
-          return _BottomSheet(
-            title: 'Edit Profile',
-            child: FutureBuilder<FarmerProfileModel?>(
-              future: loaded != null
-                  ? Future.value(loaded)
-                  : _profileRepo.fetchProfile(),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: CircularProgressIndicator(
-                          color: AppConstants.primaryGreen),
-                    ),
-                  );
-                }
-                final profile = snap.data;
-                loaded = profile;
-                if (nameCtrl.text.isEmpty && profile != null) {
-                  nameCtrl.text  = profile.fullName;
-                  phoneCtrl.text = profile.phoneNumber ?? '';
-                  selectedSitio  = profile.sitio;
-                }
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppTextField(
-                      controller: nameCtrl,
-                      label: 'Full Name',
-                      prefixIcon: Icons.person_outline_rounded,
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    const SizedBox(height: 14),
-                    AppTextField(
-                      controller: phoneCtrl,
-                      label: 'Phone Number',
-                      prefixIcon: Icons.phone_outlined,
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      value: AppConstants.payanasSitios
-                              .contains(selectedSitio)
-                          ? selectedSitio
-                          : null,
-                      decoration: InputDecoration(
-                        labelText: 'Sitio / Purok',
-                        prefixIcon: const Icon(Icons.location_on_outlined,
-                            size: 20, color: AppConstants.outline),
-                        labelStyle: GoogleFonts.inter(
-                            fontSize: 14, color: AppConstants.outline),
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return _BottomSheet(
+              title: 'Edit Profile',
+              child: FutureBuilder<FarmerProfileModel?>(
+                future: loaded != null
+                    ? Future.value(loaded)
+                    : _profileRepo.fetchProfile(),
+                builder: (ctx, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: CircularProgressIndicator(
+                          color: AppConstants.primaryGreen,
+                        ),
                       ),
-                      style: GoogleFonts.inter(
-                          fontSize: 14, color: AppConstants.onSurface),
-                      items: AppConstants.payanasSitios
-                          .map((s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(s),
-                              ))
-                          .toList(),
-                      onChanged: (v) =>
-                          setModal(() => selectedSitio = v),
-                    ),
-                    const SizedBox(height: 24),
-                    PrimaryButton(
-                      label: isSaving ? 'Saving...' : 'Save Changes',
-                      isLoading: isSaving,
-                      onPressed: isSaving
-                          ? null
-                          : () async {
-                              if (nameCtrl.text.trim().isEmpty) {
-                                _showSnack('Full name is required.');
-                                return;
-                              }
-                              setModal(() => isSaving = true);
-                              try {
-                                await _profileRepo.updateBasicInfo(
-                                  fullName:    nameCtrl.text.trim(),
-                                  phoneNumber: phoneCtrl.text.trim(),
-                                  sitio:       selectedSitio,
-                                );
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                _showSnack('Profile updated successfully.');
-                              } catch (_) {
-                                setModal(() => isSaving = false);
-                                _showSnack(
-                                    'Failed to save. Please try again.');
-                              }
-                            },
-                    ),
-                  ],
-                );
-              },
-            ),
-          );
-        });
+                    );
+                  }
+                  final profile = snap.data;
+                  loaded = profile;
+                  if (nameCtrl.text.isEmpty && profile != null) {
+                    nameCtrl.text = profile.fullName;
+                    phoneCtrl.text = profile.phoneNumber ?? '';
+                    selectedSitio = profile.sitio;
+                  }
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppTextField(
+                        controller: nameCtrl,
+                        label: 'Full Name',
+                        prefixIcon: Icons.person_outline_rounded,
+                        textCapitalization: TextCapitalization.words,
+                      ),
+                      const SizedBox(height: 14),
+                      AppTextField(
+                        controller: phoneCtrl,
+                        label: 'Phone Number',
+                        prefixIcon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            AppConstants.payanasSitios.contains(selectedSitio)
+                            ? selectedSitio
+                            : null,
+                        decoration: InputDecoration(
+                          labelText: 'Sitio / Purok',
+                          prefixIcon: const Icon(
+                            Icons.location_on_outlined,
+                            size: 20,
+                            color: AppConstants.outline,
+                          ),
+                          labelStyle: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: AppConstants.outline,
+                          ),
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppConstants.onSurface,
+                        ),
+                        items: AppConstants.payanasSitios
+                            .map(
+                              (s) => DropdownMenuItem(value: s, child: Text(s)),
+                            )
+                            .toList(),
+                        onChanged: (v) => setModal(() => selectedSitio = v),
+                      ),
+                      const SizedBox(height: 24),
+                      PrimaryButton(
+                        label: isSaving ? 'Saving...' : 'Save Changes',
+                        isLoading: isSaving,
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                if (nameCtrl.text.trim().isEmpty) {
+                                  _showSnack('Full name is required.');
+                                  return;
+                                }
+                                setModal(() => isSaving = true);
+                                try {
+                                  await _profileRepo.updateBasicInfo(
+                                    fullName: nameCtrl.text.trim(),
+                                    phoneNumber: phoneCtrl.text.trim(),
+                                    sitio: selectedSitio,
+                                  );
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  _showSnack('Profile updated successfully.');
+                                } catch (_) {
+                                  setModal(() => isSaving = false);
+                                  _showSnack(
+                                    'Failed to save. Please try again.',
+                                  );
+                                }
+                              },
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -271,7 +287,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
 
   void _showChangePasswordSheet() {
     final currentCtrl = TextEditingController();
-    final newCtrl     = TextEditingController();
+    final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
     bool isSaving = false;
     String? errorMsg;
@@ -281,128 +297,137 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setModal) {
-          return _BottomSheet(
-            title: 'Change Password',
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppTextField(
-                  controller: currentCtrl,
-                  label: 'Current Password',
-                  prefixIcon: Icons.lock_outline_rounded,
-                  isPassword: true,
-                ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: newCtrl,
-                  label: 'New Password',
-                  prefixIcon: Icons.lock_reset_rounded,
-                  isPassword: true,
-                ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: confirmCtrl,
-                  label: 'Confirm New Password',
-                  prefixIcon: Icons.lock_reset_rounded,
-                  isPassword: true,
-                ),
-                if (errorMsg != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppConstants.errorRed.withValues(alpha: 0.08),
-                      borderRadius:
-                          BorderRadius.circular(AppConstants.radiusMd),
-                      border: Border.all(
-                        color:
-                            AppConstants.errorRed.withValues(alpha: 0.20),
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return _BottomSheet(
+              title: 'Change Password',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppTextField(
+                    controller: currentCtrl,
+                    label: 'Current Password',
+                    prefixIcon: Icons.lock_outline_rounded,
+                    isPassword: true,
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: newCtrl,
+                    label: 'New Password',
+                    prefixIcon: Icons.lock_reset_rounded,
+                    isPassword: true,
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: confirmCtrl,
+                    label: 'Confirm New Password',
+                    prefixIcon: Icons.lock_reset_rounded,
+                    isPassword: true,
+                  ),
+                  if (errorMsg != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppConstants.errorRed.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
+                        border: Border.all(
+                          color: AppConstants.errorRed.withValues(alpha: 0.20),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error_outline_rounded,
-                            size: 16, color: AppConstants.errorRed),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            errorMsg!,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: AppConstants.errorRed,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            size: 16,
+                            color: AppConstants.errorRed,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              errorMsg!,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppConstants.errorRed,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Text(
+                    'Password must be at least 8 characters.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.outline,
                     ),
                   ),
-                ],
-                const SizedBox(height: 10),
-                Text(
-                  'Password must be at least 8 characters.',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppConstants.outline,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                PrimaryButton(
-                  label: isSaving ? 'Updating...' : 'Update Password',
-                  isLoading: isSaving,
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          final n = newCtrl.text.trim();
-                          final c = confirmCtrl.text.trim();
-                          if (currentCtrl.text.isEmpty ||
-                              n.isEmpty ||
-                              c.isEmpty) {
-                            setModal(() =>
-                                errorMsg = 'All fields are required.');
-                            return;
-                          }
-                          if (n.length < 8) {
-                            setModal(() => errorMsg =
-                                'Password must be at least 8 characters.');
-                            return;
-                          }
-                          if (n != c) {
-                            setModal(() =>
-                                errorMsg = 'Passwords do not match.');
-                            return;
-                          }
-                          setModal(() {
-                            isSaving  = true;
-                            errorMsg  = null;
-                          });
-                          try {
-                            await _settingsRepo.changePassword(
-                              currentPassword: currentCtrl.text,
-                              newPassword: n,
-                            );
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            _showSnack(
-                                'Password updated. Please log in again.');
-                            await Future.delayed(
-                                const Duration(seconds: 2));
-                            await AuthService.logout();
-                            if (mounted) {
-                              GoRouter.of(context).go(AppRoutes.login);
+                  const SizedBox(height: 20),
+                  PrimaryButton(
+                    label: isSaving ? 'Updating...' : 'Update Password',
+                    isLoading: isSaving,
+                    onPressed: isSaving
+                        ? null
+                        : () async {
+                            final n = newCtrl.text.trim();
+                            final c = confirmCtrl.text.trim();
+                            if (currentCtrl.text.isEmpty ||
+                                n.isEmpty ||
+                                c.isEmpty) {
+                              setModal(
+                                () => errorMsg = 'All fields are required.',
+                              );
+                              return;
                             }
-                          } catch (e) {
+                            if (n.length < 8) {
+                              setModal(
+                                () => errorMsg =
+                                    'Password must be at least 8 characters.',
+                              );
+                              return;
+                            }
+                            if (n != c) {
+                              setModal(
+                                () => errorMsg = 'Passwords do not match.',
+                              );
+                              return;
+                            }
                             setModal(() {
-                              isSaving = false;
-                              errorMsg = AuthService.parseAuthError(e);
+                              isSaving = true;
+                              errorMsg = null;
                             });
-                          }
-                        },
-                ),
-              ],
-            ),
-          );
-        });
+                            try {
+                              await _settingsRepo.changePassword(
+                                currentPassword: currentCtrl.text,
+                                newPassword: n,
+                              );
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              _showSnack(
+                                'Password updated. Please log in again.',
+                              );
+                              await Future.delayed(const Duration(seconds: 2));
+                              await AuthService.logout();
+                              if (mounted) {
+                                GoRouter.of(context).go(AppRoutes.login);
+                              }
+                            } catch (e) {
+                              setModal(() {
+                                isSaving = false;
+                                errorMsg = AuthService.parseAuthError(e);
+                              });
+                            }
+                          },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -416,21 +441,28 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text('Clear Cached Data?',
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface)),
+        title: Text(
+          'Clear Cached Data?',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: AppConstants.onSurface,
+          ),
+        ),
         content: Text(
           'This removes locally cached price and market data. '
           'Your harvest records, inventory, and expenses are not affected.',
           style: GoogleFonts.inter(
-              fontSize: 13, color: AppConstants.onSurfaceVariant),
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -438,8 +470,10 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               await _settingsRepo.clearCachedData();
               _showSnack('Cached data cleared.');
             },
-            child: Text('Clear',
-                style: GoogleFonts.poppins(color: AppConstants.errorRed)),
+            child: Text(
+              'Clear',
+              style: GoogleFonts.poppins(color: AppConstants.errorRed),
+            ),
           ),
         ],
       ),
@@ -455,21 +489,28 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text('Sign Out?',
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface)),
+        title: Text(
+          'Sign Out?',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: AppConstants.onSurface,
+          ),
+        ),
         content: Text(
           'You will be signed out of SAGANA. '
           'Offline records will remain on this device.',
           style: GoogleFonts.inter(
-              fontSize: 13, color: AppConstants.onSurfaceVariant),
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -480,9 +521,10 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                 GoRouter.of(context).go(AppRoutes.login);
               }
             },
-            child: Text('Sign Out',
-                style:
-                    GoogleFonts.poppins(color: AppConstants.errorRed)),
+            child: Text(
+              'Sign Out',
+              style: GoogleFonts.poppins(color: AppConstants.errorRed),
+            ),
           ),
         ],
       ),
@@ -498,24 +540,31 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text(title,
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: AppConstants.onSurface)),
+        title: Text(
+          title,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            color: AppConstants.onSurface,
+          ),
+        ),
         content: SingleChildScrollView(
-          child: Text(content,
-              style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: AppConstants.onSurfaceVariant,
-                  height: 1.5)),
+          child: Text(
+            content,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppConstants.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Close',
-                style:
-                    GoogleFonts.poppins(color: AppConstants.primaryGreen)),
+            child: Text(
+              'Close',
+              style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+            ),
           ),
         ],
       ),
@@ -530,7 +579,8 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
         backgroundColor: AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
       ),
     );
   }
@@ -538,14 +588,15 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final sagana = Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
+    final sagana =
+        Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
 
     if (_isLoading || _isSigningOut) {
       return Scaffold(
         backgroundColor: sagana.scaffoldBackground,
         body: const Center(
-            child: CircularProgressIndicator(
-                color: AppConstants.primaryGreen)),
+          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+        ),
       );
     }
 
@@ -562,271 +613,315 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 60),
                   children: [
-
                     // ── Account ───────────────────────────────────────────
                     _SectionLabel(label: l10n.sectionAccount),
-                    _SettingsCard(children: [
-                      _SettingsRow(
-                        icon: Icons.person_outline_rounded,
-                        iconColor: AppConstants.primaryGreen,
-                        title: l10n.editProfile,
-                        subtitle: l10n.editProfileSubtitle,
-                        onTap: _showEditProfileSheet,
-                      ),
-                      _Divider(),
-                      _SettingsRow(
-                        icon: Icons.agriculture_rounded,
-                        iconColor: AppConstants.tertiaryContainer,
-                        title: l10n.editFarmDetails,
-                        subtitle: l10n.editFarmDetailsSubtitle,
-                        onTap: () => context.pushRoute(AppRoutes.editFarmDetails),
-                      ),
-                      _Divider(),
-                      _SettingsRow(
-                        icon: Icons.lock_outline_rounded,
-                        iconColor: AppConstants.amber,
-                        title: l10n.changePassword,
-                        subtitle: l10n.changePasswordSubtitle,
-                        onTap: _showChangePasswordSheet,
-                      ),
-                    ]),
+                    _SettingsCard(
+                      children: [
+                        _SettingsRow(
+                          icon: Icons.person_outline_rounded,
+                          iconColor: AppConstants.primaryGreen,
+                          title: l10n.editProfile,
+                          subtitle: l10n.editProfileSubtitle,
+                          onTap: _showEditProfileSheet,
+                        ),
+                        _Divider(),
+                        _SettingsRow(
+                          icon: Icons.agriculture_rounded,
+                          iconColor: AppConstants.tertiaryContainer,
+                          title: l10n.editFarmDetails,
+                          subtitle: l10n.editFarmDetailsSubtitle,
+                          onTap: () =>
+                              context.pushRoute(AppRoutes.editFarmDetails),
+                        ),
+                        _Divider(),
+                        _SettingsRow(
+                          icon: Icons.lock_outline_rounded,
+                          iconColor: AppConstants.amber,
+                          title: l10n.changePassword,
+                          subtitle: l10n.changePasswordSubtitle,
+                          onTap: _showChangePasswordSheet,
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 20),
 
                     _SectionLabel(label: l10n.sectionNotifications),
-                    _SettingsCard(children: [
-                      _ToggleRow(
-                        title: l10n.notifNewOrder,
-                        value: prefs.notifOrders,
-                        onChanged: (v) {
-                          setState(() => _prefs = prefs.copyWith(notifOrders: v));
-                          _toggle(NotifPrefKey.orders, v);
-                        },
-                      ),
-                      _Divider(),
-                      _ToggleRow(
-                        title: l10n.notifListingApproved,
-                        value: prefs.notifListingApproved,
-                        onChanged: (v) {
-                          setState(
-                              () => _prefs = prefs.copyWith(notifListingApproved: v));
-                          _toggle(NotifPrefKey.listingApproved, v);
-                        },
-                      ),
-                      _Divider(),
-                      _ToggleRow(
-                        title: l10n.notifListingChanges,
-                        value: prefs.notifListingChanges,
-                        onChanged: (v) {
-                          setState(
-                              () => _prefs = prefs.copyWith(notifListingChanges: v));
-                          _toggle(NotifPrefKey.listingChanges, v);
-                        },
-                      ),
-                      _Divider(),
-                      _ToggleRow(
-                        title: l10n.notifLoanReminder,
-                        value: prefs.notifLoanReminder,
-                        onChanged: (v) {
-                          setState(
-                              () => _prefs = prefs.copyWith(notifLoanReminder: v));
-                          _toggle(NotifPrefKey.loanReminder, v);
-                        },
-                      ),
-                      _Divider(),
-                      _ToggleRow(
-                        title: l10n.notifPriceUpdates,
-                        value: prefs.notifPriceUpdates,
-                        onChanged: (v) {
-                          setState(
-                              () => _prefs = prefs.copyWith(notifPriceUpdates: v));
-                          _toggle(NotifPrefKey.priceUpdates, v);
-                        },
-                      ),
-                      _Divider(),
-                      _ToggleRow(
-                        title: l10n.notifSyncCompleted,
-                        value: prefs.notifSyncCompleted,
-                        onChanged: (v) {
-                          setState(
-                              () => _prefs = prefs.copyWith(notifSyncCompleted: v));
-                          _toggle(NotifPrefKey.syncCompleted, v);
-                        },
-                      ),
-                    ]),
+                    _SettingsCard(
+                      children: [
+                        _ToggleRow(
+                          title: l10n.notifNewOrder,
+                          value: prefs.notifOrders,
+                          onChanged: (v) {
+                            setState(
+                              () => _prefs = prefs.copyWith(notifOrders: v),
+                            );
+                            _toggle(NotifPrefKey.orders, v);
+                          },
+                        ),
+                        _Divider(),
+                        _ToggleRow(
+                          title: l10n.notifListingApproved,
+                          value: prefs.notifListingApproved,
+                          onChanged: (v) {
+                            setState(
+                              () => _prefs = prefs.copyWith(
+                                notifListingApproved: v,
+                              ),
+                            );
+                            _toggle(NotifPrefKey.listingApproved, v);
+                          },
+                        ),
+                        _Divider(),
+                        _ToggleRow(
+                          title: l10n.notifListingChanges,
+                          value: prefs.notifListingChanges,
+                          onChanged: (v) {
+                            setState(
+                              () => _prefs = prefs.copyWith(
+                                notifListingChanges: v,
+                              ),
+                            );
+                            _toggle(NotifPrefKey.listingChanges, v);
+                          },
+                        ),
+                        _Divider(),
+                        _ToggleRow(
+                          title: l10n.notifLoanReminder,
+                          value: prefs.notifLoanReminder,
+                          onChanged: (v) {
+                            setState(
+                              () =>
+                                  _prefs = prefs.copyWith(notifLoanReminder: v),
+                            );
+                            _toggle(NotifPrefKey.loanReminder, v);
+                          },
+                        ),
+                        _Divider(),
+                        _ToggleRow(
+                          title: l10n.notifPriceUpdates,
+                          value: prefs.notifPriceUpdates,
+                          onChanged: (v) {
+                            setState(
+                              () =>
+                                  _prefs = prefs.copyWith(notifPriceUpdates: v),
+                            );
+                            _toggle(NotifPrefKey.priceUpdates, v);
+                          },
+                        ),
+                        _Divider(),
+                        _ToggleRow(
+                          title: l10n.notifSyncCompleted,
+                          value: prefs.notifSyncCompleted,
+                          onChanged: (v) {
+                            setState(
+                              () => _prefs = prefs.copyWith(
+                                notifSyncCompleted: v,
+                              ),
+                            );
+                            _toggle(NotifPrefKey.syncCompleted, v);
+                          },
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 20),
 
                     _SectionLabel(label: l10n.sectionAppPreferences),
-                    _SettingsCard(children: [
-                      _SettingsRow(
-                        icon: Icons.language_rounded,
-                        iconColor: AppConstants.buyerBlue,
-                        title: l10n.language,
-                        subtitle: _languageLabel(l10n),
-                        onTap: _showLanguagePicker,
-                      ),
-                      _Divider(),
-                      _SettingsRow(
-                        icon: Icons.dark_mode_outlined,
-                        iconColor: AppConstants.primaryGreen,
-                        title: l10n.appearance,
-                        subtitle: _themeLabel(l10n),
-                        onTap: _showThemePicker,
-                      ),
-                      _Divider(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(l10n.backgroundSync,
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface)),
-                                Switch(
-                                  value: prefs.backgroundSync,
-                                  onChanged: (v) {
-                                    setState(() => _prefs =
-                                        prefs.copyWith(backgroundSync: v));
-                                    _toggle(
-                                        AppConstants.hiveKeyBackgroundSync, v);
-                                  },
-                                  activeThumbColor: Colors.white,
-                                  activeTrackColor: AppConstants.primaryGreen,
-                                ),
-                              ],
-                            ),
-                            Text(
-                              l10n.backgroundSyncDescription,
-                              style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                  height: 1.4),
-                            ),
-                          ],
+                    _SettingsCard(
+                      children: [
+                        _SettingsRow(
+                          icon: Icons.language_rounded,
+                          iconColor: AppConstants.buyerBlue,
+                          title: l10n.language,
+                          subtitle: _languageLabel(l10n),
+                          onTap: _showLanguagePicker,
                         ),
-                      ),
-                      _Divider(),
-                      // Clear Cached Data
-                      InkWell(
-                        onTap: _showClearCacheDialog,
-                        borderRadius:
-                            BorderRadius.circular(AppConstants.radiusLg),
-                        child: Padding(
+                        _Divider(),
+                        _SettingsRow(
+                          icon: Icons.dark_mode_outlined,
+                          iconColor: AppConstants.primaryGreen,
+                          title: l10n.appearance,
+                          subtitle: _themeLabel(l10n),
+                          onTap: _showThemePicker,
+                        ),
+                        _Divider(),
+                        Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Clear Cached Data',
-                                  style: GoogleFonts.poppins(
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    l10n.backgroundSync,
+                                    style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
-                                      color: AppConstants.errorRed)),
-                              const SizedBox(height: 2),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: prefs.backgroundSync,
+                                    onChanged: (v) {
+                                      setState(
+                                        () => _prefs = prefs.copyWith(
+                                          backgroundSync: v,
+                                        ),
+                                      );
+                                      _toggle(
+                                        AppConstants.hiveKeyBackgroundSync,
+                                        v,
+                                      );
+                                    },
+                                    activeThumbColor: Colors.white,
+                                    activeTrackColor: AppConstants.primaryGreen,
+                                  ),
+                                ],
+                              ),
                               Text(
-                                'Removes locally cached price and market data. '
-                                'Your harvest and inventory records are not affected.',
+                                l10n.backgroundSyncDescription,
                                 style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: AppConstants.onSurfaceVariant,
-                                    height: 1.4),
+                                  fontSize: 11,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                  height: 1.4,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ]),
+                        _Divider(),
+                        // Clear Cached Data
+                        InkWell(
+                          onTap: _showClearCacheDialog,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusLg,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Clear Cached Data',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppConstants.errorRed,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Removes locally cached price and market data. '
+                                  'Your harvest and inventory records are not affected.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: AppConstants.onSurfaceVariant,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 20),
 
                     // ── Data Export ───────────────────────────────────────
-                    _SectionLabel(label: 'Data Export'),
-                    _SettingsCard(children: [
-                      _SettingsRow(
-                        icon: Icons.download_rounded,
-                        iconColor: AppConstants.primaryGreen,
-                        title: 'Download My Records',
-                        subtitle:
-                            'Export your harvest, expense, and sales data',
-                        trailingIcon: Icons.download_rounded,
-                        onTap: () => _showSnack(
-                            'Export feature coming soon. Contact SP3 Admin for records.'),
-                      ),
-                    ]),
+                    const _SectionLabel(label: 'Data Export'),
+                    _SettingsCard(
+                      children: [
+                        _SettingsRow(
+                          icon: Icons.download_rounded,
+                          iconColor: AppConstants.primaryGreen,
+                          title: 'Download My Records',
+                          subtitle:
+                              'Export your harvest, expense, and sales data',
+                          trailingIcon: Icons.download_rounded,
+                          onTap: () => _showSnack(
+                            'Export feature coming soon. Contact SP3 Admin for records.',
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 20),
 
                     // ── Support & Info ────────────────────────────────────
-                    _SectionLabel(label: 'Support & Info'),
-                    _SettingsCard(children: [
-                      _SettingsRow(
-                        icon: Icons.info_outline_rounded,
-                        iconColor: AppConstants.primaryGreen,
-                        title: 'About SAGANA',
-                        onTap: () => _showInfoDialog(
-                          'About SAGANA',
-                          'SAGANA — Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics\n\n'
-                              'Version 1.0.0\n\n'
-                              'Developed by Marinduque State University — BSIT\n'
-                              'Partner: SP3 Agriculture Cooperative\n'
-                              'Barangay Payanas, Torrijos, Marinduque\n\n'
-                              'SAGANA is a capstone project designed to empower SP3 cooperative farmers through digital record-keeping, direct market access, and data-driven planting insights.',
+                    const _SectionLabel(label: 'Support & Info'),
+                    _SettingsCard(
+                      children: [
+                        _SettingsRow(
+                          icon: Icons.info_outline_rounded,
+                          iconColor: AppConstants.primaryGreen,
+                          title: 'About SAGANA',
+                          onTap: () => _showInfoDialog(
+                            'About SAGANA',
+                            'SAGANA — Streamlined Agricultural Gateway for Agribusiness, Networking, and Analytics\n\n'
+                                'Version 1.0.0\n\n'
+                                'Developed by Marinduque State University — BSIT\n'
+                                'Partner: SP3 Agriculture Cooperative\n'
+                                'Barangay Payanas, Torrijos, Marinduque\n\n'
+                                'SAGANA is a capstone project designed to empower SP3 cooperative farmers through digital record-keeping, direct market access, and data-driven planting insights.',
+                          ),
                         ),
-                      ),
-                      _Divider(),
-                      _SettingsRow(
-                        icon: Icons.support_agent_rounded,
-                        iconColor: AppConstants.tertiaryContainer,
-                        title: 'Contact SP3 Cooperative',
-                        onTap: () => _showInfoDialog(
-                          'Contact SP3 Cooperative',
-                          'Samahan ng Pagkakaisa sa Pag-unlad ng Payanas\n'
-                              'SP3 Agriculture Cooperative\n\n'
-                              'Address:\nBarangay Payanas, Torrijos, Marinduque\n\n'
-                              'For concerns about your account, loans, marketplace listings, or cooperative services, please visit the cooperative office or contact your BOD representative.\n\n'
-                              'CDA Registration No.: 9520-1040000000036899\n'
-                              'Registered: February 1, 2017',
+                        _Divider(),
+                        _SettingsRow(
+                          icon: Icons.support_agent_rounded,
+                          iconColor: AppConstants.tertiaryContainer,
+                          title: 'Contact SP3 Cooperative',
+                          onTap: () => _showInfoDialog(
+                            'Contact SP3 Cooperative',
+                            'Samahan ng Pagkakaisa sa Pag-unlad ng Payanas\n'
+                                'SP3 Agriculture Cooperative\n\n'
+                                'Address:\nBarangay Payanas, Torrijos, Marinduque\n\n'
+                                'For concerns about your account, loans, marketplace listings, or cooperative services, please visit the cooperative office or contact your BOD representative.\n\n'
+                                'CDA Registration No.: 9520-1040000000036899\n'
+                                'Registered: February 1, 2017',
+                          ),
                         ),
-                      ),
-                      _Divider(),
-                      _SettingsRow(
-                        icon: Icons.privacy_tip_outlined,
-                        iconColor: AppConstants.amber,
-                        title: 'Privacy Policy',
-                        onTap: () => _showInfoDialog(
-                          'Privacy Policy',
-                          'SAGANA collects personal information such as your name, contact number, farm details, and agricultural records solely for the purpose of managing cooperative operations within the SP3 Agriculture Cooperative.\n\n'
-                              'Your data is stored securely in Supabase (PostgreSQL) and is accessible only to authorized cooperative staff and your own account.\n\n'
-                              'We do not share your personal data with third parties outside the cooperative without your consent.\n\n'
-                              'Offline data is stored locally on your device and synchronized to the cooperative database when internet connectivity is restored.\n\n'
-                              'For data-related concerns, contact SP3 cooperative management.',
+                        _Divider(),
+                        _SettingsRow(
+                          icon: Icons.privacy_tip_outlined,
+                          iconColor: AppConstants.amber,
+                          title: 'Privacy Policy',
+                          onTap: () => _showInfoDialog(
+                            'Privacy Policy',
+                            'SAGANA collects personal information such as your name, contact number, farm details, and agricultural records solely for the purpose of managing cooperative operations within the SP3 Agriculture Cooperative.\n\n'
+                                'Your data is stored securely in Supabase (PostgreSQL) and is accessible only to authorized cooperative staff and your own account.\n\n'
+                                'We do not share your personal data with third parties outside the cooperative without your consent.\n\n'
+                                'Offline data is stored locally on your device and synchronized to the cooperative database when internet connectivity is restored.\n\n'
+                                'For data-related concerns, contact SP3 cooperative management.',
+                          ),
                         ),
-                      ),
-                      _Divider(),
-                      _SettingsRow(
-                        icon: Icons.gavel_rounded,
-                        iconColor: AppConstants.onSurfaceVariant,
-                        title: 'Terms of Use',
-                        onTap: () => _showInfoDialog(
-                          'Terms of Use',
-                          'By using SAGANA, you agree to:\n\n'
-                              '1. Use the application solely for cooperative agricultural management within SP3.\n\n'
-                              '2. Provide accurate harvest, inventory, and sales data to ensure fair cooperative operations.\n\n'
-                              '3. Not share your login credentials with unauthorized individuals.\n\n'
-                              '4. Respect the marketplace approval process — listings are subject to SP3 admin review.\n\n'
-                              '5. Acknowledge that Balik-Tangkilik estimates shown in the app are approximations and that actual distributions are determined at the Annual General Assembly.\n\n'
-                              'Violation of these terms may result in account suspension by the cooperative administrator.',
+                        _Divider(),
+                        _SettingsRow(
+                          icon: Icons.gavel_rounded,
+                          iconColor: AppConstants.onSurfaceVariant,
+                          title: 'Terms of Use',
+                          onTap: () => _showInfoDialog(
+                            'Terms of Use',
+                            'By using SAGANA, you agree to:\n\n'
+                                '1. Use the application solely for cooperative agricultural management within SP3.\n\n'
+                                '2. Provide accurate harvest, inventory, and sales data to ensure fair cooperative operations.\n\n'
+                                '3. Not share your login credentials with unauthorized individuals.\n\n'
+                                '4. Respect the marketplace approval process — listings are subject to SP3 admin review.\n\n'
+                                '5. Acknowledge that Balik-Tangkilik estimates shown in the app are approximations and that actual distributions are determined at the Annual General Assembly.\n\n'
+                                'Violation of these terms may result in account suspension by the cooperative administrator.',
+                          ),
                         ),
-                      ),
-                    ]),
+                      ],
+                    ),
                     const SizedBox(height: 28),
 
                     // ── App branding ──────────────────────────────────────
@@ -839,22 +934,30 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                         onTap: _showSignOutDialog,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
-                            color: AppConstants.errorRed
-                                .withValues(alpha: 0.07),
+                            color: AppConstants.errorRed.withValues(
+                              alpha: 0.07,
+                            ),
                             borderRadius: BorderRadius.circular(
-                                AppConstants.radiusFull),
+                              AppConstants.radiusFull,
+                            ),
                             border: Border.all(
-                              color: AppConstants.errorRed
-                                  .withValues(alpha: 0.15),
+                              color: AppConstants.errorRed.withValues(
+                                alpha: 0.15,
+                              ),
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.logout_rounded,
-                                  color: AppConstants.errorRed, size: 18),
+                              const Icon(
+                                Icons.logout_rounded,
+                                color: AppConstants.errorRed,
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'Sign Out',
@@ -877,7 +980,8 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                         decoration: BoxDecoration(
                           color: AppConstants.outline.withValues(alpha: 0.20),
                           borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull),
+                            AppConstants.radiusFull,
+                          ),
                         ),
                       ),
                     ),
@@ -1019,21 +1123,26 @@ class _SettingsRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: AppConstants.onSurface)),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppConstants.onSurface,
+                    ),
+                  ),
                   if (subtitle != null)
-                    Text(subtitle!,
-                        style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant)),
+                    Text(
+                      subtitle!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppConstants.onSurfaceVariant,
+                      ),
+                    ),
                 ],
               ),
             ),
-            Icon(trailingIcon,
-                color: AppConstants.outline, size: 18),
+            Icon(trailingIcon, color: AppConstants.outline, size: 18),
           ],
         ),
       ),
@@ -1059,9 +1168,13 @@ class _ToggleRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title,
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: AppConstants.onSurface)),
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppConstants.onSurface,
+            ),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,
@@ -1108,48 +1221,62 @@ class _AppBrandingBlock extends StatelessWidget {
                   ],
                 ),
               ),
-              child: const Icon(Icons.agriculture_rounded,
-                  color: Colors.white, size: 32),
+              child: const Icon(
+                Icons.agriculture_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 12),
-            Text('SAGANA',
-                style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.primaryGreen)),
+            Text(
+              'SAGANA',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
             Text(
               'Streamlined Agricultural Gateway for\nAgribusiness, Networking, and Analytics',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: AppConstants.onSurfaceVariant,
-                  height: 1.4),
+                fontSize: 11,
+                color: AppConstants.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 6),
-            Text('v1.0.0',
-                style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.amber,
-                    letterSpacing: 1.2)),
+            Text(
+              'v1.0.0',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.amber,
+                letterSpacing: 1.2,
+              ),
+            ),
             const SizedBox(height: 16),
             Divider(
-                height: 1,
-                color: AppConstants.outline.withValues(alpha: 0.10)),
+              height: 1,
+              color: AppConstants.outline.withValues(alpha: 0.10),
+            ),
             const SizedBox(height: 14),
             Text(
               'Developed by Marinduque State University — BSIT',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                  fontSize: 11, color: AppConstants.onSurfaceVariant),
+                fontSize: 11,
+                color: AppConstants.onSurfaceVariant,
+              ),
             ),
             Text(
               'Partner: SP3 Agriculture Cooperative',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.onSurface),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.onSurface,
+              ),
             ),
           ],
         ),
@@ -1171,19 +1298,27 @@ class _PickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
-      trailing: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: selected
-            ? const Icon(Icons.check_circle_rounded,
-                key: ValueKey('on'), color: AppConstants.primaryGreen)
-            : Icon(Icons.circle_outlined,
-                key: const ValueKey('off'),
-                color: Theme.of(context).colorScheme.outline),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
+        trailing: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: selected
+              ? const Icon(
+                  Icons.check_circle_rounded,
+                  key: ValueKey('on'),
+                  color: AppConstants.primaryGreen,
+                )
+              : Icon(
+                  Icons.circle_outlined,
+                  key: const ValueKey('off'),
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+        ),
+        onTap: onTap,
       ),
-      onTap: onTap,
     );
   }
 }
@@ -1200,7 +1335,8 @@ class _BottomSheet extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppConstants.offWhite,
         borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppConstants.radiusXl)),
+          top: Radius.circular(AppConstants.radiusXl),
+        ),
       ),
       padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + bottomInset),
       child: Column(
@@ -1213,17 +1349,19 @@ class _BottomSheet extends StatelessWidget {
               height: 4,
               decoration: BoxDecoration(
                 color: AppConstants.outline.withValues(alpha: 0.30),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusFull),
+                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          Text(title,
-              style: GoogleFonts.poppins(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.onSurface)),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.onSurface,
+            ),
+          ),
           const SizedBox(height: 18),
           child,
         ],

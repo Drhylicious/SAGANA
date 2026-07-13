@@ -13,16 +13,14 @@ void main() {
   ) async {
     await Supabase.initialize(
       url: 'https://example.supabase.co',
-      anonKey: 'fake-anon-key',
+      publishableKey: 'fake-anon-key',
     );
 
     final router = AppRouter.create();
 
     router.go(AppRoutes.farmerDetails, extra: 'farmer-123');
 
-    await tester.pumpWidget(
-      MaterialApp.router(routerConfig: router),
-    );
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
 
     expect(find.byType(FarmerDetailsScreen), findsOneWidget);

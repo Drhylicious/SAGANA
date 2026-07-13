@@ -37,6 +37,7 @@ class AppConstants {
   static const Color buyerBlue = Color(0xFF1E88E5);
   static const Color onTertiaryContainer = Color(0xFF7CDB7A);
   static const Color tertiaryContainer = Color(0xFF006017);
+  static const Color programPurple = Color(0xFF8E24AA);
 
   // ─── Gradients ───────────────────────────────────────────────────────────────
   static const LinearGradient splashGradient = LinearGradient(
@@ -114,6 +115,7 @@ class AppConstants {
   static const String hiveBoxPrices = 'prices_box';
   static const String hiveBoxSettings = 'settings_box';
   static const String hiveBoxLoanQueue = 'loan_queue_box'; // NEW — offline loan issuance queue
+  static const String hiveBoxExportHistory = 'export_history_box'; // NEW — Export Center's Recent Exports
 
   // ─── Hive Keys ───────────────────────────────────────────────────────────────
   static const String hiveKeyUserRole = 'user_role';

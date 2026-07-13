@@ -1,16 +1,32 @@
-/// Admin-side loan models.
-///
-/// These are intentionally separate from LoanModel / LoanItemModel /
-/// LoanPaymentModel (see loan_model.dart) because the admin views need
-/// denormalized farmer identity fields (name, member ID) that the farmer-side
-/// model has no reason to carry. Item and payment shapes are unchanged and
-/// should keep using the existing farmer-side models where a full loan
-/// (with items + payments) is loaded — see AdminLoanDetail below.
-library;
-
 import 'loan_model.dart';
 
-/// KPI numbers shown on the Loan Dashboard's summary grid and BOD banner.
+class AllTimeLoanSummary {
+  final int totalLoanCount;
+  final double totalIssued;
+  final double totalCollected;
+  final double totalOutstanding;
+  final double repaymentRatePercent;
+  final bool isHealthy;
+
+  const AllTimeLoanSummary({
+    required this.totalLoanCount,
+    required this.totalIssued,
+    required this.totalCollected,
+    required this.totalOutstanding,
+    required this.repaymentRatePercent,
+    required this.isHealthy,
+  });
+
+  factory AllTimeLoanSummary.empty() => const AllTimeLoanSummary(
+        totalLoanCount: 0,
+        totalIssued: 0,
+        totalCollected: 0,
+        totalOutstanding: 0,
+        repaymentRatePercent: 0,
+        isHealthy: true,
+      );
+}
+
 class LoanDashboardStats {
   final int activeLoansCount;
   final int overdueLoansCount;
@@ -38,8 +54,6 @@ class LoanDashboardStats {
       );
 }
 
-/// A single loan card's worth of data for admin list/grid views
-/// (Dashboard's Overdue/Active sections, Loan History registry).
 class AdminLoanSummary {
   final String id;
   final String farmerId;
@@ -49,10 +63,11 @@ class AdminLoanSummary {
   final DateTime issuedDate;
   final double totalValue;
   final double amountPaid;
-  final String status; // active | overdue | paid
-  final DateTime? nextPaymentDate;
+  final String status;
   final double monthlyPayment;
   final List<String> itemNames;
+  final String? notes;
+  final DateTime? nextPaymentDate;
 
   const AdminLoanSummary({
     required this.id,
@@ -64,9 +79,10 @@ class AdminLoanSummary {
     required this.totalValue,
     required this.amountPaid,
     required this.status,
-    required this.nextPaymentDate,
     required this.monthlyPayment,
     required this.itemNames,
+    this.notes,
+    this.nextPaymentDate,
   });
 
   double get remainingBalance =>
@@ -90,23 +106,93 @@ class AdminLoanSummary {
       farmerId: row['farmer_id'] as String,
       farmerName: farmerName,
       memberId: memberId,
-      referenceNo: row['reference_no'] as String? ?? '—',
+      referenceNo: row['reference_no'] as String,
       issuedDate: DateTime.parse(row['issued_date'] as String),
       totalValue: (row['total_value'] as num).toDouble(),
       amountPaid: (row['amount_paid'] as num? ?? 0).toDouble(),
       status: row['status'] as String? ?? 'active',
+      monthlyPayment: (row['monthly_payment'] as num? ?? 0).toDouble(),
+      itemNames: itemNames,
+      notes: row['notes'] as String?,
       nextPaymentDate: row['next_payment_date'] != null
           ? DateTime.tryParse(row['next_payment_date'] as String)
           : null,
-      monthlyPayment: (row['monthly_payment'] as num? ?? 0).toDouble(),
-      itemNames: itemNames,
     );
   }
+
+  factory AdminLoanSummary.fromCacheMap(Map<String, dynamic> map) {
+    return AdminLoanSummary(
+      id: map['id'] as String,
+      farmerId: map['farmerId'] as String,
+      farmerName: map['farmerName'] as String,
+      memberId: map['memberId'] as String,
+      referenceNo: map['referenceNo'] as String,
+      issuedDate: DateTime.parse(map['issuedDate'] as String),
+      totalValue: (map['totalValue'] as num).toDouble(),
+      amountPaid: (map['amountPaid'] as num? ?? 0).toDouble(),
+      status: map['status'] as String? ?? 'active',
+      monthlyPayment: (map['monthlyPayment'] as num? ?? 0).toDouble(),
+      itemNames: List<String>.from(map['itemNames'] as List? ?? const []),
+      notes: map['notes'] as String?,
+      nextPaymentDate: map['nextPaymentDate'] != null
+          ? DateTime.tryParse(map['nextPaymentDate'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toCacheMap() => {
+        'id': id,
+        'farmerId': farmerId,
+        'farmerName': farmerName,
+        'memberId': memberId,
+        'referenceNo': referenceNo,
+        'issuedDate': issuedDate.toIso8601String(),
+        'totalValue': totalValue,
+        'amountPaid': amountPaid,
+        'status': status,
+        'monthlyPayment': monthlyPayment,
+        'itemNames': itemNames,
+        'notes': notes,
+        'nextPaymentDate': nextPaymentDate?.toIso8601String(),
+      };
 }
 
-/// Full loan detail for LoanDetailsScreen — reuses the existing farmer-side
-/// LoanItemModel / LoanPaymentModel since their shape is already correct,
-/// and simply adds the denormalized farmer identity fields on top.
+class FarmerPickerResult {
+  final String id;
+  final String fullName;
+  final String memberId;
+
+  const FarmerPickerResult({
+    required this.id,
+    required this.fullName,
+    required this.memberId,
+  });
+
+  factory FarmerPickerResult.fromMap(Map<String, dynamic> map) {
+    return FarmerPickerResult(
+      id: map['id'] as String,
+      fullName: map['fullName'] as String,
+      memberId: map['memberId'] as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'fullName': fullName,
+        'memberId': memberId,
+      };
+}
+
+class FarmerLoanStanding {
+  final double outstandingBalance;
+  final bool hasOverdueLoan;
+
+  const FarmerLoanStanding({
+    required this.outstandingBalance,
+    required this.hasOverdueLoan,
+  });
+}
+
 class AdminLoanDetail {
   final LoanModel loan;
   final String farmerName;
@@ -121,53 +207,6 @@ class AdminLoanDetail {
   });
 }
 
-// ─── Added for Issue New Loan ──────────────────────────────────────────────
-
-/// Lightweight farmer entry for the Issue-Loan farmer picker.
-/// Deliberately minimal (no photo, no crop info) — this is a selection list,
-/// not a profile view — and small enough to cache entirely in Hive for
-/// offline BOD-meeting use (the cooperative only has ~52 farmers).
-class FarmerPickerResult {
-  final String id;
-  final String fullName;
-  final String memberId;
-
-  const FarmerPickerResult({
-    required this.id,
-    required this.fullName,
-    required this.memberId,
-  });
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'fullName': fullName,
-        'memberId': memberId,
-      };
-
-  factory FarmerPickerResult.fromMap(Map<dynamic, dynamic> map) {
-    return FarmerPickerResult(
-      id: map['id'] as String,
-      fullName: map['fullName'] as String? ?? 'Unknown Farmer',
-      memberId: map['memberId'] as String? ?? '—',
-    );
-  }
-}
-
-/// A selected farmer's current loan standing, shown as a warning banner
-/// on the Issue-Loan form. Only fetchable while online — see
-/// AdminLoanRepository.fetchFarmerLoanStanding().
-class FarmerLoanStanding {
-  final double outstandingBalance;
-  final bool hasOverdueLoan;
-
-  const FarmerLoanStanding({
-    required this.outstandingBalance,
-    required this.hasOverdueLoan,
-  });
-}
-
-/// Result of a successful loan issuance — returned so the screen can show
-/// the admin the real, server-assigned reference number immediately.
 class IssuedLoanResult {
   final String loanId;
   final String referenceNo;

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -6,16 +5,30 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../widgets/admin_top_bar.dart';
 import '../../../data/models/farmer_member_model.dart';
 import '../../../data/repositories/farmer_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 
+void _safePop(BuildContext context, [Object? result]) {
+  if (Navigator.canPop(context)) {
+    Navigator.pop(context, result);
+  }
+
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Farmer Management Header
+// ─────────────────────────────────────────────────────────────────────────────
+
 class FarmerManagementHeader extends StatelessWidget {
   final String title;
   final int memberCount;
+  final bool showTitle;
   final VoidCallback onFilterTap;
   final VoidCallback onAddTap;
+  final VoidCallback? onManageAccountsTap;
   final ColorScheme colorScheme;
   final SaganaColors saganaColors;
   final bool showFilterBadge;
@@ -24,8 +37,10 @@ class FarmerManagementHeader extends StatelessWidget {
     super.key,
     required this.title,
     required this.memberCount,
+    this.showTitle = true,
     required this.onFilterTap,
     required this.onAddTap,
+    this.onManageAccountsTap,
     required this.colorScheme,
     required this.saganaColors,
     required this.showFilterBadge,
@@ -33,6 +48,68 @@ class FarmerManagementHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!showTitle) {
+      return Row(
+        children: [
+          GestureDetector(
+            onTap: onAddTap,
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.primary,
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.20),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(Icons.add_rounded, color: colorScheme.onPrimary, size: 20),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _IconButton(
+            icon: Icons.filter_list_rounded,
+            onTap: onFilterTap,
+            cs: colorScheme,
+            sagana: saganaColors,
+            showBadge: showFilterBadge,
+          ),
+          const SizedBox(width: 8),
+          if (onManageAccountsTap != null) ...[
+            _IconButton(
+              icon: Icons.manage_accounts_rounded,
+              onTap: onManageAccountsTap!,
+              cs: colorScheme,
+              sagana: saganaColors,
+              showBadge: false,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            ),
+            child: Text(
+              '$memberCount Members',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.primary,
+              ),
+            ),
+          ),
+          const Spacer(),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
@@ -72,6 +149,15 @@ class FarmerManagementHeader extends StatelessWidget {
         const SizedBox(width: 12),
         Row(
           children: [
+            if (onManageAccountsTap != null)
+              _IconButton(
+                icon: Icons.manage_accounts_rounded,
+                onTap: onManageAccountsTap!,
+                cs: colorScheme,
+                sagana: saganaColors,
+                showBadge: false,
+              ),
+            if (onManageAccountsTap != null) const SizedBox(width: 8),
             _IconButton(
               icon: Icons.filter_list_rounded,
               onTap: onFilterTap,
@@ -178,6 +264,61 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   List<FarmerMemberModel> get _filteredFarmers =>
       _allFarmers.applyFilter(_filter, _searchQuery);
 
+  void _showAddMemberTypeSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Create New Account',
+                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AddTypeCard(
+                        icon: Icons.person_add_alt_1_rounded,
+                        title: 'Add Farmer / Member',
+                        subtitle: 'Register new farmer or cooperative member',
+                        onTap: () {
+                          _safePop(context);
+                          context.push(AppRoutes.addNewMember);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _AddTypeCard(
+                        icon: Icons.badge_outlined,
+                        title: 'Add Staff Account',
+                        subtitle: 'Create new staff account',
+                        onTap: () {
+                          _safePop(context);
+                          context.push(AppRoutes.createStaffAccount);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showFilterSheet() {
     showModalBottomSheet(
       context: context,
@@ -201,19 +342,19 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       builder: (_) => _FarmerActionsSheet(
         farmer: farmer,
         onViewProfile: () {
-          Navigator.pop(context);
+          _safePop(context);
           context.push(AppRoutes.farmerDetails, extra: farmer.userId);
         },
         onSendNotice: () {
-          Navigator.pop(context);
+          _safePop(context);
           context.push(AppRoutes.announcementDashboard);
         },
         onRecordPayment: () {
-          Navigator.pop(context);
+          _safePop(context);
           context.push(AppRoutes.recordPayment, extra: farmer.userId);
         },
         onToggleStatus: () async {
-          Navigator.pop(context);
+          _safePop(context);
           final newStatus = farmer.memberStatus == MemberStatus.active
               ? 'inactive'
               : 'active';
@@ -221,8 +362,116 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
               userId: farmer.userId, status: newStatus);
           _loadAll();
         },
+        onApprove: () async {
+          _safePop(context);
+          await _approveMember(farmer);
+        },
+        onReject: () async {
+          _safePop(context);
+          await _rejectMember(farmer);
+        },
       ),
     );
+  }
+
+  Future<void> _approveMember(FarmerMemberModel farmer) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final cs = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Text('Approve ${farmer.fullName}?',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          content: Text(
+            'This will:\n'
+            '• Activate their SP3 membership\n'
+            '• Assign a Member ID\n'
+            '• Assign an SP3-XXXX username\n'
+            '• Add them to the official SP3 registry\n'
+            '• Send them an in-app notification\n\n'
+            'This action cannot be undone.',
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.successGreen),
+              child: Text('Approve',
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600, color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    final result = await _repo.approveMember(
+      userId:   farmer.userId,
+      fullName: farmer.fullName,
+    );
+
+    if (!mounted) return;
+
+    if (result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          '${farmer.fullName} approved. '
+          'Member ID: ${result.memberId} · '
+          'Username: ${result.username?.toUpperCase()}',
+        ),
+        backgroundColor: AppConstants.successGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
+      _loadAll();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed to approve: ${result.error}'),
+        backgroundColor: AppConstants.errorRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  Future<void> _rejectMember(FarmerMemberModel farmer) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Reject ${farmer.fullName}?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(
+          'Their account will be deactivated. '
+          'They will be notified and can contact SP3 for more information. '
+          'You can reverse this later if needed.',
+          style: GoogleFonts.inter(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Reject',
+                style: TextStyle(color: AppConstants.errorRed)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await _repo.rejectMember(userId: farmer.userId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${farmer.fullName}\'s application has been declined.'),
+      backgroundColor: AppConstants.charcoal,
+      behavior: SnackBarBehavior.floating,
+    ));
+    _loadAll();
   }
 
   @override
@@ -239,7 +488,12 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         children: [
           if (!_isOnline) _OfflineBanner(),
           // ── Top App Bar ─────────────────────────────────────────────────
-          _TopAppBar(sagana: sagana, cs: cs),
+          AdminTopBar(
+            title: l10n.adminNavMembers,
+            onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
+            onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
+            onProfileTap: () => context.push(AppRoutes.adminProfile),
+          ),
 
           Expanded(
             child: _isLoading
@@ -258,8 +512,10 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                         FarmerManagementHeader(
                           title: l10n.farmerMgmtTitle,
                           memberCount: _stats.totalMembers,
+                          showTitle: false,
                           onFilterTap: _showFilterSheet,
-                          onAddTap: () => context.push(AppRoutes.addNewMember),
+                          onAddTap: _showAddMemberTypeSheet,
+                          onManageAccountsTap: () => context.push(AppRoutes.manageAdminAccounts),
                           colorScheme: cs,
                           saganaColors: sagana,
                           showFilterBadge: !_filter.isDefault,
@@ -372,62 +628,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Top App Bar (shell-tab style — no back button)
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _TopAppBar extends StatelessWidget {
-  final SaganaColors sagana;
-  final ColorScheme cs;
-
-  const _TopAppBar({required this.sagana, required this.cs});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppConstants.primaryContainer,
-                ),
-                child: const Icon(
-                  Icons.person_rounded,
-                  color: AppConstants.onPrimaryContainer,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'CoopAdmin',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: cs.primary,
-                ),
-              ),
-              const Spacer(),
-              Icon(Icons.notifications_outlined,
-                  color: cs.primary, size: 24),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Offline Banner
@@ -843,7 +1044,7 @@ class _LoanIndicator extends StatelessWidget {
     if (farmer.loanStatus == LoanStatusSummary.none) {
       return Row(
         children: [
-          Icon(Icons.account_balance_wallet_outlined,
+          const Icon(Icons.account_balance_wallet_outlined,
               size: 17, color: AppConstants.successGreen),
           const SizedBox(width: 6),
           Text(
@@ -1147,7 +1348,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             ElevatedButton(
               onPressed: () {
                 widget.onApply(_state);
-                Navigator.pop(context);
+                _safePop(context);
               },
               child: Text(
                 'Apply Filters',
@@ -1230,6 +1431,8 @@ class _FarmerActionsSheet extends StatelessWidget {
   final VoidCallback onSendNotice;
   final VoidCallback onRecordPayment;
   final VoidCallback onToggleStatus;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
 
   const _FarmerActionsSheet({
     required this.farmer,
@@ -1237,12 +1440,15 @@ class _FarmerActionsSheet extends StatelessWidget {
     required this.onSendNotice,
     required this.onRecordPayment,
     required this.onToggleStatus,
+    required this.onApprove,
+    required this.onReject,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs     = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
+    final isPending = farmer.memberStatus == MemberStatus.pending;
 
     return Container(
       decoration: BoxDecoration(
@@ -1282,29 +1488,46 @@ class _FarmerActionsSheet extends StatelessWidget {
             onTap: onViewProfile,
             cs: cs,
           ),
-          _ActionRow(
-            icon: Icons.campaign_outlined,
-            label: 'Send Notification',
-            onTap: onSendNotice,
-            cs: cs,
-          ),
-          _ActionRow(
-            icon: Icons.payments_outlined,
-            label: 'Record Loan Payment',
-            onTap: onRecordPayment,
-            cs: cs,
-          ),
-          _ActionRow(
-            icon: farmer.memberStatus == MemberStatus.active
-                ? Icons.person_off_outlined
-                : Icons.person_rounded,
-            label: farmer.memberStatus == MemberStatus.active
-                ? 'Set Inactive'
-                : 'Set Active',
-            onTap: onToggleStatus,
-            cs: cs,
-            isDestructive: farmer.memberStatus == MemberStatus.active,
-          ),
+          if (isPending) ...[
+            _ActionRow(
+              icon: Icons.check_circle_rounded,
+              label: 'Approve Membership',
+              onTap: onApprove,
+              cs: cs,
+              iconColor: AppConstants.successGreen,
+            ),
+            _ActionRow(
+              icon: Icons.cancel_rounded,
+              label: 'Reject Application',
+              onTap: onReject,
+              cs: cs,
+              isDestructive: true,
+            ),
+          ] else ...[
+            _ActionRow(
+              icon: Icons.campaign_outlined,
+              label: 'Send Notification',
+              onTap: onSendNotice,
+              cs: cs,
+            ),
+            _ActionRow(
+              icon: Icons.payments_outlined,
+              label: 'Record Loan Payment',
+              onTap: onRecordPayment,
+              cs: cs,
+            ),
+            _ActionRow(
+              icon: farmer.memberStatus == MemberStatus.active
+                  ? Icons.person_off_outlined
+                  : Icons.person_rounded,
+              label: farmer.memberStatus == MemberStatus.active
+                  ? 'Set Inactive'
+                  : 'Set Active',
+              onTap: onToggleStatus,
+              cs: cs,
+              isDestructive: farmer.memberStatus == MemberStatus.active,
+            ),
+          ],
         ],
       ),
     );
@@ -1317,6 +1540,7 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback onTap;
   final ColorScheme cs;
   final bool isDestructive;
+  final Color? iconColor;
 
   const _ActionRow({
     required this.icon,
@@ -1324,6 +1548,7 @@ class _ActionRow extends StatelessWidget {
     required this.onTap,
     required this.cs,
     this.isDestructive = false,
+    this.iconColor,
   });
 
   @override
@@ -1336,13 +1561,85 @@ class _ActionRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: color),
+            Icon(icon, size: 20, color: iconColor ?? color),
             const SizedBox(width: 14),
             Text(
               label,
               style: GoogleFonts.inter(fontSize: 14, color: color),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Add Type Card (for creating new account type)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AddTypeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _AddTypeCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        child: Container(
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+                child: Icon(icon, color: cs.primary, size: 24),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -446,7 +446,7 @@ class _LogEntry extends StatelessWidget {
                         ),
                         Row(
                           children: [
-                            Icon(Icons.calendar_today_rounded,
+                            const Icon(Icons.calendar_today_rounded,
                                 size: 13, color: AppConstants.outline),
                             const SizedBox(width: 4),
                             Text(DateFormat('MMM d, yyyy').format(harvest.harvestDate),
@@ -537,8 +537,8 @@ class _EmptyState extends StatelessWidget {
         children: [
           Container(
             width: 96, height: 96,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDBF1FE),
+            decoration: const BoxDecoration(
+              color: Color(0xFFDBF1FE),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.history_rounded,

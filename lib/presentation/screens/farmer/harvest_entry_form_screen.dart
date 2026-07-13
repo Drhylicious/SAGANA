@@ -241,7 +241,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline_rounded, size: 56, color: AppConstants.errorRed),
+                const Icon(Icons.error_outline_rounded, size: 56, color: AppConstants.errorRed),
                 const SizedBox(height: 12),
                 Text('Crop not found', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
@@ -280,7 +280,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 20),
 
                         // ── Quality Grade ─────────────────────────────────
-                        _FieldLabel('Quality Grade*'),
+                        const _FieldLabel('Quality Grade*'),
                         const SizedBox(height: 8),
                         _GradeSelector(
                           selected: _selectedGrade,
@@ -289,7 +289,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 20),
 
                         // ── Variety ───────────────────────────────────────
-                        _FieldLabel('Variety (Optional)'),
+                        const _FieldLabel('Variety (Optional)'),
                         const SizedBox(height: 8),
                         _SimpleTextField(
                           controller: _varietyController,
@@ -299,19 +299,19 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 16),
 
                         // ── Batch Number ──────────────────────────────────
-                        _FieldLabel('Batch Number'),
+                        const _FieldLabel('Batch Number'),
                         const SizedBox(height: 8),
                         _BatchNumberField(batchNumber: _batchNumber),
                         const SizedBox(height: 16),
 
                         // ── Harvest Date ──────────────────────────────────
-                        _FieldLabel('Harvest Date'),
+                        const _FieldLabel('Harvest Date'),
                         const SizedBox(height: 8),
                         _DateField(date: _harvestDate, onTap: _pickDate),
                         const SizedBox(height: 16),
 
                         // ── Storage Location ──────────────────────────────
-                        _FieldLabel('Storage Location'),
+                        const _FieldLabel('Storage Location'),
                         const SizedBox(height: 8),
                         _SimpleTextField(
                           controller: _storageController,
@@ -321,7 +321,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 16),
 
                         // ── Notes ─────────────────────────────────────────
-                        _FieldLabel('Notes'),
+                        const _FieldLabel('Notes'),
                         const SizedBox(height: 8),
                         _NotesField(controller: _notesController),
                         const SizedBox(height: 16),
@@ -568,7 +568,7 @@ class _QuantityField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _FieldLabel('Quantity (kg)*'),
+        const _FieldLabel('Quantity (kg)*'),
         const SizedBox(height: 8),
         Stack(
           alignment: Alignment.centerRight,

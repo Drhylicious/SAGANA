@@ -85,7 +85,7 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline_rounded, size: 56, color: AppConstants.errorRed),
+                const Icon(Icons.error_outline_rounded, size: 56, color: AppConstants.errorRed),
                 const SizedBox(height: 12),
                 Text('Crop not found', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
@@ -250,7 +250,7 @@ class _HarvestCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.calendar_today_rounded,
+                  const Icon(Icons.calendar_today_rounded,
                       size: 13, color: AppConstants.outline),
                   const SizedBox(width: 5),
                   Text(
@@ -260,7 +260,7 @@ class _HarvestCard extends StatelessWidget {
                   ),
                   if (harvest.storageLocation != null) ...[
                     const SizedBox(width: 12),
-                    Icon(Icons.location_on_outlined,
+                    const Icon(Icons.location_on_outlined,
                         size: 13, color: AppConstants.outline),
                     const SizedBox(width: 4),
                     Flexible(
@@ -427,9 +427,6 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: onRecord,
-              child: Text('Record Harvest',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w500)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,
@@ -439,6 +436,9 @@ class _EmptyState extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                 ),
               ),
+              child: Text('Record Harvest',
+                  style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w500)),
             ),
           ],
         ),

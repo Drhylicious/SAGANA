@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -105,7 +106,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.errorRed,
-              foregroundColor: Colors.white,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
@@ -152,7 +153,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.errorRed,
-              foregroundColor: Colors.white,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
@@ -213,12 +214,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sagana = context.saganaColors;
     final pendingCount = _countFor((l) => l.isPending);
     final liveCount = _countFor((l) => l.isLive);
     final changesCount = _countFor((l) => l.needsChanges);
 
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: sagana.scaffoldBackground,
       body: Stack(
         children: [
           Column(
@@ -333,13 +335,15 @@ class _OfflineBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: AppConstants.warningAmber.withValues(alpha: 0.10),
+      color: Theme.of(
+        context,
+      ).colorScheme.secondaryContainer.withValues(alpha: 0.18),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.cloud_off_rounded,
             size: 18,
-            color: Color(0xFF694300),
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
           ),
           const SizedBox(width: 10),
           Text(
@@ -347,7 +351,7 @@ class _OfflineBanner extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: const Color(0xFF694300),
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
             ),
           ),
         ],
@@ -420,12 +424,16 @@ class _StatChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border(left: BorderSide(color: color, width: 4)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                color: Theme.of(
+                  context,
+                ).colorScheme.shadow.withValues(alpha: 0.05),
                 blurRadius: 8,
               ),
             ],
@@ -484,13 +492,16 @@ class _FilterChips extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: isActive
-                      ? AppConstants.primaryGreen
-                      : Colors.white.withValues(alpha: 0.70),
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.70),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   border: Border.all(
                     color: isActive
-                        ? AppConstants.primaryGreen
-                        : AppConstants.outline.withValues(alpha: 0.20),
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.20),
                   ),
                 ),
                 child: Text(
@@ -498,7 +509,9 @@ class _FilterChips extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: isActive ? Colors.white : AppConstants.outline,
+                    color: isActive
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : Theme.of(context).colorScheme.outline,
                   ),
                 ),
               ),
@@ -547,12 +560,20 @@ class _ListingCard extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.70),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.30),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.shadow.withValues(alpha: 0.05),
                   blurRadius: 12,
                 ),
               ],
@@ -689,7 +710,7 @@ class _StandardContent extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.history_rounded,
                           size: 13,
                           color: AppConstants.outline,
@@ -751,7 +772,7 @@ class _StandardContent extends StatelessWidget {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryContainer,
-                foregroundColor: Colors.white,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -791,13 +812,15 @@ class _ChangesRequiredContent extends StatelessWidget {
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppConstants.errorRed.withValues(alpha: 0.20),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.error.withValues(alpha: 0.20),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         Icons.error_rounded,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onError,
                         size: 28,
                       ),
                     ),
@@ -886,7 +909,7 @@ class _ChangesRequiredContent extends StatelessWidget {
                     text: TextSpan(
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF93000A),
+                        color: Theme.of(context).colorScheme.onErrorContainer,
                         height: 1.4,
                       ),
                       children: [
@@ -911,8 +934,8 @@ class _ChangesRequiredContent extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onEditResubmit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryGreen,
-                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -984,10 +1007,12 @@ class _FallbackThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFDBF1FE),
-      child: const Icon(
+      color: Theme.of(
+        context,
+      ).colorScheme.secondaryContainer.withValues(alpha: 0.35),
+      child: Icon(
         Icons.eco_rounded,
-        color: AppConstants.primaryGreen,
+        color: Theme.of(context).colorScheme.primary,
         size: 30,
       ),
     );
@@ -1007,7 +1032,7 @@ class _StatusBadge extends StatelessWidget {
       case 'pending_review':
         label = 'PENDING REVIEW';
         bg = AppConstants.warningAmber.withValues(alpha: 0.20);
-        fg = const Color(0xFF694300);
+        fg = Theme.of(context).colorScheme.onSecondaryContainer;
         break;
       case 'approved':
         label = 'LIVE ON MARKET';
@@ -1016,8 +1041,10 @@ class _StatusBadge extends StatelessWidget {
         break;
       case 'changes_required':
         label = 'CHANGES REQUIRED';
-        bg = const Color(0xFFFFDAD6);
-        fg = AppConstants.errorRed;
+        bg = Theme.of(
+          context,
+        ).colorScheme.errorContainer.withValues(alpha: 0.70);
+        fg = Theme.of(context).colorScheme.onErrorContainer;
         break;
       case 'withdrawn':
         label = 'WITHDRAWN';
@@ -1060,9 +1087,9 @@ class _ListingPreviewSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppConstants.radiusXl),
         ),
       ),
@@ -1186,9 +1213,9 @@ class _ListingMenuSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppConstants.radiusXl),
         ),
       ),
@@ -1290,7 +1317,9 @@ class _EmptyState extends StatelessWidget {
             width: 88,
             height: 88,
             decoration: BoxDecoration(
-              color: const Color(0xFFDBF1FE),
+              color: Theme.of(
+                context,
+              ).colorScheme.secondaryContainer.withValues(alpha: 0.35),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1371,10 +1400,16 @@ class _ListingShimmerState extends State<_ListingShimmer>
             _anim.value.clamp(0.0, 1.0),
             (_anim.value + 1).clamp(0.0, 1.0),
           ],
-          colors: const [
-            Color(0xFFE8E8E8),
-            Color(0xFFF5F5F5),
-            Color(0xFFE8E8E8),
+          colors: [
+            Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+            Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+            Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
           ],
         ),
       ),
@@ -1386,9 +1421,15 @@ class _ListingShimmerState extends State<_ListingShimmer>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.30),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1459,10 +1500,13 @@ class _CreateListingFab extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+          child: Icon(
+            Icons.add_rounded,
+            color: Theme.of(context).colorScheme.onPrimary,
+            size: 30,
+          ),
         ),
       ),
     );
   }
 }
-

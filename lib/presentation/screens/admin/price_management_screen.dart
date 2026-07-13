@@ -714,15 +714,15 @@ class _PriceCard extends StatelessWidget {
   _BadgeData _badge(String priceType) {
     switch (priceType) {
       case _PriceTypes.sp3:
-        return _BadgeData(
+        return const _BadgeData(
           label: 'SP3 BUYING',
           bg: AppConstants.primaryContainer,
           fg: AppConstants.onPrimaryContainer,
         );
       case _PriceTypes.daAmad:
-        return _BadgeData(
+        return const _BadgeData(
           label: 'DA-AMAD REFERENCE',
-          bg: const Color(0xFFE3F2FD),
+          bg: Color(0xFFE3F2FD),
           fg: AppConstants.buyerBlue,
         );
       default:
@@ -741,7 +741,7 @@ class _PriceCard extends StatelessWidget {
     }
     final pct = (diff / p.previousPrice!) * 100;
     if (pct.abs() < 0.01) {
-      return _DeltaData(
+      return const _DeltaData(
         icon: Icons.horizontal_rule_rounded,
         label: '0%',
         color: AppConstants.outline,
@@ -1814,7 +1814,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           prefixText: '₱ ',
                           hintText: '0.00',
                         ),
@@ -1829,7 +1829,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
                     children: [
                       _FieldLabel(label: 'Unit', cs: cs),
                       DropdownButtonFormField<String>(
-                        value: _unit,
+                        initialValue: _unit,
                         items: ['kg', 'g', 'pc', 'sack']
                             .map((u) => DropdownMenuItem(
                                   value: u,

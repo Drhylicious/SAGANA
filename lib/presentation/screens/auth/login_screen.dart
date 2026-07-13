@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/staggered_entrance.dart';
@@ -22,11 +21,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authRepository = AuthRepository();
 
-  String _selectedRole = AppConstants.roleFarmer;
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
@@ -46,13 +44,13 @@ class _LoginScreenState extends State<LoginScreen>
       parent: _entranceController,
       curve: const Interval(0, 0.8, curve: Curves.easeOut),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.06),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.15, 1, curve: Curves.easeOutCubic),
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.15, 1, curve: Curves.easeOutCubic),
+          ),
+        );
   }
 
   @override
@@ -63,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     _entranceController.dispose();
     super.dispose();
@@ -82,27 +80,18 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       final user = await _authRepository.login(
-        email: _emailController.text,
+        identifier: _identifierController.text,
         password: _passwordController.text,
       );
 
       if (!mounted) return;
 
-      // Verify role matches selection
-      if (user.role != _selectedRole && user.role != AppConstants.roleAdmin) {
-        await _authRepository.logout();
-        setState(() {
-          _errorMessage =
-              'This account is not registered as a ${_selectedRole == AppConstants.roleFarmer ? "Farmer" : "Buyer"}. Please select the correct role.';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // Navigate by role
       String route;
       switch (user.role) {
         case AppConstants.roleAdmin:
+          route = AppRoutes.adminDashboard;
+          break;
+        case 'staff':
           route = AppRoutes.adminDashboard;
           break;
         case AppConstants.roleFarmer:
@@ -112,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen>
           route = AppRoutes.marketplaceBrowse;
           break;
         default:
-          route = AppRoutes.login;
+          route = AppRoutes.farmerDashboard;
       }
 
       context.go(route);
@@ -127,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _showForgotPassword() {
     final emailController = TextEditingController(
-      text: _emailController.text,
+      text: _identifierController.text,
     );
 
     AppBottomSheet.show(
@@ -136,7 +125,8 @@ class _LoginScreenState extends State<LoginScreen>
         emailController: emailController,
         onSend: (email) async {
           await _authRepository.sendPasswordReset(email);
-          if (context.mounted) context.popRoute();
+          if (!context.mounted) return;
+          context.popRoute();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -178,23 +168,18 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   child: Column(
                     children: [
-                      StaggeredEntrance(
-                        index: 0,
-                        child: _LogoSection(),
-                      ),
+                      StaggeredEntrance(index: 0, child: _LogoSection()),
                       const SizedBox(height: 32),
                       StaggeredEntrance(
                         index: 1,
                         child: _AuthCard(
                           formKey: _formKey,
-                          selectedRole: _selectedRole,
-                          onRoleChanged: (role) =>
-                              setState(() => _selectedRole = role),
-                          emailController: _emailController,
+                          identifierController: _identifierController,
                           passwordController: _passwordController,
                           obscurePassword: _obscurePassword,
                           onTogglePassword: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                           errorMessage: _errorMessage,
                           isLoading: _isLoading,
                           onLogin: _handleLogin,
@@ -204,10 +189,7 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                       const SizedBox(height: 24),
-                      StaggeredEntrance(
-                        index: 2,
-                        child: _AdminNote(),
-                      ),
+                      StaggeredEntrance(index: 2, child: _AdminNote()),
                     ],
                   ),
                 ),
@@ -338,9 +320,7 @@ class _LogoSection extends StatelessWidget {
 
 class _AuthCard extends StatelessWidget {
   final GlobalKey<FormState> formKey;
-  final String selectedRole;
-  final ValueChanged<String> onRoleChanged;
-  final TextEditingController emailController;
+  final TextEditingController identifierController;
   final TextEditingController passwordController;
   final bool obscurePassword;
   final VoidCallback onTogglePassword;
@@ -352,9 +332,7 @@ class _AuthCard extends StatelessWidget {
 
   const _AuthCard({
     required this.formKey,
-    required this.selectedRole,
-    required this.onRoleChanged,
-    required this.emailController,
+    required this.identifierController,
     required this.passwordController,
     required this.obscurePassword,
     required this.onTogglePassword,
@@ -394,35 +372,18 @@ class _AuthCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Role selector label
-                Text(
-                  'Select Your Role',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppConstants.outline,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Role selector
-                _RoleSelector(
-                  selectedRole: selectedRole,
-                  onRoleChanged: onRoleChanged,
-                ),
-
-                const SizedBox(height: 28),
-
-                // Email field
-                _InputLabel('Email Address'),
+                // Identifier field
+                const _InputLabel('Username'),
                 const SizedBox(height: 6),
-                _EmailField(controller: emailController),
+                _EmailField(
+                  controller: identifierController,
+                  isUsername: !identifierController.text.trim().contains('@'),
+                ),
 
                 const SizedBox(height: 20),
 
                 // Password field
-                _InputLabel('Password'),
+                const _InputLabel('Password'),
                 const SizedBox(height: 6),
                 _PasswordField(
                   controller: passwordController,
@@ -437,7 +398,9 @@ class _AuthCard extends StatelessWidget {
                     onPressed: onForgotPassword,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 4),
+                        horizontal: 4,
+                        vertical: 4,
+                      ),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -460,10 +423,7 @@ class _AuthCard extends StatelessWidget {
                 ],
 
                 // Sign in button
-                _SignInButton(
-                  isLoading: isLoading,
-                  onPressed: onLogin,
-                ),
+                _SignInButton(isLoading: isLoading, onPressed: onLogin),
 
                 const SizedBox(height: 20),
 
@@ -504,108 +464,6 @@ class _AuthCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Role Selector
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RoleSelector extends StatelessWidget {
-  final String selectedRole;
-  final ValueChanged<String> onRoleChanged;
-
-  const _RoleSelector({
-    required this.selectedRole,
-    required this.onRoleChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _RoleCard(
-            icon: Icons.person_rounded,
-            label: 'Farmer',
-            role: AppConstants.roleFarmer,
-            isSelected: selectedRole == AppConstants.roleFarmer,
-            onTap: () => onRoleChanged(AppConstants.roleFarmer),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _RoleCard(
-            icon: Icons.shopping_cart_rounded,
-            label: 'Buyer',
-            role: AppConstants.roleBuyer,
-            isSelected: selectedRole == AppConstants.roleBuyer,
-            onTap: () => onRoleChanged(AppConstants.roleBuyer),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RoleCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String role;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _RoleCard({
-    required this.icon,
-    required this.label,
-    required this.role,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppConstants.primaryGreen.withValues(alpha: 0.05)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(
-            color: isSelected
-                ? AppConstants.primaryGreen
-                : AppConstants.outline.withValues(alpha: 0.20),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 28,
-              color: isSelected
-                  ? AppConstants.primaryGreen
-                  : AppConstants.onSurfaceVariant,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isSelected
-                    ? AppConstants.primaryGreen
-                    : AppConstants.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Input Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -628,23 +486,31 @@ class _InputLabel extends StatelessWidget {
 
 class _EmailField extends StatelessWidget {
   final TextEditingController controller;
-  const _EmailField({required this.controller});
+  final bool isUsername;
+
+  const _EmailField({required this.controller, required this.isUsername});
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
-      keyboardType: TextInputType.emailAddress,
+      keyboardType: isUsername
+          ? TextInputType.text
+          : TextInputType.emailAddress,
       autocorrect: false,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       decoration: _fieldDecoration(
-        hint: 'farmer@hub.com',
-        icon: Icons.mail_outline_rounded,
+        hint: isUsername ? 'SP3-0001 or STF-0001' : 'admin@sp3.coop',
+        icon: isUsername ? Icons.badge_outlined : Icons.mail_outline_rounded,
       ),
       validator: (v) {
-        if (v == null || v.trim().isEmpty) return 'Email is required';
-        final regex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-        if (!regex.hasMatch(v.trim())) return 'Enter a valid email address';
+        if (v == null || v.trim().isEmpty) {
+          return 'Username or email is required';
+        }
+        if (!isUsername) {
+          final regex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+          if (!regex.hasMatch(v.trim())) return 'Enter a valid email address';
+        }
         return null;
       },
     );
@@ -720,10 +586,7 @@ InputDecoration _fieldDecoration({
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: const BorderSide(
-        color: AppConstants.primaryGreen,
-        width: 2,
-      ),
+      borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -760,8 +623,11 @@ class _ErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              size: 18, color: AppConstants.errorRed),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: AppConstants.errorRed,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -828,8 +694,7 @@ class _SignInButton extends StatelessWidget {
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
               : Text(
@@ -858,15 +723,15 @@ class _AdminNote extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.50),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(
-          color: AppConstants.outline.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded,
-              size: 16,
-              color: AppConstants.onSurfaceVariant.withValues(alpha: 0.7)),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: AppConstants.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1017,8 +882,7 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                   backgroundColor: AppConstants.primaryGreen,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                 ),
                 child: _isSending
@@ -1027,8 +891,9 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : Text(

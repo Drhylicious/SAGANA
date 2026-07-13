@@ -7,7 +7,8 @@ class HiveService {
   static late Box _userBox;
   static late Box _pricesBox;
   static late Box _settingsBox;
-  static late Box _loanQueueBox; // NEW — pending offline loan issuances
+  static late Box _loanQueueBox; // offline loan issuances + payments
+  static late Box _exportHistoryBox; // NEW — Export Center's Recent Exports
 
   // ─── Initialization ──────────────────────────────────────────────────────────
 
@@ -16,7 +17,8 @@ class HiveService {
     _userBox = await Hive.openBox(AppConstants.hiveBoxUser);
     _pricesBox = await Hive.openBox(AppConstants.hiveBoxPrices);
     _settingsBox = await Hive.openBox(AppConstants.hiveBoxSettings);
-    _loanQueueBox = await Hive.openBox(AppConstants.hiveBoxLoanQueue); // NEW
+    _loanQueueBox = await Hive.openBox(AppConstants.hiveBoxLoanQueue);
+    _exportHistoryBox = await Hive.openBox(AppConstants.hiveBoxExportHistory); // NEW
   }
 
   // ─── User Session ────────────────────────────────────────────────────────────
@@ -58,6 +60,19 @@ class HiveService {
 
   static bool isLoggedIn() =>
       _userBox.get(AppConstants.hiveKeyIsLoggedIn, defaultValue: false) as bool;
+
+  // ─── Member Status (offline splash routing) ─────────────────────────────────
+  //
+  // Farmers' membership status ('active' / 'pending') is fetched live at
+  // login and cached here so the splash screen can route correctly even
+  // when the app opens offline.
+
+  static Future<void> saveMemberStatus(String status) async {
+    await _userBox.put('member_status', status);
+  }
+
+  static String? getMemberStatus() =>
+      _userBox.get('member_status') as String?;
 
   // ─── Settings ────────────────────────────────────────────────────────────────
 
@@ -101,36 +116,74 @@ class HiveService {
   static int getUnsyncedCount() =>
       _settingsBox.get('unsynced_count', defaultValue: 0) as int;
 
-  // ─── Farmer Roster Cache (NEW — offline Issue-Loan farmer picker) ────────────
+  // ─── Farmer Roster Cache (offline Issue-Loan / Record-Payment picker) ────────
   //
   // The cooperative has ~52 farmers total, so caching the full roster
   // (id, name, member ID only — no photos) is cheap and lets the admin
   // pick a farmer during a signal-less BOD meeting. Refreshed whenever
-  // Issue New Loan loads while online.
+  // either screen loads while online.
 
   static Future<void> cacheFarmerRoster(List<Map<String, dynamic>> roster) async {
     await _settingsBox.put('cached_farmer_roster', roster);
   }
 
-  static List<Map<dynamic, dynamic>> getCachedFarmerRoster() {
+  static List<Map<String, dynamic>> getCachedFarmerRoster() {
     final data = _settingsBox.get('cached_farmer_roster');
     if (data == null) return [];
-    return List<Map<dynamic, dynamic>>.from(data as List);
+    return (data as List)
+        .map((entry) => Map<String, dynamic>.from(entry as Map))
+        .toList();
   }
 
-  // ─── Loan Issuance Queue (NEW — offline BOD meeting mode) ────────────────────
+  // ─── Active Loans Cache (offline Record-Payment balance lookup) ──────────────
   //
-  // A queued loan is stored WITHOUT a reference number — reference
+  // Record Payment needs to know a farmer's current loan(s) and balance to
+  // record anything against them — another live-query dependency. Cached
+  // as a flat list of AdminLoanSummary.toCacheMap() entries whenever
+  // Record Payment loads while online.
+
+  static Future<void> cacheActiveLoans(List<Map<String, dynamic>> loans) async {
+    await _settingsBox.put('cached_active_loans', loans);
+  }
+
+  static List<Map<String, dynamic>> getCachedActiveLoans() {
+    final data = _settingsBox.get('cached_active_loans');
+    if (data == null) return [];
+    return (data as List)
+        .map((entry) => Map<String, dynamic>.from(entry as Map))
+        .toList();
+  }
+
+  // ─── Loan Queue (offline BOD meeting mode) ───────────────────────────────────
+  //
+  // Both queued issuances and queued payments live in the same box,
+  // distinguished by key prefix ('issue_' / 'payment_') rather than
+  // separate boxes — they're both small, short-lived, admin-only write
+  // queues with identical lifecycle (queue → sync → delete).
+  //
+  // Queued issuances are stored WITHOUT a reference number — reference
   // generation requires querying existing loans (needs connectivity) and
   // is deliberately deferred to sync time. See AdminLoanRepository.issueLoan().
 
   static Future<void> savePendingLoanIssuance(Map<String, dynamic> payload) async {
-    final localId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+    final localId = 'issue_${DateTime.now().millisecondsSinceEpoch}';
     await _loanQueueBox.put(localId, payload);
   }
 
-  static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingLoanIssuances() {
+  static Future<void> savePendingLoanPayment(Map<String, dynamic> payload) async {
+    final localId = 'payment_${DateTime.now().millisecondsSinceEpoch}';
+    await _loanQueueBox.put(localId, payload);
+  }
+
+  static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingLoanIssuances() =>
+      _getPendingByPrefix('issue_');
+
+  static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingLoanPayments() =>
+      _getPendingByPrefix('payment_');
+
+  static List<MapEntry<String, Map<dynamic, dynamic>>> _getPendingByPrefix(String prefix) {
     return _loanQueueBox.keys
+        .where((k) => (k as String).startsWith(prefix))
         .map((key) => MapEntry(
               key as String,
               Map<dynamic, dynamic>.from(_loanQueueBox.get(key) as Map),
@@ -138,11 +191,38 @@ class HiveService {
         .toList();
   }
 
-  static Future<void> removePendingLoanIssuance(String localId) async {
+  static Future<void> removePendingQueueItem(String localId) async {
     await _loanQueueBox.delete(localId);
   }
 
-  static int getPendingLoanIssuanceCount() => _loanQueueBox.length;
+  static int getPendingLoanIssuanceCount() => _getPendingByPrefix('issue_').length;
+
+  static int getPendingLoanPaymentCount() => _getPendingByPrefix('payment_').length;
+
+  // ─── Export History (NEW — Export Center's Recent Exports) ──────────────────
+  //
+  // Device-local only, by design — no cloud sync, no shared history across
+  // admin devices. Files themselves live under the app's documents
+  // directory (see CsvExportService); this box just indexes them for
+  // display and re-sharing.
+
+  static Future<void> addExportHistoryEntry(Map<String, dynamic> entry) async {
+    final id = entry['id'] as String;
+    await _exportHistoryBox.put(id, entry);
+  }
+
+  static List<Map<String, dynamic>> getExportHistory() {
+    final entries = _exportHistoryBox.values
+        .map((v) => Map<String, dynamic>.from(v as Map))
+        .toList();
+    entries.sort((a, b) =>
+        (b['generatedAt'] as String).compareTo(a['generatedAt'] as String));
+    return entries;
+  }
+
+  static Future<void> removeExportHistoryEntry(String id) async {
+    await _exportHistoryBox.delete(id);
+  }
 
   // ─── Cleanup ─────────────────────────────────────────────────────────────────
 

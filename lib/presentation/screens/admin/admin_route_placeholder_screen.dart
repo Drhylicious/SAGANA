@@ -3,20 +3,27 @@ import 'package:flutter/material.dart';
 class AdminRoutePlaceholderScreen extends StatelessWidget {
   const AdminRoutePlaceholderScreen({
     super.key,
-    required this.title,
-    required this.description,
+    this.title,
+    this.description,
+    this.routeName,
+    this.label,
   });
 
-  final String title;
-  final String description;
+  final String? title;
+  final String? description;
+  final String? routeName;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final resolvedTitle = title ?? label ?? routeName ?? 'Coming Soon';
+    final resolvedDescription =
+        description ?? 'This route is not implemented yet.';
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Text(resolvedTitle),
       ),
       body: Center(
         child: Padding(
@@ -31,13 +38,13 @@ class AdminRoutePlaceholderScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                title,
+                resolvedTitle,
                 style: theme.textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                description,
+                resolvedDescription,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium,
               ),

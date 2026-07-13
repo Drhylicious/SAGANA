@@ -504,7 +504,7 @@ class _HeroSection extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${listing.cropName}',
+                      listing.cropName,
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: cs.onSurfaceVariant,
@@ -533,7 +533,7 @@ class _HeroSection extends StatelessWidget {
                     Container(
                       width: 28,
                       height: 28,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppConstants.primaryContainer,
                       ),
@@ -1240,7 +1240,7 @@ class _ReviewFooter extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.edit_note_rounded,
                               size: 16,
                               color: AppConstants.warningAmber,

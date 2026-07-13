@@ -6,10 +6,10 @@ class AuthRepository {
   // ─── Login ───────────────────────────────────────────────────────────────────
 
   Future<UserModel> login({
-    required String email,
+    required String identifier,
     required String password,
   }) async {
-    return AuthService.login(email: email, password: password);
+    return AuthService.login(identifier: identifier, password: password);
   }
 
   // ─── Register ────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ class AuthRepository {
     String? sitio,
   }) async {
     return AuthService.register(
-      email: email,
+      username: email,
       password: password,
       fullName: fullName,
       phoneNumber: phoneNumber,

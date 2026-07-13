@@ -208,6 +208,54 @@ class FarmerDetailsRepository {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetchFarmerExpenses(String farmerId) async {
+    try {
+      final rows = await _client
+          .from('farmer_expenses')
+          .select('id, description, amount, expense_date, category')
+          .eq('farmer_id', farmerId)
+          .order('expense_date', ascending: false);
+      return rows.map((row) => Map<String, dynamic>.from(row)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ─── Assigned programs (via program_members → cooperative_programs) ──────
+  //
+  // Programs are assigned per-farmer through the 'program_members' join
+  // table, not read directly off 'cooperative_programs'. The embedded
+  // resource name in the select() must match the actual FK table name
+  // ('cooperative_programs') exactly, or PostgREST returns a 400.
+  // Results are flattened here so _ProgramsTab (which reads program['name']
+  // and program['description']) doesn't need to know about the join shape.
+
+  Future<List<Map<String, dynamic>>> fetchAssignedPrograms(String farmerId) async {
+    try {
+      final rows = await _client
+          .from('program_members')
+          .select('id, program_id, farmer_id, status, enrolled_at, '
+                  'cooperative_programs(program_name, program_type, '
+                  'description, status, season_year)')
+          .eq('farmer_id', farmerId)
+          .eq('status', 'active');
+
+      return rows.map((row) {
+        final program =
+            row['cooperative_programs'] as Map<String, dynamic>?;
+        return {
+          'name': program?['program_name'] as String? ?? 'Program',
+          'description': program?['description'] as String? ?? '',
+          'program_type': program?['program_type'] as String?,
+          'season_year': program?['season_year'],
+          'enrolled_at': row['enrolled_at'],
+        };
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ─── Admin actions ─────────────────────────────────────────────────────────
 
   Future<void> setFarmerStatus({

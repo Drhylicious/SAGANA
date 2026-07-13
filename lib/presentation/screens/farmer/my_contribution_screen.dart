@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -102,7 +101,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
 
                       // Sales section
                       if (_isLoading)
-                        _SectionShimmer(height: 240)
+                        const _SectionShimmer(height: 240)
                       else
                         _SalesProgressSection(
                           current: _current,
@@ -114,7 +113,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
 
                       // Estimated distribution
                       if (_isLoading)
-                        _SectionShimmer(height: 160)
+                        const _SectionShimmer(height: 160)
                       else
                         _EstimatedDistributionCard(current: _current),
                       const SizedBox(height: 20),
@@ -140,7 +139,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
 
                       // Capital shares + previous year payout
                       if (_isLoading)
-                        _SectionShimmer(height: 140)
+                        const _SectionShimmer(height: 140)
                       else
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,

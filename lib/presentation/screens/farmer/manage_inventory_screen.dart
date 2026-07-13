@@ -38,10 +38,12 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   void initState() {
     super.initState();
     AppEventService.instance.addListener(_onHarvestRecorded);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
@@ -102,14 +104,14 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     _filtered = _allBatches.where((b) {
       // Apply grade filter first
       if (!_gradeFilter.matches(b)) return false;
-      
+
       // Apply sold filter: binary toggle
       // When _showSold is TRUE: show ONLY sold/withdrawn batches
       // When _showSold is FALSE: show ONLY available batches
       final isSold = b.isSoldOut || b.isWithdrawn;
       final shouldDisplay = _showSold ? isSold : !isSold;
       if (!shouldDisplay) return false;
-      
+
       // Apply search filter
       if (q.isEmpty) return true;
       return b.cropName.toLowerCase().contains(q) ||
@@ -136,7 +138,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         onViewHarvestRecord: () {
           Navigator.pop(context);
           // Navigates to harvest history filtered by this batch's crop
-            context.goTab(AppRoutes.harvestHistory);
+          context.goTab(AppRoutes.harvestHistory);
         },
         onDelete: () {
           Navigator.pop(context);
@@ -147,26 +149,36 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   }
 
   void _showUpdateQuantityDialog(InventoryBatchModel batch) {
-    final controller =
-        TextEditingController(text: batch.availableKg.toStringAsFixed(0));
+    final controller = TextEditingController(
+      text: batch.availableKg.toStringAsFixed(0),
+    );
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text('Update Quantity',
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        title: Text(
+          'Update Quantity',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${batch.cropName} • Batch #${batch.batchNumber}',
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline)),
+            Text(
+              '${batch.cropName} • Batch #${batch.batchNumber}',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.outline,
+              ),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               autofocus: true,
               decoration: InputDecoration(
                 labelText: 'Available Quantity (kg)',
@@ -176,21 +188,33 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Text('Total batch quantity: ${batch.quantityKg.toStringAsFixed(0)} kg',
-                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
+            Text(
+              'Total batch quantity: ${batch.quantityKg.toStringAsFixed(0)} kg',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppConstants.outline,
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
               final newQty = double.tryParse(controller.text.trim());
               if (newQty == null || newQty < 0 || newQty > batch.quantityKg) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Enter a value between 0 and ${batch.quantityKg.toStringAsFixed(0)} kg')),
+                  SnackBar(
+                    content: Text(
+                      'Enter a value between 0 and ${batch.quantityKg.toStringAsFixed(0)} kg',
+                    ),
+                  ),
                 );
                 return;
               }
@@ -219,16 +243,24 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text('Mark as Sold?',
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        title: Text(
+          'Mark as Sold?',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Text(
           'This will mark the remaining ${batch.availableKg.toStringAsFixed(0)} kg of ${batch.cropName} (Batch #${batch.batchNumber}) as sold outside the marketplace.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -257,16 +289,24 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         ),
-        title: Text('Delete Batch?',
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        title: Text(
+          'Delete Batch?',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Text(
           'This will permanently delete Batch #${batch.batchNumber}. This action cannot be undone.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -357,7 +397,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                       Text(
                         'Inventory Batches',
                         style: GoogleFonts.poppins(
-                          fontSize: 18, fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
                           color: AppConstants.charcoal,
                         ),
                       ),
@@ -365,26 +406,33 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
                       // Batch list
                       if (_isLoading)
-                        ...List.generate(3, (_) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _BatchShimmer(),
-                            ))
+                        ...List.generate(
+                          3,
+                          (_) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _BatchShimmer(),
+                          ),
+                        )
                       else if (_filtered.isEmpty)
                         _EmptyState(
-                          hasFilter: _searchQuery.isNotEmpty ||
+                          hasFilter:
+                              _searchQuery.isNotEmpty ||
                               _gradeFilter != InventoryGradeFilter.all ||
-                              _showSold,  // Show filtered message when "Show Sold" is active
-                          onRecordHarvest: () => context.goTab(AppRoutes.cropListing),
+                              _showSold, // Show filtered message when "Show Sold" is active
+                          onRecordHarvest: () =>
+                              context.goTab(AppRoutes.cropListing),
                         )
                       else
-                        ..._filtered.map((b) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _BatchCard(
-                                batch: b,
-                                onMenuTap: () => _showBatchMenu(b),
-                                onActionTap: () => _handleBatchAction(b),
-                              ),
-                            )),
+                        ..._filtered.map(
+                          (b) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _BatchCard(
+                              batch: b,
+                              onMenuTap: () => _showBatchMenu(b),
+                              onActionTap: () => _handleBatchAction(b),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -392,8 +440,18 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
             ],
           ),
           Positioned(
-            top: 0, left: 0, right: 0,
-            child: FarmerTopBar(title: 'Manage Inventory', onBack: () => Navigator.of(context).pop(), profilePhotoUrl: null, onProfileTap: () {}, onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications), onSettingsTap: null,),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: FarmerTopBar(
+              title: 'Manage Inventory',
+              onBack: () => Navigator.of(context).pop(),
+              profilePhotoUrl: null,
+              onProfileTap: () {},
+              onNotificationTap: () =>
+                  context.pushRoute(AppRoutes.farmerNotifications),
+              onSettingsTap: null,
+            ),
           ),
           // Deleting overlay
           if (_isDeleting)
@@ -428,10 +486,19 @@ class _OfflineBanner extends StatelessWidget {
       color: const Color(0xFFFFDAD6),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 18, color: Color(0xFF93000A)),
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: Color(0xFF93000A),
+          ),
           const SizedBox(width: 8),
-          Text('Offline: Data may be outdated',
-              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF93000A))),
+          Text(
+            'Offline: Data may be outdated',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: const Color(0xFF93000A),
+            ),
+          ),
         ],
       ),
     );
@@ -482,7 +549,8 @@ class _SummaryMetrics extends StatelessWidget {
     );
   }
 
-  String _fmt(double v) => v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+  String _fmt(double v) =>
+      v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 }
 
 class _MetricCard extends StatelessWidget {
@@ -522,23 +590,37 @@ class _MetricCard extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Text(value,
-                      style: GoogleFonts.poppins(
-                          fontSize: 20, fontWeight: FontWeight.w700,
-                          color: valueColor)),
+                  Text(
+                    value,
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: valueColor,
+                    ),
+                  ),
                   Positioned(
-                    top: -2, right: -8,
+                    top: -2,
+                    right: -8,
                     child: Container(
-                      width: 6, height: 6,
-                      decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: dotColor,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
-              Text(label.toUpperCase(),
-                  style: GoogleFonts.inter(
-                      fontSize: 9, color: AppConstants.outline, letterSpacing: 0.8)),
+              Text(
+                label.toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  color: AppConstants.outline,
+                  letterSpacing: 0.8,
+                ),
+              ),
             ],
           ),
         ),
@@ -562,23 +644,36 @@ class _SearchBar extends StatelessWidget {
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       decoration: InputDecoration(
         hintText: 'Search batch or crop...',
-        hintStyle: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.60)),
-        prefixIcon: const Icon(Icons.search_rounded, color: AppConstants.outline),
+        hintStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: AppConstants.outline.withValues(alpha: 0.60),
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: AppConstants.outline,
+        ),
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: AppConstants.outline.withValues(alpha: 0.20),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+          borderSide: BorderSide(
+            color: AppConstants.outline.withValues(alpha: 0.20),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           borderSide: const BorderSide(color: AppConstants.primaryGreen),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -620,28 +715,39 @@ class _FilterRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Show Sold',
-                      style: GoogleFonts.poppins(
-                          fontSize: 11, fontWeight: FontWeight.w600,
-                          color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    'Show Sold',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(width: 6),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    width: 32, height: 18,
+                    width: 32,
+                    height: 18,
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: showSold
                           ? AppConstants.primaryGreen
                           : AppConstants.outline.withValues(alpha: 0.30),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
                     child: AnimatedAlign(
                       duration: const Duration(milliseconds: 150),
-                      alignment: showSold ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: showSold
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
-                        width: 14, height: 14,
+                        width: 14,
+                        height: 14,
                         decoration: const BoxDecoration(
-                          color: Colors.white, shape: BoxShape.circle,
+                          color: Colors.white,
+                          shape: BoxShape.circle,
                         ),
                       ),
                     ),
@@ -659,22 +765,35 @@ class _FilterRow extends StatelessWidget {
                 onTap: () => onGradeChanged(f),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
+                  ),
                   decoration: BoxDecoration(
                     color: isActive
                         ? AppConstants.primaryGreen.withValues(alpha: 0.10)
                         : const Color(0xFFD5ECF8),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                     border: isActive
-                        ? Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.30))
+                        ? Border.all(
+                            color: AppConstants.primaryGreen.withValues(
+                              alpha: 0.30,
+                            ),
+                          )
                         : null,
                   ),
-                  child: Text(f.label,
-                      style: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w500,
-                          color: isActive
-                              ? AppConstants.primaryGreen
-                              : AppConstants.onSurfaceVariant)),
+                  child: Text(
+                    f.label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isActive
+                          ? AppConstants.primaryGreen
+                          : AppConstants.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -718,7 +837,8 @@ class _BatchCard extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 16, offset: const Offset(0, 4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -730,15 +850,18 @@ class _BatchCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 56, height: 56,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
                       color: statusInfo.bg,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: statusInfo.border),
                     ),
                     child: Center(
-                      child: Text(_emojiForCrop(batch.cropName),
-                          style: const TextStyle(fontSize: 28)),
+                      child: Text(
+                        _emojiForCrop(batch.cropName),
+                        style: const TextStyle(fontSize: 28),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -751,24 +874,35 @@ class _BatchCard extends StatelessWidget {
                           spacing: 8,
                           runSpacing: 4,
                           children: [
-                            Text(batch.cropName,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 15, fontWeight: FontWeight.w700,
-                                    color: AppConstants.charcoal)),
+                            Text(
+                              batch.cropName,
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppConstants.charcoal,
+                              ),
+                            ),
                             _StatusBadge(status: batch.status),
                           ],
                         ),
                         const SizedBox(height: 2),
-                        Text('Batch: #${batch.batchNumber} • ${batch.qualityGrade}',
-                            style: GoogleFonts.inter(
-                                fontSize: 11, color: AppConstants.outline)),
+                        Text(
+                          'Batch: #${batch.batchNumber} • ${batch.qualityGrade}',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppConstants.outline,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: onMenuTap,
-                    icon: const Icon(Icons.more_vert_rounded,
-                        size: 20, color: AppConstants.outline),
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: AppConstants.outline,
+                    ),
                     style: IconButton.styleFrom(
                       shape: const CircleBorder(),
                       padding: const EdgeInsets.all(4),
@@ -785,12 +919,18 @@ class _BatchCard extends StatelessWidget {
                   Text(
                     'Stock: ${batch.availableKg.toStringAsFixed(0)}kg of ${batch.quantityKg.toStringAsFixed(0)}kg',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: AppConstants.outline),
+                      fontSize: 12,
+                      color: AppConstants.outline,
+                    ),
                   ),
-                  Text('${(batch.stockPercent * 100).toStringAsFixed(0)}%',
-                      style: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w700,
-                          color: statusInfo.accent)),
+                  Text(
+                    '${(batch.stockPercent * 100).toStringAsFixed(0)}%',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: statusInfo.accent,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
@@ -810,7 +950,9 @@ class _BatchCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 10),
                 decoration: BoxDecoration(
                   border: Border(
-                    top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.08)),
+                    top: BorderSide(
+                      color: AppConstants.outline.withValues(alpha: 0.08),
+                    ),
                   ),
                 ),
                 child: Row(
@@ -819,16 +961,27 @@ class _BatchCard extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('HARVEST DATE',
-                            style: GoogleFonts.inter(
-                                fontSize: 9, color: AppConstants.outline, letterSpacing: 0.5)),
+                        Text(
+                          'HARVEST DATE',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            color: AppConstants.outline,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                         Text(
                           batch.harvestDate != null
-                              ? DateFormat('MMM d, yyyy').format(batch.harvestDate!)
-                              : DateFormat('MMM d, yyyy').format(batch.createdAt),
+                              ? DateFormat(
+                                  'MMM d, yyyy',
+                                ).format(batch.harvestDate!)
+                              : DateFormat(
+                                  'MMM d, yyyy',
+                                ).format(batch.createdAt),
                           style: GoogleFonts.inter(
-                              fontSize: 13, fontWeight: FontWeight.w600,
-                              color: AppConstants.onSurface),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.onSurface,
+                          ),
                         ),
                       ],
                     ),
@@ -853,7 +1006,9 @@ class _BatchCard extends StatelessWidget {
     if (lower.contains('ginger') || lower.contains('luya')) return '🫚';
     if (lower.contains('mango') || lower.contains('mangga')) return '🥭';
     if (lower.contains('papaya')) return '🍈';
-    if (lower.contains('cassava') || lower.contains('kamoteng kahoy')) return '🍠';
+    if (lower.contains('cassava') || lower.contains('kamoteng kahoy')) {
+      return '🍠';
+    }
     if (lower.contains('kamote')) return '🍠';
     if (lower.contains('garlic') || lower.contains('bawang')) return '🧄';
     if (lower.contains('onion') || lower.contains('sibuyas')) return '🧅';
@@ -864,27 +1019,32 @@ class _BatchCard extends StatelessWidget {
     switch (status) {
       case 'available':
         return _StatusInfo(
-          bg: const Color(0xFFFFF7E0), border: const Color(0xFFFFE9B3),
+          bg: const Color(0xFFFFF7E0),
+          border: const Color(0xFFFFE9B3),
           accent: AppConstants.successGreen,
         );
       case 'low_stock':
         return _StatusInfo(
-          bg: const Color(0xFFFFF3E0), border: const Color(0xFFFFE0B2),
+          bg: const Color(0xFFFFF3E0),
+          border: const Color(0xFFFFE0B2),
           accent: AppConstants.warningAmber,
         );
       case 'reserved':
         return _StatusInfo(
-          bg: const Color(0xFFFFF3E0), border: const Color(0xFFFFE0B2),
+          bg: const Color(0xFFFFF3E0),
+          border: const Color(0xFFFFE0B2),
           accent: AppConstants.warningAmber,
         );
       case 'sold_out':
         return _StatusInfo(
-          bg: const Color(0xFFF1F5F9), border: const Color(0xFFE2E8F0),
+          bg: const Color(0xFFF1F5F9),
+          border: const Color(0xFFE2E8F0),
           accent: AppConstants.outline,
         );
       default:
         return _StatusInfo(
-          bg: const Color(0xFFF1F5F9), border: const Color(0xFFE2E8F0),
+          bg: const Color(0xFFF1F5F9),
+          border: const Color(0xFFE2E8F0),
           accent: AppConstants.outline,
         );
     }
@@ -908,17 +1068,28 @@ class _StatusBadge extends StatelessWidget {
     Color color;
     switch (status) {
       case 'available':
-        label = 'AVAILABLE'; color = AppConstants.successGreen; break;
+        label = 'AVAILABLE';
+        color = AppConstants.successGreen;
+        break;
       case 'low_stock':
-        label = 'LOW STOCK'; color = AppConstants.warningAmber; break;
+        label = 'LOW STOCK';
+        color = AppConstants.warningAmber;
+        break;
       case 'reserved':
-        label = 'RESERVED'; color = AppConstants.warningAmber; break;
+        label = 'RESERVED';
+        color = AppConstants.warningAmber;
+        break;
       case 'sold_out':
-        label = 'SOLD OUT'; color = AppConstants.outline; break;
+        label = 'SOLD OUT';
+        color = AppConstants.outline;
+        break;
       case 'withdrawn':
-        label = 'WITHDRAWN'; color = AppConstants.errorRed; break;
+        label = 'WITHDRAWN';
+        color = AppConstants.errorRed;
+        break;
       default:
-        label = status.toUpperCase(); color = AppConstants.outline;
+        label = status.toUpperCase();
+        color = AppConstants.outline;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -926,10 +1097,15 @@ class _StatusBadge extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label,
-          style: GoogleFonts.inter(
-              fontSize: 9, fontWeight: FontWeight.w700,
-              color: Colors.white, letterSpacing: 0.5)),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 }
@@ -947,11 +1123,14 @@ class _ActionButton extends StatelessWidget {
     switch (status) {
       case 'available':
       case 'low_stock':
-        label = 'Create Listing'; break;
+        label = 'Create Listing';
+        break;
       case 'reserved':
-        label = 'View Order'; break;
+        label = 'View Order';
+        break;
       default:
-        label = 'View History'; isOutlined = true;
+        label = 'View History';
+        isOutlined = true;
     }
 
     if (isOutlined) {
@@ -960,7 +1139,9 @@ class _ActionButton extends StatelessWidget {
           onPressed: onTap,
           style: OutlinedButton.styleFrom(
             foregroundColor: AppConstants.outline,
-            side: BorderSide(color: AppConstants.outline.withValues(alpha: 0.30)),
+            side: BorderSide(
+              color: AppConstants.outline.withValues(alpha: 0.30),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -983,7 +1164,10 @@ class _ActionButton extends StatelessWidget {
           ),
           elevation: 0,
         ),
-        child: Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500)),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500),
+        ),
       ),
     );
   }
@@ -1014,7 +1198,9 @@ class _BatchActionSheet extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppConstants.radiusXl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppConstants.radiusXl),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1022,7 +1208,8 @@ class _BatchActionSheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: AppConstants.outline.withValues(alpha: 0.30),
@@ -1030,15 +1217,37 @@ class _BatchActionSheet extends StatelessWidget {
               ),
             ),
           ),
-          Text('${batch.cropName} — Batch #${batch.batchNumber}',
-              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Text(
+            '${batch.cropName} — Batch #${batch.batchNumber}',
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const Divider(height: 20),
           if (!batch.isSoldOut) ...[
-            _MenuOption(icon: Icons.edit_outlined, label: 'Update Quantity', onTap: onUpdateQuantity),
-            _MenuOption(icon: Icons.check_circle_outline_rounded, label: 'Mark as Sold', onTap: onMarkAsSold),
+            _MenuOption(
+              icon: Icons.edit_outlined,
+              label: 'Update Quantity',
+              onTap: onUpdateQuantity,
+            ),
+            _MenuOption(
+              icon: Icons.check_circle_outline_rounded,
+              label: 'Mark as Sold',
+              onTap: onMarkAsSold,
+            ),
           ],
-          _MenuOption(icon: Icons.receipt_long_outlined, label: 'View Harvest Record', onTap: onViewHarvestRecord),
-          _MenuOption(icon: Icons.delete_outline_rounded, label: 'Delete Batch', color: AppConstants.errorRed, onTap: onDelete),
+          _MenuOption(
+            icon: Icons.receipt_long_outlined,
+            label: 'View Harvest Record',
+            onTap: onViewHarvestRecord,
+          ),
+          _MenuOption(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete Batch',
+            color: AppConstants.errorRed,
+            onTap: onDelete,
+          ),
         ],
       ),
     );
@@ -1060,13 +1269,25 @@ class _MenuOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      tileColor: Colors.transparent,
-      leading: Icon(icon, color: color ?? AppConstants.onSurfaceVariant, size: 22),
-      title: Text(label,
-          style: GoogleFonts.inter(fontSize: 14, color: color ?? AppConstants.onSurface)),
-      onTap: onTap,
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        tileColor: Colors.transparent,
+        leading: Icon(
+          icon,
+          color: color ?? AppConstants.onSurfaceVariant,
+          size: 22,
+        ),
+        title: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: color ?? AppConstants.onSurface,
+          ),
+        ),
+        onTap: onTap,
+      ),
     );
   }
 }
@@ -1088,18 +1309,25 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDBF1FE),
+            width: 80,
+            height: 80,
+            decoration: const BoxDecoration(
+              color: Color(0xFFDBF1FE),
               shape: BoxShape.circle,
             ),
-            child: const Center(child: Text('📦', style: TextStyle(fontSize: 36))),
+            child: const Center(
+              child: Text('📦', style: TextStyle(fontSize: 36)),
+            ),
           ),
           const SizedBox(height: 16),
-          Text(hasFilter ? 'No batches match this filter' : 'No inventory yet',
-              style: GoogleFonts.poppins(
-                  fontSize: 17, fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal)),
+          Text(
+            hasFilter ? 'No batches match this filter' : 'No inventory yet',
+            style: GoogleFonts.poppins(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(
             hasFilter
@@ -1115,13 +1343,21 @@ class _EmptyState extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                 ),
               ),
-              child: Text('Go to Record Harvest',
-                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)),
+              child: Text(
+                'Go to Record Harvest',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
         ],
       ),
@@ -1146,8 +1382,14 @@ class _BatchShimmerState extends State<_BatchShimmer>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
-    _anim = Tween<double>(begin: -1, end: 2).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+    _anim = Tween<double>(
+      begin: -1,
+      end: 2,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -1157,22 +1399,27 @@ class _BatchShimmerState extends State<_BatchShimmer>
   }
 
   Widget _block(double w, double h) => AnimatedBuilder(
-        animation: _anim,
-        builder: (_, __) => Container(
-          width: w, height: h,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            gradient: LinearGradient(
-              stops: [
-                (_anim.value - 1).clamp(0.0, 1.0),
-                _anim.value.clamp(0.0, 1.0),
-                (_anim.value + 1).clamp(0.0, 1.0),
-              ],
-              colors: const [Color(0xFFE8E8E8), Color(0xFFF5F5F5), Color(0xFFE8E8E8)],
-            ),
-          ),
+    animation: _anim,
+    builder: (_, __) => Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          stops: [
+            (_anim.value - 1).clamp(0.0, 1.0),
+            _anim.value.clamp(0.0, 1.0),
+            (_anim.value + 1).clamp(0.0, 1.0),
+          ],
+          colors: const [
+            Color(0xFFE8E8E8),
+            Color(0xFFF5F5F5),
+            Color(0xFFE8E8E8),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1186,13 +1433,22 @@ class _BatchShimmerState extends State<_BatchShimmer>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            _block(56, 56), const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [_block(120, 14), const SizedBox(height: 6), _block(90, 11)],
-            )),
-          ]),
+          Row(
+            children: [
+              _block(56, 56),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _block(120, 14),
+                    const SizedBox(height: 6),
+                    _block(90, 11),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           _block(double.infinity, 8),
         ],
@@ -1200,4 +1456,3 @@ class _BatchShimmerState extends State<_BatchShimmer>
     );
   }
 }
-

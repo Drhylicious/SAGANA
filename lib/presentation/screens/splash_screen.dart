@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/hive_service.dart';
@@ -114,36 +115,66 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (AuthService.isLoggedIn) {
       final role = await AuthService.getCurrentUserRole();
-      switch (role) {
-        case AppConstants.roleAdmin:
-          targetRoute = AppRoutes.adminDashboard;
-          break;
-        case AppConstants.roleFarmer:
-          targetRoute = AppRoutes.farmerDashboard;
-          break;
-        case AppConstants.roleBuyer:
-          targetRoute = AppRoutes.marketplaceBrowse;
-          break;
-        default:
-          targetRoute = AppRoutes.login;
-      }
-    } else {
-      // Offline fallback: check Hive cache
-      final cachedRole = HiveService.getUserRole();
-      final isLoggedIn = HiveService.isLoggedIn();
-      if (isLoggedIn && cachedRole != null) {
-        switch (cachedRole) {
-          case AppConstants.roleAdmin:
-            targetRoute = AppRoutes.adminDashboard;
-            break;
-          case AppConstants.roleFarmer:
+
+      if (role == AppConstants.roleFarmer) {
+        // Check membership status — pending farmers go to holding screen
+        try {
+          final userId = AuthService.currentUser?.id;
+          if (userId != null) {
+            final row = await Supabase.instance.client
+                .from('user_roles')
+                .select('status')
+                .eq('user_id', userId)
+                .single();
+            final status = row['status'] as String? ?? 'active';
+            targetRoute = status == 'pending'
+                ? AppRoutes.pendingApproval
+                : AppRoutes.farmerDashboard;
+          } else {
             targetRoute = AppRoutes.farmerDashboard;
+          }
+        } catch (_) {
+          // Offline fallback
+          final cachedStatus = HiveService.getMemberStatus();
+          targetRoute = cachedStatus == 'pending'
+              ? AppRoutes.pendingApproval
+              : AppRoutes.farmerDashboard;
+        }
+      } else {
+        switch (role) {
+          case AppConstants.roleAdmin:
+          case 'staff':
+            targetRoute = AppRoutes.adminDashboard;
             break;
           case AppConstants.roleBuyer:
             targetRoute = AppRoutes.marketplaceBrowse;
             break;
           default:
             targetRoute = AppRoutes.login;
+        }
+      }
+    } else {
+      // Offline fallback: check Hive cache
+      final cachedRole = HiveService.getUserRole();
+      final isLoggedIn = HiveService.isLoggedIn();
+      if (isLoggedIn && cachedRole != null) {
+        if (cachedRole == AppConstants.roleFarmer) {
+          final cachedStatus = HiveService.getMemberStatus();
+          targetRoute = cachedStatus == 'pending'
+              ? AppRoutes.pendingApproval
+              : AppRoutes.farmerDashboard;
+        } else {
+          switch (cachedRole) {
+            case AppConstants.roleAdmin:
+            case 'staff':
+              targetRoute = AppRoutes.adminDashboard;
+              break;
+            case AppConstants.roleBuyer:
+              targetRoute = AppRoutes.marketplaceBrowse;
+              break;
+            default:
+              targetRoute = AppRoutes.login;
+          }
         }
       } else {
         targetRoute = AppRoutes.login;
@@ -180,7 +211,7 @@ class _SplashScreenState extends State<SplashScreen>
               left: -96,
               child: _BlurOrb(
                 size: 256,
-                color: AppConstants.primaryGreen.withOpacity(0.4),
+                color: AppConstants.primaryGreen.withValues(alpha: 0.4),
               ),
             ),
             Positioned(
@@ -188,7 +219,7 @@ class _SplashScreenState extends State<SplashScreen>
               right: -96,
               child: _BlurOrb(
                 size: 256,
-                color: AppConstants.tertiaryContainer.withOpacity(0.3),
+                color: AppConstants.tertiaryContainer.withValues(alpha: 0.3),
               ),
             ),
 
@@ -255,7 +286,7 @@ class _SplashScreenState extends State<SplashScreen>
                           fontSize: 10,
                           fontWeight: FontWeight.w400,
                           letterSpacing: 2.0,
-                          color: AppConstants.onPrimaryContainer.withOpacity(0.6),
+                          color: AppConstants.onPrimaryContainer.withValues(alpha: 0.6),
                         ),
                       ),
 
@@ -274,7 +305,7 @@ class _SplashScreenState extends State<SplashScreen>
                               boxShadow: [
                                 BoxShadow(
                                   color: AppConstants.successGreen
-                                      .withOpacity(0.8),
+                                      .withValues(alpha: 0.8),
                                   blurRadius: 8,
                                   spreadRadius: 1,
                                 ),
@@ -287,7 +318,7 @@ class _SplashScreenState extends State<SplashScreen>
                             style: GoogleFonts.inter(
                               fontSize: 10,
                               color: AppConstants.onPrimaryContainer
-                                  .withOpacity(0.4),
+                                  .withValues(alpha: 0.4),
                             ),
                           ),
                         ],
@@ -325,7 +356,7 @@ class _LogoCircle extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  AppConstants.harvestGold.withOpacity(0.15),
+                  AppConstants.harvestGold.withValues(alpha: 0.15),
                   Colors.transparent,
                 ],
               ),
@@ -337,14 +368,14 @@ class _LogoCircle extends StatelessWidget {
             height: 128,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               border: Border.all(
-                color: Colors.white.withOpacity(0.10),
+                color: Colors.white.withValues(alpha: 0.10),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 40,
                   spreadRadius: 4,
                 ),
@@ -380,7 +411,7 @@ class _BrandText extends StatelessWidget {
             color: AppConstants.onPrimaryContainer,
             shadows: [
               Shadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 16,
               ),
             ],
@@ -393,7 +424,7 @@ class _BrandText extends StatelessWidget {
             fontSize: 10,
             fontWeight: FontWeight.w500,
             letterSpacing: 3,
-            color: AppConstants.onTertiaryContainer.withOpacity(0.9),
+            color: AppConstants.onTertiaryContainer.withValues(alpha: 0.9),
           ),
         ),
       ],
@@ -421,7 +452,7 @@ class _LoadingBar extends StatelessWidget {
           // Track
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -433,10 +464,10 @@ class _LoadingBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
                 gradient: LinearGradient(
                   colors: [
-                    AppConstants.onTertiaryContainer.withOpacity(0),
+                    AppConstants.onTertiaryContainer.withValues(alpha: 0),
                     AppConstants.onTertiaryContainer
-                        .withOpacity(0.4 * math.sin(shimmerValue * math.pi)),
-                    AppConstants.onTertiaryContainer.withOpacity(0),
+                        .withValues(alpha: 0.4 * math.sin(shimmerValue * math.pi)),
+                    AppConstants.onTertiaryContainer.withValues(alpha: 0),
                   ],
                   stops: const [0.0, 0.5, 1.0],
                 ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/animations/app_page_transitions.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../data/models/export_model.dart';
+import '../../data/services/hive_service.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/farmer/add_crop_screen.dart';
@@ -25,12 +28,20 @@ import '../../presentation/screens/farmer/my_expenses_screen.dart';
 import '../../presentation/screens/farmer/my_harvest_summary_screen.dart';
 import '../../presentation/screens/farmer/my_listings_screen.dart';
 import '../../presentation/screens/farmer/my_loans_screen.dart';
+import '../../presentation/screens/farmer/pending_approval_screen.dart';
+import '../../presentation/screens/farmer/pending_applicant_screen.dart';
 import '../../presentation/screens/admin/admin_dashboard_screen.dart';
 import '../../presentation/screens/admin/add_new_member_screen.dart';
-import '../../presentation/screens/admin/admin_route_placeholder_screen.dart';
+import '../../presentation/screens/admin/admin_activity_screen.dart';
+import '../../presentation/screens/admin/admin_profile_screen.dart';
+import '../../presentation/screens/admin/create_staff_account_screen.dart';
+import '../../presentation/screens/admin/manage_accounts_screen.dart';
+import '../../presentation/screens/admin/crop_management_screen.dart';
+import '../../presentation/screens/admin/loan_item_management_screen.dart';
+import '../../presentation/screens/admin/program_management_screen.dart';
+import '../../presentation/screens/admin/admin_inventory_screen.dart';
 import '../../presentation/screens/admin/farmer_details_screen.dart';
 import '../../presentation/screens/admin/loan_dashboard_screen.dart';
-import '../../presentation/screens/admin/farmer_harvest_history_screen.dart';
 import '../../presentation/screens/admin/farmer_management_screen.dart';
 import '../../presentation/screens/admin/issue_new_loan_screen.dart';
 import '../../presentation/screens/admin/notification_broadcast_screen.dart';
@@ -40,6 +51,25 @@ import '../../presentation/screens/admin/price_management_screen.dart';
 import '../../presentation/screens/admin/supply_chain_map_screen.dart';
 import '../../presentation/screens/admin/market_linking_screen.dart';
 import '../../presentation/screens/admin/listing_review_screen.dart';
+import '../../presentation/screens/admin/operational_reports_screen.dart';
+import '../../presentation/screens/admin/record_payment_screen.dart';
+import '../../presentation/screens/admin/harvest_report_screen.dart';
+import '../../presentation/screens/admin/sales_report_screen.dart';
+import '../../presentation/screens/admin/member_contribution_report_screen.dart';
+import '../../presentation/screens/admin/export_center_screen.dart';
+import '../../presentation/screens/admin/admin_notifications_screen.dart';
+import '../../presentation/screens/admin/inventory_report_screen.dart';
+import '../../presentation/screens/admin/expense_report_screen.dart';
+import '../../presentation/screens/admin/loan_report_screen.dart';
+import '../../presentation/screens/admin/loan_history_screen.dart';
+import '../../presentation/screens/admin/loan_details_screen.dart';
+import '../../presentation/screens/admin/analytics_dashboard_screen.dart';
+import '../../presentation/screens/admin/admin_calendar_screen.dart';
+import '../../presentation/screens/admin/admin_route_placeholder_screen.dart';
+import '../../presentation/screens/admin/broadcast_history_screen.dart';
+import '../../presentation/screens/admin/balik_tangkilik_management_screen.dart';
+import '../../presentation/screens/admin/farmer_harvest_history_screen.dart';
+import '../../presentation/screens/admin/marketplace_dashboard_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
 import '../../presentation/shell/admin_shell_screen.dart';
 import '../../presentation/shell/farmer_shell_screen.dart';
@@ -84,6 +114,24 @@ class AppRouter {
     return GoRouter(
       navigatorKey: rootNavigatorKey,
       initialLocation: AppRoutes.splash,
+      redirect: (context, state) {
+        final path = state.matchedLocation;
+
+        // Only enforce for farmer paths (not auth, admin, buyer, or pending paths)
+        final isFarmerPath = path.startsWith('/farmer/') &&
+            !path.startsWith('/farmer/pending');
+        if (!isFarmerPath) return null;
+
+        // Check cached membership status — synchronous, works offline
+        final cachedRole = HiveService.getUserRole();
+        final cachedStatus = HiveService.getMemberStatus();
+
+        if (cachedRole == AppConstants.roleFarmer &&
+            cachedStatus == 'pending') {
+          return AppRoutes.pendingHome;
+        }
+        return null;
+      },
       routes: [
         GoRoute(
           path: AppRoutes.splash,
@@ -104,6 +152,24 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const RegisterScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.pendingApproval,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => NoTransitionPage(
+            key: s.pageKey,
+            child: const PendingApprovalScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerHarvestHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: AdminFarmerHarvestHistoryScreen(
+              farmerId: s.extra is String ? s.extra as String : null,
+            ),
           ),
         ),
         GoRoute(
@@ -177,6 +243,70 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.adminNotifications,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminNotificationsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.broadcastHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const BroadcastHistoryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminCalendar,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminCalendarScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminActivityLog,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminActivityScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminInventory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminInventoryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.cropManagement,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CropManagementScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.programManagement,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ProgramManagementScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.loanItemManagement,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const LoanItemManagementScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.priceManagement,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -201,6 +331,62 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.salesReport,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const SalesReportScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.memberContributionReport,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MemberContributionReportScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.exportCenter,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: ExportCenterScreen(args: s.extra as ExportCenterArgs?),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.harvestReport,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const HarvestReportScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.expenseReport,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ExpenseReportScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.loanReport,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const LoanReportScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminAnalytics,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AnalyticsDashboardScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.farmerDetails,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -220,13 +406,34 @@ class AppRouter {
             ),
           ),
         ),
+        // Above-shell (parentNavigatorKey: rootNavigatorKey) — kept for
+        // navigation from Dashboard's "pending listings" urgent action and
+        // any existing deep links, now that these live nested under
+        // adminMarketplace within the Listings shell branch.
         GoRoute(
-          path: AppRoutes.farmerHarvestHistory,
+          path: AppRoutes.pendingApprovals, // '/admin/listings/pending' — kept for backward compat
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: AdminFarmerHarvestHistoryScreen(
-              farmerId: s.extra is String ? s.extra as String : '',
+            child: const PendingApprovalsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.allListings, // '/admin/listings/all'
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AllListingsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminOrders,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminRoutePlaceholderScreen(
+              label: 'Orders',
+              routeName: AppRoutes.adminOrders,
             ),
           ),
         ),
@@ -259,10 +466,106 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
+            child: RecordPaymentScreen(loanId: s.extra as String?),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.loanDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: LoanDetailsScreen(loanId: s.extra as String),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.loanHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: LoanHistoryScreen(initialStatusFilter: s.extra as String?),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.balikTangkilikManagement,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const BalikTangkilikManagementScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.createStaffAccount,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CreateStaffAccountScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.manageFarmerAccounts,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ManageAccountsScreen(initialTab: 'farmer'),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.manageAdminAccounts,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ManageAccountsScreen(initialTab: 'admin'),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.memberPrograms,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
             child: const AdminRoutePlaceholderScreen(
-              title: 'Record Payment',
-              description: 'Payment tracking will be available soon.',
+              routeName: AppRoutes.memberPrograms,
+              label: 'Member Programs',
             ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminProfile,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminProfileScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.pendingHome,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => NoTransitionPage(
+            key: s.pageKey,
+            child: const PendingApplicantScreen(initialTab: 0),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.pendingNotifications,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => NoTransitionPage(
+            key: s.pageKey,
+            child: const PendingApplicantScreen(initialTab: 1),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.pendingHelp,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => NoTransitionPage(
+            key: s.pageKey,
+            child: const PendingApplicantScreen(initialTab: 2),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.pendingProfile,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => NoTransitionPage(
+            key: s.pageKey,
+            child: const PendingApplicantScreen(initialTab: 3),
           ),
         ),
         StatefulShellRoute.indexedStack(
@@ -422,19 +725,30 @@ class AppRouter {
             StatefulShellBranch(
               navigatorKey: adminListingsKey,
               routes: [
+                // New dashboard as shell root
                 GoRoute(
-                  path: AppRoutes.pendingApprovals,
+                  path: AppRoutes.adminMarketplace,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const PendingApprovalsScreen(),
+                    child: const MarketplaceDashboardScreen(),
                   ),
-                ),
-                GoRoute(
-                  path: AppRoutes.allListings,
-                  pageBuilder: (c, s) => NoTransitionPage(
-                    key: s.pageKey,
-                    child: const AllListingsScreen(),
-                  ),
+                  routes: [
+                    // Nested so they stay within the Listings shell branch
+                    GoRoute(
+                      path: 'pending', // resolves to /admin/marketplace/pending
+                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
+                        key: s.pageKey,
+                        child: const PendingApprovalsScreen(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'all', // resolves to /admin/marketplace/all
+                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
+                        key: s.pageKey,
+                        child: const AllListingsScreen(),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -454,13 +768,20 @@ class AppRouter {
               navigatorKey: adminReportsKey,
               routes: [
                 GoRoute(
-                  path: AppRoutes.adminAnalytics,
+                  path: AppRoutes.operationalReports,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const _ComingSoonScreen(
-                      routeName: AppRoutes.adminAnalytics,
-                    ),
+                    child: const OperationalReportsScreen(),
                   ),
+                  routes: [
+                    GoRoute(
+                      path: 'inventory',
+                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
+                        key: s.pageKey,
+                        child: const InventoryReportScreen(),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
@@ -184,8 +183,9 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                           child: _RecentActivitySection(
                             items: _activity,
                             isLoading: _isLoading,
-                            onViewAll: () => context
-                                .pushRoute(AppRoutes.farmerRecentActivity),
+                            onViewAll: () => context.pushRoute(
+                              AppRoutes.farmerRecentActivity,
+                            ),
                           ),
                         ),
                       ),
@@ -230,14 +230,18 @@ class _OfflineBanner extends StatelessWidget {
         bottom: false,
         child: Row(
           children: [
-            const Icon(Icons.wifi_off_rounded, size: 16, color: Colors.white),
+            Icon(
+              Icons.wifi_off_rounded,
+              size: 16,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'You\'re offline — data shown from cache',
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -272,7 +276,7 @@ class _WelcomeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         isLoading
-            ? _Shimmer(width: 200, height: 28)
+            ? const _Shimmer(width: 200, height: 28)
             : Text(
                 '$greeting, $firstName!',
                 style: GoogleFonts.poppins(
@@ -285,7 +289,7 @@ class _WelcomeSection extends StatelessWidget {
         const SizedBox(height: 4),
         Row(
           children: [
-            Icon(
+            const Icon(
               Icons.calendar_today_outlined,
               size: 14,
               color: AppConstants.onSurfaceVariant,
@@ -371,7 +375,7 @@ class _YieldCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           isLoading
-              ? _Shimmer(width: 80, height: 24)
+              ? const _Shimmer(width: 80, height: 24)
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -478,7 +482,7 @@ class _EarningsCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           isLoading
-              ? _Shimmer(width: 90, height: 24)
+              ? const _Shimmer(width: 90, height: 24)
               : Text(
                   '₱${_formatCurrency(summary.totalEarnings)}',
                   style: GoogleFonts.poppins(
@@ -556,7 +560,7 @@ class _SyncCard extends StatelessWidget {
                 Row(
                   children: [
                     isLoading
-                        ? _Shimmer(width: 60, height: 20)
+                        ? const _Shimmer(width: 60, height: 20)
                         : Flexible(
                             child: Text(
                               '${summary.unsyncedCount} Item${summary.unsyncedCount != 1 ? 's' : ''}',
@@ -576,7 +580,9 @@ class _SyncCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFDAD6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.errorContainer.withValues(alpha: 0.70),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -584,7 +590,9 @@ class _SyncCard extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF93000A),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -698,7 +706,9 @@ class _PriceTickerState extends State<_PriceTicker>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.40),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.40),
               border: Border(
                 right: BorderSide(
                   color: AppConstants.outline.withValues(alpha: 0.15),
@@ -864,8 +874,8 @@ class _RecentActivitySection extends StatelessWidget {
             child: Column(
               children: List.generate(
                 3,
-                (_) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                (_) => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
                   child: _Shimmer(width: double.infinity, height: 48),
                 ),
               ),
@@ -877,7 +887,7 @@ class _RecentActivitySection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.inbox_outlined,
                     size: 40,
                     color: AppConstants.outline,
@@ -901,10 +911,14 @@ class _RecentActivitySection extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.70),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
                   borderRadius: BorderRadius.circular(AppConstants.radiusXl),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.30),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.30),
                   ),
                 ),
                 child: Column(
@@ -1079,12 +1093,20 @@ class _GlassCard extends StatelessWidget {
         child: Container(
           padding: padding ?? const EdgeInsets.all(AppConstants.spacingGutter),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.30),
+            ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                color: Theme.of(
+                  context,
+                ).colorScheme.shadow.withValues(alpha: 0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 4),
               ),
@@ -1148,10 +1170,16 @@ class _ShimmerState extends State<_Shimmer>
               _animation.value.clamp(0.0, 1.0),
               (_animation.value + 1).clamp(0.0, 1.0),
             ],
-            colors: const [
-              Color(0xFFE8E8E8),
-              Color(0xFFF5F5F5),
-              Color(0xFFE8E8E8),
+            colors: [
+              Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+              Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+              Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
             ],
           ),
         ),

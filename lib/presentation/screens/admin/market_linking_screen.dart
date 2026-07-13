@@ -1239,7 +1239,7 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
                   ),
                 )
               : DropdownButtonFormField<String>(
-                  value: _selectedFarmerId,
+                  initialValue: _selectedFarmerId,
                   hint: Text(
                     'Select a Ginger farmer',
                     style: GoogleFonts.inter(fontSize: 14, color: cs.outline),

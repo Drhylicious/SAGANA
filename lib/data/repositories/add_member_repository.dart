@@ -27,7 +27,7 @@ class AddMemberRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
   Future<AddMemberResult> createMember({
-    required String email,
+    required String username,
     required String password,
     required String fullName,
     required String phoneNumber,
@@ -37,18 +37,18 @@ class AddMemberRepository {
     required double shareValuePerUnit,
     required List<String> initialCrops,
   }) async {
-    // ── Attempt via RPC (requires supabase_schema_admin_create_member.sql) ──
+    // ── Attempt via RPC (requires supabase_schema_username_auth.sql) ──
     try {
       final response = await _client.rpc('create_farmer_account', params: {
-        'p_email':               email.trim(),
-        'p_password':            password,
-        'p_full_name':           fullName.trim(),
-        'p_phone_number':        phoneNumber.trim(),
-        'p_sitio':               sitio,
-        'p_member_id':           memberId?.trim(),
-        'p_capital_shares':      capitalShares,
+        'p_username': username.trim(),
+        'p_password': password,
+        'p_full_name': fullName.trim(),
+        'p_phone_number': phoneNumber.trim(),
+        'p_sitio': sitio,
+        'p_member_id': memberId?.trim(),
+        'p_capital_shares': capitalShares,
         'p_share_value_per_unit': shareValuePerUnit,
-        'p_initial_crops':       initialCrops,
+        'p_initial_crops': initialCrops,
       });
 
       // RPC returns the new user_id on success
@@ -85,10 +85,20 @@ class AddMemberRepository {
     }
   }
 
+  /// Suggests the next username for new members.
+  Future<String> suggestNextUsername() async {
+    try {
+      final result = await _client.rpc('suggest_next_username', params: {'p_prefix': 'SP3'});
+      return result as String? ?? 'SP3-0001';
+    } catch (_) {
+      return 'SP3-0001';
+    }
+  }
+
   String _parseError(Object e) {
     final msg = e.toString().toLowerCase();
     if (msg.contains('already registered') || msg.contains('already exists')) {
-      return 'This email address is already registered.';
+      return 'This username is already registered.';
     }
     if (msg.contains('function') && msg.contains('does not exist')) {
       return 'The admin account creation function is not yet deployed. '

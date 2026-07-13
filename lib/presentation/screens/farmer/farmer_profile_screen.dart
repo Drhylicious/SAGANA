@@ -1,9 +1,7 @@
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
-import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -146,22 +144,26 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                               ),
                               // Use pushRoute so Settings is pushed onto the
                               // navigator stack — allowing a subsequent pop.
-                              onEdit: () => context.pushRoute(AppRoutes.farmerSettings),
+                              onEdit: () =>
+                                  context.pushRoute(AppRoutes.farmerSettings),
                             ),
                             const SizedBox(height: 20),
                             _FinancialRecordsSection(
                               outstandingLoans: _outstandingLoans,
                               monthExpenses: _monthExpenses,
                               harvestCount: _harvestCount,
-                                onLoansTap: () => context.goTab(AppRoutes.myLoans),
-                                onExpensesTap: () => context.goTab(AppRoutes.myExpenses),
-                                onHarvestSummaryTap: () =>
+                              onLoansTap: () =>
+                                  context.goTab(AppRoutes.myLoans),
+                              onExpensesTap: () =>
+                                  context.goTab(AppRoutes.myExpenses),
+                              onHarvestSummaryTap: () =>
                                   context.goTab(AppRoutes.myHarvestSummary),
                             ),
                             const SizedBox(height: 16),
                             _BalikTangkilikCard(
                               capitalShares: _profile!.capitalShares,
-                                onTap: () => context.goTab(AppRoutes.myContribution),
+                              onTap: () =>
+                                  context.goTab(AppRoutes.myContribution),
                             ),
                             const SizedBox(height: 20),
                           ],
@@ -178,7 +180,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
               profilePhotoUrl: _profile?.profilePhotoUrl,
               hideProfileAvatar: true,
               onProfileTap: () {},
-              onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications),
+              onNotificationTap: () =>
+                  context.pushRoute(AppRoutes.farmerNotifications),
               onSettingsTap: () async {
                 await context.pushRoute(AppRoutes.farmerSettings);
                 if (mounted) _loadData();
@@ -382,7 +385,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.location_on_outlined,
                                 size: 14,
                                 color: AppConstants.onSurfaceVariant,
@@ -613,7 +616,8 @@ class _FarmDetailsSection extends StatelessWidget {
                       value: profile.farmLocation ?? 'Not set',
                       icon: Icons.pin_drop_outlined,
                     ),
-                    if (profile.farmAddress != null && profile.farmAddress!.isNotEmpty) ...[
+                    if (profile.farmAddress != null &&
+                        profile.farmAddress!.isNotEmpty) ...[
                       const SizedBox(height: 14),
                       _DetailField(
                         label: 'Address',
@@ -636,8 +640,9 @@ class _FarmDetailsSection extends StatelessWidget {
                       Container(
                         height: 170,
                         decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.circular(AppConstants.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                           border: Border.all(
                             color: AppConstants.outline.withValues(alpha: 0.30),
                           ),
@@ -645,19 +650,21 @@ class _FarmDetailsSection extends StatelessWidget {
                         clipBehavior: Clip.antiAlias,
                         child: fm.FlutterMap(
                           options: fm.MapOptions(
-                            center: LatLng(
+                            initialCenter: LatLng(
                               profile.farmLatitude!,
                               profile.farmLongitude!,
                             ),
-                            zoom: 15,
-                            interactiveFlags: fm.InteractiveFlag.none,
+                            initialZoom: 15,
+                            interactionOptions: const fm.InteractionOptions(
+                              flags: fm.InteractiveFlag.none,
+                            ),
                           ),
                           children: [
                             fm.TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.sp3coop.sagana',
-                              tileProvider: CancellableNetworkTileProvider(),
+                              tileProvider: fm.NetworkTileProvider(),
                             ),
                             fm.MarkerLayer(
                               markers: [
@@ -764,8 +771,9 @@ class _FarmDetailsSection extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: AppConstants.primaryGreen
-                                    .withValues(alpha: 0.40),
+                                color: AppConstants.primaryGreen.withValues(
+                                  alpha: 0.40,
+                                ),
                               ),
                               borderRadius: BorderRadius.circular(
                                 AppConstants.radiusMd,
@@ -975,7 +983,10 @@ class _RecordRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: AppConstants.outline),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppConstants.outline,
+              ),
             ],
           ),
         ),

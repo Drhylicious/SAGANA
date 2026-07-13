@@ -1,6 +1,5 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -10,6 +9,8 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/broadcast_model.dart';
 import '../../../data/repositories/broadcast_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../routes/app_routes.dart';
+import '../../widgets/web_safe_blur_container.dart';
 
 class NotificationBroadcastScreen extends StatefulWidget {
   const NotificationBroadcastScreen({super.key});
@@ -44,6 +45,7 @@ class _NotificationBroadcastScreenState
   bool _isLoading  = true;
   bool _isSending  = false;
   bool _isOnline   = true;
+  StreamSubscription<bool>? _connectivitySub;
 
   static const int _maxTitle = 60;
   static const int _maxBody  = 300;
@@ -53,7 +55,7 @@ class _NotificationBroadcastScreenState
     super.initState();
     AppTheme.applySystemOverlay(context);
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
     _titleCtrl.addListener(() => setState(() {}));
@@ -63,6 +65,7 @@ class _NotificationBroadcastScreenState
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     _scrollCtrl.dispose();
@@ -197,7 +200,8 @@ class _NotificationBroadcastScreenState
         _scheduledAt    = null;
       });
       _refreshRecipientCount();
-      _loadAll();
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) _loadAll();
     } catch (_) {
       setState(() => _isSending = false);
       _showSnack('Failed to send. Please try again.');
@@ -392,6 +396,11 @@ class _NotificationBroadcastScreenState
                                   color: cs.onSurface,
                                 ),
                               ),
+                              TextButton.icon(
+                                onPressed: () => context.push(AppRoutes.broadcastHistory),
+                                icon: const Icon(Icons.list_alt_rounded, size: 18),
+                                label: const Text('View All'),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 12),
@@ -421,7 +430,7 @@ class _NotificationBroadcastScreenState
             left: 0,
             right: 0,
             child: _TopAppBar(
-              title: l10n.broadcastTitle,
+              title: 'Broadcast Announcements',
               onBack: () => context.pop(),
               cs: cs,
               sagana: sagana,
@@ -452,18 +461,17 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
+    return WebSafeBlurContainer(
+      decoration: BoxDecoration(
+        color: sagana.glassBackground,
+        border: Border(
+          bottom: BorderSide(color: sagana.glassBorder),
+        ),
+      ),
+      child: SizedBox(
+        height: 64,
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(
-              bottom: BorderSide(color: sagana.glassBorder),
-            ),
-          ),
           child: Row(
             children: [
               IconButton(
@@ -573,9 +581,9 @@ class _ComposeCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<RecipientType>(
-            value: recipientType,
-            decoration: InputDecoration(
-              contentPadding: const EdgeInsets.symmetric(
+            initialValue: recipientType,
+            decoration: const InputDecoration(
+              contentPadding: EdgeInsets.symmetric(
                   horizontal: 14, vertical: 12),
             ),
             style: GoogleFonts.inter(
@@ -595,7 +603,7 @@ class _ComposeCard extends StatelessWidget {
           if (recipientType == RecipientType.specificCrop) ...[
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: cropFilter,
+              initialValue: cropFilter,
               hint: Text('Select crop',
                   style: GoogleFonts.inter(
                       fontSize: 14, color: cs.outline)),
@@ -619,7 +627,7 @@ class _ComposeCard extends StatelessWidget {
           if (recipientType == RecipientType.specificFarmer) ...[
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: farmerFilter,
+              initialValue: farmerFilter,
               hint: Text('Select farmer',
                   style: GoogleFonts.inter(
                       fontSize: 14, color: cs.outline)),
@@ -1028,7 +1036,7 @@ class _ScheduleRow extends StatelessWidget {
               Switch(
                 value: enabled,
                 onChanged: onToggle,
-                activeColor: AppConstants.primaryGreen,
+                activeThumbColor: AppConstants.primaryGreen,
               ),
             ],
           ),
@@ -1267,7 +1275,7 @@ class _BroadcastHistoryCard extends StatelessWidget {
                     ),
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.done_all_rounded,
                           size: 14,
                           color: AppConstants.successGreen,

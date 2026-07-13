@@ -43,7 +43,7 @@ class SyncService {
       // TODO: implement when these modules are built
       //   harvest_records → inventory_batches → farmer_expenses
       await _syncPendingLoanIssuances();
-      // TODO: loan_payments (Record Payment screen — next in the Loans Module)
+      await _syncPendingLoanPayments();
     } catch (_) {
       // Silently fail — will retry on next interval
     } finally {
@@ -73,7 +73,29 @@ class SyncService {
           nextPaymentDate: DateTime.parse(payload['nextPaymentDate'] as String),
           notes: payload['notes'] as String?,
         );
-        await HiveService.removePendingLoanIssuance(entry.key);
+        await HiveService.removePendingQueueItem(entry.key);
+      } catch (_) {
+        // Leave this one queued — retried on the next sync cycle.
+      }
+    }
+  }
+
+  /// Replays each queued payment through AdminLoanRepository.recordPayment(),
+  /// which re-reads the loan's current balance at execution time — so a
+  /// payment queued hours earlier still computes a correct running_balance
+  /// even if the loan's state changed in the meantime.
+  static Future<void> _syncPendingLoanPayments() async {
+    final pending = HiveService.getPendingLoanPayments();
+    for (final entry in pending) {
+      try {
+        final payload = entry.value;
+        await _adminLoanRepo.recordPayment(
+          loanId: payload['loanId'] as String,
+          amount: (payload['amount'] as num).toDouble(),
+          paymentDate: DateTime.parse(payload['paymentDate'] as String),
+          notes: payload['notes'] as String?,
+        );
+        await HiveService.removePendingQueueItem(entry.key);
       } catch (_) {
         // Leave this one queued — retried on the next sync cycle.
       }

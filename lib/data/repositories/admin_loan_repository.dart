@@ -1,12 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_loan_model.dart';
+import '../models/loan_model.dart';
+import 'farmer_lookup.dart';
 
 /// Repository for all admin-side loan operations.
 ///
-/// NOTE: Dashboard + Issue-Loan methods are implemented. The remaining
-/// methods (recordPayment, fetchAllLoans, fetchLoanById, markLoanAsPaid,
-/// fetchAllTimeLoanSummary) will be added incrementally as each subsequent
-/// Loans Module screen is built, per the agreed one-screen-at-a-time workflow.
+/// NOTE: Dashboard, Issue-Loan, and Record-Payment methods are implemented.
+/// The remaining methods (fetchAllLoans for History, fetchLoanById for
+/// Loan Details, markLoanAsPaid, fetchAllTimeLoanSummary) will be added
+/// incrementally as each subsequent Loans Module screen is built.
 ///
 /// Column reference (cross-checked against supabase_schema_loans.sql and
 /// supabase_schema_fixes.sql):
@@ -15,6 +17,8 @@ import '../models/admin_loan_model.dart';
 ///                 monthly_payment, created_at, updated_at
 ///   farmer_loan_items: id, loan_id, item_name, quantity, unit,
 ///                      unit_price, line_total, created_at
+///   farmer_loan_payments: id, loan_id, payment_date, amount_paid,
+///                         running_balance, notes, recorded_by, created_at
 ///
 /// IMPORTANT: farmer_loans.loan_reference (added by supabase_schema_fixes.sql)
 /// is NOT used anywhere in this repository. It is a duplicate/orphaned column —
@@ -23,11 +27,11 @@ import '../models/admin_loan_model.dart';
 ///
 /// WRITE METHODS DELIBERATELY DO NOT SWALLOW ERRORS.
 /// Every other repository in this project catches internally and returns
-/// null/empty on failure, which is correct for reads. For issueLoan() —
-/// a financial write — silently swallowing a failure would mean a loan
-/// silently never gets created while the admin believes it succeeded.
-/// issueLoan() throws; the screen decides whether to retry, show an error,
-/// or fall back to the offline queue.
+/// null/empty on failure, which is correct for reads. For issueLoan() and
+/// recordPayment() — financial writes — silently swallowing a failure would
+/// mean money changing hands while the admin believes it succeeded. Both
+/// throw; the screen decides whether to retry, show an error, or fall back
+/// to the offline queue.
 class AdminLoanRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -37,7 +41,9 @@ class AdminLoanRepository {
     try {
       final rows = await _client
           .from('farmer_loans')
-          .select('farmer_id, status, total_value, amount_paid, monthly_payment, updated_at');
+          .select(
+            'farmer_id, status, total_value, amount_paid, monthly_payment, updated_at',
+          );
 
       int active = 0;
       int overdue = 0;
@@ -61,9 +67,14 @@ class AdminLoanRepository {
           } else {
             overdue++;
           }
-          totalOutstanding += (totalValue - amountPaid).clamp(0, double.infinity);
+          totalOutstanding += (totalValue - amountPaid).clamp(
+            0,
+            double.infinity,
+          );
         } else if (status == 'paid') {
-          final updatedAt = DateTime.tryParse(row['updated_at'] as String? ?? '');
+          final updatedAt = DateTime.tryParse(
+            row['updated_at'] as String? ?? '',
+          );
           if (updatedAt != null &&
               updatedAt.year == now.year &&
               updatedAt.month == now.month) {
@@ -88,28 +99,37 @@ class AdminLoanRepository {
   // ─── Overdue / Active loan previews (Dashboard sections) ──────────────
 
   Future<List<AdminLoanSummary>> fetchOverdueLoans({int limit = 3}) =>
-      _fetchLoansByStatus('overdue', limit: limit);
+      _fetchLoansByStatus(['overdue'], limit: limit);
 
   Future<List<AdminLoanSummary>> fetchActiveLoans({int limit = 5}) =>
-      _fetchLoansByStatus('active', limit: limit);
+      _fetchLoansByStatus(['active'], limit: limit);
+
+  /// All active + overdue loans, unlimited — used to populate the offline
+  /// cache for Record Payment's BOD-meeting mode. Also usable as a general
+  /// "all outstanding loans" fetch beyond the Dashboard's capped previews.
+  Future<List<AdminLoanSummary>> fetchAllActiveAndOverdueLoans() =>
+      _fetchLoansByStatus(['active', 'overdue'], limit: null);
 
   Future<List<AdminLoanSummary>> _fetchLoansByStatus(
-    String status, {
-    required int limit,
+    List<String> statuses, {
+    required int? limit,
   }) async {
     try {
-      final rows = await _client
+      var query = _client
           .from('farmer_loans')
           .select('*, farmer_loan_items(item_name)')
-          .eq('status', status)
-          .order('next_payment_date', ascending: true)
-          .limit(limit);
+          .inFilter('status', statuses)
+          .order('next_payment_date', ascending: true);
+
+      final rows = limit != null ? await query.limit(limit) : await query;
 
       if (rows.isEmpty) return [];
 
-      final farmerIds =
-          rows.map((r) => r['farmer_id'] as String).toSet().toList();
-      final farmerInfo = await _fetchFarmerInfoMap(farmerIds);
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
+      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
       return rows.map<AdminLoanSummary>((row) {
         final info = farmerInfo[row['farmer_id']];
@@ -128,65 +148,173 @@ class AdminLoanRepository {
     }
   }
 
-  /// Batch-fetches farmer display info (name + member ID) for a set of
-  /// farmer IDs. Done as two separate lookups rather than a single nested
-  /// select, because farmer_loans.farmer_id, user_information.user_id,
-  /// and farmer_profiles.user_id are sibling foreign keys into
-  /// auth.users — there's no direct FK between farmer_loans and either
-  /// info table for PostgREST to embed through.
-  ///
-  /// ASSUMPTION TO VERIFY: uses .inFilter(), the current postgrest-dart
-  /// API for "IN" queries. If your installed supabase_flutter version is
-  /// older and this doesn't compile, swap inFilter for filter('user_id',
-  /// 'in', '(${farmerIds.join(",")})') instead — same intent, older syntax.
-  Future<Map<String, _FarmerInfo>> _fetchFarmerInfoMap(
-    List<String> farmerIds,
-  ) async {
-    if (farmerIds.isEmpty) return {};
+  // ─── Loan History (all-loans registry) ─────────────────────────────────
+
+  /// Fetches loans matching the given server-side filters. Farmer-name
+  /// search is applied client-side afterward via AdminLoanListFilter,
+  /// since farmer name isn't a column on farmer_loans — same reasoning
+  /// FarmerManagementRepository uses for its own FarmerListFilter extension.
+  Future<List<AdminLoanSummary>> fetchAllLoans({
+    String? statusFilter,
+    DateTime? issuedAfter,
+  }) async {
     try {
-      final results = await Future.wait([
-        _client
-            .from('user_information')
-            .select('user_id, full_name')
-            .inFilter('user_id', farmerIds),
-        _client
-            .from('farmer_profiles')
-            .select('user_id, member_id')
-            .inFilter('user_id', farmerIds),
-      ]);
+      var query = _client
+          .from('farmer_loans')
+          .select('*, farmer_loan_items(item_name)');
+      if (statusFilter != null) {
+        query = query.eq('status', statusFilter);
+      }
+      if (issuedAfter != null) {
+        query = query.gte('issued_date', _dateOnly(issuedAfter));
+      }
 
-      final names = {
-        for (final r in results[0])
-          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown Farmer',
-      };
-      final memberIds = {
-        for (final r in results[1])
-          r['user_id'] as String: r['member_id'] as String? ?? '—',
-      };
+      final rows = await query.order('issued_date', ascending: false);
 
-      return {
-        for (final id in farmerIds)
-          id: _FarmerInfo(
-            fullName: names[id] ?? 'Unknown Farmer',
-            memberId: memberIds[id] ?? '—',
-          ),
-      };
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
+      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+
+      return rows.map<AdminLoanSummary>((row) {
+        final info = farmerInfo[row['farmer_id']];
+        final items = ((row['farmer_loan_items'] as List?) ?? [])
+            .map((i) => i['item_name'] as String)
+            .toList();
+        return AdminLoanSummary.fromRow(
+          row,
+          farmerName: info?.fullName ?? 'Unknown Farmer',
+          memberId: info?.memberId ?? '—',
+          itemNames: items,
+        );
+      }).toList();
     } catch (_) {
-      return {};
+      return [];
     }
   }
 
-  // ─── Farmer roster (Issue-Loan picker; cached to Hive for offline use) ──
+  /// All-time aggregates for History's summary card. "Healthy" is a simple
+  /// heuristic — overdue loans making up more than 20% of currently
+  /// outstanding (active + overdue) loans flips it to "Needs Attention".
+  Future<AllTimeLoanSummary> fetchAllTimeLoanSummary() async {
+    try {
+      final rows = await _client
+          .from('farmer_loans')
+          .select('status, total_value, amount_paid');
+
+      double totalIssued = 0;
+      double totalCollected = 0;
+      int overdueCount = 0;
+      int outstandingCount = 0;
+
+      for (final row in rows) {
+        final status = row['status'] as String? ?? 'active';
+        final totalValue = (row['total_value'] as num).toDouble();
+        final amountPaid = (row['amount_paid'] as num? ?? 0).toDouble();
+
+        totalIssued += totalValue;
+        totalCollected += amountPaid;
+
+        if (status == 'active' || status == 'overdue') {
+          outstandingCount++;
+          if (status == 'overdue') {
+            overdueCount++;
+          }
+        }
+      }
+
+      final totalOutstanding = (totalIssued - totalCollected)
+          .clamp(0, double.infinity)
+          .toDouble();
+      final repaymentRate = totalIssued > 0
+          ? (totalCollected / totalIssued * 100)
+          : 0.0;
+      final isHealthy =
+          outstandingCount == 0 || (overdueCount / outstandingCount) <= 0.2;
+
+      return AllTimeLoanSummary(
+        totalLoanCount: rows.length,
+        totalIssued: totalIssued,
+        totalCollected: totalCollected,
+        totalOutstanding: totalOutstanding,
+        repaymentRatePercent: repaymentRate,
+        isHealthy: isHealthy,
+      );
+    } catch (_) {
+      return AllTimeLoanSummary.empty();
+    }
+  }
+
+  /// Builds a monthly collection trend from farmer_loan_payments.
+  Future<List<double>> fetchMonthlyCollectionTrend({int months = 6}) async {
+    try {
+      final cutoff = DateTime.now().subtract(Duration(days: months * 31));
+      final rows = await _client
+          .from('farmer_loan_payments')
+          .select('amount_paid, payment_date')
+          .gte('payment_date', _dateOnly(cutoff));
+
+      final buckets = <String, double>{};
+      for (final row in rows) {
+        final date = DateTime.parse(row['payment_date'] as String);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        buckets[key] = (buckets[key] ?? 0) + (row['amount_paid'] as num).toDouble();
+      }
+
+      final sortedKeys = buckets.keys.toList()..sort();
+      final trend = sortedKeys.map((k) => buckets[k]!).toList();
+      return trend.length > months ? trend.sublist(trend.length - months) : trend;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// A single loan's current summary, used when Record Payment is opened
+  /// directly with a loanId (from a loan card or Loan Details) — a fresh,
+  /// precise lookup rather than trusting a possibly-stale cached list.
+  /// Only meaningful while online; the screen falls back to its cached
+  /// active-loans list when offline.
+  Future<AdminLoanSummary?> fetchLoanSummaryById(String loanId) async {
+    try {
+      final row = await _client
+          .from('farmer_loans')
+          .select('*, farmer_loan_items(item_name)')
+          .eq('id', loanId)
+          .maybeSingle();
+      if (row == null) return null;
+
+      final farmerId = row['farmer_id'] as String;
+      final info = (await fetchFarmerInfoMap(_client, [farmerId]))[farmerId];
+      final items = ((row['farmer_loan_items'] as List?) ?? [])
+          .map((i) => i['item_name'] as String)
+          .toList();
+
+      return AdminLoanSummary.fromRow(
+        row,
+        farmerName: info?.fullName ?? 'Unknown Farmer',
+        memberId: info?.memberId ?? '—',
+        itemNames: items,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── Farmer roster (Issue-Loan + Record-Payment pickers; Hive-cached) ──
 
   /// Fetches the full farmer roster (id, name, member ID) — deliberately
   /// unfiltered by search, since the cooperative only has ~52 farmers and
-  /// the picker filters client-side. Farmer-scoped via farmer_profiles
+  /// pickers filter client-side. Farmer-scoped via farmer_profiles
   /// (not user_information directly), since user_information also holds
   /// admin/buyer rows.
   Future<List<FarmerPickerResult>> fetchFarmerRoster() async {
     try {
-      final profileRows =
-          await _client.from('farmer_profiles').select('user_id, member_id');
+      final profileRows = await _client
+          .from('farmer_profiles')
+          .select('user_id, member_id');
 
       if (profileRows.isEmpty) return [];
 
@@ -202,11 +330,13 @@ class AdminLoanRepository {
       };
 
       final roster = profileRows
-          .map((r) => FarmerPickerResult(
-                id: r['user_id'] as String,
-                fullName: names[r['user_id']] ?? 'Unknown Farmer',
-                memberId: r['member_id'] as String? ?? '—',
-              ))
+          .map(
+            (r) => FarmerPickerResult(
+              id: r['user_id'] as String,
+              fullName: names[r['user_id']] ?? 'Unknown Farmer',
+              memberId: r['member_id'] as String? ?? '—',
+            ),
+          )
           .toList();
       roster.sort((a, b) => a.fullName.compareTo(b.fullName));
       return roster;
@@ -234,9 +364,15 @@ class AdminLoanRepository {
         outstanding += (totalValue - amountPaid).clamp(0, double.infinity);
         if (row['status'] == 'overdue') hasOverdue = true;
       }
-      return FarmerLoanStanding(outstandingBalance: outstanding, hasOverdueLoan: hasOverdue);
+      return FarmerLoanStanding(
+        outstandingBalance: outstanding,
+        hasOverdueLoan: hasOverdue,
+      );
     } catch (_) {
-      return const FarmerLoanStanding(outstandingBalance: 0, hasOverdueLoan: false);
+      return const FarmerLoanStanding(
+        outstandingBalance: 0,
+        hasOverdueLoan: false,
+      );
     }
   }
 
@@ -246,10 +382,8 @@ class AdminLoanRepository {
   /// Two sequential inserts — same pattern already used by
   /// HarvestEntryRepository for harvest_records + inventory_batches.
   ///
-  /// If [referenceNo] is omitted, one is auto-generated here. Callers
-  /// syncing a loan that was queued offline should also omit it and let
-  /// this method generate it fresh at sync time (online), since sequence
-  /// lookups require connectivity.
+  /// Always auto-generates the reference number (requires connectivity —
+  /// only ever called while online, directly or from SyncService).
   ///
   /// Throws on failure — see class doc comment for why this method does
   /// not swallow errors like the read methods above.
@@ -286,16 +420,20 @@ class AdminLoanRepository {
     final loanId = loanRow['id'] as String;
 
     if (items.isNotEmpty) {
-      await _client.from('farmer_loan_items').insert(
+      await _client
+          .from('farmer_loan_items')
+          .insert(
             items
-                .map((i) => {
-                      'loan_id': loanId,
-                      'item_name': i['itemName'],
-                      'quantity': i['quantity'],
-                      'unit': i['unit'],
-                      'unit_price': i['unitPrice'],
-                      'line_total': i['lineTotal'],
-                    })
+                .map(
+                  (i) => {
+                    'loan_id': loanId,
+                    'item_name': i['itemName'],
+                    'quantity': i['quantity'],
+                    'unit': i['unit'],
+                    'unit_price': i['unitPrice'],
+                    'line_total': i['lineTotal'],
+                  },
+                )
                 .toList(),
           );
     }
@@ -304,6 +442,62 @@ class AdminLoanRepository {
       loanId: loanId,
       referenceNo: loanRow['reference_no'] as String,
     );
+  }
+
+  // ─── Record a payment ───────────────────────────────────────────────────
+
+  /// Inserts a farmer_loan_payments row and updates the parent loan's
+  /// amount_paid / status / next_payment_date.
+  ///
+  /// Re-reads the loan's CURRENT total_value/amount_paid immediately before
+  /// updating, rather than trusting a value the caller captured earlier —
+  /// this matters most for payments queued offline and synced later, where
+  /// the on-screen numbers could be stale by the time this actually runs.
+  ///
+  /// If the payment brings amount_paid to or past total_value, the loan is
+  /// marked 'paid'. Otherwise status is set to 'active' (clearing 'overdue'
+  /// if it was set) and next_payment_date advances to the next BOD Saturday
+  /// after the payment date.
+  ///
+  /// Throws on failure — see class doc comment.
+  Future<void> recordPayment({
+    required String loanId,
+    required double amount,
+    required DateTime paymentDate,
+    String? notes,
+  }) async {
+    final loanRow = await _client
+        .from('farmer_loans')
+        .select('total_value, amount_paid')
+        .eq('id', loanId)
+        .single();
+
+    final totalValue = (loanRow['total_value'] as num).toDouble();
+    final currentPaid = (loanRow['amount_paid'] as num? ?? 0).toDouble();
+    final newPaid = currentPaid + amount;
+    final runningBalance = (totalValue - newPaid).clamp(0, double.infinity);
+    final isFullyPaid = newPaid >= totalValue;
+
+    await _client.from('farmer_loan_payments').insert({
+      'loan_id': loanId,
+      'payment_date': _dateOnly(paymentDate),
+      'amount_paid': amount,
+      'running_balance': runningBalance,
+      'notes': notes,
+      'recorded_by': _client.auth.currentUser?.id,
+    });
+
+    final updates = <String, dynamic>{
+      'amount_paid': newPaid,
+      'status': isFullyPaid ? 'paid' : 'active',
+    };
+    if (!isFullyPaid) {
+      updates['next_payment_date'] = _dateOnly(
+        _nextBodSaturdayAfter(paymentDate),
+      );
+    }
+
+    await _client.from('farmer_loans').update(updates).eq('id', loanId);
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;
@@ -338,10 +532,131 @@ class AdminLoanRepository {
       return 'LN-$year-${fallbackSeq.toString().padLeft(3, '0')}';
     }
   }
+
+  /// Same BOD-Saturday algorithm used across the Loans Module screens,
+  /// anchored to an arbitrary [from] date rather than DateTime.now() —
+  /// needed here because a payment can be recorded for a past date.
+  DateTime _nextBodSaturdayAfter(DateTime from) {
+    var candidate = _firstSaturdayOf(from.year, from.month);
+    if (!candidate.isAfter(DateTime(from.year, from.month, from.day))) {
+      final nextMonth = from.month == 12 ? 1 : from.month + 1;
+      final nextYear = from.month == 12 ? from.year + 1 : from.year;
+      candidate = _firstSaturdayOf(nextYear, nextMonth);
+    }
+    return candidate;
+  }
+
+  DateTime _firstSaturdayOf(int year, int month) {
+    var d = DateTime(year, month, 1);
+    while (d.weekday != DateTime.saturday) {
+      d = d.add(const Duration(days: 1));
+    }
+    return d;
+  }
+
+  // ─── Loan Details ───────────────────────────────────────────────────────
+
+  /// Full loan detail — items + full payment history + farmer identity.
+  /// Online-only; there is no offline cache for this (unlike the roster /
+  /// active-loan-list caches used by Issue Loan and Record Payment) since
+  /// caching every loan's complete history "just in case" isn't worth the
+  /// storage for a feature that isn't part of the BOD-meeting workflow.
+  Future<dynamic> fetchLoanById(String loanId) async {
+    try {
+      final row = await _client
+          .from('farmer_loans')
+          .select('*, farmer_loan_items(*), farmer_loan_payments(*)')
+          .eq('id', loanId)
+          .maybeSingle();
+      if (row == null) return null;
+
+      final loan = LoanModel.fromMap(row);
+      final farmerId = row['farmer_id'] as String;
+
+      final infoRow = await _client
+          .from('user_information')
+          .select('full_name, profile_photo_url')
+          .eq('user_id', farmerId)
+          .maybeSingle();
+      final profileRow = await _client
+          .from('farmer_profiles')
+          .select('member_id')
+          .eq('user_id', farmerId)
+          .maybeSingle();
+
+      return AdminLoanDetail(
+        loan: loan,
+        farmerName: infoRow?['full_name'] as String? ?? 'Unknown Farmer',
+        memberId: profileRow?['member_id'] as String? ?? '—',
+        farmerPhotoUrl: infoRow?['profile_photo_url'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Resolves admin display names for payment history's "By {name}" line.
+  /// Same sibling-FK limitation as farmer info lookups — no direct
+  /// embedding path from farmer_loan_payments.recorded_by to a name.
+  Future<Map<String, String>> fetchAdminNames(List<String> adminIds) async {
+    if (adminIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', adminIds);
+      return {
+        for (final r in rows)
+          r['user_id'] as String: r['full_name'] as String? ?? 'Admin',
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Administratively settles a loan WITHOUT inserting a payment record —
+  /// this represents a correction or approved write-off, not an actual
+  /// cash payment, so it must not appear in the farmer's payment history
+  /// as if money changed hands. The reason (if given) is appended to the
+  /// loan's notes with a timestamp for audit purposes.
+  ///
+  /// Throws on failure — see class doc comment on write-method error handling.
+  Future<void> markLoanAsPaid(String loanId, {String? reason}) async {
+    final loanRow = await _client
+        .from('farmer_loans')
+        .select('total_value, notes')
+        .eq('id', loanId)
+        .single();
+
+    final totalValue = (loanRow['total_value'] as num).toDouble();
+    final existingNotes = loanRow['notes'] as String?;
+    final stamp =
+        '[Marked as paid manually on ${_dateOnly(DateTime.now())}'
+        '${reason != null && reason.isNotEmpty ? ": $reason" : ""}]';
+    final newNotes = (existingNotes == null || existingNotes.isEmpty)
+        ? stamp
+        : '$existingNotes\n$stamp';
+
+    await _client
+        .from('farmer_loans')
+        .update({
+          'amount_paid': totalValue,
+          'status': 'paid',
+          'notes': newNotes,
+        })
+        .eq('id', loanId);
+  }
 }
 
-class _FarmerInfo {
-  final String fullName;
-  final String memberId;
-  const _FarmerInfo({required this.fullName, required this.memberId});
+extension AdminLoanListFilter on List<AdminLoanSummary> {
+  List<AdminLoanSummary> applySearch(String query) {
+    if (query.isEmpty) return this;
+    final q = query.toLowerCase();
+    return where(
+      (loan) =>
+          loan.farmerName.toLowerCase().contains(q) ||
+          loan.memberId.toLowerCase().contains(q) ||
+          loan.referenceNo.toLowerCase().contains(q),
+    ).toList();
+  }
 }

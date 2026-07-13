@@ -130,12 +130,14 @@ class CoopAnnualTotal {
   final double totalCoopSales;
   final double distributableSurplus;
   final double interestRatePercent;
+  final bool afsFinalized;
 
   const CoopAnnualTotal({
     required this.year,
     required this.totalCoopSales,
     required this.distributableSurplus,
     required this.interestRatePercent,
+    this.afsFinalized = false,
   });
 
   factory CoopAnnualTotal.fromMap(Map<String, dynamic> map) {
@@ -146,6 +148,9 @@ class CoopAnnualTotal {
           (map['distributable_surplus'] as num? ?? 0).toDouble(),
       interestRatePercent:
           (map['interest_rate_percent'] as num? ?? 7).toDouble(),
+      afsFinalized: map['afs_finalized'] as bool? ?? false,
     );
   }
 }
+
+

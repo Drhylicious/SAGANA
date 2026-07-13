@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,6 +11,7 @@ import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/admin_top_bar.dart';
 
 /// Loan Management — Admin Dashboard.
 /// Shell tab (branch 3, adminLoansKey). No back button.
@@ -89,7 +89,12 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          _buildTopBar(context, l10n, cs, sagana),
+          AdminTopBar(
+            title: l10n.loanDashTitle,
+            onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
+            onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
+            onProfileTap: () => context.push(AppRoutes.adminProfile),
+          ),
           if (!_isOnline) const OfflineBanner(),
           Expanded(
             child: RefreshIndicator(
@@ -180,53 +185,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     context.push(AppRoutes.loanHistory, extra: statusFilter);
   }
 
-  // ─── Top bar (fixed, glass) ─────────────────────────────────────────────
-
-  Widget _buildTopBar(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(
-              bottom: BorderSide(color: sagana.glassBorder),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.loanDashTitle,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.notifications_outlined, color: cs.onSurface),
-                onPressed: () => context.push(AppRoutes.adminNotifications),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle_rounded, color: AppConstants.primaryGreen),
-                onPressed: _goToIssueLoan,
-                tooltip: l10n.loanDashActionIssue,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // Top bar is provided by shared AdminTopBar
 
   // ─── BOD Meeting banner ─────────────────────────────────────────────────
 

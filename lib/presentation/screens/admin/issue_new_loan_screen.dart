@@ -71,7 +71,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     if (_isOnline) {
       final roster = await _repo.fetchFarmerRoster();
       if (roster.isNotEmpty) {
-        await HiveService.cacheFarmerRoster(roster.map((f) => f.toMap()).toList());
+        await HiveService.cacheFarmerRoster(
+          roster.map((f) => f.toMap()).toList(),
+        );
         if (!mounted) return;
         setState(() {
           _farmerRoster = roster;
@@ -135,7 +137,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
   void _recalculateSuggestedMonthlyPayment() {
     if (_monthlyPaymentManuallyEdited) return;
-    _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(0);
+    _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(
+      0,
+    );
   }
 
   // ─── Item CRUD ──────────────────────────────────────────────────────────
@@ -192,7 +196,8 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       _showSnack(l10n.issueLoanErrorNoItems, isError: true);
       return;
     }
-    final monthlyPayment = double.tryParse(_monthlyPaymentController.text.trim()) ?? 0;
+    final monthlyPayment =
+        double.tryParse(_monthlyPaymentController.text.trim()) ?? 0;
     if (monthlyPayment <= 0) {
       _showSnack(l10n.issueLoanErrorInvalidMonthly, isError: true);
       return;
@@ -202,13 +207,15 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
     final nextPaymentDate = _nextBodSaturday();
     final items = _items
-        .map((i) => {
-              'itemName': i.itemName,
-              'quantity': i.quantity,
-              'unit': i.unit,
-              'unitPrice': i.unitPrice,
-              'lineTotal': i.lineTotal,
-            })
+        .map(
+          (i) => {
+            'itemName': i.itemName,
+            'quantity': i.quantity,
+            'unit': i.unit,
+            'unitPrice': i.unitPrice,
+            'lineTotal': i.lineTotal,
+          },
+        )
         .toList();
 
     try {
@@ -219,7 +226,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           issuedDate: _issuedDate,
           monthlyPayment: monthlyPayment,
           nextPaymentDate: nextPaymentDate,
-          notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+          notes: _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
         );
         if (!mounted) return;
         _showSnack(l10n.issueLoanSuccess(result.referenceNo));
@@ -231,7 +240,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           'issuedDate': _issuedDate.toIso8601String(),
           'monthlyPayment': monthlyPayment,
           'nextPaymentDate': nextPaymentDate.toIso8601String(),
-          'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+          'notes': _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
         });
         if (!mounted) return;
         _showSnack(l10n.issueLoanQueuedOffline);
@@ -245,12 +256,18 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
+        backgroundColor: isError
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+      ),
+    );
   }
 
   // ─── Build ──────────────────────────────────────────────────────────────
@@ -309,7 +326,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -323,7 +342,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               Expanded(
                 child: Text(
                   l10n.issueLoanTitle,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    color: cs.onSurface,
+                  ),
                 ),
               ),
             ],
@@ -346,7 +369,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       children: [
         Text(
           l10n.issueLoanSelectFarmer,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
         GestureDetector(
@@ -365,7 +392,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                   radius: 18,
                   backgroundColor: AppConstants.primaryContainer,
                   child: Icon(
-                    _selectedFarmer == null ? Icons.person_search_rounded : Icons.person_rounded,
+                    _selectedFarmer == null
+                        ? Icons.person_search_rounded
+                        : Icons.person_rounded,
                     color: Colors.white,
                     size: 18,
                   ),
@@ -375,18 +404,28 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                   child: _selectedFarmer == null
                       ? Text(
                           l10n.issueLoanNoFarmerSelected,
-                          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: cs.onSurfaceVariant,
+                          ),
                         )
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               _selectedFarmer!.fullName,
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: cs.onSurface,
+                              ),
                             ),
                             Text(
                               _selectedFarmer!.memberId,
-                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),
@@ -404,7 +443,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     );
   }
 
-  Widget _buildStandingBanner(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildStandingBanner(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     if (!_isOnline || !_standingCheckedOnline) {
       return Container(
         width: double.infinity,
@@ -423,8 +466,14 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     final standing = _farmerStanding;
     if (standing == null) return const SizedBox.shrink();
 
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
-    final color = standing.hasOverdueLoan ? AppConstants.errorRed : AppConstants.buyerBlue;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
+    final color = standing.hasOverdueLoan
+        ? AppConstants.errorRed
+        : AppConstants.buyerBlue;
 
     return Container(
       width: double.infinity,
@@ -437,7 +486,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       child: Row(
         children: [
           Icon(
-            standing.hasOverdueLoan ? Icons.warning_amber_rounded : Icons.info_outline_rounded,
+            standing.hasOverdueLoan
+                ? Icons.warning_amber_rounded
+                : Icons.info_outline_rounded,
             color: color,
             size: 18,
           ),
@@ -448,12 +499,19 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               children: [
                 Text(
                   '${l10n.issueLoanOutstandingBalance}: ${currency.format(standing.outstandingBalance)}',
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
                 ),
                 if (standing.hasOverdueLoan)
                   Text(
                     l10n.issueLoanOverdueWarning,
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.errorRed,
+                    ),
                   ),
               ],
             ),
@@ -500,14 +558,26 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           children: [
             Text(
               l10n.issueLoanInputItems,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: cs.onSurface,
+              ),
             ),
             TextButton.icon(
               onPressed: () => _openAddItemSheet(),
-              icon: const Icon(Icons.add_rounded, size: 18, color: AppConstants.primaryGreen),
+              icon: const Icon(
+                Icons.add_rounded,
+                size: 18,
+                color: AppConstants.primaryGreen,
+              ),
               label: Text(
                 l10n.issueLoanAddItem,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: AppConstants.primaryGreen),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: AppConstants.primaryGreen,
+                ),
               ),
             ),
           ],
@@ -523,11 +593,16 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             child: Text(
               l10n.issueLoanNoItemsYet,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           )
         else
-          ..._items.map((item) => _buildItemRow(context, item, l10n, cs, sagana)),
+          ..._items.map(
+            (item) => _buildItemRow(context, item, l10n, cs, sagana),
+          ),
       ],
     );
   }
@@ -539,7 +614,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     final qtyLabel = item.quantity % 1 == 0
         ? item.quantity.toStringAsFixed(0)
         : item.quantity.toStringAsFixed(1);
@@ -560,18 +639,29 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               children: [
                 Text(
                   item.itemName,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
                 ),
                 Text(
                   '$qtyLabel ${item.unit} × ${currency.format(item.unitPrice)}',
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
           ),
           Text(
             currency.format(item.lineTotal),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 18),
@@ -592,8 +682,16 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     );
   }
 
-  Widget _buildTotalCard(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+  Widget _buildTotalCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingGutter),
@@ -606,11 +704,19 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         children: [
           Text(
             l10n.issueLoanTotalValue,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.white),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: Colors.white,
+            ),
           ),
           Text(
             currency.format(_totalValue),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 20, color: Colors.white),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+              color: Colors.white,
+            ),
           ),
         ],
       ),
@@ -626,8 +732,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     SaganaColors sagana,
   ) {
     final nextPayment = _nextBodSaturday();
-    if (_monthlyPaymentController.text.isEmpty && !_monthlyPaymentManuallyEdited) {
-      _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(0);
+    if (_monthlyPaymentController.text.isEmpty &&
+        !_monthlyPaymentManuallyEdited) {
+      _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(
+        0,
+      );
     }
 
     return Container(
@@ -643,7 +752,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         children: [
           Text(
             l10n.issueLoanPaymentSchedule,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: AppConstants.spacingMd),
           GestureDetector(
@@ -652,7 +765,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               label: l10n.issueLoanIssuedDate,
               value: DateFormat('MMMM d, yyyy').format(_issuedDate),
               cs: cs,
-              trailing: Icon(Icons.calendar_today_rounded, size: 16, color: cs.onSurfaceVariant),
+              trailing: Icon(
+                Icons.calendar_today_rounded,
+                size: 16,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
           const Divider(height: AppConstants.spacingSectionV),
@@ -664,12 +781,19 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           TextField(
             controller: _monthlyPaymentController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) => setState(() => _monthlyPaymentManuallyEdited = true),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15, color: cs.onSurface),
+            onChanged: (_) =>
+                setState(() => _monthlyPaymentManuallyEdited = true),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
             decoration: InputDecoration(
               prefixText: '₱ ',
               isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusSm)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+              ),
             ),
           ),
           const SizedBox(height: AppConstants.spacingMd),
@@ -679,21 +803,42 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             cs: cs,
           ),
           const SizedBox(height: 6),
-          Text(l10n.issueLoanFrequency, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-          Text(l10n.issueLoanVenue, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+          Text(
+            l10n.issueLoanFrequency,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+          Text(
+            l10n.issueLoanVenue,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
   }
 
-  Widget _fieldRow({required String label, required String value, required ColorScheme cs, Widget? trailing}) {
+  Widget _fieldRow({
+    required String label,
+    required String value,
+    required ColorScheme cs,
+    Widget? trailing,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
         Row(
           children: [
-            Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface)),
+            Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: cs.onSurface,
+              ),
+            ),
             if (trailing != null) ...[const SizedBox(width: 6), trailing],
           ],
         ),
@@ -714,7 +859,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       children: [
         Text(
           l10n.issueLoanNotes,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
         TextField(
@@ -724,7 +873,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           decoration: InputDecoration(
             filled: true,
             fillColor: sagana.cardBackground,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
           ),
         ),
       ],
@@ -738,10 +889,17 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(context).padding.bottom + 12,
+          ),
           decoration: BoxDecoration(
             color: context.saganaColors.glassBackground,
-            border: Border(top: BorderSide(color: context.saganaColors.glassBorder)),
+            border: Border(
+              top: BorderSide(color: context.saganaColors.glassBorder),
+            ),
           ),
           child: SizedBox(
             width: double.infinity,
@@ -751,17 +909,25 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
               ),
               child: _isSubmitting
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : Text(
                       l10n.issueLoanSubmit,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
                     ),
             ),
           ),
@@ -818,17 +984,26 @@ class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
     final filtered = _query.isEmpty
         ? widget.roster
         : widget.roster
-            .where((f) =>
-                f.fullName.toLowerCase().contains(_query.toLowerCase()) ||
-                f.memberId.toLowerCase().contains(_query.toLowerCase()))
-            .toList();
+              .where(
+                (f) =>
+                    f.fullName.toLowerCase().contains(_query.toLowerCase()) ||
+                    f.memberId.toLowerCase().contains(_query.toLowerCase()),
+              )
+              .toList();
 
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppConstants.radiusXl)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppConstants.radiusXl),
+        ),
       ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.7,
         child: Column(
@@ -836,7 +1011,11 @@ class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
           children: [
             Text(
               widget.l10n.issueLoanSelectFarmer,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: cs.onSurface),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: cs.onSurface,
+              ),
             ),
             const SizedBox(height: AppConstants.spacingMd),
             TextField(
@@ -846,7 +1025,9 @@ class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
                 hintText: widget.l10n.issueLoanSearchFarmerHint,
                 prefixIcon: const Icon(Icons.search_rounded),
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
               ),
             ),
             const SizedBox(height: AppConstants.spacingMd),
@@ -855,24 +1036,44 @@ class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
                   ? Center(
                       child: Text(
                         widget.l10n.issueLoanNoItemsYet,
-                        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     )
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
                         final farmer = filtered[index];
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: AppConstants.primaryContainer,
-                            child: Text(
-                              farmer.fullName.isNotEmpty ? farmer.fullName[0].toUpperCase() : '?',
-                              style: const TextStyle(color: Colors.white),
+                        return Material(
+                          type: MaterialType.transparency,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppConstants.primaryContainer,
+                              child: Text(
+                                farmer.fullName.isNotEmpty
+                                    ? farmer.fullName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(color: Colors.white),
+                              ),
                             ),
+                            title: Text(
+                              farmer.fullName,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            subtitle: Text(
+                              farmer.memberId,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                            onTap: () => widget.onSelected(farmer),
                           ),
-                          title: Text(farmer.fullName, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
-                          subtitle: Text(farmer.memberId, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-                          onTap: () => widget.onSelected(farmer),
                         );
                       },
                     ),
@@ -905,16 +1106,20 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.existing?.itemName ?? '');
+    _nameController = TextEditingController(
+      text: widget.existing?.itemName ?? '',
+    );
     _qtyController = TextEditingController(
       text: widget.existing != null
           ? (widget.existing!.quantity % 1 == 0
-              ? widget.existing!.quantity.toStringAsFixed(0)
-              : widget.existing!.quantity.toString())
+                ? widget.existing!.quantity.toStringAsFixed(0)
+                : widget.existing!.quantity.toString())
           : '',
     );
     _priceController = TextEditingController(
-      text: widget.existing != null ? widget.existing!.unitPrice.toStringAsFixed(2) : '',
+      text: widget.existing != null
+          ? widget.existing!.unitPrice.toStringAsFixed(2)
+          : '',
     );
     _unit = widget.existing?.unit ?? AppConstants.loanItemUnits.first;
   }
@@ -933,21 +1138,32 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
 
   void _confirm() {
     final l10n = AppLocalizations.of(context);
-    if (_nameController.text.trim().isEmpty || _quantity <= 0 || _unitPrice < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(l10n.issueLoanErrorGeneric, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: AppConstants.errorRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+    if (_nameController.text.trim().isEmpty ||
+        _quantity <= 0 ||
+        _unitPrice < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.issueLoanErrorGeneric,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
+          backgroundColor: AppConstants.errorRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
-    widget.onSave(_LoanItemDraft(
-      id: widget.existing?.id ?? 'item_${DateTime.now().millisecondsSinceEpoch}',
-      itemName: _nameController.text.trim(),
-      quantity: _quantity,
-      unit: _unit,
-      unitPrice: _unitPrice,
-    ));
+    widget.onSave(
+      _LoanItemDraft(
+        id:
+            widget.existing?.id ??
+            'item_${DateTime.now().millisecondsSinceEpoch}',
+        itemName: _nameController.text.trim(),
+        quantity: _quantity,
+        unit: _unit,
+        unitPrice: _unitPrice,
+      ),
+    );
     Navigator.of(context).pop();
   }
 
@@ -956,40 +1172,65 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
 
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppConstants.radiusXl)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppConstants.radiusXl),
+        ),
       ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               l10n.issueLoanAddItem,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: cs.onSurface),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: cs.onSurface,
+              ),
             ),
             const SizedBox(height: AppConstants.spacingMd),
             Wrap(
               spacing: 8,
               children: AppConstants.loanInputCategories
-                  .map((c) => ActionChip(
-                        label: Text(c, style: GoogleFonts.inter(fontSize: 12)),
-                        onPressed: () => setState(() => _nameController.text = c),
-                      ))
+                  .map(
+                    (c) => ActionChip(
+                      label: Text(c, style: GoogleFonts.inter(fontSize: 12)),
+                      onPressed: () => setState(() => _nameController.text = c),
+                    ),
+                  )
                   .toList(),
             ),
             const SizedBox(height: AppConstants.spacingMd),
-            Text(l10n.issueLoanItemName, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+            Text(
+              l10n.issueLoanItemName,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 6),
             TextField(
               controller: _nameController,
               decoration: InputDecoration(
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusSm)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                ),
               ),
             ),
             const SizedBox(height: AppConstants.spacingMd),
@@ -999,15 +1240,27 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(l10n.issueLoanQuantity, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                      Text(
+                        l10n.issueLoanQuantity,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _qtyController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusSm)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusSm,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -1018,17 +1271,29 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(l10n.issueLoanUnit, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                      Text(
+                        l10n.issueLoanUnit,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
                         initialValue: _unit,
                         isExpanded: true,
                         decoration: InputDecoration(
                           isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusSm)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusSm,
+                            ),
+                          ),
                         ),
                         items: AppConstants.loanItemUnits
-                            .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                            .map(
+                              (u) => DropdownMenuItem(value: u, child: Text(u)),
+                            )
                             .toList(),
                         onChanged: (v) => setState(() => _unit = v ?? _unit),
                       ),
@@ -1038,26 +1303,46 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
               ],
             ),
             const SizedBox(height: AppConstants.spacingMd),
-            Text(l10n.issueLoanUnitPrice, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+            Text(
+              l10n.issueLoanUnitPrice,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 6),
             TextField(
               controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 prefixText: '₱ ',
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusSm)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                ),
               ),
             ),
             const SizedBox(height: AppConstants.spacingMd),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(l10n.issueLoanLineTotal, style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
+                Text(
+                  l10n.issueLoanLineTotal,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
                 Text(
                   currency.format(_lineTotal),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: cs.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -1074,7 +1359,10 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _confirm,
-                    style: ElevatedButton.styleFrom(backgroundColor: AppConstants.primaryGreen, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConstants.primaryGreen,
+                      foregroundColor: Colors.white,
+                    ),
                     child: Text(l10n.issueLoanConfirmItem),
                   ),
                 ),

@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -415,7 +414,7 @@ class _BatchSelector extends StatelessWidget {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.inventory_2_outlined, size: 12, color: AppConstants.outline),
+                          const Icon(Icons.inventory_2_outlined, size: 12, color: AppConstants.outline),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text('${batch.availableKg.toStringAsFixed(0)}kg',
@@ -427,7 +426,7 @@ class _BatchSelector extends StatelessWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.verified_outlined, size: 12, color: AppConstants.outline),
+                          const Icon(Icons.verified_outlined, size: 12, color: AppConstants.outline),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(batch.qualityGrade,
@@ -583,7 +582,7 @@ class _FormCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title
-              _FieldLabel('Listing Title', optional: true),
+              const _FieldLabel('Listing Title', optional: true),
               const SizedBox(height: 8),
               TextField(
                 controller: titleController,
@@ -601,7 +600,7 @@ class _FormCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _FieldLabel('Quantity (kg)'),
+                        const _FieldLabel('Quantity (kg)'),
                         const SizedBox(height: 8),
                         TextField(
                           controller: quantityController,
@@ -623,7 +622,7 @@ class _FormCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _FieldLabel('Asking Price'),
+                        const _FieldLabel('Asking Price'),
                         const SizedBox(height: 8),
                         TextField(
                           controller: priceController,
@@ -636,7 +635,7 @@ class _FormCard extends StatelessWidget {
                           padding: const EdgeInsets.only(top: 4, left: 2),
                           child: Row(
                             children: [
-                              Icon(Icons.trending_up_rounded, size: 11, color: AppConstants.warningAmber),
+                              const Icon(Icons.trending_up_rounded, size: 11, color: AppConstants.warningAmber),
                               const SizedBox(width: 3),
                               Text('Market: ₱${marketPrice!.toStringAsFixed(2)}/kg',
                                   style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.warningAmber)),
@@ -651,7 +650,7 @@ class _FormCard extends StatelessWidget {
               const SizedBox(height: 18),
 
               // Photo upload
-              _FieldLabel('Product Photo'),
+              const _FieldLabel('Product Photo'),
               const SizedBox(height: 8),
               _PhotoUpload(
                 photo: photo,

@@ -16,11 +16,11 @@
   "navMarketplace": "Marketplace",
   "navAnalytics": "Analytics",
   "navProfile": "Profile",
-  "greetingMorning": "Good Morning",
-  "greetingAfternoon": "Good Afternoon",
-  "greetingEvening": "Good Evening",
+  "greetingMorning": "Good morning",
+  "greetingAfternoon": "Good afternoon",
+  "greetingEvening": "Good evening",
   "defaultFarmerName": "Farmer",
-  "offlineBanner": "You're offline — changes will sync when connected",
+  "offlineBanner": "You are offline. Some features may be unavailable.",
   "login": "Log In",
   "register": "Register",
   "email": "Email",
@@ -80,18 +80,295 @@
   "accountCreated": "Account Created!",
   "selectLanguage": "Select Language",
   "selectAppearance": "Select Appearance",
+  "adminProfileTitle": "Admin Profile",
+  "adminProfileLoadError": "Could not load your profile. Please try again.",
+  "adminProfileDefaultRole": "Cooperative Administrator",
+  "adminProfileFullName": "Full Name",
+  "adminProfilePhoneNumber": "Phone Number",
+  "adminProfileSitio": "Sitio / Purok",
+  "adminProfileSaveChanges": "Save Changes",
+  "adminProfileSaving": "Saving...",
+  "adminProfileNameRequired": "Full name is required.",
+  "adminProfileUpdated": "Profile updated successfully.",
+  "adminProfileSaveError": "Failed to save. Please try again.",
+  "adminProfileChangePhoto": "Change Photo",
+  "adminProfileRemovePhoto": "Remove Photo",
+  "adminProfilePhotoUpdated": "Profile photo updated.",
+  "adminProfilePhotoError": "Could not update photo. Please try again.",
+  "adminProfileCurrentPassword": "Current Password",
+  "adminProfileNewPassword": "New Password",
+  "adminProfileConfirmPassword": "Confirm New Password",
+  "adminProfilePasswordHint": "Password must be at least 8 characters.",
+  "adminProfileAllFieldsRequired": "All fields are required.",
+  "adminProfilePasswordTooShort": "Password must be at least 8 characters.",
+  "adminProfilePasswordMismatch": "Passwords do not match.",
+  "adminProfileUpdating": "Updating...",
+  "adminProfileUpdatePassword": "Update Password",
+  "adminProfilePasswordUpdated": "Password updated. Please log in again.",
+  "adminProfileOrganizationalInfo": "Organizational Information",
+  "adminProfileEmployeeId": "Employee ID",
+  "adminProfilePosition": "Position",
+  "adminProfileDepartment": "Department",
+  "adminProfileAdminSince": "Administrator Since",
+  "adminProfileOrgInfoHint": "Organizational details are managed by cooperative records, not editable here.",
+  "adminProfilePreferences": "Preferences",
+  "adminProfileDataAndStorage": "Data & Storage",
+  "adminProfileClearCache": "Clear Cached Data",
+  "adminProfileClearCacheTitle": "Clear Cached Data?",
+  "adminProfileClearCacheMessage": "This removes locally cached price and market data. Your reports and records are not affected.",
+  "adminProfileClearCacheConfirm": "Clear",
+  "adminProfileCacheCleared": "Cache cleared.",
+  "adminProfileSignOut": "Sign Out",
+  "adminProfileSignOutTitle": "Sign Out?",
+  "adminProfileSignOutMessage": "You will be signed out of SAGANA.",
+  "adminProfileSignOutConfirm": "Sign Out",
+  "adminProfileAppVersion": "SAGANA v{version}",
+  "@adminProfileAppVersion": {
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
   "adminNavDashboard": "Dashboard",
-  "adminNavFarmers": "Farmers",
+  "adminNavMembers": "Members",
   "adminNavListings": "Listings",
   "listingsPendingTitle": "Listings",
   "listingsAllButton": "View All",
   "adminNavLoans": "Loans",
   "adminNavReports": "Reports",
+  "reportsHubTitle": "Operational Reports",
+  "reportsPerformanceSummary": "Performance Summary",
+  "reportsTotalHarvest": "Total Harvest",
+  "reportsCoopSales": "Coop Sales",
+  "reportsMarketplaceRevenue": "Marketplace Revenue",
+  "reportsActiveLoans": "Active Loans",
+  "reportsTotalExpenses": "Total Expenses",
+  "reportsMemberParticipation": "Member Participation",
+  "reportsDetailedReports": "Detailed Reports",
+  "reportsManagementTools": "Management Tools",
+  "reportsRecentReports": "Recent Reports",
+  "reportsNoExportsYet": "No exports yet. Generate one from Export Center.",
+  "reportsSalesReport": "Sales Report",
+  "reportsExportComingSoon": "Export coming soon",
+  "reportsTotalRevenue": "Total Revenue",
+  "reportsTotalVolume": "Total Volume",
+  "reportsTransactions": "Transactions",
+  "reportsCropBreakdown": "Palay vs. Peanut",
+  "reportsRevenueTrend": "Revenue Trend",
+  "reportsNotEnoughTrendData": "Not enough data for a trend yet.",
+  "reportsTransactionDetails": "Transaction Details",
+  "reportsSearchTransactions": "Search farmer, crop, or reference",
+  "reportsNoSalesRecorded": "No cooperative sales recorded for this period.",
+  "reportsNoSearchResults": "No transactions match your search.",
+  "reportsInventoryReport": "Inventory Report",
+  "reportsHarvestReport": "Harvest Report",
+  "reportsTotalYield": "Total Yield",
+  "reportsGradeAShare": "Grade A Share",
+  "reportsUnsyncedEntries": "Unsynced Entries",
+  "reportsYieldByCrop": "Yield by Crop",
+  "reportsYieldTrend": "Yield Trend",
+  "reportsHarvestEntries": "Harvest Entries",
+  "reportsSearchHarvests": "Search farmer or crop",
+  "reportsNoHarvestsRecorded": "No harvests recorded for this period.",
+  "reportsToCoop": "To Coop",
+  "reportsNotToCoop": "Not to Coop",
+  "reportsSynced": "Synced",
+  "reportsPendingSync": "Pending Sync",
+  "reportsExpenseReport": "Expense Report",
+  "reportsFarmerFundedTotal": "Farmer-Funded Total",
+  "reportsSubsidizedItems": "Subsidized Items",
+  "reportsTotalEntries": "Total Entries",
+  "reportsExpensesByCategory": "Expenses by Category",
+  "reportsSubsidizedTag": "SUBSIDIZED",
+  "reportsSpendingTrend": "Spending Trend",
+  "reportsExpenseEntries": "Expense Entries",
+  "reportsSearchExpenses": "Search farmer, category, or description",
+  "reportsNoExpensesRecorded": "No expenses recorded for this period.",
+  "reportsCollectionTrend": "Collection Trend",
+  "reportsNoSearchResultsOrLoans": "No loans match these filters.",
+  "reportsLoanReport": "Loan Report",
+  "reportsMemberContributionReport": "Member Contribution Report",
+  "reportsTotalCoopSalesLabel": "Total Cooperative Sales ({year})",
+  "@reportsTotalCoopSalesLabel": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "reportsContributingMembers": "Contributing Members",
+  "reportsParticipationRate": "Participation Rate",
+  "reportsMemberBreakdown": "Member Breakdown",
+  "reportsSearchMembers": "Search member name or ID",
+  "reportsSharePercent": "{percent}% share",
+  "@reportsSharePercent": {
+    "placeholders": {
+      "percent": {"type": "String"}
+    }
+  },
+  "reportsPalay": "Palay",
+  "reportsPeanut": "Peanut",
+  "reportsNoContributionYet": "No sales recorded to the cooperative this year.",
+  "reportsAnalyticsDashboard": "Analytics Dashboard",
+  "reportsBalikTangkilikManagement": "Balik-Tangkilik Management",
+  "balikTangkilikSettingsTab": "Settings",
+  "balikTangkilikDistributionTab": "Distribution",
+  "balikTangkilikHistoryTab": "History",
+  "balikTangkilikHistoryTitle": "Distribution History",
+  "balikTangkilikNoHistoryYet": "No distributions have been recorded yet.",
+  "balikTangkilikYearLogTitle": "{year} Distribution",
+  "@balikTangkilikYearLogTitle": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "balikTangkilikYearLogSubtitle": "{count} members paid",
+  "@balikTangkilikYearLogSubtitle": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "balikTangkilikDistributionComingSoon": "Distribution planning is coming soon.",
+  "balikTangkilikHistoryComingSoon": "History tracking is coming soon.",
+  "balikTangkilikTotalCoopSales": "Total Cooperative Sales",
+  "balikTangkilikPoolAmount": "Distributable Pool Amount",
+  "reportsContributingMembers": "Contributing Members",
+  "balikTangkilikInterestRate": "Interest Rate (%)",
+  "balikTangkilikLiveTotalHint": "Live total from recorded sales: {amount}",
+  "@balikTangkilikLiveTotalHint": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "balikTangkilikUseThisValue": "Use this live total",
+  "balikTangkilikPoolHint": "Enter the amount available for distribution to members.",
+  "balikTangkilikInterestHint": "Enter the annual interest rate for the pool.",
+  "balikTangkilikAfsFinalized": "AFS Finalized",
+  "balikTangkilikAfsFinalizedHint": "Mark this as finalized after the annual financial statement is approved.",
+  "balikTangkilikSaveSettings": "Save Settings",
+  "balikTangkilikInvalidValues": "Please enter valid non-negative values for all fields.",
+  "balikTangkilikZeroPoolWarningTitle": "Zero pool amount?",
+  "balikTangkilikZeroPoolWarningMessage": "Saving a zero distributable pool while the AFS is finalized may block future distribution. Continue anyway?",
+  "balikTangkilikContinueAnyway": "Continue Anyway",
+  "balikTangkilikSettingsSaved": "Settings saved for {year}.",
+  "@balikTangkilikSettingsSaved": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "balikTangkilikSaveError": "Could not save the Balik-Tangkilik settings. Please try again.",
+  "balikTangkilikMemberBreakdown": "Member Breakdown",
+  "balikTangkilikRefreshEstimates": "Refresh Estimates",
+  "balikTangkilikEstimatesRefreshed": "Estimates refreshed.",
+  "balikTangkilikRefreshError": "Could not refresh estimates. Please try again.",
+  "balikTangkilikAfsNotFinalizedWarning": "AFS is not finalized for this year. Go to the Settings tab to finalize it before distribution can be recorded.",
+  "balikTangkilikAlreadyDistributedBanner": "Balik-Tangkilik for {year} has already been distributed.",
+  "@balikTangkilikAlreadyDistributedBanner": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "balikTangkilikTotalEstimated": "Total Estimated Payout ({year})",
+  "@balikTangkilikTotalEstimated": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "balikTangkilikTotalDistributed": "Total Distributed ({year})",
+  "@balikTangkilikTotalDistributed": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "balikTangkilikRecordDistribution": "Record Distribution",
+  "balikTangkilikAlreadyDistributed": "Already Distributed for {year}",
+  "@balikTangkilikAlreadyDistributed": {
+    "placeholders": {
+      "year": {"type": "int"}
+    }
+  },
+  "balikTangkilikConfirmTitle": "Confirm Distribution",
+  "balikTangkilikConfirmMessage": "You are about to finalize Balik-Tangkilik for {year} for {count} contributing members, totaling {amount}.",
+  "@balikTangkilikConfirmMessage": {
+    "placeholders": {
+      "year": {"type": "int"},
+      "count": {"type": "int"},
+      "amount": {"type": "String"}
+    }
+  },
+  "balikTangkilikIrreversibleWarning": "This action is permanent and cannot be undone.",
+  "balikTangkilikConfirmDistribute": "Distribute Now",
+  "balikTangkilikDistributionSuccess": "Distribution recorded. Total paid out: {amount}.",
+  "@balikTangkilikDistributionSuccess": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "balikTangkilikDistributionError": "Could not record distribution. Please try again.",
+  "exportSelectReports": "Select Reports",
+  "exportPeriod": "Period",
+  "exportYearForContributionReport": "Member Contribution Report uses a specific year, not a period:",
+  "exportSelectAtLeastOne": "Select at least one report to export.",
+  "exportGenerateButton": "Generate Export",
+  "exportGenerated": "{count} file(s) generated.",
+  "@exportGenerated": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "exportGenerateError": "Could not generate export. Please try again.",
+  "exportFileMissing": "This file no longer exists on this device.",
+  "exportSummaryEmpty": "Select one or more reports to export as CSV.",
+  "exportSummary": "{count} report(s) will be exported as separate CSV files.",
+  "@exportSummary": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "exportRecentExports": "Recent Exports",
+  "exportNoHistoryYet": "No exports generated yet on this device.",
+  "reportsExportCenter": "Export Center",
   "adminUrgentActions": "Urgent Actions",
   "adminQuickActions": "Quick Actions",
   "adminToolsManagement": "Tools & Management",
   "adminRecentActivity": "Recent Activity",
-  "adminGoToLoanPayments": "Go to Loan Payments",
+  "adminGoToLoanPayments": "Go to Loan Payments →",
+  "analyticsMemberParticipation": "Member Participation",
+  "analyticsActiveHarvested": "Harvested",
+  "analyticsActiveListed": "Listed Only",
+  "analyticsInactive": "Inactive",
+  "analyticsSendReminder": "Send Reminder ({count})",
+  "@analyticsSendReminder": { "placeholders": { "count": { "type": "int" } } },
+  "analyticsSendReminderTitle": "Send reminder?",
+  "analyticsSendReminderMessage": "This will notify {count} inactive members to check in with the cooperative.",
+  "@analyticsSendReminderMessage": { "placeholders": { "count": { "type": "int" } } },
+  "analyticsSendReminderConfirm": "Send",
+  "analyticsReminderNotifTitle": "We miss you at SP3!",
+  "analyticsReminderNotifBody": "It's been a while since your last harvest or listing. Reach out to the cooperative if you need any help.",
+  "analyticsReminderSent": "Reminder sent to {count} members.",
+  "@analyticsReminderSent": { "placeholders": { "count": { "type": "int" } } },
+  "analyticsReminderError": "Could not send reminders. Please try again.",
+  "analyticsLoanHealth": "Loan Collection Health",
+  "analyticsCollectionRate": "collection rate",
+  "analyticsPriceSnapshot": "Price Snapshot",
+  "analyticsViewFullPrices": "View Full Price Trends →",
+  "analyticsNoForecastsYet": "Forecasts will appear once enough cooperative-wide harvest history is recorded.",
+  "adminCoopPerformanceTitle": "Cooperative Performance",
+  "adminUrgentActionsTitle": "Urgent Actions",
+  "adminInventoryAlertsTitle": "Inventory Alerts",
+  "adminCalendarTitle": "Cooperative Calendar",
+  "adminManagementModulesTitle": "Management Modules",
+  "adminRecentActivityTitle": "Recent Activity",
+  "adminViewInventory": "View Inventory",
+  "adminViewFullCalendar": "Full Calendar",
+  "adminNoRecentActivity": "No recent activity",
+  "reportsAvailable": "Available",
+  "reportsReserved": "Reserved",
+  "reportsSold": "Sold",
+  "reportsLowStockAlert": "{count} batches are running low on stock.",
+  "@reportsLowStockAlert": { "placeholders": { "count": { "type": "int" } } },
+  "reportsStockByCrop": "Stock by Crop",
+  "reportsInventoryBatches": "Inventory Batches",
+  "reportsSearchBatches": "Search farmer, crop, or batch number",
+  "reportsNoInventoryYet": "No inventory batches recorded yet.",
+  "reportsLowStockBadge": "LOW STOCK",
   "loanDashTitle": "Loan Management",
   "loanDashNextCollection": "Next Payment Collection",
   "loanDashFarmersOutstanding": "{count} farmers have outstanding balances",
@@ -133,6 +410,28 @@
       "date": {"type": "String"}
     }
   },
+  "loanHistoryTitle": "Loan History",
+  "loanHistoryExportUnavailable": "Export coming soon",
+  "loanHistoryUnavailableOffline": "Loan history requires an internet connection to load.",
+  "loanHistoryNoResults": "No loans match these filters.",
+  "loanHistoryAllTimeSummary": "All-Time Loan Summary",
+  "loanHistoryRate": "Rate",
+  "loanHistoryTotalIssued": "{count} Loans",
+  "@loanHistoryTotalIssued": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "loanHistoryTotalCollected": "Total Collected",
+  "loanHistoryHealthy": "Healthy",
+  "loanHistoryNeedsAttention": "Needs Attention",
+  "loanHistoryFilterAll": "All",
+  "loanHistoryFilterPaid": "Paid",
+  "loanHistoryThisMonth": "This Month",
+  "loanHistoryThisQuarter": "This Quarter",
+  "loanHistoryThisYear": "This Year",
+  "loanHistoryAllTime": "All Time",
+  "loanHistorySearchHint": "Search farmer, reference, or member ID",
   "adminPriceManagement": "Price Management",
   "adminPriceManagementSubtitle": "Update crop buying and market prices for all members",
   "adminNotificationBroadcast": "Notification Broadcast",
@@ -182,6 +481,74 @@
   "issueLoanErrorNoItems": "Please add at least one input item.",
   "issueLoanErrorInvalidMonthly": "Monthly payment must be greater than zero.",
   "issueLoanErrorGeneric": "Something went wrong. Please try again.",
+  "paymentTitle": "Record Payment",
+  "paymentChangeFarmer": "Change",
+  "paymentSearchHint": "Search by name or member ID",
+  "paymentNoFarmersFound": "No farmers found.",
+  "paymentNoActiveLoans": "No active loans",
+  "paymentSelectLoan": "Select which loan to pay",
+  "paymentAmountReceived": "Amount Received",
+  "paymentOverpaymentNotice": "This exceeds the remaining balance.",
+  "paymentRemainingAfter": "Remaining After",
+  "paymentDate": "Payment Date",
+  "paymentNotes": "Notes (optional)",
+  "paymentSubmit": "Record Payment",
+  "paymentSubmitWithAmount": "Record {amount} Payment",
+  "@paymentSubmitWithAmount": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "paymentSuccess": "Payment recorded for {name}.",
+  "@paymentSuccess": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "paymentQueuedOffline": "Saved locally. Will sync when back online.",
+  "paymentQueuedTag": "queued",
+  "paymentSessionSummary": "{count} payments recorded — {total} collected this session",
+  "@paymentSessionSummary": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "total": {"type": "String"}
+    }
+  },
+  "paymentErrorInvalidAmount": "Enter an amount greater than zero.",
+  "paymentErrorGeneric": "Something went wrong. Please try again.",
+  "paymentOverpaymentTitle": "Amount exceeds balance",
+  "paymentOverpaymentMessage": "This payment is {excess} more than the remaining balance. The loan will be marked as fully paid. Continue?",
+  "@paymentOverpaymentMessage": {
+    "placeholders": {
+      "excess": {"type": "String"}
+    }
+  },
+  "paymentOverpaymentConfirm": "Yes, continue",
+  "loanDetailsTitle": "Loan Details",
+  "loanDetailsNotFound": "Loan not found.",
+  "loanDetailsUnavailableOffline": "Loan details require an internet connection to load.",
+  "loanDetailsMarkPaid": "Mark as Paid",
+  "loanDetailsMarkPaidTitle": "Mark this loan as paid?",
+  "loanDetailsMarkPaidMessage": "This settles the loan without recording an additional payment. Use this only for corrections or approved write-offs.",
+  "loanDetailsMarkPaidReasonHint": "Reason (optional)",
+  "loanDetailsMarkPaidConfirm": "Mark as Paid",
+  "loanDetailsMarkPaidSuccess": "Loan marked as paid.",
+  "loanDetailsMarkPaidError": "Could not update the loan. Please try again.",
+  "loanDetailsPaymentHistory": "Payment History",
+  "loanDetailsNoPayments": "No payments recorded yet.",
+  "loanDetailsNotesLabel": "Notes",
+  "loanDetailsBalanceAfter": "Balance after: {amount}",
+  "@loanDetailsBalanceAfter": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "loanDetailsPaidBy": "By {name}",
+  "@loanDetailsPaidBy": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
   "farmerMgmtTitle": "Farmer Management",
   "farmerMgmtAdd": "Add",
   "adminCoopPerformanceTitle": "Cooperative Performance Summary",
@@ -196,7 +563,10 @@
   "broadcastUseTemplate": "Use Template",
   "broadcastPreview": "Preview",
   "broadcastRecent": "Recent Broadcasts",
-  "broadcastTitle": "Title",
+  "broadcastTitle": "Broadcast Announcements",
   "broadcastSchedule": "Schedule",
   "broadcastScheduleSub": "Send later at a specific time"
+
+
 }
+

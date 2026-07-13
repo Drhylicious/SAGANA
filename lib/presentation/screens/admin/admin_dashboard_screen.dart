@@ -1,6 +1,8 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -9,7 +11,7 @@ import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
-import 'package:go_router/go_router.dart';
+import '../../widgets/admin_top_bar.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -22,22 +24,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _repo = AdminDashboardRepository();
 
   AdminKpiSummary _kpi = AdminKpiSummary.empty;
-  List<UrgentAction> _urgentActions = [];
-  BodMeetingInfo? _bodInfo;
+  List<DashboardPriority> _priorities = [];
   List<AdminActivityItem> _activity = [];
   CoopPerformanceSummary _coopSummary = CoopPerformanceSummary.empty;
-  Map<String, String> _toolsLabels = {};
+  List<InventoryAlertItem> _inventoryAlerts = [];
+  List<ManagementModuleCard> _managementModules = [];
+  List<CalendarEvent> _calendarEvents = [];
   int _unreadCount = 0;
+  String _adminName = 'Admin';
 
   bool _isLoading = true;
   bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
+
+  DateTime _calendarMonth =
+      DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
     super.initState();
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((online) {
-      if (mounted) setState(() => _isOnline = online);
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
     });
     _loadAll();
   }
@@ -48,37 +56,124 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     AppTheme.applySystemOverlay(context);
   }
 
+  @override
+  void dispose() {
+    _connectivitySub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadAdminName() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final row = await Supabase.instance.client
+            .from('user_information')
+            .select('full_name')
+            .eq('user_id', userId)
+            .maybeSingle();
+        final name = row?['full_name'] as String?;
+        if (name != null && name.isNotEmpty) {
+          // Use first name only
+          _adminName = name.split(' ').first;
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchKpiSummary(),
-      _repo.fetchUrgentActions(),
-      _repo.fetchBodMeetingInfo(),
+      _repo.fetchDashboardPriorities(),
       _repo.fetchRecentActivity(),
       _repo.fetchCoopPerformance(),
-      _repo.fetchToolsLastUpdated(),
+      _repo.fetchInventoryAlerts(),
+      _repo.fetchManagementModuleBadges(),
+      _repo.fetchCalendarEvents(
+          year: _calendarMonth.year, month: _calendarMonth.month),
       _repo.fetchUnreadCount(),
     ]);
+    await _loadAdminName();
     if (!mounted) return;
     setState(() {
-      _kpi          = results[0] as AdminKpiSummary;
-      _urgentActions = results[1] as List<UrgentAction>;
-      _bodInfo      = results[2] as BodMeetingInfo;
-      _activity     = results[3] as List<AdminActivityItem>;
-      _coopSummary  = results[4] as CoopPerformanceSummary;
-      _toolsLabels  = results[5] as Map<String, String>;
-      _unreadCount  = results[6] as int;
-      _isLoading    = false;
+      _kpi               = results[0] as AdminKpiSummary;
+      _priorities        = results[1] as List<DashboardPriority>;
+      _activity          = results[2] as List<AdminActivityItem>;
+      _coopSummary       = results[3] as CoopPerformanceSummary;
+      _inventoryAlerts   = results[4] as List<InventoryAlertItem>;
+      _managementModules = results[5] as List<ManagementModuleCard>;
+      _calendarEvents    = results[6] as List<CalendarEvent>;
+      _unreadCount       = results[7] as int;
+      _isLoading         = false;
     });
   }
 
-  // ── Greeting ──────────────────────────────────────────────────────────────
+  Future<void> _changeCalendarMonth(int delta) async {
+    final next = DateTime(
+        _calendarMonth.year, _calendarMonth.month + delta);
+    setState(() => _calendarMonth = next);
+    final events = await _repo.fetchCalendarEvents(
+        year: next.year, month: next.month);
+    if (mounted) setState(() => _calendarEvents = events);
+  }
 
-  String _greeting(AppLocalizations l10n) {
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) return l10n.greetingMorning;
-    if (hour >= 12 && hour < 18) return l10n.greetingAfternoon;
-    return l10n.greetingEvening;
+  // ── Navigation helpers ────────────────────────────────────────────────────
+  // Shell tab switches use context.go(); above-shell pushes use context.push().
+
+  void _navigate(String route, {bool useGo = false, String? extra}) {
+    if (useGo) {
+      context.go(route);
+    } else if (extra != null) {
+      context.push(route, extra: extra);
+    } else {
+      context.push(route);
+    }
+  }
+
+  void _onActivityTap(AdminActivityItem item) {
+    switch (item.type) {
+      case AdminActivityType.listing:
+        if (item.referenceId != null) {
+          context
+              .push(AppRoutes.listingReview, extra: item.referenceId)
+              .then((_) => _loadAll());
+        } else {
+          context.go(AppRoutes.pendingApprovals);
+        }
+      case AdminActivityType.loan:
+        if (item.referenceId != null) {
+          context
+              .push(AppRoutes.loanDetails, extra: item.referenceId)
+              .then((_) => _loadAll());
+        } else {
+          context.go(AppRoutes.loanDashboard);
+        }
+      case AdminActivityType.member:
+      case AdminActivityType.harvest:
+        // Both navigate to farmer details using referenceId (farmerId)
+        if (item.referenceId != null) {
+          context.push(AppRoutes.farmerDetails, extra: item.referenceId);
+        } else {
+          context.go(AppRoutes.farmerManagement);
+        }
+      case AdminActivityType.order:
+        context.go(AppRoutes.pendingApprovals);
+      case AdminActivityType.price:
+        context.push(AppRoutes.priceManagement);
+      case AdminActivityType.inventory:
+        context.push(AppRoutes.adminInventory);
+      case AdminActivityType.program:
+        context.push(AppRoutes.programManagement);
+    }
+  }
+
+  // ── Formatting ────────────────────────────────────────────────────────────
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 12) return 'Good morning';
+    if (h >= 12 && h < 18) return 'Good afternoon';
+    return 'Good evening';
   }
 
   String _formattedDate() {
@@ -93,20 +188,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}, ${now.year}';
   }
 
-  String _bodDateLabel(DateTime dt) {
-    const months = [
-      'Jan','Feb','Mar','Apr','May','Jun',
-      'Jul','Aug','Sep','Oct','Nov','Dec'
-    ];
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    return '${days[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final l10n    = AppLocalizations.of(context);
-    final sagana  = context.saganaColors;
-    final cs      = Theme.of(context).colorScheme;
+    final l10n   = AppLocalizations.of(context);
+    final sagana = context.saganaColors;
+    final cs     = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -115,21 +201,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         onRefresh: _loadAll,
         child: CustomScrollView(
           slivers: [
-            // ── Offline banner ─────────────────────────────────────────────
             if (!_isOnline)
               SliverToBoxAdapter(child: _OfflineBanner(l10n: l10n)),
 
-            // ── Top App Bar ────────────────────────────────────────────────
             SliverPersistentHeader(
               pinned: true,
-              delegate: _AdminTopBarDelegate(
+              delegate: AdminTopBarDelegate(
+                title: l10n.adminNavDashboard,
                 unreadCount: _unreadCount,
                 onNotificationTap: () =>
-                    context.push(AppRoutes.farmerNotifications),
+                    context.push(AppRoutes.adminNotifications)
+                        .then((_) => _loadAll()),
+                onBroadcastTap: () =>
+                    context.push(AppRoutes.announcementDashboard),
                 onProfileTap: () =>
                     context.push(AppRoutes.adminProfile),
-                sagana: sagana,
-                cs: cs,
               ),
             ),
 
@@ -138,9 +224,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
 
-                  // ── Greeting ─────────────────────────────────────────────
+                  // ── Greeting ────────────────────────────────────────────
                   Text(
-                    '${_greeting(l10n)}, Manager!',
+                    '${_greeting()}, $_adminName!',
                     style: GoogleFonts.poppins(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -152,85 +238,143 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Text(
                     _formattedDate(),
                     style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                    ),
+                        fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 16),
 
-                  // ── BOD Banner ────────────────────────────────────────────
-                  if (_bodInfo != null) ...[
-                    _BodBanner(
-                      info: _bodInfo!,
-                      dateLabel: _bodDateLabel(_bodInfo!.nextMeetingDate),
-                      onTap: () => context.push(AppRoutes.loanDashboard),
-                      l10n: l10n,
+                  // ── Dynamic Hero Card (Today's Priorities) ───────────────
+                  if (!_isLoading)
+                    _PrioritiesHeroCard(
+                      priorities: _priorities,
+                      onTap: (p) => _navigate(p.route,
+                          useGo: p.useGo, extra: p.extra),
+                      cs: cs,
+                      sagana: sagana,
+                    )
+                  else
+                    const _ShimmerBlock(height: 120),
+                  const SizedBox(height: 20),
+
+                  // ── Cooperative Performance ────────────────────────────
+                  _CoopPerformanceCard(
+                    summary: _coopSummary,
+                    onTap: () =>
+                        context.go(AppRoutes.operationalReports),
+                    cs: cs,
+                    sagana: sagana,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── KPI Strip ────────────────────────────────────────────
+                  if (_isLoading)
+                    const _ShimmerBlock(height: 96)
+                  else
+                    _KpiStrip(kpi: _kpi, cs: cs, sagana: sagana),
+                  const SizedBox(height: 20),
+
+                  // ── Inventory Alerts ─────────────────────────────────────
+                  if (!_isLoading && _inventoryAlerts.isNotEmpty) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _SectionHeader(
+                          icon: Icons.inventory_2_outlined,
+                          label: 'Inventory Alerts',
+                          iconColor: AppConstants.warningAmber,
+                          cs: cs,
+                        ),
+                        GestureDetector(
+                          onTap: () =>
+                              context.push(AppRoutes.adminInventory),
+                          child: Text(
+                            'View Inventory',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: cs.primary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
+                    _InventoryAlertsCard(
+                      alerts: _inventoryAlerts,
+                      cs: cs,
+                      sagana: sagana,
+                    ),
+                    const SizedBox(height: 20),
                   ],
 
-                  // ── Urgent Actions ────────────────────────────────────────
-                  _SectionHeader(
-                    icon: Icons.priority_high_rounded,
-                    label: l10n.adminUrgentActions,
-                    iconColor: cs.error,
+                  // ── Color-Coded Calendar ─────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _SectionHeader(
+                        icon: Icons.calendar_month_rounded,
+                        label: 'Cooperative Calendar',
+                        cs: cs,
+                      ),
+                      GestureDetector(
+                        // Full Calendar is a real screen — push above shell
+                        onTap: () =>
+                            context.push(AppRoutes.adminCalendar),
+                        child: Text(
+                          'Full Calendar',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   if (_isLoading)
-                    _ShimmerBlock(height: 180)
+                    const _ShimmerBlock(height: 280)
                   else
-                    _UrgentActionsSection(
-                      actions: _urgentActions,
-                      onListingsTap: () =>
-                          context.push(AppRoutes.pendingApprovals),
-                      onLoansTap: () =>
-                          context.push(AppRoutes.loanDashboard),
-                      onStockTap: () =>
-                          context.push(AppRoutes.inventoryReport),
+                    _MiniCalendar(
+                      month: _calendarMonth,
+                      events: _calendarEvents,
+                      onPreviousMonth: () => _changeCalendarMonth(-1),
+                      onNextMonth: () => _changeCalendarMonth(1),
                       cs: cs,
                       sagana: sagana,
                     ),
                   const SizedBox(height: 20),
 
-                  // ── KPI Grid ──────────────────────────────────────────────
-                  if (_isLoading)
-                    _ShimmerBlock(height: 180)
-                  else
-                    _KpiGrid(kpi: _kpi, cs: cs, sagana: sagana),
-                  const SizedBox(height: 20),
-
-                  // ── Tools & Management ────────────────────────────────────
-                  _SectionHeader(label: l10n.adminToolsManagement, cs: cs),
+                  // ── Management Modules ───────────────────────────────────
+                  _SectionHeader(
+                      icon: Icons.grid_view_rounded,
+                      label: 'Management Modules',
+                      cs: cs),
                   const SizedBox(height: 12),
-                  _ToolsSection(
-                    labels: _toolsLabels,
-                    sagana: sagana,
-                    cs: cs,
-                    onPriceTap: () =>
-                        context.push(AppRoutes.priceManagement),
-                    onBroadcastTap: () =>
-                        context.push(AppRoutes.announcementDashboard),
-                    onMapTap: () =>
-                        context.push(AppRoutes.supplyChainMap),
-                    l10n: l10n,
-                  ),
+                  if (_isLoading)
+                    const _ShimmerBlock(height: 200)
+                  else
+                    _ManagementModulesGrid(
+                      modules: _managementModules,
+                      onTap: (m) =>
+                          _navigate(m.route, useGo: m.useGo),
+                      cs: cs,
+                      sagana: sagana,
+                    ),
                   const SizedBox(height: 20),
 
-                  // ── Recent Activity ───────────────────────────────────────
+                  // ── Recent Activity ──────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _SectionHeader(
-                          label: l10n.adminRecentActivity, cs: cs),
+                      _SectionHeader(label: 'Recent Activity', cs: cs),
                       GestureDetector(
-                        onTap: () {},
+                        onTap: () => context.push(AppRoutes.adminActivityLog),
                         child: Text(
-                          l10n.seeAll,
+                          'View All',
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: cs.primary,
-                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
@@ -238,15 +382,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                   if (_isLoading)
-                    _ShimmerBlock(height: 280)
+                    const _ShimmerBlock(height: 280)
                   else
                     _ActivityFeed(
-                        items: _activity, sagana: sagana, cs: cs),
+                      items: _activity,
+                      onTap: _onActivityTap,
+                      sagana: sagana,
+                      cs: cs,
+                    ),
                   const SizedBox(height: 20),
 
-                  // ── Coop Performance ──────────────────────────────────────
-                  _CoopPerformanceCard(
-                      summary: _coopSummary, cs: cs, sagana: sagana, l10n: l10n),
                 ]),
               ),
             ),
@@ -257,653 +402,362 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 }
 
+
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Top App Bar via SliverPersistentHeader
+// Dynamic Hero Card — Today's Priorities
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AdminTopBarDelegate extends SliverPersistentHeaderDelegate {
-  final int unreadCount;
-  final VoidCallback onNotificationTap;
-  final VoidCallback onProfileTap;
-  final SaganaColors sagana;
+class _PrioritiesHeroCard extends StatelessWidget {
+  final List<DashboardPriority> priorities;
+  final void Function(DashboardPriority) onTap;
   final ColorScheme cs;
+  final SaganaColors sagana;
 
-  const _AdminTopBarDelegate({
-    required this.unreadCount,
-    required this.onNotificationTap,
-    required this.onProfileTap,
-    required this.sagana,
+  const _PrioritiesHeroCard({
+    required this.priorities,
+    required this.onTap,
     required this.cs,
+    required this.sagana,
   });
 
-  @override
-  double get minExtent => 64;
-  @override
-  double get maxExtent => 64;
-  @override
-  bool shouldRebuild(covariant _AdminTopBarDelegate old) =>
-      old.unreadCount != unreadCount;
+  Color _levelColor(DashboardPriorityLevel level) {
+    switch (level) {
+      case DashboardPriorityLevel.critical: return AppConstants.errorRed;
+      case DashboardPriorityLevel.warning:  return AppConstants.warningAmber;
+      case DashboardPriorityLevel.info:     return AppConstants.buyerBlue;
+    }
+  }
+
+  IconData _levelIcon(DashboardPriorityLevel level) {
+    switch (level) {
+      case DashboardPriorityLevel.critical: return Icons.warning_rounded;
+      case DashboardPriorityLevel.warning:  return Icons.schedule_rounded;
+      case DashboardPriorityLevel.info:     return Icons.info_outline_rounded;
+    }
+  }
 
   @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(
-              bottom: BorderSide(
-                color: sagana.glassBorder,
+  Widget build(BuildContext context) {
+    if (priorities.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppConstants.successGreen.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+          border: Border.all(
+              color: AppConstants.successGreen.withValues(alpha: 0.20)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppConstants.successGreen.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
               ),
+              child: const Icon(Icons.check_circle_rounded,
+                  color: AppConstants.successGreen, size: 24),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Profile avatar
-              GestureDetector(
-                onTap: onProfileTap,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppConstants.primaryContainer,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.80),
-                      width: 2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: AppConstants.onPrimaryContainer,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // SAGANA + Admin badge
-              Row(
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SAGANA',
+                    'All Clear',
                     style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: cs.primary,
-                      letterSpacing: -0.3,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.successGreen,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppConstants.amber,
-                      borderRadius: BorderRadius.circular(
-                          AppConstants.radiusFull),
-                    ),
-                    child: Text(
-                      'Admin',
-                      style: GoogleFonts.poppins(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: AppConstants.charcoal,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              // Notification bell
-              GestureDetector(
-                onTap: onNotificationTap,
-                child: Stack(
-                  children: [
-                    Icon(
-                      Icons.notifications_outlined,
-                      color: cs.primary,
-                      size: 26,
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: AppConstants.errorRed,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  final AppLocalizations l10n;
-  const _OfflineBanner({required this.l10n});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppConstants.warningAmber,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.cloud_off_rounded,
-              size: 14, color: AppConstants.charcoal),
-          const SizedBox(width: 6),
-          Text(
-            l10n.offlineBanner,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BOD Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BodBanner extends StatelessWidget {
-  final BodMeetingInfo info;
-  final String dateLabel;
-  final VoidCallback onTap;
-  final AppLocalizations l10n;
-
-  const _BodBanner({
-    required this.info,
-    required this.dateLabel,
-    required this.onTap,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [AppConstants.primaryGreen, AppConstants.primaryContainer],
-        ),
-        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        boxShadow: [
-          BoxShadow(
-            color: AppConstants.primaryGreen.withValues(alpha: 0.30),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.20),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: const Icon(
-                  Icons.calendar_month_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'BOD Meeting — $dateLabel',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${info.farmersWithOutstandingLoans} farmers have outstanding loan balances.',
-                      style: GoogleFonts.inter(
+                  Text(
+                    'No urgent items today. Cooperative is on track.',
+                    style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.88),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              decoration: BoxDecoration(
-                color: AppConstants.secondaryContainer,
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusMd),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+                        color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
-              child: Text(
-                l10n.adminGoToLoanPayments,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Urgent Actions
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _UrgentActionsSection extends StatelessWidget {
-  final List<UrgentAction> actions;
-  final VoidCallback onListingsTap;
-  final VoidCallback onLoansTap;
-  final VoidCallback onStockTap;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _UrgentActionsSection({
-    required this.actions,
-    required this.onListingsTap,
-    required this.onLoansTap,
-    required this.onStockTap,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: actions.map((action) {
-        VoidCallback onTap;
-        IconData icon;
-        Color iconColor;
-        Color iconBg;
-
-        switch (action.type) {
-          case UrgentActionType.pendingListings:
-            onTap = onListingsTap;
-            icon = Icons.inventory_2_outlined;
-            iconColor = cs.primary;
-            iconBg = cs.surfaceContainerHighest;
-            break;
-          case UrgentActionType.overdueLoans:
-            onTap = onLoansTap;
-            icon = Icons.warning_amber_rounded;
-            iconColor = cs.error;
-            iconBg = cs.errorContainer.withValues(alpha: 0.30);
-            break;
-          case UrgentActionType.lowStock:
-            onTap = onStockTap;
-            icon = Icons.inventory_rounded;
-            iconColor = AppConstants.warningAmber;
-            iconBg = AppConstants.warningAmber.withValues(alpha: 0.10);
-            break;
-        }
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _ActionCard(
-            action: action,
-            icon: icon,
-            iconColor: iconColor,
-            iconBg: iconBg,
-            onTap: onTap,
-            sagana: sagana,
-            cs: cs,
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  final UrgentAction action;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final VoidCallback onTap;
-  final SaganaColors sagana;
-  final ColorScheme cs;
-
-  const _ActionCard({
-    required this.action,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    required this.onTap,
-    required this.sagana,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(
-            color: cs.outline.withValues(alpha: 0.10),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
             ),
           ],
         ),
-        padding: action.isCritical
-            ? const EdgeInsets.fromLTRB(12, 14, 16, 14)
-            : const EdgeInsets.all(14),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (action.isCritical)
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding:
+                const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
                 Container(
-                  width: 4,
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
-                    color: cs.error,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(AppConstants.radiusLg),
-                      bottomLeft: Radius.circular(AppConstants.radiusLg),
+                    color: priorities.first.level ==
+                            DashboardPriorityLevel.critical
+                        ? AppConstants.errorRed
+                        : AppConstants.warningAmber,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Today's Priorities",
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius:
+                        BorderRadius.circular(AppConstants.radiusFull),
+                  ),
+                  child: Text(
+                    '${priorities.length} item${priorities.length == 1 ? '' : 's'}',
+                    style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+              height: 1,
+              color: cs.outline.withValues(alpha: 0.08)),
+          ...priorities.take(4).toList().asMap().entries.map((entry) {
+            final i = entry.key;
+            final p = entry.value;
+            final color = _levelColor(p.level);
+            final icon = _levelIcon(p.level);
+            final isLast =
+                i == priorities.take(4).length - 1;
+            return Column(
+              children: [
+                GestureDetector(
+                  onTap: () => onTap(p),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(icon, color: color, size: 18),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                p.label,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.onSurface,
+                                ),
+                              ),
+                              Text(
+                                p.value,
+                                style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: cs.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: color.withValues(alpha: 0.60),
+                            size: 18),
+                      ],
                     ),
                   ),
                 ),
-              if (action.isCritical) const SizedBox(width: 12),
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: iconColor, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      action.title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      action.subtitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: action.isCritical ? cs.error : cs.outline,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
+                if (!isLast)
+                  Divider(
+                      height: 1,
+                      indent: 16,
+                      endIndent: 16,
+                      color: cs.outline.withValues(alpha: 0.08)),
+              ],
+            );
+          }),
+        ],
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KPI Grid
+// KPI Strip
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _KpiGrid extends StatelessWidget {
+class _KpiStrip extends StatelessWidget {
   final AdminKpiSummary kpi;
   final ColorScheme cs;
   final SaganaColors sagana;
 
-  const _KpiGrid({required this.kpi, required this.cs, required this.sagana});
+  const _KpiStrip(
+      {required this.kpi, required this.cs, required this.sagana});
 
   @override
   Widget build(BuildContext context) {
-    final cards = [
-      _KpiData(
-        label: 'Active Members',
+    final tiles = [
+      _KpiTile(
+        label: 'Members',
         value: '${kpi.activeMembers}',
-        delta: '+2',
-        deltaPositive: true,
-        barPercent: kpi.activeMembers / kpi.totalMembersTarget,
-        barColor: AppConstants.successGreen,
+        sub: 'of ${kpi.totalMembersTarget}',
+        color: AppConstants.successGreen,
+        icon: Icons.people_rounded,
       ),
-      _KpiData(
-        label: 'Total Stock (kg)',
-        value: _formatNumber(kpi.totalStockKg),
-        delta: '',
-        deltaPositive: true,
-        barPercent: 0.60,
-        barColor: AppConstants.warningAmber,
+      _KpiTile(
+        label: 'Stock (kg)',
+        value: _fmt(kpi.totalStockKg),
+        sub: 'available',
+        color: AppConstants.warningAmber,
+        icon: Icons.inventory_2_rounded,
       ),
-      _KpiData(
-        label: 'Pending Orders',
-        value: '${kpi.pendingOrders}',
-        delta: '',
-        deltaPositive: true,
-        barPercent: kpi.pendingOrders > 0
-            ? (kpi.pendingOrders / 20).clamp(0.0, 1.0)
-            : 0,
-        barColor: cs.primary,
+      _KpiTile(
+        label: 'Pending',
+        value: '${kpi.pendingListings}',
+        sub: 'listings',
+        color: cs.primary,
+        icon: Icons.pending_actions_rounded,
       ),
-      _KpiData(
-        label: 'Total Revenue',
-        value: '₱${_formatNumber(kpi.totalRevenueThisMonth)}',
-        delta: 'This Month',
-        deltaPositive: true,
-        barPercent: 0,
-        barColor: cs.primary,
-        isRevenue: true,
+      _KpiTile(
+        label: 'Overdue',
+        value: '${kpi.overdueLoans}',
+        sub: 'loans',
+        color: kpi.overdueLoans > 0
+            ? AppConstants.errorRed
+            : cs.outline,
+        icon: Icons.warning_amber_rounded,
+      ),
+      _KpiTile(
+        label: 'Revenue',
+        value: '₱${_fmt(kpi.totalRevenueThisMonth)}',
+        sub: 'this month',
+        color: AppConstants.successGreen,
+        icon: Icons.trending_up_rounded,
       ),
     ];
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.4,
-      children: cards.map((d) => _KpiCard(data: d, cs: cs, sagana: sagana)).toList(),
+    return SizedBox(
+      height: 96,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: tiles.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) =>
+            _KpiCard(tile: tiles[i], cs: cs, sagana: sagana),
+      ),
     );
   }
 
-  String _formatNumber(double v) {
+  String _fmt(double v) {
     if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
     return v.toStringAsFixed(0);
   }
 }
 
-class _KpiData {
+class _KpiTile {
   final String label;
   final String value;
-  final String delta;
-  final bool deltaPositive;
-  final double barPercent;
-  final Color barColor;
-  final bool isRevenue;
-
-  const _KpiData({
+  final String sub;
+  final Color color;
+  final IconData icon;
+  const _KpiTile({
     required this.label,
     required this.value,
-    required this.delta,
-    required this.deltaPositive,
-    required this.barPercent,
-    required this.barColor,
-    this.isRevenue = false,
+    required this.sub,
+    required this.color,
+    required this.icon,
   });
 }
 
 class _KpiCard extends StatelessWidget {
-  final _KpiData data;
+  final _KpiTile tile;
   final ColorScheme cs;
   final SaganaColors sagana;
 
   const _KpiCard(
-      {required this.data, required this.cs, required this.sagana});
+      {required this.tile, required this.cs, required this.sagana});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: 110,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        borderRadius:
+            BorderRadius.circular(AppConstants.radiusLg),
         border:
             Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-          ),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            data.label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              color: cs.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: [
+              Icon(tile.icon, size: 14, color: tile.color),
+              const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  data.value,
-                  style: GoogleFonts.poppins(
-                    fontSize: data.isRevenue ? 16 : 22,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface,
-                  ),
+                  tile.label,
+                  style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: cs.onSurfaceVariant),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (data.delta.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Text(
-                  data.delta,
-                  style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: data.isRevenue
-                        ? cs.onSurfaceVariant
-                        : (data.deltaPositive
-                            ? AppConstants.successGreen
-                            : cs.error),
-                  ),
-                ),
-              ],
             ],
           ),
-          if (!data.isRevenue && data.barPercent > 0)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: data.barPercent,
-                minHeight: 5,
-                backgroundColor:
-                    cs.surfaceContainerHighest,
-                valueColor:
-                    AlwaysStoppedAnimation(data.barColor),
-              ),
-            )
-          else if (data.isRevenue)
-            Text(
-              data.delta,
-              style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: cs.onSurfaceVariant,
-              ),
+          Text(
+            tile.value,
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: tile.color,
             ),
+          ),
+          Text(
+            tile.sub,
+            style: GoogleFonts.inter(
+                fontSize: 10, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -911,158 +765,507 @@ class _KpiCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tools & Management
+// Inventory Alerts Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ToolsSection extends StatelessWidget {
-  final Map<String, String> labels;
-  final SaganaColors sagana;
+class _InventoryAlertsCard extends StatelessWidget {
+  final List<InventoryAlertItem> alerts;
   final ColorScheme cs;
-  final VoidCallback onPriceTap;
-  final VoidCallback onBroadcastTap;
-  final VoidCallback onMapTap;
-  final AppLocalizations l10n;
+  final SaganaColors sagana;
 
-  const _ToolsSection({
-    required this.labels,
-    required this.sagana,
-    required this.cs,
-    required this.onPriceTap,
-    required this.onBroadcastTap,
-    required this.onMapTap,
-    required this.l10n,
-  });
+  const _InventoryAlertsCard(
+      {required this.alerts, required this.cs, required this.sagana});
 
   @override
   Widget build(BuildContext context) {
-    final tools = [
-      _ToolData(
-        icon: Icons.sell_outlined,
-        title: l10n.adminPriceManagement,
-        subtitle: l10n.adminPriceManagementSubtitle,
-        lastUpdated: labels['price'] ?? '—',
-        onTap: onPriceTap,
+    return Container(
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8),
+        ],
       ),
-      _ToolData(
-        icon: Icons.campaign_outlined,
-        title: l10n.adminNotificationBroadcast,
-        subtitle: l10n.adminNotificationBroadcastSubtitle,
-        lastUpdated: labels['broadcast'] ?? '—',
-        onTap: onBroadcastTap,
-      ),
-      _ToolData(
-        icon: Icons.map_outlined,
-        title: l10n.adminSupplyChainMap,
-        subtitle: l10n.adminSupplyChainMapSubtitle,
-        lastUpdated: labels['map'] ?? '—',
-        onTap: onMapTap,
-      ),
-    ];
+      child: Column(
+        children: alerts.asMap().entries.map((entry) {
+          final i = entry.key;
+          final item = entry.value;
+          final isLast = i == alerts.length - 1;
+          final color = item.isDepleted
+              ? AppConstants.errorRed
+              : AppConstants.warningAmber;
+          final label = item.isDepleted ? 'DEPLETED' : 'LOW STOCK';
 
-    return Column(
-      children: tools
-          .map((t) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _ToolRow(data: t, sagana: sagana, cs: cs),
-              ))
-          .toList(),
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.inventory_2_outlined,
+                          color: color, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.cropName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          Text(
+                            item.batchNumber,
+                            style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${item.availableKg.toStringAsFixed(1)} kg',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(
+                                AppConstants.radiusFull),
+                          ),
+                          child: Text(
+                            label,
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: color,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (!isLast)
+                Divider(
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.08),
+                    indent: 16,
+                    endIndent: 16),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 }
 
-class _ToolData {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String lastUpdated;
-  final VoidCallback onTap;
+// ─────────────────────────────────────────────────────────────────────────────
+// Mini Calendar
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _ToolData({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.lastUpdated,
-    required this.onTap,
-  });
-}
-
-class _ToolRow extends StatelessWidget {
-  final _ToolData data;
-  final SaganaColors sagana;
+class _MiniCalendar extends StatelessWidget {
+  final DateTime month;
+  final List<CalendarEvent> events;
+  final VoidCallback onPreviousMonth;
+  final VoidCallback onNextMonth;
   final ColorScheme cs;
+  final SaganaColors sagana;
 
-  const _ToolRow(
-      {required this.data, required this.sagana, required this.cs});
+  const _MiniCalendar({
+    required this.month,
+    required this.events,
+    required this.onPreviousMonth,
+    required this.onNextMonth,
+    required this.cs,
+    required this.sagana,
+  });
+
+  static const _monthNames = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December',
+  ];
+  static const _dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  Map<int, Set<CalendarEventType>> _buildEventMap() {
+    final map = <int, Set<CalendarEventType>>{};
+    for (final e in events) {
+      if (e.date.year == month.year && e.date.month == month.month) {
+        map.putIfAbsent(e.date.day, () => {}).add(e.type);
+      }
+    }
+    return map;
+  }
+
+  Color _eventColor(CalendarEventType type) {
+    switch (type) {
+      case CalendarEventType.bodMeeting:   return AppConstants.successGreen;
+      case CalendarEventType.loanDue:      return AppConstants.errorRed;
+      case CalendarEventType.harvest:      return AppConstants.warningAmber;
+      case CalendarEventType.announcement: return AppConstants.buyerBlue;
+      case CalendarEventType.program:      return AppConstants.programPurple;
+    }
+  }
+
+  String _legendLabel(CalendarEventType type) {
+    switch (type) {
+      case CalendarEventType.bodMeeting:   return 'BOD Meeting';
+      case CalendarEventType.loanDue:      return 'Loan Due';
+      case CalendarEventType.harvest:      return 'Harvest';
+      case CalendarEventType.announcement: return 'Announcement';
+      case CalendarEventType.program:      return 'Program';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: data.onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius:
-              BorderRadius.circular(AppConstants.radiusLg),
-          border:
-              Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [
-            BoxShadow(
+    final today = DateTime.now();
+    final firstDay = DateTime(month.year, month.month, 1);
+    final daysInMonth =
+        DateTime(month.year, month.month + 1, 0).day;
+    final startWeekday = firstDay.weekday % 7; // Sunday = 0
+    final eventMap = _buildEventMap();
+    final uniqueTypes = events.map((e) => e.type).toSet().toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest,
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusMd),
+              blurRadius: 8),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Month navigation
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: onPreviousMonth,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius:
+                        BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  child: Icon(Icons.chevron_left_rounded,
+                      size: 20, color: cs.onSurface),
+                ),
               ),
-              child: Icon(data.icon, color: cs.primary, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    data.title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface,
-                    ),
+              Text(
+                '${_monthNames[month.month - 1]} ${month.year}',
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+              GestureDetector(
+                onTap: onNextMonth,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius:
+                        BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                  Text(
-                    data.subtitle,
+                  child: Icon(Icons.chevron_right_rounded,
+                      size: 20, color: cs.onSurface),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Day-of-week headers
+          Row(
+            children: _dayLabels.map((d) {
+              return Expanded(
+                child: Center(
+                  child: Text(
+                    d,
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    data.lastUpdated,
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: cs.primary,
+                      color: cs.onSurfaceVariant,
                       letterSpacing: 0.3,
                     ),
                   ),
-                ],
-              ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+
+          // Calendar grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              childAspectRatio: 1.0,
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: cs.outline, size: 18),
+            itemCount: startWeekday + daysInMonth,
+            itemBuilder: (_, index) {
+              if (index < startWeekday) {
+                return const SizedBox.shrink();
+              }
+              final day = index - startWeekday + 1;
+              final isToday = today.year == month.year &&
+                  today.month == month.month &&
+                  today.day == day;
+              final dayEvents = eventMap[day];
+
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: isToday
+                        ? BoxDecoration(
+                            color: cs.primary,
+                            shape: BoxShape.circle,
+                          )
+                        : null,
+                    child: Center(
+                      child: Text(
+                        '$day',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: isToday
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: isToday
+                              ? Colors.white
+                              : cs.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (dayEvents != null && dayEvents.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: dayEvents
+                            .take(3)
+                            .map((type) => Container(
+                                  width: 4,
+                                  height: 4,
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 1),
+                                  decoration: BoxDecoration(
+                                    color: _eventColor(type),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+
+          // Legend
+          if (uniqueTypes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Divider(color: cs.outline.withValues(alpha: 0.10)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: uniqueTypes.map((type) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _eventColor(type),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _legendLabel(type),
+                      style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ],
-        ),
+        ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Management Modules Grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ManagementModulesGrid extends StatelessWidget {
+  final List<ManagementModuleCard> modules;
+  final void Function(ManagementModuleCard) onTap;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _ManagementModulesGrid({
+    required this.modules,
+    required this.onTap,
+    required this.cs,
+    required this.sagana,
+  });
+
+  static const _icons = {
+    'inventory':    Icons.inventory_2_rounded,
+    'crops':        Icons.grass_rounded,
+    'programs':     Icons.people_alt_rounded,
+    'loan-items':   Icons.category_rounded,
+    'supply-chain': Icons.alt_route_rounded,
+    'prices':       Icons.sell_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.55,
+      ),
+      itemCount: modules.length,
+      itemBuilder: (context, i) {
+        final m = modules[i];
+        final icon = _icons[m.id] ?? Icons.settings_rounded;
+        return GestureDetector(
+          onTap: () => onTap(m),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: sagana.cardBackground,
+              borderRadius:
+                  BorderRadius.circular(AppConstants.radiusLg),
+              border: Border.all(
+                  color: cs.outline.withValues(alpha: 0.10)),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color:
+                            cs.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd),
+                      ),
+                      child: Icon(icon,
+                          color: cs.primary, size: 20),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: m.hasBadgeAlert
+                            ? AppConstants.warningAmber
+                                .withValues(alpha: 0.15)
+                            : cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull),
+                      ),
+                      child: Text(
+                        m.badgeLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: m.hasBadgeAlert
+                              ? AppConstants.warningAmber
+                              : cs.onSurfaceVariant,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      m.title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      m.subtitle,
+                      style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: cs.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1073,11 +1276,16 @@ class _ToolRow extends StatelessWidget {
 
 class _ActivityFeed extends StatelessWidget {
   final List<AdminActivityItem> items;
+  final void Function(AdminActivityItem) onTap;
   final SaganaColors sagana;
   final ColorScheme cs;
 
-  const _ActivityFeed(
-      {required this.items, required this.sagana, required this.cs});
+  const _ActivityFeed({
+    required this.items,
+    required this.onTap,
+    required this.sagana,
+    required this.cs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1087,8 +1295,10 @@ class _ActivityFeed extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          borderRadius:
+              BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(
+              color: cs.outline.withValues(alpha: 0.10)),
         ),
         child: Text(
           'No recent activity',
@@ -1105,9 +1315,8 @@ class _ActivityFeed extends StatelessWidget {
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-          ),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8),
         ],
       ),
       child: Column(
@@ -1115,17 +1324,19 @@ class _ActivityFeed extends StatelessWidget {
           final i = entry.key;
           final item = entry.value;
           final isLast = i == items.length - 1;
-
           return Column(
             children: [
-              _ActivityRow(item: item, cs: cs),
+              GestureDetector(
+                onTap: () => onTap(item),
+                behavior: HitTestBehavior.opaque,
+                child: _ActivityRow(item: item, cs: cs),
+              ),
               if (!isLast)
                 Divider(
-                  height: 1,
-                  color: cs.outline.withValues(alpha: 0.08),
-                  indent: 16,
-                  endIndent: 16,
-                ),
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.08),
+                    indent: 16,
+                    endIndent: 16),
             ],
           );
         }).toList(),
@@ -1142,31 +1353,25 @@ class _ActivityRow extends StatelessWidget {
 
   Color _dotColor() {
     switch (item.type) {
-      case AdminActivityType.harvest:
-        return AppConstants.primaryGreen;
-      case AdminActivityType.listing:
-        return item.isPrimary
-            ? AppConstants.successGreen
-            : AppConstants.primaryGreen;
-      case AdminActivityType.order:
-        return cs.surfaceContainerHighest;
-      case AdminActivityType.loan:
-        return cs.surfaceContainerHighest;
-      case AdminActivityType.price:
-        return cs.surfaceContainerHighest;
-      case AdminActivityType.member:
-        return AppConstants.primaryGreen;
+      case AdminActivityType.harvest:   return AppConstants.primaryGreen;
+      case AdminActivityType.listing:   return item.isPrimary ? AppConstants.successGreen : AppConstants.primaryGreen;
+      case AdminActivityType.member:    return AppConstants.primaryGreen;
+      case AdminActivityType.order:     return cs.outline;
+      case AdminActivityType.loan:      return AppConstants.errorRed;
+      case AdminActivityType.price:     return cs.outline;
+      case AdminActivityType.inventory: return AppConstants.warningAmber;
+      case AdminActivityType.program:   return AppConstants.programPurple;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Build rich text: highlight the name in bold
-    final description = item.description;
+    final desc = item.description;
     final name = item.highlightedName;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 14, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1176,9 +1381,8 @@ class _ActivityRow extends StatelessWidget {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: _dotColor(),
-                shape: BoxShape.circle,
-              ),
+                  color: _dotColor(),
+                  shape: BoxShape.circle),
             ),
           ),
           const SizedBox(width: 12),
@@ -1186,26 +1390,31 @@ class _ActivityRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                name != null && description.contains(name)
+                name != null && desc.contains(name)
                     ? _RichDescription(
-                        description: description,
+                        description: desc,
                         boldName: name,
-                        cs: cs,
-                      )
-                    : Text(
-                        description,
+                        cs: cs)
+                    : Text(desc,
                         style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: cs.onSurface,
-                        ),
-                      ),
+                            fontSize: 13,
+                            color: cs.onSurface)),
                 const SizedBox(height: 2),
-                Text(
-                  item.timeLabel,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      item.timeLabel,
+                      style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant),
+                    ),
+                    if (item.referenceId != null) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 12,
+                          color: cs.onSurfaceVariant),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -1232,7 +1441,8 @@ class _RichDescription extends StatelessWidget {
     final parts = description.split(boldName);
     return Text.rich(
       TextSpan(
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+        style:
+            GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
         children: [
           TextSpan(text: parts[0]),
           TextSpan(
@@ -1256,70 +1466,143 @@ class _RichDescription extends StatelessWidget {
 
 class _CoopPerformanceCard extends StatelessWidget {
   final CoopPerformanceSummary summary;
+  final VoidCallback onTap;
   final ColorScheme cs;
   final SaganaColors sagana;
-  final AppLocalizations l10n;
 
   const _CoopPerformanceCard({
     required this.summary,
+    required this.onTap,
     required this.cs,
     required this.sagana,
-    required this.l10n,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.adminCoopPerformanceTitle.toUpperCase(),
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _StatsGrid(summary: summary, cs: cs),
-          const SizedBox(height: 16),
-          Divider(color: cs.outline.withValues(alpha: 0.12)),
-          const SizedBox(height: 12),
-          Text.rich(
-            TextSpan(
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: cs.onSurfaceVariant),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLowest,
+          borderRadius:
+              BorderRadius.circular(AppConstants.radiusXl),
+          border: Border.all(
+              color: cs.outline.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const TextSpan(text: 'Member participation: '),
-                TextSpan(
-                  text:
-                      '${summary.activeMembersThisSeason} of ${summary.totalMembers} members',
+                Text(
+                  'COOPERATIVE PERFORMANCE',
                   style: GoogleFonts.inter(
-                    fontSize: 13,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  'View Reports →',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: cs.primary,
                   ),
                 ),
-                const TextSpan(text: ' active this season.'),
               ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _StatPill('Harvests',
+                    '${summary.totalHarvests}', cs),
+                const SizedBox(width: 12),
+                _StatPill('Stock',
+                    '${summary.totalStockKg.toStringAsFixed(0)} kg',
+                    cs),
+                const SizedBox(width: 12),
+                _StatPill('Listings',
+                    '${summary.activeListings}', cs),
+                const SizedBox(width: 12),
+                _StatPill('Sales',
+                    '${summary.completedSales}', cs),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Divider(
+                color: cs.outline.withValues(alpha: 0.12)),
+            const SizedBox(height: 12),
+            Text.rich(
+              TextSpan(
+                style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant),
+                children: [
+                  const TextSpan(text: 'Member participation: '),
+                  TextSpan(
+                    text:
+                        '${summary.activeMembersThisSeason} of ${summary.totalMembers} members',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: cs.primary,
+                    ),
+                  ),
+                  const TextSpan(text: ' active this season.'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: summary.participationPercent,
+                minHeight: 8,
+                backgroundColor: cs.surfaceContainerHighest,
+                valueColor:
+                    AlwaysStoppedAnimation(cs.primary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final ColorScheme cs;
+
+  const _StatPill(this.label, this.value, this.cs);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+              color: cs.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: summary.participationPercent,
-              minHeight: 8,
-              backgroundColor: cs.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation(cs.primary),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: cs.primary,
             ),
           ),
         ],
@@ -1328,66 +1611,41 @@ class _CoopPerformanceCard extends StatelessWidget {
   }
 }
 
-class _StatsGrid extends StatelessWidget {
-  final CoopPerformanceSummary summary;
-  final ColorScheme cs;
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared: Offline Banner, Section Header, Shimmer
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _StatsGrid({required this.summary, required this.cs});
+class _OfflineBanner extends StatelessWidget {
+  final AppLocalizations l10n;
+  const _OfflineBanner({required this.l10n});
 
   @override
   Widget build(BuildContext context) {
-    final stats = [
-      _StatData('Total Harvests', '${summary.totalHarvests}'),
-      _StatData('Total Stock', '${summary.totalStockKg.toStringAsFixed(0)} kg'),
-      _StatData('Active Listings', '${summary.activeListings}'),
-      _StatData('Completed Sales', '${summary.completedSales}'),
-    ];
-
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      childAspectRatio: 2.8,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 12,
-      children: stats
-          .map((s) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.label.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    s.value,
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: cs.primary,
-                    ),
-                  ),
-                ],
-              ))
-          .toList(),
+    return Container(
+      width: double.infinity,
+      color: AppConstants.warningAmber,
+      padding:
+          const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.cloud_off_rounded,
+              size: 14, color: AppConstants.charcoal),
+          const SizedBox(width: 6),
+          Text(
+            l10n.offlineBanner,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
-
-class _StatData {
-  final String label;
-  final String value;
-  const _StatData(this.label, this.value);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Header
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   final String label;
@@ -1395,12 +1653,8 @@ class _SectionHeader extends StatelessWidget {
   final Color? iconColor;
   final ColorScheme? cs;
 
-  const _SectionHeader({
-    required this.label,
-    this.icon,
-    this.iconColor,
-    this.cs,
-  });
+  const _SectionHeader(
+      {required this.label, this.icon, this.iconColor, this.cs});
 
   @override
   Widget build(BuildContext context) {
@@ -1424,10 +1678,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shimmer loading block
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _ShimmerBlock extends StatelessWidget {
   final double height;
   const _ShimmerBlock({required this.height});
@@ -1437,8 +1687,11 @@ class _ShimmerBlock extends StatelessWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest,
+        borderRadius:
+            BorderRadius.circular(AppConstants.radiusLg),
       ),
     );
   }

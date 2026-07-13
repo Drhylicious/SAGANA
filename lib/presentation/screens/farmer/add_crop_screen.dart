@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -204,11 +203,11 @@ class _AddCropScreenState extends State<AddCropScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _FieldLabel('Crop Name'),
+                            const _FieldLabel('Crop Name'),
                             const SizedBox(height: 8),
                             _CropNameField(controller: _cropNameController),
                             const SizedBox(height: 20),
-                            _FieldLabel('Category'),
+                            const _FieldLabel('Category'),
                             const SizedBox(height: 8),
                             _CategoryDropdown(
                               categories: _categories,
@@ -342,7 +341,7 @@ class _CropImagePicker extends StatelessWidget {
                             image!.path,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
-                                _PlaceholderContent(hasImage: false),
+                                const _PlaceholderContent(hasImage: false),
                           ),
                           // Remove button overlay
                           Positioned(
@@ -403,7 +402,7 @@ class _CropImagePicker extends StatelessWidget {
                           ),
                         ],
                       )
-                    : _PlaceholderContent(hasImage: false),
+                    : const _PlaceholderContent(hasImage: false),
               ),
             ),
           ),
@@ -571,7 +570,7 @@ class _CategoryDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      value: selectedValue,
+      initialValue: selectedValue,
       onChanged: onChanged,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       icon: const Icon(

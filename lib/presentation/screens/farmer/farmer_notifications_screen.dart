@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../widgets/shared_widgets.dart';
@@ -15,8 +15,7 @@ class FarmerNotificationsScreen extends StatefulWidget {
       _FarmerNotificationsScreenState();
 }
 
-class _FarmerNotificationsScreenState
-    extends State<FarmerNotificationsScreen> {
+class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
   final _repo = NotificationRepository();
 
   List<NotificationModel> _notifications = [];
@@ -53,8 +52,9 @@ class _FarmerNotificationsScreenState
   Future<void> _markAllRead() async {
     await _repo.markAllAsRead();
     setState(() {
-      _notifications =
-          _notifications.map((n) => n.copyWith(isRead: true)).toList();
+      _notifications = _notifications
+          .map((n) => n.copyWith(isRead: true))
+          .toList();
     });
   }
 
@@ -74,8 +74,11 @@ class _FarmerNotificationsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: sagana.scaffoldBackground,
       body: Stack(
         children: [
           Column(
@@ -130,7 +133,8 @@ class _FarmerNotificationsScreenState
                                         color: AppConstants.primaryGreen
                                             .withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(
-                                            AppConstants.radiusFull),
+                                          AppConstants.radiusFull,
+                                        ),
                                         border: Border.all(
                                           color: AppConstants.primaryGreen
                                               .withValues(alpha: 0.20),
@@ -163,24 +167,26 @@ class _FarmerNotificationsScreenState
                                     onTap: () =>
                                         setState(() => _activeFilter = f),
                                     child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 180),
+                                      duration: const Duration(
+                                        milliseconds: 180,
+                                      ),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 14,
                                         vertical: 6,
                                       ),
                                       decoration: BoxDecoration(
                                         color: active
-                                            ? AppConstants.primaryGreen
-                                            : Colors.white
-                                                .withValues(alpha: 0.85),
+                                            ? cs.primary
+                                            : sagana.cardBackground,
                                         borderRadius: BorderRadius.circular(
-                                            AppConstants.radiusFull),
+                                          AppConstants.radiusFull,
+                                        ),
                                         border: Border.all(
                                           color: active
-                                              ? AppConstants.primaryGreen
-                                              : AppConstants.outline
-                                                  .withValues(alpha: 0.25),
+                                              ? cs.primary
+                                              : cs.outline.withValues(
+                                                  alpha: 0.25,
+                                                ),
                                         ),
                                       ),
                                       child: Text(
@@ -191,8 +197,8 @@ class _FarmerNotificationsScreenState
                                               ? FontWeight.w600
                                               : FontWeight.w400,
                                           color: active
-                                              ? Colors.white
-                                              : AppConstants.onSurfaceVariant,
+                                              ? cs.onPrimary
+                                              : cs.onSurfaceVariant,
                                         ),
                                       ),
                                     ),
@@ -219,6 +225,7 @@ class _FarmerNotificationsScreenState
               onBack: () => Navigator.of(context).pop(),
               onProfileTap: () {},
               onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
         ],
@@ -230,11 +237,13 @@ class _FarmerNotificationsScreenState
     final now = DateTime.now();
     final items = _filtered;
     final today = items.where((n) => _isToday(n.createdAt, now)).toList();
-    final yesterday =
-        items.where((n) => _isYesterday(n.createdAt, now)).toList();
+    final yesterday = items
+        .where((n) => _isYesterday(n.createdAt, now))
+        .toList();
     final older = items
-        .where((n) =>
-            !_isToday(n.createdAt, now) && !_isYesterday(n.createdAt, now))
+        .where(
+          (n) => !_isToday(n.createdAt, now) && !_isYesterday(n.createdAt, now),
+        )
         .toList();
 
     final widgets = <Widget>[];
@@ -243,11 +252,13 @@ class _FarmerNotificationsScreenState
       if (group.isEmpty) return;
       widgets.add(_GroupLabel(label: label));
       for (final n in group) {
-        widgets.add(_NotifCard(
-          item: n,
-          onTap: () => _markRead(n.id),
-          onDelete: () => _delete(n.id),
-        ));
+        widgets.add(
+          _NotifCard(
+            item: n,
+            onTap: () => _markRead(n.id),
+            onDelete: () => _delete(n.id),
+          ),
+        );
         widgets.add(const SizedBox(height: 8));
       }
     }
@@ -302,6 +313,8 @@ class _NotifCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cfg = _config(item.type);
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return Dismissible(
       key: Key(item.id),
       direction: DismissDirection.endToStart,
@@ -312,8 +325,10 @@ class _NotifCard extends StatelessWidget {
           color: AppConstants.errorRed.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         ),
-        child: const Icon(Icons.delete_outline_rounded,
-            color: AppConstants.errorRed),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: AppConstants.errorRed,
+        ),
       ),
       onDismissed: (_) => onDelete(),
       child: GestureDetector(
@@ -323,17 +338,17 @@ class _NotifCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: item.isRead
-                ? Colors.white.withValues(alpha: 0.85)
-                : AppConstants.primaryGreen.withValues(alpha: 0.04),
+                ? sagana.cardBackground.withValues(alpha: 0.85)
+                : cs.primary.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(
               color: item.isRead
-                  ? Colors.white.withValues(alpha: 0.50)
-                  : AppConstants.primaryGreen.withValues(alpha: 0.15),
+                  ? cs.outlineVariant.withValues(alpha: 0.30)
+                  : cs.primary.withValues(alpha: 0.15),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                color: cs.shadow.withValues(alpha: 0.05),
                 blurRadius: 8,
               ),
             ],
@@ -394,7 +409,7 @@ class _NotifCard extends StatelessWidget {
                       item.timeAgo,
                       style: GoogleFonts.inter(
                         fontSize: 10,
-                        color: AppConstants.outline,
+                        color: cs.outline,
                       ),
                     ),
                   ],
@@ -410,17 +425,29 @@ class _NotifCard extends StatelessWidget {
   _IconConfig _config(NotificationType type) {
     switch (type) {
       case NotificationType.order:
-        return _IconConfig(Icons.shopping_bag_outlined, AppConstants.buyerBlue);
+        return const _IconConfig(
+          Icons.shopping_bag_outlined,
+          AppConstants.buyerBlue,
+        );
       case NotificationType.listing:
-        return _IconConfig(Icons.storefront_outlined, AppConstants.primaryGreen);
+        return const _IconConfig(
+          Icons.storefront_outlined,
+          AppConstants.primaryGreen,
+        );
       case NotificationType.loan:
-        return _IconConfig(Icons.eco_outlined, AppConstants.tertiaryContainer);
+        return const _IconConfig(
+          Icons.eco_outlined,
+          AppConstants.tertiaryContainer,
+        );
       case NotificationType.price:
-        return _IconConfig(Icons.show_chart_rounded, AppConstants.amber);
+        return const _IconConfig(Icons.show_chart_rounded, AppConstants.amber);
       case NotificationType.sync:
-        return _IconConfig(Icons.sync_rounded, AppConstants.successGreen);
+        return const _IconConfig(Icons.sync_rounded, AppConstants.successGreen);
       case NotificationType.system:
-        return _IconConfig(Icons.info_outline_rounded, AppConstants.onSurfaceVariant);
+        return const _IconConfig(
+          Icons.info_outline_rounded,
+          AppConstants.onSurfaceVariant,
+        );
     }
   }
 }
@@ -461,10 +488,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'You\'re all caught up!',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppConstants.outline,
-            ),
+            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
           ),
         ],
       ),

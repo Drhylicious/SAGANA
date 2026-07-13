@@ -44,6 +44,7 @@ class LoanPaymentModel {
   final double amountPaid;
   final double runningBalance;
   final String? notes;
+  final String? recordedBy; // NEW — auth.users id of the admin who recorded this
 
   const LoanPaymentModel({
     required this.id,
@@ -52,6 +53,7 @@ class LoanPaymentModel {
     required this.amountPaid,
     required this.runningBalance,
     this.notes,
+    this.recordedBy,
   });
 
   factory LoanPaymentModel.fromMap(Map<String, dynamic> map) {
@@ -62,6 +64,7 @@ class LoanPaymentModel {
       amountPaid: (map['amount_paid'] as num).toDouble(),
       runningBalance: (map['running_balance'] as num).toDouble(),
       notes: map['notes'] as String?,
+      recordedBy: map['recorded_by'] as String?,
     );
   }
 }
@@ -75,6 +78,8 @@ class LoanModel {
   final double amountPaid;
   final String status; // active | overdue | paid
   final String? notes;
+  final DateTime? nextPaymentDate; // NEW
+  final double monthlyPayment; // NEW
   final List<LoanItemModel> items;
   final List<LoanPaymentModel> payments;
 
@@ -87,6 +92,8 @@ class LoanModel {
     required this.amountPaid,
     required this.status,
     this.notes,
+    this.nextPaymentDate,
+    this.monthlyPayment = 0,
     required this.items,
     required this.payments,
   });
@@ -114,6 +121,10 @@ class LoanModel {
       amountPaid: (map['amount_paid'] as num? ?? 0).toDouble(),
       status: map['status'] as String? ?? 'active',
       notes: map['notes'] as String?,
+      nextPaymentDate: map['next_payment_date'] != null
+          ? DateTime.tryParse(map['next_payment_date'] as String)
+          : null,
+      monthlyPayment: (map['monthly_payment'] as num? ?? 0).toDouble(),
       items: itemRows
           .map((r) => LoanItemModel.fromMap(r as Map<String, dynamic>))
           .toList(),

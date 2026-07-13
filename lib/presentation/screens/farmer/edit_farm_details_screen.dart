@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
-import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_profile_model.dart';
@@ -219,13 +218,13 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
                           children: [
                             // ── Section: Basic Information ─────────────────
-                            _SectionHeader(
+                            const _SectionHeader(
                               icon: Icons.agriculture_rounded,
                               label: 'Basic Information',
                             ),
                             const SizedBox(height: 10),
                             _FormCard(children: [
-                              _FieldLabel(label: 'Farm Name'),
+                              const _FieldLabel(label: 'Farm Name'),
                               AppTextField(
                                 controller: _farmNameCtrl,
                                 label: 'e.g. Santos Family Farm',
@@ -241,7 +240,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        _FieldLabel(label: 'Land Area (ha)'),
+                                        const _FieldLabel(label: 'Land Area (ha)'),
                                         AppTextField(
                                           controller: _landAreaCtrl,
                                           label: '0.00',
@@ -266,7 +265,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        _FieldLabel(label: 'Years Farming'),
+                                        const _FieldLabel(label: 'Years Farming'),
                                         AppTextField(
                                           controller: _yearsFarmingCtrl,
                                           label: '0',
@@ -287,7 +286,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              _FieldLabel(label: 'Land Ownership'),
+                              const _FieldLabel(label: 'Land Ownership'),
                               _OptionChips(
                                 options: _ownershipOptions,
                                 selected: _ownershipType,
@@ -298,13 +297,13 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                             const SizedBox(height: 20),
 
                             // ── Section: Farm Location ─────────────────────
-                            _SectionHeader(
+                            const _SectionHeader(
                               icon: Icons.location_on_rounded,
                               label: 'Farm Location',
                             ),
                             const SizedBox(height: 10),
                             _FormCard(children: [
-                              _FieldLabel(label: 'Address / Description'),
+                              const _FieldLabel(label: 'Address / Description'),
                               AppTextField(
                                 controller: _farmAddressCtrl,
                                 label:
@@ -317,7 +316,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                               const SizedBox(height: 16),
 
                               // Map section
-                              _FieldLabel(label: 'Pin Your Farm on the Map'),
+                              const _FieldLabel(label: 'Pin Your Farm on the Map'),
                               const SizedBox(height: 4),
                               Text(
                                 'Tap on the map to drop a pin on your exact farm location.',
@@ -487,7 +486,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                             userAgentPackageName:
                                                 'com.sp3coop.sagana',
-                                            tileProvider: CancellableNetworkTileProvider(),
+                                            tileProvider: fm.NetworkTileProvider(),
                                           ),
                                           if (_pinnedLocation != null)
                                             fm.MarkerLayer(
@@ -624,13 +623,13 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                             const SizedBox(height: 20),
 
                             // ── Section: Farm Characteristics ──────────────
-                            _SectionHeader(
+                            const _SectionHeader(
                               icon: Icons.grass_rounded,
                               label: 'Farm Characteristics',
                             ),
                             const SizedBox(height: 10),
                             _FormCard(children: [
-                              _FieldLabel(label: 'Soil Type'),
+                              const _FieldLabel(label: 'Soil Type'),
                               _OptionChips(
                                 options: _soilOptions,
                                 selected: _soilType,
@@ -638,7 +637,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                     setState(() => _soilType = v),
                               ),
                               const SizedBox(height: 16),
-                              _FieldLabel(label: 'Water Source'),
+                              const _FieldLabel(label: 'Water Source'),
                               _OptionChips(
                                 options: _waterOptions,
                                 selected: _waterSource,
@@ -648,7 +647,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                               const SizedBox(height: 16),
 
                               // Primary crops — read-only from farmer_crops
-                              _FieldLabel(label: 'Primary Crops'),
+                              const _FieldLabel(label: 'Primary Crops'),
                               const SizedBox(height: 4),
                               Text(
                                 'Managed via the Harvest tab. Add crops there to update this list.',

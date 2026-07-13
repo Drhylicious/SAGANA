@@ -6,18 +6,32 @@ class BroadcastRepository {
 
   // ─── Fetch recent broadcast history ──────────────────────────────────────
 
-  Future<List<BroadcastModel>> fetchRecentBroadcasts({int limit = 20}) async {
-    try {
-      final rows = await _client
-          .from('broadcast_logs')
-          .select()
-          .order('sent_at', ascending: false)
-          .limit(limit);
-      return rows.map((r) => BroadcastModel.fromMap(r)).toList();
-    } catch (_) {
-      return [];
-    }
+Future<List<BroadcastModel>> fetchRecentBroadcasts({int limit = 20}) async {
+  try {
+    final rows = await _client
+        .from('broadcast_logs')
+        .select()
+        .not('sent_at', 'is', null)
+        .order('sent_at', ascending: false)
+        .limit(limit);
+    return rows.map((r) => BroadcastModel.fromMap(r)).toList();
+  } catch (_) {
+    return [];
   }
+}
+
+Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
+  try {
+    final rows = await _client
+        .from('broadcast_logs')
+        .select()
+        .order('sent_at', ascending: false, nullsFirst: false)
+        .limit(limit);
+    return rows.map((r) => BroadcastModel.fromMap(r)).toList();
+  } catch (_) {
+    return [];
+  }
+}
 
   // ─── Resolve recipient user IDs based on type ─────────────────────────────
 

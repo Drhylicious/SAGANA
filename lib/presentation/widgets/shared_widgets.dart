@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/services/profile_state_service.dart';
 import 'animated_pressable.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/sagana_colors.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GlassCard
@@ -27,6 +28,9 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sagana =
+        Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
@@ -34,12 +38,12 @@ class GlassCard extends StatelessWidget {
         child: Container(
           padding: padding ?? const EdgeInsets.all(AppConstants.spacingGutter),
           decoration: BoxDecoration(
-            color: backgroundColor ?? Colors.white.withOpacity(0.07),
+            color: backgroundColor ?? sagana.glassBackground,
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: Colors.white.withOpacity(0.10), width: 1),
+            border: Border.all(color: sagana.glassBorder, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 4),
               ),
@@ -65,6 +69,7 @@ class FarmerTopBar extends StatefulWidget {
   final VoidCallback? onSettingsTap;
   final List<Widget>? trailing;
   final bool hideProfileAvatar;
+  final bool showNotificationButton;
 
   const FarmerTopBar({
     super.key,
@@ -76,6 +81,7 @@ class FarmerTopBar extends StatefulWidget {
     this.onSettingsTap,
     this.trailing,
     this.hideProfileAvatar = false,
+    this.showNotificationButton = true,
   });
 
   @override
@@ -105,6 +111,9 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
+    final sagana =
+        Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
+    final cs = Theme.of(context).colorScheme;
     final effectiveProfilePhotoUrl = widget.hideProfileAvatar
         ? null
         : widget.profilePhotoUrl ?? _profileState.profilePhotoUrl;
@@ -116,9 +125,9 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
           height: 64 + topPadding,
           padding: EdgeInsets.only(top: topPadding, left: 20, right: 20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.70),
+            color: sagana.navBarBackground,
             border: Border(
-              bottom: BorderSide(color: Colors.white.withOpacity(0.20)),
+              bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20)),
             ),
           ),
           child: Row(
@@ -132,15 +141,12 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                     height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.90),
+                      color: sagana.cardBackground,
                       border: Border.all(
-                        color: AppConstants.primaryGreen.withOpacity(0.15),
+                        color: cs.primary.withValues(alpha: 0.15),
                       ),
                     ),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppConstants.primaryGreen,
-                    ),
+                    child: Icon(Icons.arrow_back_rounded, color: cs.primary),
                   ),
                 )
               else if (widget.hideProfileAvatar)
@@ -154,7 +160,7 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppConstants.primaryGreen.withOpacity(0.20),
+                        color: cs.primary.withValues(alpha: 0.20),
                         width: 2,
                       ),
                       color: AppConstants.limeGreen,
@@ -164,15 +170,15 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                         ? Image.network(
                             effectiveProfilePhotoUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
+                            errorBuilder: (_, __, ___) => Icon(
                               Icons.person_rounded,
-                              color: AppConstants.primaryGreen,
+                              color: cs.primary,
                               size: 22,
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.person_rounded,
-                            color: AppConstants.primaryGreen,
+                            color: cs.primary,
                             size: 22,
                           ),
                   ),
@@ -189,7 +195,7 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: AppConstants.onSurface,
+                            color: cs.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                         )
@@ -202,21 +208,24 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
                 children: widget.trailing != null
                     ? widget.trailing!
                     : [
-                        GestureDetector(
-                          onTap: widget.onNotificationTap,
-                          child: const Icon(
-                            Icons.notifications_outlined,
-                            color: AppConstants.primaryGreen,
-                            size: 26,
+                        if (widget.showNotificationButton) ...[
+                          GestureDetector(
+                            onTap: widget.onNotificationTap,
+                            child: Icon(
+                              Icons.notifications_outlined,
+                              color: cs.primary,
+                              size: 26,
+                            ),
                           ),
-                        ),
+                        ],
                         if (widget.onSettingsTap != null) ...[
-                          const SizedBox(width: 16),
+                          if (widget.showNotificationButton)
+                            const SizedBox(width: 16),
                           GestureDetector(
                             onTap: widget.onSettingsTap,
-                            child: const Icon(
+                            child: Icon(
                               Icons.settings_outlined,
-                              color: AppConstants.primaryGreen,
+                              color: cs.primary,
                               size: 26,
                             ),
                           ),
@@ -255,6 +264,7 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AnimatedPressable(
       onTap: isLoading ? null : onPressed,
       scaleDown: 0.97,
@@ -266,12 +276,12 @@ class PrimaryButton extends StatelessWidget {
             gradient: useGradient && onPressed != null
                 ? AppConstants.primaryButtonGradient
                 : null,
-            color: useGradient ? null : AppConstants.primaryGreen,
+            color: useGradient ? null : cs.primary,
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             boxShadow: onPressed != null
                 ? [
                     BoxShadow(
-                      color: AppConstants.primaryGreen.withOpacity(0.3),
+                      color: cs.primary.withValues(alpha: 0.30),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -283,25 +293,25 @@ class PrimaryButton extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
-              foregroundColor: Colors.white,
+              foregroundColor: cs.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
             ),
             child: isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(cs.onPrimary),
                     ),
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (icon != null) ...[
-                        Icon(icon, size: 18),
+                        Icon(icon, size: 18, color: cs.onPrimary),
                         const SizedBox(width: 8),
                       ],
                       Text(
@@ -309,7 +319,7 @@ class PrimaryButton extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white,
+                          color: cs.onPrimary,
                         ),
                       ),
                     ],
@@ -364,6 +374,7 @@ class _AppTextFieldState extends State<AppTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return TextFormField(
       controller: widget.controller,
       obscureText: widget.isPassword && _obscureText,
@@ -374,12 +385,12 @@ class _AppTextFieldState extends State<AppTextField> {
       onTap: widget.onTap,
       textCapitalization: widget.textCapitalization,
       maxLines: widget.isPassword ? 1 : widget.maxLines,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null
-            ? Icon(widget.prefixIcon, size: 20, color: AppConstants.outline)
+            ? Icon(widget.prefixIcon, size: 20, color: cs.outline)
             : null,
         suffixIcon: widget.isPassword
             ? IconButton(
@@ -388,7 +399,7 @@ class _AppTextFieldState extends State<AppTextField> {
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
                   size: 20,
-                  color: AppConstants.outline,
+                  color: cs.outline,
                 ),
                 onPressed: () => setState(() => _obscureText = !_obscureText),
               )

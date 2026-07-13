@@ -8,19 +8,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('admin farmer harvest history opens the admin view', (tester) async {
+  testWidgets('admin farmer harvest history opens the admin view', (
+    tester,
+  ) async {
     await Supabase.initialize(
       url: 'https://example.supabase.co',
-      anonKey: 'fake-anon-key',
+      publishableKey: 'fake-anon-key',
     );
 
     final router = AppRouter.create();
 
     router.go(AppRoutes.farmerHarvestHistory, extra: 'farmer-123');
 
-    await tester.pumpWidget(
-      MaterialApp.router(routerConfig: router),
-    );
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

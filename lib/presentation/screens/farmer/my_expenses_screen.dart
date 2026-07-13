@@ -1,9 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/repositories/expense_repository.dart';
 import '../../../routes/app_routes.dart';
@@ -30,10 +30,12 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _loadData();
   }
 
@@ -78,7 +80,7 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           Column(
@@ -117,25 +119,33 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
                       const SizedBox(height: 20),
 
                       // Transactions
-                      Text('Recent Transactions',
-                          style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppConstants.charcoal)),
+                      Text(
+                        'Recent Transactions',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppConstants.charcoal,
+                        ),
+                      ),
                       const SizedBox(height: 12),
 
                       if (_isLoading)
-                        ...List.generate(3, (_) => const Padding(
-                              padding: EdgeInsets.only(bottom: 10),
-                              child: _ExpenseShimmer(),
-                            ))
+                        ...List.generate(
+                          3,
+                          (_) => const Padding(
+                            padding: EdgeInsets.only(bottom: 10),
+                            child: _ExpenseShimmer(),
+                          ),
+                        )
                       else if (_expenses.isEmpty)
                         const _EmptyState()
                       else
-                        ..._expenses.map((e) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _ExpenseRow(expense: e),
-                            )),
+                        ..._expenses.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _ExpenseRow(expense: e),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -143,8 +153,18 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
             ],
           ),
           Positioned(
-            top: 0, left: 0, right: 0,
-            child: FarmerTopBar(title: 'My Expenses', onBack: () => Navigator.of(context).pop(), profilePhotoUrl: null, onProfileTap: () {}, onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications), onSettingsTap: null,),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: FarmerTopBar(
+              title: 'My Expenses',
+              onBack: () => Navigator.of(context).pop(),
+              profilePhotoUrl: null,
+              onProfileTap: () {},
+              onNotificationTap: () =>
+                  context.pushRoute(AppRoutes.farmerNotifications),
+              onSettingsTap: null,
+            ),
           ),
         ],
       ),
@@ -153,7 +173,11 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
         child: FloatingActionButton(
           onPressed: _showAddExpense,
           backgroundColor: AppConstants.primaryGreen,
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
+          child: Icon(
+            Icons.add_rounded,
+            color: Theme.of(context).colorScheme.onPrimary,
+            size: 32,
+          ),
         ),
       ),
     );
@@ -232,26 +256,37 @@ class _SummaryCard extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
           BoxShadow(
-              color: const Color(0xFF455A64).withValues(alpha: 0.05),
-              blurRadius: 12)
+            color: const Color(0xFF455A64).withValues(alpha: 0.05),
+            blurRadius: 12,
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 6),
           isLoading
-              ? Container(width: 100, height: 22, color: const Color(0xFFE8E8E8))
-              : Text('₱${NumberFormat('#,##0.00').format(value)}',
+              ? Container(
+                  width: 100,
+                  height: 22,
+                  color: const Color(0xFFE8E8E8),
+                )
+              : Text(
+                  '₱${NumberFormat('#,##0.00').format(value)}',
                   style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: valueColor)),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: valueColor,
+                  ),
+                ),
         ],
       ),
     );
@@ -281,20 +316,26 @@ class _PeriodFilter extends StatelessWidget {
               onTap: () => onChanged(p),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 9,
+                ),
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppConstants.primaryContainer
                       : const Color(0xFFD5ECF8),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Text(p.label,
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isActive
-                            ? AppConstants.onPrimaryContainer
-                            : AppConstants.onSurfaceVariant)),
+                child: Text(
+                  p.label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isActive
+                        ? AppConstants.onPrimaryContainer
+                        : AppConstants.onSurfaceVariant,
+                  ),
+                ),
               ),
             ),
           );
@@ -318,80 +359,106 @@ class _CategoryBreakdownCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [BoxShadow(
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+        boxShadow: [
+          BoxShadow(
             color: const Color(0xFF455A64).withValues(alpha: 0.05),
-            blurRadius: 12)],
+            blurRadius: 12,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Category Breakdown',
-              style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal)),
+          Text(
+            'Category Breakdown',
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppConstants.charcoal,
+            ),
+          ),
           const SizedBox(height: 14),
-          ...breakdown.map((b) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(b.category,
-                            style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: AppConstants.onSurfaceVariant)),
-                        Row(
-                          children: [
-                            Text(
-                              b.total > 0
-                                  ? '₱${NumberFormat('#,##0').format(b.total)}'
-                                  : '₱0.00',
-                              style: GoogleFonts.inter(
-                                  fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                            if (b.hasSubsidy && b.total == 0) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 5, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.successGreen.withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text('SUBSIDY',
-                                    style: GoogleFonts.inter(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppConstants.successGreen)),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: b.hasSubsidy && b.total == 0 ? 1.0 : b.percentOfMax,
-                        minHeight: 6,
-                        backgroundColor: const Color(0xFFCFE6F2),
-                        valueColor: AlwaysStoppedAnimation(
-                          b.hasSubsidy && b.total == 0
-                              ? AppConstants.successGreen
-                              : categoryColor(b.category),
+          ...breakdown.map(
+            (b) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        b.category,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppConstants.onSurfaceVariant,
                         ),
                       ),
+                      Row(
+                        children: [
+                          Text(
+                            b.total > 0
+                                ? '₱${NumberFormat('#,##0').format(b.total)}'
+                                : '₱0.00',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (b.hasSubsidy && b.total == 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppConstants.successGreen.withValues(
+                                  alpha: 0.10,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'SUBSIDY',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppConstants.successGreen,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: b.hasSubsidy && b.total == 0
+                          ? 1.0
+                          : b.percentOfMax,
+                      minHeight: 6,
+                      backgroundColor: const Color(0xFFCFE6F2),
+                      valueColor: AlwaysStoppedAnimation(
+                        b.hasSubsidy && b.total == 0
+                            ? AppConstants.successGreen
+                            : categoryColor(b.category),
+                      ),
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -411,7 +478,9 @@ class _SubsidyBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6F6FF),
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
       ),
@@ -424,16 +493,24 @@ class _SubsidyBanner extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 style: GoogleFonts.inter(
-                    fontSize: 11, color: AppConstants.onSurfaceVariant, height: 1.4),
+                  fontSize: 11,
+                  color: AppConstants.onSurfaceVariant,
+                  height: 1.4,
+                ),
                 children: [
                   TextSpan(
-                      text: 'Subsidized Inputs: ',
-                      style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+                    text: 'Subsidized Inputs: ',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.onSurface,
+                    ),
+                  ),
                   const TextSpan(
-                      text: 'Seeds and fertilizer for Palay are covered by MAO. '
-                          'Seeds for Peanut are provided by SP3. '
-                          'These do not affect your totals.'),
+                    text:
+                        'Seeds and fertilizer for Palay are covered by MAO. '
+                        'Seeds for Peanut are provided by SP3. '
+                        'These do not affect your totals.',
+                  ),
                 ],
               ),
             ),
@@ -461,22 +538,29 @@ class _ExpenseRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: expense.isSubsidy
             ? Border(
-                left: const BorderSide(color: AppConstants.successGreen, width: 4),
+                left: const BorderSide(
+                  color: AppConstants.successGreen,
+                  width: 4,
+                ),
                 top: BorderSide(color: Colors.white.withValues(alpha: 0.40)),
                 right: BorderSide(color: Colors.white.withValues(alpha: 0.40)),
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.40)),
               )
             : Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [BoxShadow(
+        boxShadow: [
+          BoxShadow(
             color: const Color(0xFF455A64).withValues(alpha: 0.05),
-            blurRadius: 8)],
+            blurRadius: 8,
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
             Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: expense.bgColor.withValues(alpha: 0.40),
                 shape: BoxShape.circle,
@@ -490,45 +574,66 @@ class _ExpenseRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(expense.category,
-                          style: GoogleFonts.poppins(
-                              fontSize: 13, fontWeight: FontWeight.w500,
-                              color: AppConstants.onSurface)),
+                      Text(
+                        expense.category,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppConstants.onSurface,
+                        ),
+                      ),
                       if (expense.isSubsidy) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppConstants.successGreen,
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusFull,
+                            ),
                           ),
-                          child: Text('SUBSIDY',
-                              style: GoogleFonts.inter(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5)),
+                          child: Text(
+                            'SUBSIDY',
+                            style: GoogleFonts.inter(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         ),
                       ],
                     ],
                   ),
-                  Text(expense.description,
-                      style: GoogleFonts.inter(
-                          fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                  Text(DateFormat('MMM d, yyyy').format(expense.expenseDate),
-                      style: GoogleFonts.inter(
-                          fontSize: 10, color: AppConstants.outline)),
+                  Text(
+                    expense.description,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    DateFormat('MMM d, yyyy').format(expense.expenseDate),
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: AppConstants.outline,
+                    ),
+                  ),
                 ],
               ),
             ),
             Text(
               '₱${NumberFormat('#,##0.00').format(expense.amount)}',
               style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: expense.isSubsidy
-                      ? AppConstants.successGreen
-                      : AppConstants.onSurface),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: expense.isSubsidy
+                    ? AppConstants.successGreen
+                    : AppConstants.onSurface,
+              ),
             ),
           ],
         ),
@@ -589,13 +694,15 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   Future<void> _save() async {
     if (_descController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a description.')));
+        const SnackBar(content: Text('Please enter a description.')),
+      );
       return;
     }
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     if (!_isSubsidy && amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a valid amount.')));
+        const SnackBar(content: Text('Please enter a valid amount.')),
+      );
       return;
     }
     setState(() => _isSaving = true);
@@ -612,7 +719,8 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
       if (mounted) {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save. Please try again.')));
+          const SnackBar(content: Text('Failed to save. Please try again.')),
+        );
       }
     }
   }
@@ -620,7 +728,9 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppConstants.offWhite,
@@ -634,7 +744,8 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
                     color: AppConstants.outline.withValues(alpha: 0.30),
@@ -642,24 +753,33 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                   ),
                 ),
               ),
-              Text('Add New Expense',
-                  style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen)),
+              Text(
+                'Add New Expense',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
               const SizedBox(height: 20),
 
               // Category
-              Text('Category',
-                  style: GoogleFonts.poppins(
-                      fontSize: 13, fontWeight: FontWeight.w500,
-                      color: AppConstants.onSurfaceVariant)),
+              Text(
+                'Category',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+                  border: Border.all(
+                    color: AppConstants.outline.withValues(alpha: 0.20),
+                  ),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
@@ -669,16 +789,22 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                     onChanged: (v) => setState(() => _category = v!),
                     items: expenseCategories
-                        .map((c) => DropdownMenuItem(
-                              value: c,
-                              child: Row(
-                                children: [
-                                  Icon(categoryIcon(c), size: 18, color: categoryColor(c)),
-                                  const SizedBox(width: 10),
-                                  Text(c, style: GoogleFonts.inter(fontSize: 14)),
-                                ],
-                              ),
-                            ))
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  categoryIcon(c),
+                                  size: 18,
+                                  color: categoryColor(c),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(c, style: GoogleFonts.inter(fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
@@ -686,33 +812,52 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               const SizedBox(height: 16),
 
               // Description
-              Text('Description',
-                  style: GoogleFonts.poppins(
-                      fontSize: 13, fontWeight: FontWeight.w500,
-                      color: AppConstants.onSurfaceVariant)),
+              Text(
+                'Description',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _descController,
-                style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppConstants.onSurface,
+                ),
                 decoration: InputDecoration(
                   hintText: 'e.g. Hired help for harvesting',
                   hintStyle: GoogleFonts.inter(
-                      fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.50)),
+                    fontSize: 14,
+                    color: AppConstants.outline.withValues(alpha: 0.50),
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+                    borderSide: BorderSide(
+                      color: AppConstants.outline.withValues(alpha: 0.20),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+                    borderSide: BorderSide(
+                      color: AppConstants.outline.withValues(alpha: 0.20),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2),
+                    borderSide: const BorderSide(
+                      color: AppConstants.primaryGreen,
+                      width: 2,
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -725,33 +870,64 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Amount (₱)',
-                            style: GoogleFonts.poppins(
-                                fontSize: 13, fontWeight: FontWeight.w500,
-                                color: AppConstants.onSurfaceVariant)),
+                        Text(
+                          'Amount (₱)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppConstants.onSurfaceVariant,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _amountController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           enabled: !_isSubsidy,
-                          style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: AppConstants.onSurface,
+                          ),
                           decoration: InputDecoration(
                             prefixText: '₱ ',
                             filled: true,
-                            fillColor: _isSubsidy ? const Color(0xFFF1F5F9) : Colors.white,
+                            fillColor: _isSubsidy
+                                ? const Color(0xFFF1F5F9)
+                                : Colors.white,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                              borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
+                              ),
+                              borderSide: BorderSide(
+                                color: AppConstants.outline.withValues(
+                                  alpha: 0.20,
+                                ),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                              borderSide: BorderSide(color: AppConstants.outline.withValues(alpha: 0.20)),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
+                              ),
+                              borderSide: BorderSide(
+                                color: AppConstants.outline.withValues(
+                                  alpha: 0.20,
+                                ),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                              borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppConstants.primaryGreen,
+                                width: 2,
+                              ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
                           ),
                         ),
                       ],
@@ -762,27 +938,48 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Date',
-                            style: GoogleFonts.poppins(
-                                fontSize: 13, fontWeight: FontWeight.w500,
-                                color: AppConstants.onSurfaceVariant)),
+                        Text(
+                          'Date',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppConstants.onSurfaceVariant,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         GestureDetector(
                           onTap: _pickDate,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                              border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
+                              ),
+                              border: Border.all(
+                                color: AppConstants.outline.withValues(
+                                  alpha: 0.20,
+                                ),
+                              ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(DateFormat('MMM d').format(_date),
-                                    style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface)),
-                                const Icon(Icons.calendar_today_rounded,
-                                    size: 16, color: AppConstants.primaryGreen),
+                                Text(
+                                  DateFormat('MMM d').format(_date),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: AppConstants.onSurface,
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16,
+                                  color: AppConstants.primaryGreen,
+                                ),
                               ],
                             ),
                           ),
@@ -797,7 +994,10 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               // Subsidy toggle
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE6F6FF),
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -809,19 +1009,27 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Covered by Subsidy',
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13, fontWeight: FontWeight.w500,
-                                  color: AppConstants.onSurface)),
-                          Text("This won't be added to your total.",
-                              style: GoogleFonts.inter(
-                                  fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                          Text(
+                            'Covered by Subsidy',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: AppConstants.onSurface,
+                            ),
+                          ),
+                          Text(
+                            "This won't be added to your total.",
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: AppConstants.onSurfaceVariant,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     Switch(
                       value: _isSubsidy,
-                      activeColor: AppConstants.primaryGreen,
+                      activeThumbColor: AppConstants.primaryGreen,
                       onChanged: (v) => setState(() {
                         _isSubsidy = v;
                         if (v) _amountController.text = '0.00';
@@ -841,21 +1049,31 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppConstants.primaryGreen,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppConstants.primaryGreen.withValues(alpha: 0.60),
+                    disabledBackgroundColor: AppConstants.primaryGreen
+                        .withValues(alpha: 0.60),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
                     elevation: 2,
                   ),
                   child: _isSaving
                       ? const SizedBox(
-                          width: 22, height: 22,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation(Colors.white)))
-                      : Text('Save Expense',
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          'Save Expense',
                           style: GoogleFonts.poppins(
-                              fontSize: 15, fontWeight: FontWeight.w500)),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -880,24 +1098,36 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDBF1FE),
+            width: 80,
+            height: 80,
+            decoration: const BoxDecoration(
+              color: Color(0xFFDBF1FE),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.receipt_outlined,
-                size: 36, color: AppConstants.outline.withValues(alpha: 0.60)),
+            child: Icon(
+              Icons.receipt_outlined,
+              size: 36,
+              color: AppConstants.outline.withValues(alpha: 0.60),
+            ),
           ),
           const SizedBox(height: 16),
-          Text('No expenses recorded',
-              style: GoogleFonts.poppins(
-                  fontSize: 16, fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal)),
+          Text(
+            'No expenses recorded',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text('Tap the + button to add your first expense.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: AppConstants.onSurfaceVariant)),
+          Text(
+            'Tap the + button to add your first expense.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
@@ -922,4 +1152,3 @@ class _ExpenseShimmer extends StatelessWidget {
     );
   }
 }
-

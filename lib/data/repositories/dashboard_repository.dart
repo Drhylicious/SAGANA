@@ -293,7 +293,9 @@ extension FullActivityFetch on DashboardRepository {
         if (searchQuery != null && searchQuery.isNotEmpty) {
           final q = searchQuery.toLowerCase();
           if (!cropName.toLowerCase().contains(q) &&
-              !batchNo.toLowerCase().contains(q)) continue;
+              !batchNo.toLowerCase().contains(q)) {
+            continue;
+          }
         }
         items.add(ActivityItem(
           id: h['id'] as String,
@@ -322,8 +324,9 @@ extension FullActivityFetch on DashboardRepository {
             (o['marketplace_listings'] as Map?)?['crop_name'] as String? ??
                 'Produce';
         if (searchQuery != null && searchQuery.isNotEmpty) {
-          if (!cropName.toLowerCase().contains(searchQuery.toLowerCase()))
+          if (!cropName.toLowerCase().contains(searchQuery.toLowerCase())) {
             continue;
+          }
         }
         items.add(ActivityItem(
           id: o['id'] as String,
@@ -353,8 +356,9 @@ extension FullActivityFetch on DashboardRepository {
         final variety = l['variety'] as String? ?? '';
         final status = l['status'] as String;
         if (searchQuery != null && searchQuery.isNotEmpty) {
-          if (!cropName.toLowerCase().contains(searchQuery.toLowerCase()))
+          if (!cropName.toLowerCase().contains(searchQuery.toLowerCase())) {
             continue;
+          }
         }
         items.add(ActivityItem(
           id: l['id'] as String,

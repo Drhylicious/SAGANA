@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_profile_model.dart';
+import '../services/auth_service.dart';
 
 class FarmerProfileRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -53,6 +54,7 @@ class FarmerProfileRepository {
     String? phoneNumber,
     String? sitio,
   }) async {
+    await AuthService.requireActiveMembership();
     await _client.from('user_information').update({
       if (fullName != null) 'full_name': fullName,
       if (phoneNumber != null) 'phone_number': phoneNumber,
@@ -74,6 +76,7 @@ class FarmerProfileRepository {
     String? soilType,
     String? waterSource,
   }) async {
+    await AuthService.requireActiveMembership();
     await _client.from('farmer_profiles').update({
       if (farmName != null) 'farm_name': farmName,
       if (farmLocation != null) 'farm_location': farmLocation,
@@ -91,6 +94,7 @@ class FarmerProfileRepository {
   // ─── Clear map pin ────────────────────────────────────────────────────────
 
   Future<void> clearFarmCoordinates() async {
+    await AuthService.requireActiveMembership();
     try {
       await _client.from('farmer_profiles').update({
         'farm_latitude': null,
@@ -162,6 +166,7 @@ class FarmerProfileRepository {
     required Uint8List imageBytes,
     required String fileExtension,
   }) async {
+    await AuthService.requireActiveMembership();
     try {
       final path =
           '$_userId/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';

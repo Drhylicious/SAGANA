@@ -31,6 +31,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   List<LoanModel>           _loans          = [];
   MemberContribution?       _contribution;
   CapitalSharesModel?       _capitalShares;
+  List<Map<String, dynamic>> _expenses = [];
+  List<Map<String, dynamic>> _programs = [];
 
   bool _isLoading = true;
 
@@ -50,6 +52,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       _repo.fetchFarmerLoans(widget.farmerId),
       _repo.fetchCurrentYearContribution(widget.farmerId),
       _repo.fetchCapitalShares(widget.farmerId),
+      _repo.fetchFarmerExpenses(widget.farmerId),
+      _repo.fetchAssignedPrograms(widget.farmerId),
     ]);
     if (!mounted) return;
     setState(() {
@@ -59,6 +63,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       _loans          = results[3] as List<LoanModel>;
       _contribution   = results[4] as MemberContribution?;
       _capitalShares  = results[5] as CapitalSharesModel?;
+      _expenses       = results[6] as List<Map<String, dynamic>>;
+      _programs       = results[7] as List<Map<String, dynamic>>;
       _isLoading      = false;
     });
   }
@@ -138,75 +144,86 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                 child: RefreshIndicator(
                   color: cs.primary,
                   onRefresh: _loadAll,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
-                    children: [
-
-                      // ── Identity Card ──────────────────────────────────
-                      _IdentityCard(profile: profile, cs: cs, sagana: sagana),
-                      const SizedBox(height: 20),
-
-                      // ── Farm Details (read-only) ───────────────────────
-                      _SectionHeader(
-                        icon: Icons.agriculture_rounded,
-                        label: 'Farm Details',
-                        cs: cs,
-                      ),
-                      const SizedBox(height: 10),
-                      _FarmDetailsCard(profile: profile, cs: cs, sagana: sagana),
-                      const SizedBox(height: 20),
-
-                      // ── Harvest Activity ────────────────────────────────
-                      _SectionHeader(
-                        icon: Icons.eco_rounded,
-                        label: 'Harvest Activity',
-                        cs: cs,
-                      ),
-                      const SizedBox(height: 10),
-                      _HarvestActivityCard(
-                        summary: _harvestSummary,
-                        stats:   _harvestStats,
-                        cs: cs,
-                        sagana: sagana,
-                        onViewAll: () => context.push(
-                          AppRoutes.farmerHarvestHistory,
-                          extra: widget.farmerId,
+                  child: DefaultTabController(
+                    length: 6,
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          child: TabBar(
+                            isScrollable: true,
+                            labelColor: cs.primary,
+                            unselectedLabelColor: cs.onSurfaceVariant,
+                            indicatorColor: cs.primary,
+                            tabs: const [
+                              Tab(text: 'Profile'),
+                              Tab(text: 'Harvest'),
+                              Tab(text: 'Loans'),
+                              Tab(text: 'Contribution'),
+                              Tab(text: 'Expenses'),
+                              Tab(text: 'Programs'),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // ── Loan Summary ────────────────────────────────────
-                      _SectionHeader(
-                        icon: Icons.payments_rounded,
-                        label: 'Loan Summary',
-                        cs: cs,
-                      ),
-                      const SizedBox(height: 10),
-                      _LoanSummaryCard(
-                        loans: _loans,
-                        totalOutstanding: _totalOutstanding,
-                        cs: cs,
-                        sagana: sagana,
-                      ),
-                      const SizedBox(height: 20),
-
-                      // ── Cooperative Contribution ───────────────────────
-                      _SectionHeader(
-                        icon: Icons.savings_rounded,
-                        label: 'Cooperative Contribution',
-                        cs: cs,
-                      ),
-                      const SizedBox(height: 10),
-                      _ContributionCard(
-                        contribution:  _contribution,
-                        capitalShares: _capitalShares,
-                        cs: cs,
-                        sagana: sagana,
-                        onViewFull: () => context.push(
-                          AppRoutes.memberContributionReport,
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              ListView(
+                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                children: [
+                                  _IdentityCard(profile: profile, cs: cs, sagana: sagana),
+                                  const SizedBox(height: 16),
+                                  _FarmDetailsCard(profile: profile, cs: cs, sagana: sagana),
+                                ],
+                              ),
+                              ListView(
+                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                children: [
+                                  _HarvestActivityCard(
+                                    summary: _harvestSummary,
+                                    stats: _harvestStats,
+                                    cs: cs,
+                                    sagana: sagana,
+                                    onViewAll: () => context.push(
+                                      AppRoutes.farmerHarvestHistory,
+                                      extra: widget.farmerId,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              ListView(
+                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                children: [
+                                  _LoanSummaryCard(
+                                    loans: _loans,
+                                    totalOutstanding: _totalOutstanding,
+                                    cs: cs,
+                                    sagana: sagana,
+                                  ),
+                                ],
+                              ),
+                              ListView(
+                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                children: [
+                                  _ContributionCard(
+                                    contribution: _contribution,
+                                    capitalShares: _capitalShares,
+                                    cs: cs,
+                                    sagana: sagana,
+                                    onViewFull: () => context.push(
+                                      AppRoutes.memberContributionReport,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              _ExpensesTab(expenses: _expenses, cs: cs, sagana: sagana),
+                              _ProgramsTab(programs: _programs, cs: cs, sagana: sagana),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -482,40 +499,6 @@ class _ContactRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final ColorScheme cs;
-
-  const _SectionHeader({
-    required this.icon,
-    required this.label,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: cs.primary),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: cs.onSurface,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1197,6 +1180,148 @@ class _ContributionCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ExpensesTab extends StatelessWidget {
+  final List<Map<String, dynamic>> expenses;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _ExpensesTab({
+    required this.expenses,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (expenses.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No expense history yet.',
+            style: GoogleFonts.inter(color: cs.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+      itemCount: expenses.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final expense = expenses[index];
+        final amount = expense['amount'] as num? ?? 0;
+        final date = expense['expense_date'] as String?;
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: cs.primary.withValues(alpha: 0.10),
+                child: Icon(Icons.receipt_long_rounded, color: cs.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      expense['description'] as String? ?? 'Expense',
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      date != null ? date.split('T').first : '—',
+                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '₱${amount.toStringAsFixed(2)}',
+                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.primary),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ProgramsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> programs;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _ProgramsTab({
+    required this.programs,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (programs.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No assigned programs yet.',
+            style: GoogleFonts.inter(color: cs.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+      itemCount: programs.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final program = programs[index];
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.emoji_events_rounded, color: AppConstants.programPurple, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      program['name'] as String? ?? 'Program',
+                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                program['description'] as String? ?? 'Assigned program',
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

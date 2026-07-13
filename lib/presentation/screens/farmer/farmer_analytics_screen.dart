@@ -9,7 +9,9 @@ import '../../../data/repositories/analytics_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/planting_forecast_card.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/top_harvested_crops_chart.dart';
 
 class FarmerAnalyticsScreen extends StatefulWidget {
   const FarmerAnalyticsScreen({super.key});
@@ -119,7 +121,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                       const SizedBox(height: 24),
 
                       // ── Section 1: Farm Performance ──────────────────────
-                      _SectionTitle('My Farm Performance'),
+                      const _SectionTitle('My Farm Performance'),
                       const SizedBox(height: 12),
                       _isLoading
                           ? _PerformanceShimmer()
@@ -135,7 +137,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                       const SizedBox(height: 28),
 
                       // ── Section 2: Price Monitoring ──────────────────────
-                      _SectionTitle('Price Monitoring'),
+                      const _SectionTitle('Price Monitoring'),
                       const SizedBox(height: 12),
                       _isLoading
                           ? const SizedBox(
@@ -147,7 +149,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                               ),
                             )
                           : _priceCards.isEmpty
-                          ? _NoDataNotice(
+                          ? const _NoDataNotice(
                               message: 'No market prices available yet.',
                             )
                           : _PriceCardsRow(
@@ -164,7 +166,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                       const SizedBox(height: 28),
 
                       // ── Section 3: Planting Forecast ─────────────────────
-                      _ForecastSectionHeader(),
+                      const PlantingForecastSectionHeader(),
                       const SizedBox(height: 12),
                       _isLoading
                           ? Column(
@@ -177,7 +179,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                               ),
                             )
                           : _forecasts.isEmpty
-                          ? _NoDataNotice(
+                          ? const _NoDataNotice(
                               message:
                                   'Forecasts will appear once enough cooperative-wide harvest history is recorded.',
                             )
@@ -188,14 +190,14 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                                       padding: const EdgeInsets.only(
                                         bottom: 12,
                                       ),
-                                      child: _ForecastCard(forecast: f),
+                                      child: PlantingForecastCard(forecast: f),
                                     ),
                                   )
                                   .toList(),
                             ),
                       const SizedBox(height: 20),
                       if (!_isLoading && _topSelling.isNotEmpty)
-                        _TopSellingChart(crops: _topSelling),
+                        TopHarvestedCropsChart(crops: _topSelling),
                     ],
                   ),
                 ),
@@ -1027,360 +1029,6 @@ class _PriceLinePainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Forecast Section Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ForecastSectionHeader extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Planting Forecast',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.charcoal,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppConstants.primaryContainer,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'FORECAST BASED ON HARVEST HISTORY',
-                style: GoogleFonts.inter(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFDBF1FE).withValues(alpha: 0.50),
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            border: Border.all(
-              color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: AppConstants.primaryGreen,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Forecasts use a weighted average of cooperative-wide harvest volume over the last 3 thirty-day cycles. This reflects supply trends only, not buyer demand.',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Forecast Card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ForecastCard extends StatelessWidget {
-  final PlantingForecast forecast;
-  const _ForecastCard({required this.forecast});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _trendColor();
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border(left: BorderSide(color: color, width: 4)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        forecast.cropName,
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppConstants.charcoal,
-                        ),
-                      ),
-                      Text(
-                        forecast.category.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.outline,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      forecast.trendLabel.toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                forecast.explanation,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
-              if (forecast.hasForecast) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ForecastFigure(
-                        label: 'Last Cycle',
-                        value:
-                            '${forecast.mostRecentCycleKg.toStringAsFixed(0)} kg',
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 16,
-                      color: AppConstants.outline.withValues(alpha: 0.50),
-                    ),
-                    Expanded(
-                      child: _ForecastFigure(
-                        label: 'Next Cycle (Forecast)',
-                        value:
-                            '${forecast.forecastNextCycleKg!.toStringAsFixed(0)} kg',
-                        highlight: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _trendColor() {
-    switch (forecast.trend) {
-      case 'trending_up':
-        return AppConstants.successGreen;
-      case 'trending_down':
-        return AppConstants.errorRed;
-      case 'stable':
-        return AppConstants.warningAmber;
-      default:
-        return AppConstants.outline;
-    }
-  }
-}
-
-class _ForecastFigure extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool highlight;
-  const _ForecastFigure({
-    required this.label,
-    required this.value,
-    this.highlight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 9, color: AppConstants.outline),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: highlight
-                ? AppConstants.primaryGreen
-                : AppConstants.onSurface,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Top Selling Chart
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TopSellingChart extends StatelessWidget {
-  final List<TopSellingCrop> crops;
-  const _TopSellingChart({required this.crops});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Top Harvested Crops (Coop-wide, 90 days)',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 140,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: crops.map((c) {
-                    final opacity = 0.3 + (c.percentOfMax * 0.7);
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${c.volumeKg.toStringAsFixed(0)}',
-                              style: GoogleFonts.inter(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: AppConstants.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            FractionallySizedBox(
-                              heightFactor: c.percentOfMax.clamp(0.05, 1.0),
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: AppConstants.primaryGreen.withValues(
-                                    alpha: opacity,
-                                  ),
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(6),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: crops
-                    .map(
-                      (c) => Expanded(
-                        child: Text(
-                          c.cropName,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            color: AppConstants.outline,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1431,4 +1079,3 @@ class _PerformanceShimmer extends StatelessWidget {
     );
   }
 }
-

@@ -24,7 +24,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // ── Controllers ────────────────────────────────────────────────────────────
-  final _emailCtrl       = TextEditingController();
+  final _usernameCtrl    = TextEditingController();
   final _passwordCtrl    = TextEditingController();
   final _fullNameCtrl    = TextEditingController();
   final _phoneCtrl       = TextEditingController();
@@ -48,17 +48,21 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
-    _loadSuggestedMemberId();
+    _loadSuggestions();
   }
 
-  Future<void> _loadSuggestedMemberId() async {
-    final suggested = await _repo.suggestNextMemberId();
-    if (mounted) _memberIdCtrl.text = suggested;
+  Future<void> _loadSuggestions() async {
+    final suggestedMemberId = await _repo.suggestNextMemberId();
+    final suggestedUsername = await _repo.suggestNextUsername();
+    if (mounted) {
+      _memberIdCtrl.text = suggestedMemberId;
+      _usernameCtrl.text = suggestedUsername;
+    }
   }
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     _fullNameCtrl.dispose();
     _phoneCtrl.dispose();
@@ -158,7 +162,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     setState(() => _isSaving = true);
 
     final result = await _repo.createMember(
-      email:             _emailCtrl.text.trim(),
+      username:          _usernameCtrl.text.trim(),
       password:          _passwordCtrl.text.trim(),
       fullName:          _fullNameCtrl.text.trim(),
       phoneNumber:       _phoneCtrl.text.trim(),
@@ -277,19 +281,15 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                         cs: cs,
                         sagana: sagana,
                         children: [
-                          _FieldLabel(label: 'Email Address', cs: cs),
+                          _FieldLabel(label: 'SAGANA Username', cs: cs),
                           TextFormField(
-                            controller: _emailCtrl,
-                            keyboardType: TextInputType.emailAddress,
+                            controller: _usernameCtrl,
                             decoration: const InputDecoration(
-                              hintText: 'farmer@coop.com',
+                              hintText: 'SP3-0001',
                             ),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
-                                return 'Email is required';
-                              }
-                              if (!v.contains('@') || !v.contains('.')) {
-                                return 'Enter a valid email';
+                                return 'Username is required';
                               }
                               return null;
                             },
