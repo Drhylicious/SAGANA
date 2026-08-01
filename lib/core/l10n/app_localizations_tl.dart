@@ -38,6 +38,9 @@ class AppLocalizationsTl extends AppLocalizations {
   String get navMarketplace => 'Pamilihan';
 
   @override
+  String get navListings => 'Mga Listing';
+
+  @override
   String get navAnalytics => 'Analytics';
 
   @override
@@ -119,6 +122,21 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get settingsTitle => 'Mga Setting';
+
+  @override
+  String get sectionPersonalInformation => 'Personal na Impormasyon';
+
+  @override
+  String get sectionSecurity => 'Seguridad';
+
+  @override
+  String get emailAddress => 'Email Address';
+
+  @override
+  String get emailCannotBeChanged => 'Hindi mababago ang email address.';
+
+  @override
+  String get updateYourPassword => 'I-update ang iyong password';
 
   @override
   String get sectionAccount => 'Account';
@@ -439,6 +457,21 @@ class AppLocalizationsTl extends AppLocalizations {
       'Wala pang na-export. Gumawa ng isa sa Export Center.';
 
   @override
+  String get reportsQuickInsights => 'Quick Insights';
+
+  @override
+  String get reportsInsightTopCrop => 'Top Crop';
+
+  @override
+  String get reportsInsightTopFarmer => 'Top Contributor';
+
+  @override
+  String get reportsInsightTopExpense => 'Largest Expense';
+
+  @override
+  String get reportsViewAllExports => 'View All in Export Center';
+
+  @override
   String get reportsSalesReport => 'Ulat ng Benta';
 
   @override
@@ -446,6 +479,9 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get reportsTotalRevenue => 'Kabuuang Kita';
+
+  @override
+  String get reportsAvgSale => 'Karaniwang Benta';
 
   @override
   String get reportsTotalVolume => 'Kabuuang Dami';
@@ -479,7 +515,38 @@ class AppLocalizationsTl extends AppLocalizations {
       'Walang transaksyong tumugma sa iyong hinanap.';
 
   @override
-  String get reportsInventoryReport => 'Ulat ng Imbentaryo';
+  String get reportsCoopStockReport => 'Ulat ng Stock ng Kooperatiba';
+
+  @override
+  String get reportsCoopStockByCategory => 'Stock ayon sa Kategorya';
+
+  @override
+  String get reportsCoopStockItems => 'Mga Item sa Stock';
+
+  @override
+  String get reportsTotalItems => 'Kabuuang Item';
+
+  @override
+  String get reportsLowStockItems => 'Mababang Stock';
+
+  @override
+  String get reportsCategories => 'Mga Kategorya';
+
+  @override
+  String get reportsSearchItems => 'Maghanap ng item…';
+
+  @override
+  String get reportsNoCoopStockYet =>
+      'Wala pang naitalang stock ng kooperatiba';
+
+  @override
+  String get reportsAll => 'Lahat';
+
+  @override
+  String get reportsSoldOut => 'Ubos na Stock';
+
+  @override
+  String get reportsInventoryReport => 'Ulat ng Ani ng Magsasaka';
 
   @override
   String get reportsHarvestReport => 'Ulat ng Ani';
@@ -940,6 +1007,42 @@ class AppLocalizationsTl extends AppLocalizations {
   String get reportsLowStockBadge => 'MABABANG STOCK';
 
   @override
+  String get reportsHarvestManagement => 'Pamamahala ng Ani';
+
+  @override
+  String get reportsActivityTrendsTab => 'Aktibidad at Trend';
+
+  @override
+  String get reportsBatchesStockTab => 'Mga Batch at Stock';
+
+  @override
+  String get reportsViewBatch => 'Tingnan ang Batch';
+
+  @override
+  String get reportsViewHarvest => 'Tingnan ang Ani';
+
+  @override
+  String get reportsHarvestedQty => 'Naani';
+
+  @override
+  String get reportsTotalAvailableStock => 'Kabuuang Available na Stock';
+
+  @override
+  String get reportsLiveLabel => 'Live';
+
+  @override
+  String get reportsNoBatchFound =>
+      'Walang natagpuang batch ng imbentaryo para sa aning ito.';
+
+  @override
+  String get reportsNoHarvestFound =>
+      'Hindi natagpuan ang orihinal na ani para sa batch na ito.';
+
+  @override
+  String get reportsSearchHarvestsWithBatch =>
+      'Maghanap ng magsasaka, pananim, o batch number';
+
+  @override
   String get loanDashTitle => 'Pamamahala ng Pautang';
 
   @override
@@ -982,7 +1085,18 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
+  String get loanDashOverdueHeroSubtitle =>
+      'Suriin at sundan bago ang susunod na miting ng BOD.';
+
+  @override
+  String get loanDashReviewOverdue => 'Suriin ang mga Overdue na Pautang';
+
+  @override
   String get loanDashActiveSection => 'Mga Aktibong Pautang';
+
+  @override
+  String get loanDashRecentActivitySection =>
+      'Kamakailang Aktibidad sa Pautang';
 
   @override
   String get loanDashSeeAll => 'Tingnan lahat';
@@ -992,6 +1106,10 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get loanDashNoActive => 'Walang aktibong pautang sa ngayon.';
+
+  @override
+  String get loanDashNoRecentActivity =>
+      'Walang aktibo o overdue na pautang sa ngayon.';
 
   @override
   String get loanDashValue => 'Halaga';
@@ -1023,6 +1141,10 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get loanHistoryNoResults =>
       'Walang pautang na tumugma sa mga filter na ito.';
+
+  @override
+  String get loanHistoryNoResultsForFilter =>
+      'Wala pang pautang na tumugma sa napiling status o panahon.';
 
   @override
   String get loanHistoryAllTimeSummary => 'Kabuuang Kasaysayan ng Pautang';
@@ -1065,6 +1187,19 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get loanHistorySearchHint =>
       'Maghanap ng magsasaka, reference, o member ID';
+
+  @override
+  String get loanHistoryFilterTitle => 'I-filter ang Mga Pautang';
+
+  @override
+  String get loanHistoryApplyFilter => 'I-apply';
+
+  @override
+  String get loanDashActionPayments => 'Bayad sa Pautang';
+
+  @override
+  String get loanDashNoRecentActivitySubtitle =>
+      'Ang mga bagong pautang at paparating na bayarin ay lalabas dito kapag naitala na.';
 
   @override
   String get adminPriceManagement => 'Pamamahala ng Presyo';
@@ -1119,6 +1254,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get issueLoanNoFarmerSelected => 'Pindutin para pumili ng magsasaka';
 
   @override
+  String get issueLoanNoFarmerResults =>
+      'Walang magsasakang tumugma sa iyong hinahanap.';
+
+  @override
   String get issueLoanOutstandingBalance => 'Natitirang Balanse';
 
   @override
@@ -1137,6 +1276,9 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get issueLoanNoItemsYet => 'Wala pang naidagdag na item.';
+
+  @override
+  String get issueLoanSelectItem => 'Pumili ng Item';
 
   @override
   String get issueLoanItemName => 'Pangalan ng Item';
@@ -1213,6 +1355,9 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get paymentChangeFarmer => 'Palitan';
+
+  @override
+  String get paymentSwitchFarmer => 'Palitan ng Magsasaka';
 
   @override
   String get paymentSearchHint => 'Maghanap gamit ang pangalan o member ID';
@@ -1297,6 +1442,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get loanDetailsMarkPaid => 'Markahang Bayad na';
 
   @override
+  String get loanDetailsMarkPaidCaption =>
+      'Para sa mga pagwawasto o inaprubahang pagkansela ng utang lamang.';
+
+  @override
   String get loanDetailsMarkPaidTitle =>
       'Markahan bang bayad na ang pautang na ito?';
 
@@ -1350,7 +1499,37 @@ class AppLocalizationsTl extends AppLocalizations {
   String get priceManagementTitle => 'Pamamahala ng Presyo';
 
   @override
-  String get supplyChainTitle => 'Mapa ng Supply Chain';
+  String get supplyChainTitle => 'Operasyon ng Supply Chain';
+
+  @override
+  String get supplyChainOpsSummary => 'Buod ng Operasyon';
+
+  @override
+  String get supplyChainInsights => 'Mga Dapat Pansinin';
+
+  @override
+  String get supplyChainFlow => 'Daloy ng Kooperatiba';
+
+  @override
+  String get supplyChainPlannedOps => 'Nakaplanong Operasyon';
+
+  @override
+  String get supplyChainPlannedOpsDesc =>
+      'Ang iskedyul ng pagkolekta, pagsubaybay sa galaw ng bodega, at logistics ng paghahatid ay lalabas dito kapag nakumpirma na ang aktwal na proseso ng kooperatiba sa personal na pagbisita.';
+
+  @override
+  String get supplyChainMapSection => 'Lokasyon ng mga Magsasaka';
+
+  @override
+  String get supplyChainRefresh => 'I-refresh';
+
+  @override
+  String get supplyChainAllMapped =>
+      'Ang lahat ng miyembro ay may nakatakdang lokasyon ng bukid.';
+
+  @override
+  String get supplyChainAllSubmitted =>
+      'Naisumite na ang lahat ng ani sa kooperatiba.';
 
   @override
   String get priceLiveRates => 'Live Market Rates';
@@ -1385,4 +1564,155 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get broadcastScheduleSub => 'Magpadala sa ibang oras';
+
+  @override
+  String get buyerNavBrowse => 'Mamili';
+
+  @override
+  String get buyerNavOrders => 'Mga Order';
+
+  @override
+  String get buyerNavPrices => 'Presyo';
+
+  @override
+  String get buyerNavAccount => 'Account';
+
+  @override
+  String get buyerBrowseTitle => 'Palengke';
+
+  @override
+  String get buyerBrowseSubtitle => 'Sariwang ani mula sa mga magsasaka ng SP3';
+
+  @override
+  String get buyerBrowseSearchHint => 'Maghanap ng pananim o uri';
+
+  @override
+  String get buyerBrowseEmptyTitle => 'Tahimik pa ang palengke';
+
+  @override
+  String get buyerBrowseEmptyBody =>
+      'Bumalik-balik para sa mga bagong listahan mula sa SP3.';
+
+  @override
+  String get buyerBrowseNoResultsTitle => 'Walang tumutugmang listahan';
+
+  @override
+  String get buyerBrowseNoResultsBody =>
+      'Subukan ang ibang salita o kategorya.';
+
+  @override
+  String get buyerBrowseSoldOut => 'Naubos Na';
+
+  @override
+  String get buyerBrowseLowStock => 'Paubos Na';
+
+  @override
+  String get buyerBrowseOrderNow => 'Umorder Ngayon';
+
+  @override
+  String get buyerBrowseAvailableSuffix => 'natitira';
+
+  @override
+  String get buyerBrowseAboveMarketRange =>
+      'Presyo laban sa karaniwang market rate';
+
+  @override
+  String get dashboardAllClearTitle => 'Maayos ang Lahat';
+
+  @override
+  String get dashboardAllClearMessage =>
+      'Walang mahalagang bagay ngayon. Magpatuloy sa mahusay na gawain!';
+
+  @override
+  String get dashboardQuickActions => 'Mabilisang Aksyon';
+
+  @override
+  String get quickActionRecordHarvest => 'Itala ang Ani';
+
+  @override
+  String get quickActionCreateListing => 'Gumawa ng Listahan';
+
+  @override
+  String get quickActionCheckPrices => 'Tingnan ang Presyo';
+
+  @override
+  String get purchaseSummary => 'Buod ng Bili';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get buyerDefaultName => 'Buyer';
+
+  @override
+  String get statOrders => 'Mga Order';
+
+  @override
+  String get statCompleted => 'Nakompleto';
+
+  @override
+  String get statSpent => 'Nagastos';
+
+  @override
+  String get buyerNoOrdersTitle => 'Wala pang order';
+
+  @override
+  String get buyerNoOrdersSubtitle =>
+      'Simulan ang pag-browse sa marketplace para maglagay ng unang order.';
+
+  @override
+  String get browseMarketplace => 'Tingnan ang Marketplace';
+
+  @override
+  String get photoUploadFailed => 'Hindi na-upload ang larawan. Subukan muli.';
+
+  @override
+  String get fullNameEmpty => 'Kailangan ang buong pangalan.';
+
+  @override
+  String get profileUpdated => 'Na-update ang profile.';
+
+  @override
+  String get saveChangesFailed =>
+      'Hindi ma-save ang mga pagbabago. Subukan muli.';
+
+  @override
+  String get changePhoto => 'Palitan ang Larawan';
+
+  @override
+  String get personalInformation => 'Personal na Impormasyon';
+
+  @override
+  String get updatePasswordSubtitle => 'I-update ang password ng account';
+
+  @override
+  String get aboutSagana => 'Tungkol sa SAGANA';
+
+  @override
+  String get aboutSaganaBody =>
+      'Tinutulungan ng SAGANA ang mga buyer na makipag-ugnayan sa mga pinagkakatiwalaang magsasaka ng SP3 at pamahalaan ang kanilang mga pagbili sa isang lugar.';
+
+  @override
+  String get contactSp3 => 'Makipag-ugnayan sa SP3';
+
+  @override
+  String get contactSp3Body =>
+      'Para sa mga tanong tungkol sa account, order, o bayad, pumunta sa opisina ng kooperatiba o makipag-ugnayan sa inyong coordinator.';
+
+  @override
+  String get privacyPolicy => 'Patakaran sa Privacy';
+
+  @override
+  String get privacyPolicyBody =>
+      'Ang iyong account, detalye ng order, at impormasyon sa pakikipag-ugnayan ay secure at ma-access lamang ng awtorisadong tauhan ng kooperatiba.';
+
+  @override
+  String get termsOfUse => 'Mga Tuntunin ng Paggamit';
+
+  @override
+  String get termsOfUseBody =>
+      'Sa paggamit ng SAGANA, sumasang-ayon kang gumamit ng platform nang responsable at sundin ang mga patakaran ng kooperatiba.';
+
+  @override
+  String get logOut => 'Mag-log Out';
 }

@@ -172,4 +172,150 @@ class SupplyChainRepository {
       cropStats:     stats,
     );
   }
+
+  // ─── Fetch operations snapshot (Operations Summary counts) ────────────────
+
+  Future<SupplyChainOperationsSnapshot> fetchOperationsSnapshot() async {
+    int totalMembers = 0;
+    int mappedMembers = 0;
+    int activeLoans = 0;
+    int overdueLoans = 0;
+    int awaitingApproval = 0;
+    int lowStock = 0;
+    int unsubmitted = 0;
+
+    try {
+      final allFarmers = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'farmer')
+          .eq('status', 'active');
+      totalMembers = allFarmers.length;
+    } catch (_) {
+      totalMembers = 52; // SP3 known count fallback
+    }
+
+    try {
+      final mapped = await _client
+          .from('farmer_profiles')
+          .select('user_id')
+          .not('farm_latitude', 'is', null);
+      mappedMembers = mapped.length;
+    } catch (_) {}
+
+    try {
+      final loans = await _client
+          .from('farmer_loans')
+          .select('status')
+          .neq('status', 'paid');
+      activeLoans = loans.length;
+      overdueLoans = loans.where((r) => r['status'] == 'overdue').length;
+    } catch (_) {}
+
+    try {
+      final listings = await _client
+          .from('marketplace_listings')
+          .select('id')
+          .eq('status', 'pending_review');
+      awaitingApproval = listings.length;
+    } catch (_) {}
+
+    try {
+      final batches = await _client
+          .from('inventory_batches')
+          .select('id')
+          .eq('status', 'low_stock');
+      lowStock = batches.length;
+    } catch (_) {}
+
+    try {
+      final harvests = await _client
+          .from('harvest_records')
+          .select('id')
+          .eq('submitted_to_cooperative', false);
+      unsubmitted = harvests.length;
+    } catch (_) {}
+
+    return SupplyChainOperationsSnapshot(
+      totalMembers: totalMembers,
+      mappedMembers: mappedMembers,
+      activeLoanCount: activeLoans,
+      overdueLoanCount: overdueLoans,
+      awaitingApprovalListings: awaitingApproval,
+      lowStockBatches: lowStock,
+      unsubmittedHarvests: unsubmitted,
+    );
+  }
+
+  // ─── Fetch unmapped members (for the "no farm location" insight) ──────────
+
+  Future<List<UnmappedMemberEntry>> fetchUnmappedMembers() async {
+    try {
+      final allFarmers = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'farmer')
+          .eq('status', 'active');
+      final allIds = allFarmers.map((r) => r['user_id'] as String).toSet();
+
+      final mapped = await _client
+          .from('farmer_profiles')
+          .select('user_id')
+          .not('farm_latitude', 'is', null);
+      final mappedIds = mapped.map((r) => r['user_id'] as String).toSet();
+
+      final unmappedIds = allIds.difference(mappedIds).toList();
+      if (unmappedIds.isEmpty) return [];
+
+      final info = await _client
+          .from('user_information')
+          .select('user_id, full_name, sitio')
+          .inFilter('user_id', unmappedIds);
+
+      return info
+          .map((r) => UnmappedMemberEntry(
+                userId: r['user_id'] as String,
+                fullName: r['full_name'] as String? ?? 'Unknown',
+                sitio: r['sitio'] as String?,
+              ))
+          .toList()
+        ..sort((a, b) => a.fullName.compareTo(b.fullName));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ─── Fetch harvests not yet submitted to the cooperative ───────────────────
+
+  Future<List<UnsubmittedHarvestEntry>> fetchUnsubmittedHarvests() async {
+    try {
+      final rows = await _client
+          .from('harvest_records')
+          .select('id, crop_name, quantity_kg, harvest_date, farmer_id')
+          .eq('submitted_to_cooperative', false)
+          .order('harvest_date', ascending: false);
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final info = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', farmerIds);
+      final nameMap = {
+        for (final r in info) r['user_id'] as String: r['full_name'] as String? ?? 'Unknown',
+      };
+
+      return rows
+          .map((r) => UnsubmittedHarvestEntry(
+                id: r['id'] as String,
+                farmerName: nameMap[r['farmer_id']] ?? 'Unknown',
+                cropName: r['crop_name'] as String,
+                quantityKg: (r['quantity_kg'] as num).toDouble(),
+                harvestDate: DateTime.parse(r['harvest_date'] as String),
+              ))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

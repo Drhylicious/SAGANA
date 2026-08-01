@@ -7,6 +7,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../routes/app_routes.dart';
+import '../../widgets/management_modal.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +16,7 @@ class CropMasterItem {
   final String id;
   final String cropName;
   final String category;
+  final String cropType;
   final String? description;
   final bool isActive;
   final int sortOrder;
@@ -22,6 +25,7 @@ class CropMasterItem {
     required this.id,
     required this.cropName,
     required this.category,
+    required this.cropType,
     this.description,
     required this.isActive,
     required this.sortOrder,
@@ -31,10 +35,19 @@ class CropMasterItem {
         id: m['id'] as String,
         cropName: m['crop_name'] as String,
         category: m['category'] as String? ?? 'Other',
+        cropType: m['crop_type'] as String? ?? 'open_market',
         description: m['description'] as String?,
         isActive: m['is_active'] as bool? ?? true,
         sortOrder: m['sort_order'] as int? ?? 0,
       );
+
+  String get cropTypeLabel {
+    switch (cropType) {
+      case 'sp3_cooperative': return 'Cooperative Crop';
+      case 'da_amad_market':  return 'DA-AMAD Reference';
+      default:                return 'Open Market';
+    }
+  }
 }
 
 // ── Repository ───────────────────────────────────────────────────────────────
@@ -56,12 +69,14 @@ class _CropMasterRepository {
   Future<bool> addCrop({
     required String name,
     required String category,
+    required String cropType,
     String? description,
   }) async {
     try {
       await _client.from('crop_master').insert({
         'crop_name': name.trim(),
         'category': category,
+        'crop_type': cropType,
         'description': description?.trim(),
         'created_by': _client.auth.currentUser?.id,
       });
@@ -73,12 +88,14 @@ class _CropMasterRepository {
     required String id,
     required String name,
     required String category,
+    required String cropType,
     String? description,
   }) async {
     try {
       await _client.from('crop_master').update({
         'crop_name': name.trim(),
         'category': category,
+        'crop_type': cropType,
         'description': description?.trim(),
       }).eq('id', id);
       return true;
@@ -99,6 +116,16 @@ class _CropMasterRepository {
       return true;
     } catch (_) { return false; }
   }
+
+  Future<int> fetchPendingRequestCount() async {
+    try {
+      final rows = await _client
+          .from('crop_requests')
+          .select('id')
+          .eq('status', 'pending');
+      return rows.length;
+    } catch (_) { return 0; }
+  }
 }
 
 // ── Screen ───────────────────────────────────────────────────────────────────
@@ -116,6 +143,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
   List<CropMasterItem> _crops = [];
   bool _isLoading = true;
   bool _isOnline = true;
+  int _pendingRequestCount = 0;
 
   static const _categories = [
     'Grain', 'Legume', 'Root & Spice Crop',
@@ -135,8 +163,13 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final result = await _repo.fetchAll();
+    final pendingCount = await _repo.fetchPendingRequestCount();
     if (!mounted) return;
-    setState(() { _crops = result; _isLoading = false; });
+    setState(() {
+      _crops = result;
+      _pendingRequestCount = pendingCount;
+      _isLoading = false;
+    });
   }
 
   List<CropMasterItem> get _filtered =>
@@ -146,126 +179,117 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
   void _showEditSheet(CropMasterItem crop) => _showCropSheet(crop);
 
   void _showCropSheet(CropMasterItem? existing) {
+    final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: existing?.cropName ?? '');
     final descCtrl = TextEditingController(text: existing?.description ?? '');
     String selectedCategory = existing?.category ?? 'Other';
+    String selectedCropType = existing?.cropType ?? 'open_market';
     bool isSaving = false;
 
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
-        final cs = Theme.of(ctx).colorScheme;
         return StatefulBuilder(builder: (ctx, setSheet) {
-          return Padding(
-            padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
-              decoration: BoxDecoration(
-                color: sagana.cardBackground,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(AppConstants.radiusXl)),
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            setSheet(() => isSaving = true);
+            bool ok;
+            if (existing == null) {
+              ok = await _repo.addCrop(
+                name: nameCtrl.text,
+                category: selectedCategory,
+                cropType: selectedCropType,
+                description: descCtrl.text.isEmpty ? null : descCtrl.text,
+              );
+            } else {
+              ok = await _repo.updateCrop(
+                id: existing.id,
+                name: nameCtrl.text,
+                category: selectedCategory,
+                cropType: selectedCropType,
+                description: descCtrl.text.isEmpty ? null : descCtrl.text,
+              );
+            }
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (ok) _load();
+            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+              content: Text(ok
+                  ? existing == null
+                      ? 'Crop added successfully'
+                      : 'Crop updated'
+                  : 'Failed. Please try again.'),
+              backgroundColor:
+                  ok ? AppConstants.successGreen : AppConstants.errorRed,
+              behavior: SnackBarBehavior.floating,
+            ));
+          }
+
+          return ManagementModalShell(
+            title: existing == null ? 'Add New Crop' : 'Edit Crop',
+            body: Form(
+              key: formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Crop Name *',
+                      hintText: 'e.g. Ginger, Banana',
+                    ),
+                    textCapitalization: TextCapitalization.words,
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Crop name is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCategory,
+                    decoration: const InputDecoration(labelText: 'Category *'),
+                    items: _categories
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setSheet(() => selectedCategory = v!),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCropType,
+                    decoration: const InputDecoration(
+                      labelText: 'Market Type *',
+                      helperText: 'Determines which price types apply to this crop',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'sp3_cooperative', child: Text('Cooperative Market (SP3 Buying)')),
+                      DropdownMenuItem(value: 'da_amad_market', child: Text('DA-AMAD Reference Market')),
+                      DropdownMenuItem(value: 'open_market', child: Text('Open Market Crop')),
+                    ],
+                    onChanged: (v) => setSheet(() => selectedCropType = v!),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: descCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (optional)',
+                      hintText: 'Routing, market, or program notes',
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
               ),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.outline.withValues(alpha: 0.30),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      existing == null ? 'Add New Crop' : 'Edit Crop',
-                      style: GoogleFonts.poppins(
-                          fontSize: 17, fontWeight: FontWeight.w700,
-                          color: cs.onSurface),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Crop Name *',
-                        hintText: 'e.g. Ginger, Banana',
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedCategory,
-                      decoration: const InputDecoration(labelText: 'Category *'),
-                      items: _categories.map((c) => DropdownMenuItem(
-                        value: c, child: Text(c))).toList(),
-                      onChanged: (v) => setSheet(() => selectedCategory = v!),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: descCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Description (optional)',
-                        hintText: 'Routing, market, or program notes',
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: isSaving ? null : () async {
-                          if (nameCtrl.text.trim().isEmpty) return;
-                          setSheet(() => isSaving = true);
-                          bool ok;
-                          if (existing == null) {
-                            ok = await _repo.addCrop(
-                              name: nameCtrl.text,
-                              category: selectedCategory,
-                              description: descCtrl.text.isEmpty ? null : descCtrl.text,
-                            );
-                          } else {
-                            ok = await _repo.updateCrop(
-                              id: existing.id,
-                              name: nameCtrl.text,
-                              category: selectedCategory,
-                              description: descCtrl.text.isEmpty ? null : descCtrl.text,
-                            );
-                          }
-                          if (!ctx.mounted) return;
-                          Navigator.pop(ctx);
-                          if (ok) _load();
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text(ok
-                                ? existing == null
-                                    ? 'Crop added successfully'
-                                    : 'Crop updated'
-                                : 'Failed. Please try again.'),
-                            backgroundColor: ok
-                                ? AppConstants.successGreen
-                                : AppConstants.errorRed,
-                            behavior: SnackBarBehavior.floating,
-                          ));
-                        },
-                        child: Text(
-                          isSaving
-                              ? 'Saving…'
-                              : existing == null ? 'Add Crop' : 'Save Changes',
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving
+                  ? 'Saving…'
+                  : existing == null
+                      ? 'Add Crop'
+                      : 'Save Changes',
+              isLoading: isSaving,
+              onPrimary: submit,
             ),
           );
         });
@@ -278,121 +302,59 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
     final archived = all.where((c) => !c.isActive).toList();
     if (!mounted) return;
 
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
         final cs = Theme.of(ctx).colorScheme;
-        return DraggableScrollableSheet(
-          initialChildSize: 0.60,
-          maxChildSize: 0.90,
-          builder: (ctx, ctrl) => Container(
-            decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppConstants.radiusXl)),
-            ),
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                child: Column(children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.outline.withValues(alpha: 0.30),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+        return ManagementModalShell(
+          title: 'Archived Crops',
+          subtitle: '${archived.length} archived',
+          bodyIsScrollable: true,
+          body: archived.isEmpty
+              ? Center(
+                  child: Text(
+                    'No archived crops',
+                    style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Archived Crops',
-                          style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: cs.onSurface)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: cs.surfaceContainerHighest,
-                          borderRadius:
-                              BorderRadius.circular(AppConstants.radiusFull),
-                        ),
-                        child: Text('${archived.length}',
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: cs.onSurfaceVariant)),
-                      ),
-                    ],
-                  ),
-                ]),
-              ),
-              Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
-              Expanded(
-                child: archived.isEmpty
-                    ? Center(
-                        child: Text('No archived crops',
-                            style: GoogleFonts.inter(
-                                fontSize: 13, color: cs.onSurfaceVariant)))
-                    : ListView.separated(
-                        controller: ctrl,
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                        itemCount: archived.length,
-                        separatorBuilder: (_, __) => Divider(
-                            height: 1,
-                            color: cs.outline.withValues(alpha: 0.08)),
-                        itemBuilder: (_, i) {
-                          final crop = archived[i];
-                          return ListTile(
-                            tileColor: Colors.transparent,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 4),
-                            title: Text(crop.cropName,
-                                style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: cs.onSurface)),
-                            subtitle: Text(crop.category,
-                                style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: cs.onSurfaceVariant)),
-                            trailing: GestureDetector(
-                              onTap: () async {
-                                final ok = await _repo.toggleActive(crop.id, true);
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                if (ok) _load();
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.primaryGreen
-                                      .withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(
-                                      AppConstants.radiusFull),
-                                ),
-                                child: Text('Restore',
-                                    style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppConstants.primaryGreen)),
-                              ),
-                            ),
-                          );
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  itemCount: archived.length,
+                  separatorBuilder: (_, __) =>
+                      Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
+                  itemBuilder: (_, i) {
+                    final crop = archived[i];
+                    return ListTile(
+                      tileColor: Colors.transparent,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(crop.cropName,
+                          style: GoogleFonts.inter(
+                              fontSize: 13, fontWeight: FontWeight.w500, color: cs.onSurface)),
+                      subtitle: Text(crop.category,
+                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                      trailing: GestureDetector(
+                        onTap: () async {
+                          final ok = await _repo.toggleActive(crop.id, true);
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          if (ok) _load();
                         },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          ),
+                          child: Text('Restore',
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.primaryGreen)),
+                        ),
                       ),
-              ),
-            ]),
-          ),
+                    );
+                  },
+                ),
         );
       },
     );
@@ -523,6 +485,46 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                     onRefresh: _load,
                     child: filtered.isEmpty
                         ? ListView(children: [
+                            if (_pendingRequestCount > 0) ...[
+                              GestureDetector(
+                                onTap: () => context
+                                    .push(AppRoutes.cropRequestApproval)
+                                    .then((_) => _load()),
+                                child: Container(
+                                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: AppConstants.amber
+                                        .withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(
+                                        AppConstants.radiusLg),
+                                    border: Border.all(
+                                        color: AppConstants.amber
+                                            .withValues(alpha: 0.25)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                          Icons.pending_actions_rounded,
+                                          color: AppConstants.amber,
+                                          size: 20),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          '$_pendingRequestCount crop request${_pendingRequestCount == 1 ? '' : 's'} awaiting review',
+                                          style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: cs.onSurface),
+                                        ),
+                                      ),
+                                      Icon(Icons.chevron_right_rounded,
+                                          color: AppConstants.amber),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 100),
                             Center(
                               child: Column(children: [
@@ -546,6 +548,47 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                             padding: const EdgeInsets.fromLTRB(
                                 20, 16, 20, 40),
                             children: [
+                              // Pending crop requests banner
+                              if (_pendingRequestCount > 0) ...[
+                                GestureDetector(
+                                  onTap: () => context
+                                      .push(AppRoutes.cropRequestApproval)
+                                      .then((_) => _load()),
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: AppConstants.amber
+                                          .withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(
+                                          AppConstants.radiusLg),
+                                      border: Border.all(
+                                          color: AppConstants.amber
+                                              .withValues(alpha: 0.25)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                            Icons.pending_actions_rounded,
+                                            color: AppConstants.amber,
+                                            size: 20),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            '$_pendingRequestCount crop request${_pendingRequestCount == 1 ? '' : 's'} awaiting review',
+                                            style: GoogleFonts.poppins(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                                color: cs.onSurface),
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded,
+                                            color: AppConstants.amber),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                               // Summary pill
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -612,7 +655,10 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                                       final isLast = i ==
                                           grouped[category]!.length - 1;
                                       return Column(children: [
-                                        Padding(
+                                        GestureDetector(
+                                          onTap: () => _showEditSheet(crop),
+                                          behavior: HitTestBehavior.opaque,
+                                          child: Padding(
                                           padding: const EdgeInsets
                                               .symmetric(
                                               horizontal: 14,
@@ -703,9 +749,6 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                                                       cs.onSurfaceVariant),
                                               onSelected: (v) async {
                                                 switch (v) {
-                                                  case 'edit':
-                                                    _showEditSheet(crop);
-                                                    break;
                                                   case 'archive':
                                                     final ok = await _repo.toggleActive(
                                                         crop.id, false);
@@ -717,19 +760,6 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                                                 }
                                               },
                                               itemBuilder: (_) => [
-                                                PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Row(children: [
-                                                    const Icon(
-                                                        Icons.edit_rounded,
-                                                        size: 16),
-                                                    const SizedBox(
-                                                        width: 8),
-                                                    Text('Edit',
-                                                        style: GoogleFonts
-                                                            .inter()),
-                                                  ]),
-                                                ),
                                                 PopupMenuItem(
                                                   value: 'archive',
                                                   child: Row(children: [
@@ -765,6 +795,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                                               ],
                                             ),
                                           ]),
+                                          ),
                                         ),
                                         if (!isLast)
                                           Divider(

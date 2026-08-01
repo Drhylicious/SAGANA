@@ -49,6 +49,14 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
               .eq('status', 'active');
           return rows.map((r) => r['user_id'] as String).toList();
 
+        case RecipientType.allBuyers:
+          final rows = await _client
+              .from('user_roles')
+              .select('user_id')
+              .eq('role', 'buyer')
+              .eq('status', 'active');
+          return rows.map((r) => r['user_id'] as String).toList();
+
         case RecipientType.outstandingLoans:
           final rows = await _client
               .from('farmer_loans')
@@ -65,6 +73,10 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
           return rows.map((r) => r['farmer_id'] as String).toSet().toList();
 
         case RecipientType.specificFarmer:
+          if (filter == null || filter.isEmpty) return [];
+          return [filter];
+
+        case RecipientType.specificBuyer:
           if (filter == null || filter.isEmpty) return [];
           return [filter];
       }
@@ -174,6 +186,34 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
           .map((r) => {
                 'id':   r['user_id'] as String,
                 'name': r['full_name'] as String? ?? 'Unknown',
+              })
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ─── Fetch buyers list (for specificBuyer filter) ────────────────────────
+
+  Future<List<Map<String, String>>> fetchBuyersList() async {
+    try {
+      final roleRows = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'buyer');
+      final ids = roleRows.map((r) => r['user_id'] as String).toList();
+      if (ids.isEmpty) return [];
+
+      final infoRows = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', ids)
+          .order('full_name', ascending: true);
+
+      return infoRows
+          .map((r) => {
+                'id':   r['user_id'] as String,
+                'name': r['full_name'] as String? ?? 'Buyer',
               })
           .toList();
     } catch (_) {

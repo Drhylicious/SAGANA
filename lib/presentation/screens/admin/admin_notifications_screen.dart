@@ -40,6 +40,7 @@ class AdminNotif {
       case 'listing_submitted':
       case 'loan_overdue':
       case 'member_pending':
+      case 'crop_request':
         cat = AdminNotifCategory.actions;
       case 'member_registered':
       case 'member_updated':
@@ -146,6 +147,7 @@ class _AdminNotificationsScreenState
 
   Future<void> _onNotifTap(AdminNotif notif) async {
     await _repo.markRead(notif.id);
+    if (!mounted) return;
     setState(() {
       final idx = _all.indexWhere((n) => n.id == notif.id);
       if (idx != -1) {

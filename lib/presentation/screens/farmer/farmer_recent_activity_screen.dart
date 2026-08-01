@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
-import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -141,15 +140,7 @@ class _FarmerRecentActivityScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Recent Activity',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppConstants.charcoal,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 8),
                               _SearchBar(controller: _searchController),
                               const SizedBox(height: 16),
                               _FilterChips(
@@ -219,10 +210,12 @@ class _FarmerRecentActivityScreenState
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: 'Recent Activity',
               onBack: () => Navigator.of(context).pop(),
-              onProfileTap: () =>
-                  context.goTab(AppRoutes.farmerProfile),
-                onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications),
+              hideProfileAvatar: true,
+              onProfileTap: () {},
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
         ],
@@ -559,10 +552,12 @@ class _CardBottom extends StatelessWidget {
           !isAlert &&
           (item.statusLabel == 'Verified' ||
               item.statusLabel == 'Active on Marketplace' ||
+              item.statusLabel == 'Approved' ||
               item.statusLabel == 'Synced');
       final isWarning =
           item.statusLabel == 'Pending Quality Check' ||
-          item.statusLabel == 'Pending Sync';
+          item.statusLabel == 'Pending Sync' ||
+          item.statusLabel == 'Pending Review';
 
       Color badgeColor;
       if (isAlert) {
@@ -621,7 +616,7 @@ class _CardIcon extends StatelessWidget {
     Color bg;
     Color fg;
 
-    if (isAlert) {
+    if (isAlert && type == ActivityType.loan) {
       icon = Icons.account_balance_wallet_outlined;
       bg = AppConstants.errorRed.withValues(alpha: 0.10);
       fg = AppConstants.errorRed;
@@ -646,6 +641,12 @@ class _CardIcon extends StatelessWidget {
           icon = Icons.account_balance_wallet_outlined;
           bg = AppConstants.errorRed.withValues(alpha: 0.10);
           fg = AppConstants.errorRed;
+          break;
+        case ActivityType.cropRequest:
+          icon = Icons.local_florist_outlined;
+          bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
+              .withValues(alpha: 0.10);
+          fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
           break;
       }
     }

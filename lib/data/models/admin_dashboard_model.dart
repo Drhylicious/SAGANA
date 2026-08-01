@@ -10,6 +10,8 @@ class AdminKpiSummary {
   final int totalMembersTarget;
   final int pendingMembers;
   final double totalStockKg;
+  final int activeInventoryItems;
+  final int lowStockAlertCount;
   final int pendingListings;
   final int pendingOrders;
   final double totalRevenueThisMonth;
@@ -21,6 +23,8 @@ class AdminKpiSummary {
     required this.totalMembersTarget,
     required this.pendingMembers,
     required this.totalStockKg,
+    required this.activeInventoryItems,
+    required this.lowStockAlertCount,
     required this.pendingListings,
     required this.pendingOrders,
     required this.totalRevenueThisMonth,
@@ -33,6 +37,8 @@ class AdminKpiSummary {
     totalMembersTarget: 52,
     pendingMembers: 0,
     totalStockKg: 0,
+    activeInventoryItems: 0,
+    lowStockAlertCount: 0,
     pendingListings: 0,
     pendingOrders: 0,
     totalRevenueThisMonth: 0,
@@ -52,9 +58,9 @@ class DashboardPriority {
   final DashboardPriorityLevel level;
   final String label;
   final String value;
-  final String route;           // where tapping this item navigates
-  final bool useGo;             // true = context.go() (tab switch), false = context.push()
-  final String? extra;          // optional extra for context.push()
+  final String route; // where tapping this item navigates
+  final bool useGo; // true = context.go() (tab switch), false = context.push()
+  final String? extra; // optional extra for context.push()
 
   const DashboardPriority({
     required this.id,
@@ -95,13 +101,7 @@ class InventoryAlertItem {
 
 // ─── Calendar Event ───────────────────────────────────────────────────────────
 
-enum CalendarEventType {
-  bodMeeting,
-  loanDue,
-  harvest,
-  announcement,
-  program,
-}
+enum CalendarEventType { bodMeeting, loanDue, harvest, announcement, program }
 
 class CalendarEvent {
   final String id;
@@ -138,8 +138,7 @@ class BodMeetingInfo {
       nextMeetingDate.difference(DateTime.now()).inDays <= 7 &&
       nextMeetingDate.isAfter(DateTime.now());
 
-  int get daysUntilMeeting =>
-      nextMeetingDate.difference(DateTime.now()).inDays;
+  int get daysUntilMeeting => nextMeetingDate.difference(DateTime.now()).inDays;
 }
 
 // ─── Admin Activity Item ──────────────────────────────────────────────────────
@@ -153,6 +152,7 @@ enum AdminActivityType {
   member,
   inventory,
   program,
+  cropRequest,
 }
 
 class AdminActivityItem {
@@ -183,7 +183,7 @@ class AdminActivityItem {
 
 class CoopPerformanceSummary {
   final int totalHarvests;
-  final double totalStockKg;
+  final double farmerAvailableStockKg;
   final int activeListings;
   final int completedSales;
   final int activeMembersThisSeason;
@@ -192,7 +192,7 @@ class CoopPerformanceSummary {
 
   const CoopPerformanceSummary({
     required this.totalHarvests,
-    required this.totalStockKg,
+    required this.farmerAvailableStockKg,
     required this.activeListings,
     required this.completedSales,
     required this.activeMembersThisSeason,
@@ -200,12 +200,14 @@ class CoopPerformanceSummary {
     this.estimatedStockValue,
   });
 
+  double get totalStockKg => farmerAvailableStockKg;
+
   double get participationPercent =>
       totalMembers > 0 ? activeMembersThisSeason / totalMembers : 0;
 
   static const empty = CoopPerformanceSummary(
     totalHarvests: 0,
-    totalStockKg: 0,
+    farmerAvailableStockKg: 0,
     activeListings: 0,
     completedSales: 0,
     activeMembersThisSeason: 0,
@@ -222,7 +224,8 @@ class ManagementModuleCard {
   final String badgeLabel;
   final bool hasBadgeAlert;
   final String route;
-  final bool useGo; // true = tab switch via context.go(), false = push above shell
+  final bool
+  useGo; // true = tab switch via context.go(), false = push above shell
 
   const ManagementModuleCard({
     required this.id,

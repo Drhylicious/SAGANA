@@ -39,4 +39,8 @@ class AppEventService {
   /// Named alias — called after a harvest record is successfully saved.
   /// Triggers dashboard and other screens to refresh their data.
   void notifyHarvestRecorded() => notify();
+
+  /// Named alias — called after a farmer submits a new crop request.
+  /// Triggers dashboard and other screens to refresh their data.
+  void notifyCropRequestSubmitted() => notify();
 }

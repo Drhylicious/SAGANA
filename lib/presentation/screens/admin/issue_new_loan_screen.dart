@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -7,11 +8,15 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
+import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/management_modal.dart';
+import '../../widgets/material_list_tile.dart';
 
 /// Issue New Loan — Admin.
 /// Pushed above the shell (has a back button). Route: /admin/loans/issue
@@ -45,6 +50,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
   DateTime _issuedDate = DateTime.now();
   final List<_LoanItemDraft> _items = [];
+  List<LoanCatalogItem> _loanCatalog = [];
 
   @override
   void initState() {
@@ -54,6 +60,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       if (mounted) setState(() => _isOnline = v);
     });
     _loadFarmerRoster();
+    _repo.fetchLoanEligibleItems().then((v) {
+      if (mounted) setState(() => _loanCatalog = v);
+    });
   }
 
   @override
@@ -116,25 +125,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   double get _suggestedMonthlyPayment =>
       _totalValue > 0 ? (_totalValue / 12) : 0;
 
-  DateTime _nextBodSaturday() {
-    final now = DateTime.now();
-    var candidate = _firstSaturdayOf(now.year, now.month);
-    if (candidate.isBefore(DateTime(now.year, now.month, now.day))) {
-      final nextMonth = now.month == 12 ? 1 : now.month + 1;
-      final nextYear = now.month == 12 ? now.year + 1 : now.year;
-      candidate = _firstSaturdayOf(nextYear, nextMonth);
-    }
-    return candidate;
-  }
-
-  DateTime _firstSaturdayOf(int year, int month) {
-    var d = DateTime(year, month, 1);
-    while (d.weekday != DateTime.saturday) {
-      d = d.add(const Duration(days: 1));
-    }
-    return d;
-  }
-
   void _recalculateSuggestedMonthlyPayment() {
     if (_monthlyPaymentManuallyEdited) return;
     _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(
@@ -145,12 +135,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   // ─── Item CRUD ──────────────────────────────────────────────────────────
 
   void _openAddItemSheet({_LoanItemDraft? existing}) {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AddLoanItemSheet(
+      builder: (_) => _AddLoanItemModalBody(
         existing: existing,
+        loanCatalog: _loanCatalog,
         onSave: (draft) {
           setState(() {
             if (existing != null) {
@@ -205,11 +194,12 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
     setState(() => _isSubmitting = true);
 
-    final nextPaymentDate = _nextBodSaturday();
+    final nextPaymentDate = BodSchedule.upcoming();
     final items = _items
         .map(
           (i) => {
             'itemName': i.itemName,
+            'inventoryItemId': i.inventoryItemId,
             'quantity': i.quantity,
             'unit': i.unit,
             'unitPrice': i.unitPrice,
@@ -527,11 +517,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _FarmerPickerSheet(
+      builder: (_) => _FarmerPickerModalBody(
         roster: _farmerRoster,
         l10n: l10n,
         onSelected: (farmer) {
@@ -731,7 +719,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final nextPayment = _nextBodSaturday();
+    final nextPayment = BodSchedule.upcoming();
     if (_monthlyPaymentController.text.isEmpty &&
         !_monthlyPaymentManuallyEdited) {
       _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(
@@ -781,6 +769,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           TextField(
             controller: _monthlyPaymentController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            ],
             onChanged: (_) =>
                 setState(() => _monthlyPaymentManuallyEdited = true),
             style: GoogleFonts.poppins(
@@ -941,6 +932,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
 class _LoanItemDraft {
   final String id;
+  final String? inventoryItemId;
   String itemName;
   double quantity;
   String unit;
@@ -948,6 +940,7 @@ class _LoanItemDraft {
 
   _LoanItemDraft({
     required this.id,
+    this.inventoryItemId,
     required this.itemName,
     required this.quantity,
     required this.unit,
@@ -957,30 +950,29 @@ class _LoanItemDraft {
   double get lineTotal => quantity * unitPrice;
 }
 
-// ─── Farmer picker bottom sheet ─────────────────────────────────────────────
+// ─── Farmer picker modal ────────────────────────────────────────────────────
 
-class _FarmerPickerSheet extends StatefulWidget {
+class _FarmerPickerModalBody extends StatefulWidget {
   final List<FarmerPickerResult> roster;
   final AppLocalizations l10n;
   final ValueChanged<FarmerPickerResult> onSelected;
 
-  const _FarmerPickerSheet({
+  const _FarmerPickerModalBody({
     required this.roster,
     required this.l10n,
     required this.onSelected,
   });
 
   @override
-  State<_FarmerPickerSheet> createState() => _FarmerPickerSheetState();
+  State<_FarmerPickerModalBody> createState() => _FarmerPickerModalBodyState();
 }
 
-class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
+class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
   String _query = '';
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
     final filtered = _query.isEmpty
         ? widget.roster
         : widget.roster
@@ -991,34 +983,14 @@ class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
               )
               .toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.l10n.issueLoanSelectFarmer,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: cs.onSurface,
-              ),
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
-            TextField(
+    return ManagementModalShell(
+      title: widget.l10n.issueLoanSelectFarmer,
+      bodyIsScrollable: true,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: TextField(
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
               decoration: InputDecoration(
@@ -1030,85 +1002,88 @@ class _FarmerPickerSheetState extends State<_FarmerPickerSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: AppConstants.spacingMd),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        widget.l10n.issueLoanNoItemsYet,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: cs.onSurfaceVariant,
-                        ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      widget.l10n.issueLoanNoFarmerResults,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final farmer = filtered[index];
-                        return Material(
-                          type: MaterialType.transparency,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppConstants.primaryContainer,
-                              child: Text(
-                                farmer.fullName.isNotEmpty
-                                    ? farmer.fullName[0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            title: Text(
-                              farmer.fullName,
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            subtitle: Text(
-                              farmer.memberId,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                            onTap: () => widget.onSelected(farmer),
-                          ),
-                        );
-                      },
                     ),
-            ),
-          ],
-        ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final farmer = filtered[index];
+                      return MaterialListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: AppConstants.primaryContainer,
+                          child: Text(
+                            farmer.fullName.isNotEmpty
+                                ? farmer.fullName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        title: Text(
+                          farmer.fullName,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        subtitle: Text(
+                          farmer.memberId,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        onTap: () => widget.onSelected(farmer),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─── Add / Edit Input Item bottom sheet ─────────────────────────────────────
+// ─── Add / Edit Input Item modal ────────────────────────────────────────────
+//
+// Catalog-only design: items are selected from the loan-eligible inventory
+// catalog (published via Inventory Management), never typed in freehand.
+// This keeps itemName/unit/unitPrice always in sync with cooperative_inventory
+// and lets us show live stock-on-hand + an insufficient-stock warning.
 
-class _AddLoanItemSheet extends StatefulWidget {
+class _AddLoanItemModalBody extends StatefulWidget {
   final _LoanItemDraft? existing;
+  final List<LoanCatalogItem> loanCatalog;
   final ValueChanged<_LoanItemDraft> onSave;
 
-  const _AddLoanItemSheet({this.existing, required this.onSave});
+  const _AddLoanItemModalBody({
+    this.existing,
+    required this.loanCatalog,
+    required this.onSave,
+  });
 
   @override
-  State<_AddLoanItemSheet> createState() => _AddLoanItemSheetState();
+  State<_AddLoanItemModalBody> createState() => _AddLoanItemModalBodyState();
 }
 
-class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
-  late final TextEditingController _nameController;
+class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
+  LoanCatalogItem? _selected;
   late final TextEditingController _qtyController;
-  late final TextEditingController _priceController;
-  late String _unit;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.existing?.itemName ?? '',
-    );
     _qtyController = TextEditingController(
       text: widget.existing != null
           ? (widget.existing!.quantity % 1 == 0
@@ -1116,52 +1091,40 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
                 : widget.existing!.quantity.toString())
           : '',
     );
-    _priceController = TextEditingController(
-      text: widget.existing != null
-          ? widget.existing!.unitPrice.toStringAsFixed(2)
-          : '',
-    );
-    _unit = widget.existing?.unit ?? AppConstants.loanItemUnits.first;
+    // When editing an existing line item, pre-select the matching catalog
+    // entry (if it's still in the catalog — it may have been unpublished).
+    if (widget.existing?.inventoryItemId != null) {
+      for (final item in widget.loanCatalog) {
+        if (item.inventoryItemId == widget.existing!.inventoryItemId) {
+          _selected = item;
+          break;
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
     _qtyController.dispose();
-    _priceController.dispose();
     super.dispose();
   }
 
   double get _quantity => double.tryParse(_qtyController.text.trim()) ?? 0;
-  double get _unitPrice => double.tryParse(_priceController.text.trim()) ?? 0;
-  double get _lineTotal => _quantity * _unitPrice;
+  bool get _insufficientStock =>
+      _selected != null && _quantity > _selected!.quantityOnHand;
 
   void _confirm() {
-    final l10n = AppLocalizations.of(context);
-    if (_nameController.text.trim().isEmpty ||
-        _quantity <= 0 ||
-        _unitPrice < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.issueLoanErrorGeneric,
-            style: GoogleFonts.inter(fontSize: 13),
-          ),
-          backgroundColor: AppConstants.errorRed,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
+    if (_selected == null || _quantity <= 0) return;
     widget.onSave(
       _LoanItemDraft(
         id:
             widget.existing?.id ??
             'item_${DateTime.now().millisecondsSinceEpoch}',
-        itemName: _nameController.text.trim(),
+        inventoryItemId: _selected!.inventoryItemId,
+        itemName: _selected!.itemName,
         quantity: _quantity,
-        unit: _unit,
-        unitPrice: _unitPrice,
+        unit: _selected!.unit,
+        unitPrice: _selected!.unitPrice,
       ),
     );
     Navigator.of(context).pop();
@@ -1171,205 +1134,165 @@ class _AddLoanItemSheetState extends State<_AddLoanItemSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
     final currency = NumberFormat.currency(
       locale: 'en_PH',
       symbol: '₱',
       decimalDigits: 2,
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    // Empty-catalog state — no loanable items exist yet. Without this, the
+    // dropdown below would just sit there empty with no explanation.
+    if (widget.loanCatalog.isEmpty) {
+      return ManagementModalShell(
+        title: l10n.issueLoanAddItem,
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 40,
+              color: cs.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
             Text(
-              l10n.issueLoanAddItem,
+              'No loanable items yet',
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w700,
-                fontSize: 16,
+                fontSize: 14,
                 color: cs.onSurface,
               ),
             ),
-            const SizedBox(height: AppConstants.spacingMd),
-            Wrap(
-              spacing: 8,
-              children: AppConstants.loanInputCategories
-                  .map(
-                    (c) => ActionChip(
-                      label: Text(c, style: GoogleFonts.inter(fontSize: 12)),
-                      onPressed: () => setState(() => _nameController.text = c),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
-            Text(
-              l10n.issueLoanItemName,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
             const SizedBox(height: 6),
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.issueLoanQuantity,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _qtyController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppConstants.radiusSm,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppConstants.spacingMd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.issueLoanUnit,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      DropdownButtonFormField<String>(
-                        initialValue: _unit,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppConstants.radiusSm,
-                            ),
-                          ),
-                        ),
-                        items: AppConstants.loanItemUnits
-                            .map(
-                              (u) => DropdownMenuItem(value: u, child: Text(u)),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => _unit = v ?? _unit),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
             Text(
-              l10n.issueLoanUnitPrice,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: cs.onSurfaceVariant,
-              ),
+              'Publish an item from Inventory Management before it can be selected here.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
             ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                prefixText: '₱ ',
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
+          ],
+        ),
+        footer: ManagementModalActions(
+          cancelLabel: 'Close',
+          primaryLabel: 'Go to Inventory',
+          onPrimary: () {
+            Navigator.of(context).pop();
+            context.push(AppRoutes.adminInventory);
+          },
+        ),
+      );
+    }
+
+    return ManagementModalShell(
+      title: l10n.issueLoanAddItem,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            l10n.issueLoanSelectItem,
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<LoanCatalogItem>(
+            initialValue: _selected,
+            isExpanded: true,
+            hint: const Text('Select a loanable item'),
+            items: widget.loanCatalog
+                .map(
+                  (c) => DropdownMenuItem(
+                    value: c,
+                    child: Text('${c.itemName} (${c.unit})'),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setState(() => _selected = v),
+          ),
+          if (_selected != null) ...[
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  l10n.issueLoanLineTotal,
+                  l10n.issueLoanUnitPrice,
                   style: GoogleFonts.inter(
-                    fontSize: 13,
+                    fontSize: 12,
                     color: cs.onSurfaceVariant,
                   ),
                 ),
                 Text(
-                  currency.format(_lineTotal),
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: cs.onSurface,
-                  ),
+                  currency.format(_selected!.unitPrice),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
-            const SizedBox(height: AppConstants.spacingSectionV),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(l10n.issueLoanCancel),
+                Text(
+                  'Available in stock',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(width: AppConstants.spacingMd),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _confirm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppConstants.primaryGreen,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text(l10n.issueLoanConfirmItem),
-                  ),
+                Text(
+                  '${_selected!.quantityOnHand.toStringAsFixed(0)} ${_selected!.unit}',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _qtyController,
+              decoration: InputDecoration(
+                labelText: l10n.issueLoanQuantity,
+                suffixText: _selected!.unit,
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              onChanged: (_) => setState(() {}),
+            ),
+            if (_insufficientStock) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppConstants.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 16,
+                      color: AppConstants.amber,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_quantity.toStringAsFixed(0)} requested — only '
+                        '${_selected!.quantityOnHand.toStringAsFixed(0)} ${_selected!.unit} available. '
+                        'You can still proceed if the BOD has approved this.',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: l10n.issueLoanConfirmItem,
+        onPrimary: _confirm,
       ),
     );
   }

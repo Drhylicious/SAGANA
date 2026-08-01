@@ -14,26 +14,20 @@ class ListingRepository {
     String? variety,
     required double pricePerKg,
     required double volumeKg,
-    String? inventoryBatchId,
+    required String inventoryBatchId,
     String? photoUrl,
   }) async {
-    final response = await _client
-        .from('marketplace_listings')
-        .insert({
-          'farmer_id': _userId,
-          'inventory_batch_id': inventoryBatchId,
-          'crop_name': cropName,
-          'variety': variety,
-          'price_per_kg': pricePerKg,
-          'volume_kg': volumeKg,
-          'status': 'pending_review',
-          'photo_url': photoUrl,
-          'submitted_at': DateTime.now().toIso8601String(),
-        })
-        .select()
-        .single();
+    final listingId = await _client.rpc('create_listing_with_reservation', params: {
+      'p_batch_id': inventoryBatchId,
+      'p_crop_name': cropName,
+      'p_variety': variety,
+      'p_quantity_kg': volumeKg,
+      'p_price_per_kg': pricePerKg,
+      'p_photo_url': photoUrl,
+    });
 
-    return MarketplaceListingModel.fromMap(response);
+    final row = await _client.from('marketplace_listings').select().eq('id', listingId).single();
+    return MarketplaceListingModel.fromMap(row);
   }
 
   // ─── Fetch all listings for this farmer ───────────────────────────────────
@@ -75,13 +69,16 @@ class ListingRepository {
   }
 
   // ─── Withdraw listing ──────────────────────────────────────────────────────
-
+  //
+  // Previously a bare status update — pulling a listing while it was
+  // pending_review, changes_required, or approved-but-unsold never released
+  // its batch reservation, and there was no guard against withdrawing a
+  // listing that was already sold/rejected/withdrawn. withdraw_listing
+  // releases the reservation via the same _release_batch_reservation helper
+  // used by reject and resubmit, and enforces the status guard atomically —
+  // see supabase_schema_listing_withdraw_reservation.sql.
   Future<void> withdrawListing(String listingId) async {
-    await _client
-        .from('marketplace_listings')
-        .update({'status': 'withdrawn'})
-        .eq('id', listingId)
-        .eq('farmer_id', _userId);
+    await _client.rpc('withdraw_listing', params: {'p_listing_id': listingId});
   }
 
   // ─── Delete listing ────────────────────────────────────────────────────────
@@ -95,22 +92,33 @@ class ListingRepository {
   }
 
   // ─── Resubmit listing (after changes required) ────────────────────────────
-
+  //
+  // Previously a bare status update — a quantity change on resubmit never
+  // touched the batch reservation, so a decrease leaked stock permanently
+  // and an increase had no ceiling at all. resubmit_listing_with_reservation
+  // reconciles the delta (reserving more via _apply_batch_reservation, or
+  // releasing the difference via _release_batch_reservation) atomically with
+  // the listing update, and raises if an increase exceeds real available
+  // stock — see supabase_schema_listing_resubmit_reservation.sql.
   Future<MarketplaceListingModel> resubmitListing({
     required String listingId,
     required double pricePerKg,
     required double volumeKg,
     String? photoUrl,
   }) async {
-    final response = await _client.from('marketplace_listings').update({
-      'price_per_kg': pricePerKg,
-      'volume_kg': volumeKg,
-      'photo_url': photoUrl,
-      'status': 'pending_review',
-      'admin_notes': null,
-      'submitted_at': DateTime.now().toIso8601String(),
-    }).eq('id', listingId).eq('farmer_id', _userId).select().single();
+    await _client.rpc('resubmit_listing_with_reservation', params: {
+      'p_listing_id': listingId,
+      'p_price_per_kg': pricePerKg,
+      'p_volume_kg': volumeKg,
+      'p_photo_url': photoUrl,
+    });
 
-    return MarketplaceListingModel.fromMap(response);
+    final row = await _client
+        .from('marketplace_listings')
+        .select()
+        .eq('id', listingId)
+        .eq('farmer_id', _userId)
+        .single();
+    return MarketplaceListingModel.fromMap(row);
   }
 }

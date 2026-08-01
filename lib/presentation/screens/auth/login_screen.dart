@@ -115,9 +115,20 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _showForgotPassword() {
-    final emailController = TextEditingController(
-      text: _identifierController.text,
-    );
+    // Admins log in with a real email; farmers/staff/buyers log in with a
+    // SAGANA username (see AuthService.toAuthEmail — same heuristic used
+    // there). Only a real email can receive an automated reset link, so
+    // that's the only case that gets one.
+    final identifier = _identifierController.text.trim();
+    if (identifier.contains('@')) {
+      _showAdminResetSheet(prefill: identifier);
+    } else {
+      _showContactAdminSheet();
+    }
+  }
+
+  void _showAdminResetSheet({required String prefill}) {
+    final emailController = TextEditingController(text: prefill);
 
     AppBottomSheet.show(
       context: context,
@@ -144,6 +155,13 @@ class _LoginScreenState extends State<LoginScreen>
           }
         },
       ),
+    );
+  }
+
+  void _showContactAdminSheet() {
+    AppBottomSheet.show(
+      context: context,
+      builder: (context) => const _ContactAdminSheet(),
     );
   }
 
@@ -280,10 +298,10 @@ class _LogoSection extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(
-            Icons.agriculture_rounded,
-            size: 40,
-            color: AppConstants.primaryGreen,
+          child: Image.asset(
+            'assets/images/sagana_icon.png',
+            width: 64,
+            height: 64,
           ),
         ),
 
@@ -903,6 +921,153 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contact Admin Sheet — farmer / staff / buyer path
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// These roles authenticate with a SAGANA username, not a real email
+// address, so there's no inbox an automated reset link could reach.
+// Password assistance has to go through the SP3 office instead.
+
+class _ContactAdminSheet extends StatelessWidget {
+  const _ContactAdminSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusXl),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: AppConstants.outline.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.support_agent_rounded,
+                color: AppConstants.primaryGreen,
+                size: 28,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            Text(
+              'Need Help Signing In?',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.onSurface,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Farmer, Staff, and Buyer accounts sign in with a SAGANA '
+              'username instead of an email address, so we can\'t send an '
+              'automatic reset link. Please contact the '
+              '${AppConstants.cooperativeName} office for password '
+              'assistance.',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: AppConstants.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                border: Border.all(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    color: AppConstants.primaryGreen,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      AppConstants.cooperativeLocation,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppConstants.onSurface,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () => context.popRoute(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                ),
+                child: Text(
+                  'Got It',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ),
           ],

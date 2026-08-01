@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -10,6 +11,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/price_record_model.dart';
 import '../../../data/repositories/price_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/management_modal.dart';
 
 // ─── Price type constants ─────────────────────────────────────────────────────
 
@@ -17,8 +19,6 @@ class _PriceTypes {
   static const sp3      = 'sp3_cooperative';
   static const daAmad   = 'da_amad_market';
   static const market   = 'open_market';
-
-  static const all = [sp3, daAmad, market];
 
   static String label(String type) {
     switch (type) {
@@ -43,15 +43,15 @@ class PriceManagementScreen extends StatefulWidget {
 class _PriceManagementScreenState extends State<PriceManagementScreen> {
   final _repo = PriceManagementRepository();
 
-  List<PriceRecordModel> _latestPrices = [];
-  List<PriceRecordModel> _history      = [];
-  List<String> _knownCrops             = [];
+  List<PriceRecordModel> _latestPrices          = [];
+  List<PriceRecordModel> _history               = [];
+  List<Map<String, dynamic>> _availableCrops    = [];
   bool _isLoading  = true;
   bool _isOnline   = true;
   DateTime? _lastRefreshed;
 
-  // ── Selected crop for trend chart ────────────────────────────────────────
-  String? _selectedCropForChart;
+  // ── Selected crop for trend chart (holds a crop_id) ──────────────────────
+  String? _selectedCropIdForChart;
   List<PriceRecordModel> _trendData = [];
   bool _loadingTrend = false;
 
@@ -76,29 +76,29 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
     final results = await Future.wait([
       _repo.fetchLatestPricePerCrop(),
       _repo.fetchPriceHistory(),
-      _repo.fetchKnownCropNames(),
+      _repo.fetchAvailableCrops(),
     ]);
     if (!mounted) return;
     final prices  = results[0] as List<PriceRecordModel>;
     final history = results[1] as List<PriceRecordModel>;
-    final crops   = results[2] as List<String>;
+    final crops   = results[2] as List<Map<String, dynamic>>;
     setState(() {
       _latestPrices    = prices;
       _history         = history;
-      _knownCrops      = crops;
+      _availableCrops  = crops;
       _lastRefreshed   = DateTime.now();
       _isLoading       = false;
       // Auto-select first crop for chart
-      if (_selectedCropForChart == null && prices.isNotEmpty) {
-        _selectedCropForChart = prices.first.cropName;
-        _loadTrend(prices.first.cropName);
+      if (_selectedCropIdForChart == null && prices.isNotEmpty) {
+        _selectedCropIdForChart = prices.first.cropId;
+        _loadTrend(prices.first.cropId);
       }
     });
   }
 
-  Future<void> _loadTrend(String cropName) async {
+  Future<void> _loadTrend(String cropId) async {
     setState(() => _loadingTrend = true);
-    final data = await _repo.fetchTrendForCrop(cropName);
+    final data = await _repo.fetchTrendForCrop(cropId);
     if (!mounted) return;
     setState(() {
       _trendData    = data;
@@ -106,10 +106,10 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
     });
   }
 
-  void _onChartCropSelected(String cropName) {
-    if (_selectedCropForChart == cropName) return;
-    setState(() => _selectedCropForChart = cropName);
-    _loadTrend(cropName);
+  void _onChartCropSelected(String cropId) {
+    if (_selectedCropIdForChart == cropId) return;
+    setState(() => _selectedCropIdForChart = cropId);
+    _loadTrend(cropId);
   }
 
   // ── Open update sheet ─────────────────────────────────────────────────────
@@ -119,10 +119,8 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
       _showSnack(AppLocalizations.of(context).priceOfflineWarning);
       return;
     }
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _UpdatePriceSheet(
         price: price,
         repo: _repo,
@@ -138,12 +136,10 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
       _showSnack(AppLocalizations.of(context).priceOfflineWarning);
       return;
     }
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _AddPriceSheet(
-        knownCrops: _knownCrops,
+        availableCrops: _availableCrops,
         repo: _repo,
         onSaved: _loadAll,
       ),
@@ -260,7 +256,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                               prices: _latestPrices,
                               history: _history,
                               trendData: _trendData,
-                              selectedCrop: _selectedCropForChart,
+                              selectedCropId: _selectedCropIdForChart,
                               loadingTrend: _loadingTrend,
                               onCropSelected: _onChartCropSelected,
                               cs: cs,
@@ -809,7 +805,7 @@ class _MarketTrendsCard extends StatelessWidget {
   final List<PriceRecordModel> prices;
   final List<PriceRecordModel> history;
   final List<PriceRecordModel> trendData;
-  final String? selectedCrop;
+  final String? selectedCropId;
   final bool loadingTrend;
   final ValueChanged<String> onCropSelected;
   final ColorScheme cs;
@@ -820,7 +816,7 @@ class _MarketTrendsCard extends StatelessWidget {
     required this.prices,
     required this.history,
     required this.trendData,
-    required this.selectedCrop,
+    required this.selectedCropId,
     required this.loadingTrend,
     required this.onCropSelected,
     required this.cs,
@@ -830,7 +826,15 @@ class _MarketTrendsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cropNames = prices.map((p) => p.cropName).toSet().toList();
+    // Dedupe by crop_id, not crop_name — since prices are now one row per
+    // (crop_id, price_type), the same crop name can appear more than once.
+    final seenIds = <String>{};
+    final crops = <({String id, String name})>[];
+    for (final p in prices) {
+      if (seenIds.add(p.cropId)) {
+        crops.add((id: p.cropId, name: p.cropName));
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -848,20 +852,20 @@ class _MarketTrendsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Crop selector chips
-          if (cropNames.isNotEmpty)
+          if (crops.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: SizedBox(
                 height: 32,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: cropNames.length,
+                  itemCount: crops.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (_, i) {
-                    final name   = cropNames[i];
-                    final active = selectedCrop == name;
+                    final crop   = crops[i];
+                    final active = selectedCropId == crop.id;
                     return GestureDetector(
-                      onTap: () => onCropSelected(name),
+                      onTap: () => onCropSelected(crop.id),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 160),
                         padding: const EdgeInsets.symmetric(
@@ -874,7 +878,7 @@ class _MarketTrendsCard extends StatelessWidget {
                               AppConstants.radiusFull),
                         ),
                         child: Text(
-                          name,
+                          crop.name,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: active
@@ -1294,6 +1298,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
     setState(() => _isSaving = true);
     try {
       await widget.repo.upsertPrice(
+        cropId:        widget.price.cropId,
         cropName:      widget.price.cropName,
         price:         newPrice,
         priceType:     widget.price.priceType,
@@ -1333,275 +1338,142 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + bottom),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.outline.withValues(alpha: 0.30),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusFull),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.price.cropName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    Text(
-                      widget.price.priceTypeLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.outline,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close_rounded, color: cs.onSurfaceVariant),
-                  style: IconButton.styleFrom(
-                    backgroundColor: cs.surfaceContainerHighest,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // >20% warning
-            if (_showWarning)
-              Container(
-                margin: const EdgeInsets.only(bottom: 14),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(
-                    color: cs.error.withValues(alpha: 0.20),
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.warning_amber_rounded,
-                        color: cs.error, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Significant change detected! This price is >20% different '
-                        'from the current rate. Please verify before updating.',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: cs.onErrorContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Price + Date row
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _FieldLabel(label: 'New Price (₱/kg)', cs: cs),
-                      TextFormField(
-                        controller: _priceCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        onChanged: _validatePrice,
-                        style: GoogleFonts.poppins(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: '0.00',
-                          prefixText: '₱ ',
-                          prefixStyle: GoogleFonts.poppins(
-                            fontSize: 22,
-                            color: cs.outline,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _FieldLabel(label: 'Effective Date', cs: cs),
-                      GestureDetector(
-                        onTap: _pickDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: cs.outline.withValues(alpha: 0.50),
-                            ),
-                            borderRadius: BorderRadius.circular(
-                                AppConstants.radiusMd),
-                            color: sagana.cardBackground,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.calendar_today_rounded,
-                                  size: 16, color: cs.outline),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${_effectiveDate.month}/${_effectiveDate.day}/${_effectiveDate.year}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: cs.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Source field
-            _FieldLabel(label: 'Source / Reference Document', cs: cs),
-            TextFormField(
-              controller: _sourceCtrl,
-              decoration: InputDecoration(
-                hintText:
-                    'e.g. Board Resolution #102, DA Bulletin',
-                hintStyle: GoogleFonts.inter(
-                    fontSize: 13, color: cs.outline),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Notification info
+    return ManagementModalShell(
+      title: widget.price.cropName,
+      subtitle: widget.price.priceTypeLabel,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // >20% warning
+          if (_showWarning)
             Container(
+              margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: cs.primary.withValues(alpha: 0.06),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(
-                  color: cs.primary.withValues(alpha: 0.15),
-                ),
+                color: cs.errorContainer,
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                border: Border.all(color: cs.error.withValues(alpha: 0.20)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.notifications_active_outlined,
-                      color: cs.primary, size: 18),
+                  Icon(Icons.warning_amber_rounded, color: cs.error, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Updating this price will send a push notification '
-                      'to all 52 registered members via the Member App.',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
-                        height: 1.4,
-                      ),
+                      'Significant change detected! This price is >20% different '
+                      'from the current rate. Please verify before updating.',
+                      style: GoogleFonts.inter(fontSize: 12, color: cs.onErrorContainer),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
 
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: cs.primary),
-                        borderRadius:
-                            BorderRadius.circular(AppConstants.radiusMd),
+          // Price + Date row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _FieldLabel(label: 'New Price (₱/kg)', cs: cs),
+                    TextFormField(
+                      controller: _priceCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      ],
+                      onChanged: _validatePrice,
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
-                      child: Text(
-                        'Cancel',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary,
+                      decoration: InputDecoration(
+                        hintText: '0.00',
+                        prefixText: '₱ ',
+                        prefixStyle: GoogleFonts.poppins(fontSize: 22, color: cs.outline),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _FieldLabel(label: 'Effective Date', cs: cs),
+                    GestureDetector(
+                      onTap: _pickDate,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: cs.outline.withValues(alpha: 0.50)),
+                          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                          color: context.saganaColors.cardBackground,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today_rounded, size: 16, color: cs.outline),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_effectiveDate.month}/${_effectiveDate.day}/${_effectiveDate.year}',
+                              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _FieldLabel(label: 'Source / Reference Document', cs: cs),
+          TextFormField(
+            controller: _sourceCtrl,
+            decoration: InputDecoration(
+              hintText: 'e.g. Board Resolution #102, DA Bulletin',
+              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.notifications_active_outlined, color: cs.primary, size: 18),
+                const SizedBox(width: 10),
                 Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _save,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            'Update Price',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                  child: Text(
+                    'Updating this price will send a push notification '
+                    'to all 52 registered members via the Member App.',
+                    style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: _isSaving ? 'Saving…' : 'Update Price',
+        isLoading: _isSaving,
+        onPrimary: _save,
       ),
     );
   }
@@ -1612,12 +1484,12 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AddPriceSheet extends StatefulWidget {
-  final List<String> knownCrops;
+  final List<Map<String, dynamic>> availableCrops;
   final PriceManagementRepository repo;
   final VoidCallback onSaved;
 
   const _AddPriceSheet({
-    required this.knownCrops,
+    required this.availableCrops,
     required this.repo,
     required this.onSaved,
   });
@@ -1630,7 +1502,8 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
   final _cropCtrl   = TextEditingController();
   final _priceCtrl  = TextEditingController();
   final _sourceCtrl = TextEditingController();
-  String _priceType  = _PriceTypes.sp3;
+  Map<String, dynamic>? _selectedCrop;
+  String _priceType  = _PriceTypes.market;
   String _unit       = 'kg';
   DateTime _date     = DateTime.now();
   bool _isSaving     = false;
@@ -1643,20 +1516,41 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
     super.dispose();
   }
 
+  // Restricts which price types are selectable based on the picked crop's
+  // crop_type — the whole reason crop_type was added to crop_master.
+  // Nothing stops an SP3 Buying price from being assigned to a DA-AMAD-only
+  // crop (or vice versa) otherwise.
+  List<String> _validPriceTypes() {
+    final cropType = _selectedCrop?['crop_type'] as String?;
+    switch (cropType) {
+      case 'sp3_cooperative': return [_PriceTypes.sp3, _PriceTypes.market];
+      case 'da_amad_market':  return [_PriceTypes.daAmad, _PriceTypes.market];
+      default:                return [_PriceTypes.market];
+    }
+  }
+
   Future<void> _save() async {
-    final crop  = _cropCtrl.text.trim();
     final price = double.tryParse(_priceCtrl.text.trim());
-    if (crop.isEmpty || price == null || price <= 0) {
+    if (_selectedCrop == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please fill in crop name and a valid price.')),
+            content: Text('Please select a crop from the list.')),
       );
       return;
     }
+    if (price == null || price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid price.')),
+      );
+      return;
+    }
+    final cropId   = _selectedCrop!['id'] as String;
+    final cropName = _selectedCrop!['crop_name'] as String;
     setState(() => _isSaving = true);
     try {
       await widget.repo.upsertPrice(
-        cropName:      crop,
+        cropId:        cropId,
+        cropName:      cropName,
         price:         price,
         priceType:     _priceType,
         unit:          _unit,
@@ -1666,7 +1560,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
         effectiveDate: _date,
       );
       await widget.repo.broadcastPriceNotification(
-        cropName: crop,
+        cropName: cropName,
         newPrice: price,
         unit:     _unit,
       );
@@ -1695,222 +1589,168 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + bottom),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.outline.withValues(alpha: 0.30),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusFull),
-                ),
+    return ManagementModalShell(
+      title: 'Add Price Entry',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _FieldLabel(label: 'Crop Name', cs: cs),
+          Autocomplete<Map<String, dynamic>>(
+            displayStringForOption: (c) => c['crop_name'] as String,
+            optionsBuilder: (v) => widget.availableCrops.where(
+              (c) => (c['crop_name'] as String)
+                  .toLowerCase()
+                  .contains(v.text.toLowerCase()),
+            ),
+            onSelected: (c) => setState(() {
+              _selectedCrop = c;
+              _cropCtrl.text = c['crop_name'] as String;
+              _priceType = _validPriceTypes().first;
+            }),
+            fieldViewBuilder: (ctx, ctrl, focusNode, onSubmit) => TextFormField(
+              controller: ctrl,
+              focusNode: focusNode,
+              decoration: InputDecoration(
+                hintText: 'e.g. Peanut, Palay, Ginger',
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+              ),
+              onChanged: (v) {
+                _cropCtrl.text = v;
+                // Typing away from the selected option invalidates it —
+                // a valid crop_id must come from picking a suggestion.
+                if (_selectedCrop != null &&
+                    _selectedCrop!['crop_name'] != v) {
+                  setState(() => _selectedCrop = null);
+                }
+              },
+            ),
+          ),
+          if (widget.availableCrops.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'No crops in the catalog yet.',
+                style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Add Price Entry',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-              ),
-            ),
-            const SizedBox(height: 20),
+          const SizedBox(height: 14),
 
-            // Crop name with autocomplete suggestion
-            _FieldLabel(label: 'Crop Name', cs: cs),
-            Autocomplete<String>(
-              optionsBuilder: (v) => widget.knownCrops.where(
-                (c) => c.toLowerCase().contains(v.text.toLowerCase()),
-              ),
-              onSelected: (v) => _cropCtrl.text = v,
-              fieldViewBuilder:
-                  (ctx, ctrl, focusNode, onSubmit) => TextFormField(
-                controller: ctrl,
-                focusNode: focusNode,
-                decoration: InputDecoration(
-                  hintText: 'e.g. Peanut, Palay, Ginger',
-                  hintStyle: GoogleFonts.inter(
-                      fontSize: 13, color: cs.outline),
-                ),
-                onChanged: (v) => _cropCtrl.text = v,
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Price type
-            _FieldLabel(label: 'Price Type', cs: cs),
-            Row(
-              children: _PriceTypes.all.map((type) {
-                final active = _priceType == type;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _priceType = type),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? cs.primary
-                              : cs.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(
-                              AppConstants.radiusMd),
-                        ),
-                        child: Text(
-                          _PriceTypes.label(type),
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: active
-                                ? FontWeight.w700
-                                : FontWeight.w400,
-                            color: active
-                                ? Colors.white
-                                : cs.onSurfaceVariant,
-                          ),
+          _FieldLabel(label: 'Price Type', cs: cs),
+          Row(
+            children: _validPriceTypes().map((type) {
+              final active = _priceType == type;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _priceType = type),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: active ? cs.primary : cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      ),
+                      child: Text(
+                        _PriceTypes.label(type),
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                          color: active ? Colors.white : cs.onSurfaceVariant,
                         ),
                       ),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 14),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
 
-            // Price + unit row
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _FieldLabel(label: 'Price (₱)', cs: cs),
-                      TextFormField(
-                        controller: _priceCtrl,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                                decimal: true),
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        decoration: const InputDecoration(
-                          prefixText: '₱ ',
-                          hintText: '0.00',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _FieldLabel(label: 'Unit', cs: cs),
-                      DropdownButtonFormField<String>(
-                        initialValue: _unit,
-                        items: ['kg', 'g', 'pc', 'sack']
-                            .map((u) => DropdownMenuItem(
-                                  value: u,
-                                  child: Text(u,
-                                      style: GoogleFonts.inter(
-                                          fontSize: 14)),
-                                ))
-                            .toList(),
-                        onChanged: (v) =>
-                            setState(() => _unit = v ?? 'kg'),
-                        decoration: const InputDecoration(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Effective date
-            _FieldLabel(label: 'Effective Date', cs: cs),
-            GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                      color: cs.outline.withValues(alpha: 0.50)),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusMd),
-                  color: sagana.cardBackground,
-                ),
-                child: Row(
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.calendar_today_rounded,
-                        size: 16, color: cs.outline),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${_date.month}/${_date.day}/${_date.year}',
-                      style: GoogleFonts.inter(
-                          fontSize: 13, color: cs.onSurface),
+                    _FieldLabel(label: 'Price (₱)', cs: cs),
+                    TextFormField(
+                      controller: _priceCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      ],
+                      style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
+                      decoration: const InputDecoration(prefixText: '₱ ', hintText: '0.00'),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _FieldLabel(label: 'Unit', cs: cs),
+                    DropdownButtonFormField<String>(
+                      initialValue: _unit,
+                      items: ['kg', 'g', 'pc', 'sack']
+                          .map((u) => DropdownMenuItem(
+                              value: u, child: Text(u, style: GoogleFonts.inter(fontSize: 14))))
+                          .toList(),
+                      onChanged: (v) => setState(() => _unit = v ?? 'kg'),
+                      decoration: const InputDecoration(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
 
-            // Source
-            _FieldLabel(label: 'Source / Reference', cs: cs),
-            TextFormField(
-              controller: _sourceCtrl,
-              decoration: InputDecoration(
-                hintText: 'e.g. Board Resolution, DA Bulletin',
-                hintStyle: GoogleFonts.inter(
-                    fontSize: 13, color: cs.outline),
+          _FieldLabel(label: 'Effective Date', cs: cs),
+          GestureDetector(
+            onTap: _pickDate,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              decoration: BoxDecoration(
+                border: Border.all(color: cs.outline.withValues(alpha: 0.50)),
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                color: sagana.cardBackground,
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, size: 16, color: cs.outline),
+                  const SizedBox(width: 8),
+                  Text('${_date.month}/${_date.day}/${_date.year}',
+                      style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface)),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
+          ),
+          const SizedBox(height: 14),
 
-            ElevatedButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      'Add Price Entry',
-                      style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600),
-                    ),
+          _FieldLabel(label: 'Source / Reference', cs: cs),
+          TextFormField(
+            controller: _sourceCtrl,
+            decoration: InputDecoration(
+              hintText: 'e.g. Board Resolution, DA Bulletin',
+              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: _isSaving ? 'Saving…' : 'Add Price Entry',
+        isLoading: _isSaving,
+        onPrimary: _save,
       ),
     );
   }
@@ -1941,4 +1781,3 @@ class _FieldLabel extends StatelessWidget {
     );
   }
 }
-

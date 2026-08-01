@@ -29,15 +29,28 @@ class AnalyticsRepository {
         byCrop[crop] = (byCrop[crop] ?? 0) + qty;
       }
 
-      // Revenue from sold inventory (inventory_batches.sold_kg * avg sell price)
-      // Approximated via marketplace_listings price for now; falls back to 0.
+      // Revenue from approved listings, now scoped to the selected period —
+      // was previously unfiltered, so every period chip returned the same
+      // total regardless of which one was active. Filtered on updated_at,
+      // matching fetchRecentTransactions()'s own convention elsewhere in
+      // this file for treating an approved listing's updated_at as its
+      // effective transaction date.
+      //
+      // NOTE: still counts full listed volume for every approved listing,
+      // not confirmed-sold quantity — same "approved ≠ sold" gap already
+      // flagged on the Home dashboard's earnings calculation. Not fixed
+      // here; only the missing date filter was in scope for this pass.
       double totalRevenue = 0;
       try {
-        final listingRows = await _client
+        var revenueQuery = _client
             .from('marketplace_listings')
-            .select('price_per_kg, volume_kg, status')
+            .select('price_per_kg, volume_kg, status, updated_at')
             .eq('farmer_id', _userId)
             .eq('status', 'approved');
+        if (period.startDate != null) {
+          revenueQuery = revenueQuery.gte('updated_at', period.startDate!.toIso8601String());
+        }
+        final listingRows = await revenueQuery;
         for (final row in listingRows) {
           totalRevenue += (row['price_per_kg'] as num).toDouble() * (row['volume_kg'] as num).toDouble();
         }
@@ -136,16 +149,22 @@ class AnalyticsRepository {
   }
 
   // ─── Price History for a specific crop ─────────────────────────────────────
+  // startDate replaces the old fixed `days` window — null means no lower
+  // bound (All Time), matching the same nullable-startDate convention
+  // fetchFarmPerformance already uses.
 
-  Future<List<PriceHistoryPoint>> fetchPriceHistory(String cropName, {int days = 30}) async {
+  Future<List<PriceHistoryPoint>> fetchPriceHistory(String cropName, {DateTime? startDate}) async {
     try {
-      final cutoff = DateTime.now().subtract(Duration(days: days));
-      final rows = await _client
+      var query = _client
           .from('price_records')
           .select('price, recorded_at')
-          .ilike('crop_name', cropName)
-          .gte('recorded_at', cutoff.toIso8601String())
-          .order('recorded_at', ascending: true);
+          .ilike('crop_name', cropName);
+
+      if (startDate != null) {
+        query = query.gte('recorded_at', startDate.toIso8601String());
+      }
+
+      final rows = await query.order('recorded_at', ascending: true);
 
       return rows
           .map((row) => PriceHistoryPoint(

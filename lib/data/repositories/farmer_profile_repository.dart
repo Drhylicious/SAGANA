@@ -40,6 +40,7 @@ class FarmerProfileRepository {
       return FarmerProfileModel.fromMap({
         ...userInfo,
         ...(farmerProfile ?? {}),
+        'email': _client.auth.currentUser?.email ?? userInfo['email'] ?? '',
         'primary_crops': crops,
       });
     } catch (_) {
@@ -160,9 +161,40 @@ class FarmerProfileRepository {
     }
   }
 
+  // ─── My Programs ────────────────────────────────────────────────────────────
+
+  Future<List<MyProgramEntry>> fetchMyPrograms() async {
+    try {
+      final rows = await _client
+          .from('program_members')
+          .select('id, status, enrolled_at, quantity_given, distributed_at, '
+              'amount_returned, settled_at, '
+              'cooperative_programs(program_name, benefit_type, status, expected_return_percent), '
+              'cooperative_inventory(item_name, unit)')
+          .eq('farmer_id', _userId)
+          .order('enrolled_at', ascending: false);
+      return rows.map((r) => MyProgramEntry.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<int> fetchMyProgramCount() async {
+    try {
+      final rows = await _client
+          .from('program_members')
+          .select('id')
+          .eq('farmer_id', _userId)
+          .eq('status', 'active');
+      return rows.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   // ─── Upload profile photo ─────────────────────────────────────────────────
 
-  Future<String?> uploadProfilePhoto({
+  Future<String?> updatePhoto({
     required Uint8List imageBytes,
     required String fileExtension,
   }) async {
@@ -184,5 +216,12 @@ class FarmerProfileRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<String?> uploadProfilePhoto({
+    required Uint8List imageBytes,
+    required String fileExtension,
+  }) async {
+    return updatePhoto(imageBytes: imageBytes, fileExtension: fileExtension);
   }
 }

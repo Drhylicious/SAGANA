@@ -34,6 +34,7 @@ class LoanDashboardStats {
   final double totalOutstanding;
   final double totalExpectedThisCycle;
   final int farmersOutstandingCount;
+  final double totalOverdueAmount;
 
   const LoanDashboardStats({
     required this.activeLoansCount,
@@ -42,6 +43,7 @@ class LoanDashboardStats {
     required this.totalOutstanding,
     required this.totalExpectedThisCycle,
     required this.farmersOutstandingCount,
+    required this.totalOverdueAmount,
   });
 
   factory LoanDashboardStats.empty() => const LoanDashboardStats(
@@ -51,6 +53,7 @@ class LoanDashboardStats {
         totalOutstanding: 0,
         totalExpectedThisCycle: 0,
         farmersOutstandingCount: 0,
+        totalOverdueAmount: 0,
       );
 }
 
@@ -205,6 +208,45 @@ class AdminLoanDetail {
     required this.memberId,
     this.farmerPhotoUrl,
   });
+}
+
+class LoanCatalogItem {
+  final String loanItemId;
+  final String inventoryItemId;
+  final String itemName;
+  final String category;
+  final String unit;
+  final double quantityOnHand;
+  final double unitPrice;
+  final bool isLoanEligible;
+  final String? notes;
+
+  const LoanCatalogItem({
+    required this.loanItemId,
+    required this.inventoryItemId,
+    required this.itemName,
+    required this.category,
+    required this.unit,
+    required this.quantityOnHand,
+    required this.unitPrice,
+    this.isLoanEligible = true,
+    this.notes,
+  });
+
+  factory LoanCatalogItem.fromMap(Map<String, dynamic> map) {
+    final inv = map['cooperative_inventory'] as Map<String, dynamic>;
+    return LoanCatalogItem(
+      loanItemId: map['id'] as String,
+      inventoryItemId: inv['id'] as String,
+      itemName: inv['item_name'] as String,
+      category: inv['category'] as String,
+      unit: inv['unit'] as String,
+      quantityOnHand: (inv['quantity_on_hand'] as num).toDouble(),
+      unitPrice: (map['unit_price'] as num).toDouble(),
+      isLoanEligible: map['is_loan_eligible'] as bool? ?? true,
+      notes: map['notes'] as String?,
+    );
+  }
 }
 
 class IssuedLoanResult {

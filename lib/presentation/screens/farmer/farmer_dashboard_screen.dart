@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -8,10 +9,18 @@ import '../../../core/animations/staggered_entrance.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/dashboard_summary_model.dart';
-import '../../../data/models/price_record_model.dart';
+import '../../../data/models/farmer_market_rate_model.dart';
+import '../../../data/models/loan_model.dart';
+import '../../../data/models/marketplace_listing_model.dart';
+import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
+import '../../../data/repositories/farmer_market_rates_repository.dart';
+import '../../../data/repositories/loan_repository.dart';
+import '../../../data/repositories/listing_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/profile_state_service.dart';
@@ -28,11 +37,17 @@ class FarmerDashboardScreen extends StatefulWidget {
 
 class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   final _dashRepo = DashboardRepository();
+  final _loanRepo = LoanRepository();
+  final _listingRepo = ListingRepository();
+  final _notifRepo = NotificationRepository();
+  final _marketRatesRepo = FarmerMarketRatesRepository();
   final _profileState = FarmerProfileStateService.instance;
 
   DashboardSummaryModel _summary = DashboardSummaryModel.empty;
-  List<PriceRecordModel> _prices = [];
+  List<FarmerMarketRateModel> _marketRates = [];
   List<ActivityItem> _activity = [];
+  List<PriorityItem> _priorityItems = [];
+  int _unreadCount = 0;
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOnline = true;
@@ -79,20 +94,117 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     try {
       final results = await Future.wait([
         _dashRepo.fetchSummary(),
-        _dashRepo.fetchLatestPrices(),
+        _marketRatesRepo.fetchMarketRates(limit: 10),
         _dashRepo.fetchRecentActivity(),
+        _loanRepo.fetchLoans(),
+        _listingRepo.fetchListings(),
+        _notifRepo.fetchNotifications(),
+        _notifRepo.fetchUnreadCount(),
       ]);
       await _profileState.refresh();
       if (!mounted) return;
+
+      final summary = results[0] as DashboardSummaryModel;
+      final fullActivity = results[2] as List<ActivityItem>;
+      final loans = results[3] as List<LoanModel>;
+      final listings = results[4] as List<MarketplaceListingModel>;
+      final notifications = results[5] as List<NotificationModel>;
+
       setState(() {
-        _summary = results[0] as DashboardSummaryModel;
-        _prices = results[1] as List<PriceRecordModel>;
-        _activity = results[2] as List<ActivityItem>;
+        _summary = summary;
+        _marketRates = results[1] as List<FarmerMarketRateModel>;
+        // Loan-due entries now live in the Priority section, not here.
+        _activity =
+            fullActivity.where((a) => a.type != ActivityType.loan).toList();
+        _priorityItems = _buildPriorityItems(
+          loans: loans,
+          listings: listings,
+          unsyncedCount: summary.unsyncedCount,
+          notifications: notifications,
+        );
+        _unreadCount = results[6] as int;
         _isLoading = false;
       });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Ranked by urgency: overdue loan → listing needs changes →
+  /// loan due soon → unsynced records → recent cooperative announcement.
+  List<PriorityItem> _buildPriorityItems({
+    required List<LoanModel> loans,
+    required List<MarketplaceListingModel> listings,
+    required int unsyncedCount,
+    required List<NotificationModel> notifications,
+  }) {
+    final items = <PriorityItem>[];
+    final now = DateTime.now();
+    final dueSoonCutoff = now.add(const Duration(days: 7));
+
+    for (final loan in loans.where((l) => l.isOverdue)) {
+      items.add(PriorityItem(
+        title: 'Loan payment overdue',
+        subtitle:
+            '${loan.referenceNo} • ₱${loan.monthlyPayment.toStringAsFixed(0)} due',
+        icon: Icons.warning_amber_rounded,
+        severity: PrioritySeverity.critical,
+        onTap: () => context.pushRoute(AppRoutes.myLoans),
+      ));
+    }
+
+    for (final listing in listings.where((l) => l.status == 'changes_required')) {
+      items.add(PriorityItem(
+        title: '${listing.cropName} listing needs changes',
+        subtitle: 'Cooperative requested an update before it can be listed',
+        icon: Icons.storefront_outlined,
+        severity: PrioritySeverity.warning,
+        onTap: () => context.goTab(AppRoutes.myListings),
+      ));
+    }
+
+    for (final loan in loans.where(
+      (l) => l.isActive && !l.isOverdue && l.nextPaymentDate != null,
+    )) {
+      if (loan.nextPaymentDate!.isBefore(dueSoonCutoff)) {
+        items.add(PriorityItem(
+          title: 'Loan payment due soon',
+          subtitle:
+              '${loan.referenceNo} • ₱${loan.monthlyPayment.toStringAsFixed(0)} by ${DateFormat('MMM d').format(loan.nextPaymentDate!)}',
+          icon: Icons.event_repeat_rounded,
+          severity: PrioritySeverity.warning,
+          onTap: () => context.pushRoute(AppRoutes.myLoans),
+        ));
+      }
+    }
+
+    if (unsyncedCount > 0) {
+      items.add(PriorityItem(
+        title: '$unsyncedCount harvest record${unsyncedCount == 1 ? '' : 's'} waiting to sync',
+        subtitle: 'Tap to sync now',
+        icon: Icons.sync_rounded,
+        severity: PrioritySeverity.warning,
+        onTap: _handleSync,
+      ));
+    }
+
+    final recentBroadcast = notifications.where(
+      (n) =>
+          n.type == NotificationType.system &&
+          n.isUnread &&
+          now.difference(n.createdAt).inDays <= 5,
+    ).firstOrNull;
+    if (recentBroadcast != null) {
+      items.add(PriorityItem(
+        title: recentBroadcast.title,
+        subtitle: recentBroadcast.body,
+        icon: Icons.campaign_outlined,
+        severity: PrioritySeverity.info,
+        onTap: () => context.pushRoute(AppRoutes.farmerNotifications),
+      ));
+    }
+
+    return items;
   }
 
   Future<void> _handleSync() async {
@@ -127,18 +239,17 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       backgroundColor: sagana.scaffoldBackground,
       body: Stack(
         children: [
-          // ── Offline Banner + Scrollable Content ────────────────────────────
           Column(
             children: [
-              if (!_isOnline) const _OfflineBanner(),
+              if (!_isOnline) const OfflineBanner(),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
                   child: CustomScrollView(
                     slivers: [
-                      // Top app bar space
                       const SliverToBoxAdapter(child: SizedBox(height: 72)),
+
                       // Welcome
                       SliverToBoxAdapter(
                         child: Padding(
@@ -154,7 +265,26 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                           ),
                         ),
                       ),
-                      // KPI cards
+
+                      // Priority section (new)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                          child: StaggeredEntrance(
+                            index: 1,
+                            child: _isLoading
+                                ? const _Shimmer(width: double.infinity, height: 72)
+                                : PriorityCard(
+                                    items: _priorityItems,
+                                    allClearTitle: l10n.dashboardAllClearTitle,
+                                    allClearMessage: l10n.dashboardAllClearMessage,
+                                  ),
+                          ),
+                        ),
+                      ),
+
+                      // KPI cards — unchanged, deliberately left open pending
+                      // Harvest/Marketplace workflow analysis.
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -166,17 +296,36 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                           ),
                         ),
                       ),
-                      // Ticker
+
+                      // Market Rates carousel — replaces the ticker
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                          child: _PriceTicker(
-                            prices: _prices,
+                          child: _MarketRatesCarousel(
+                            rates: _marketRates,
                             isLoading: _isLoading,
+                            onViewMarket: () =>
+                                context.pushRoute(AppRoutes.viewMarket),
+                            onTapRate: (rate) => context.pushRoute(
+                              AppRoutes.marketRateDetails,
+                              extra: rate,
+                            ),
                           ),
                         ),
                       ),
-                      // Recent activity
+
+                      // Quick Actions (new)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                          child: StaggeredEntrance(
+                            index: 2,
+                            child: _QuickActionsSection(l10n: l10n),
+                          ),
+                        ),
+                      ),
+
+                      // Recent activity — loan-due entries excluded (now in Priority)
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
@@ -196,12 +345,15 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
             ],
           ),
 
-          // ── Top App Bar (overlaid) ─────────────────────────────────────────
+          // Top bar — now with unread badge
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: l10n.navHome,
+              unreadCount: _unreadCount,
+              hideProfileAvatar: true,
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
@@ -214,41 +366,49 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
+// Quick Actions
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
+class _QuickActionsSection extends StatelessWidget {
+  final AppLocalizations l10n;
+  const _QuickActionsSection({required this.l10n});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: AppConstants.warningAmber,
-      child: SafeArea(
-        bottom: false,
-        child: Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.dashboardQuickActions,
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.charcoal,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
           children: [
-            Icon(
-              Icons.wifi_off_rounded,
-              size: 16,
-              color: Theme.of(context).colorScheme.onPrimary,
+            QuickActionButton(
+              icon: Icons.add_circle_outline_rounded,
+              label: l10n.quickActionRecordHarvest,
+              onTap: () => context.pushRoute(AppRoutes.selectCropForHarvest),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'You\'re offline — data shown from cache',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+            const SizedBox(width: 10),
+            QuickActionButton(
+              icon: Icons.storefront_outlined,
+              label: l10n.quickActionCreateListing,
+              onTap: () => context.pushRoute(AppRoutes.createListing),
+            ),
+            const SizedBox(width: 10),
+            QuickActionButton(
+              icon: Icons.trending_up_rounded,
+              label: l10n.quickActionCheckPrices,
+              onTap: () => context.goTab(AppRoutes.farmerAnalytics),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -361,7 +521,7 @@ class _YieldCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -443,7 +603,7 @@ class _EarningsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -541,7 +701,7 @@ class _SyncCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasUnsynced = summary.unsyncedCount > 0;
-    return _GlassCard(
+    return GlassCard(
       child: Row(
         children: [
           Expanded(
@@ -649,177 +809,176 @@ class _SyncCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Price Ticker
+// Market Rates Carousel
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PriceTicker extends StatefulWidget {
-  final List<PriceRecordModel> prices;
+class _MarketRatesCarousel extends StatelessWidget {
+  final List<FarmerMarketRateModel> rates;
   final bool isLoading;
+  final VoidCallback onViewMarket;
+  final ValueChanged<FarmerMarketRateModel> onTapRate;
 
-  const _PriceTicker({required this.prices, required this.isLoading});
-
-  @override
-  State<_PriceTicker> createState() => _PriceTickerState();
-}
-
-class _PriceTickerState extends State<_PriceTicker>
-    with SingleTickerProviderStateMixin {
-  late final ScrollController _scrollController;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startTicker());
-  }
-
-  void _startTicker() {
-    _timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
-      if (!_scrollController.hasClients) return;
-      final max = _scrollController.position.maxScrollExtent;
-      final current = _scrollController.offset;
-      if (current >= max) {
-        _scrollController.jumpTo(0);
-      } else {
-        _scrollController.jumpTo(current + 1);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _scrollController.dispose();
-    super.dispose();
-  }
+  const _MarketRatesCarousel({
+    required this.rates,
+    required this.isLoading,
+    required this.onViewMarket,
+    required this.onTapRate,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.prices.isEmpty ? _fallbackPrices() : widget.prices;
-
-    return _GlassCard(
-      padding: EdgeInsets.zero,
-      child: Row(
-        children: [
-          // Label
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.40),
-              border: Border(
-                right: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.15),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Market Rates',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.charcoal,
+              ),
+            ),
+            GestureDetector(
+              onTap: onViewMarket,
+              child: Text(
+                'View Market',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.primaryGreen,
                 ),
               ),
             ),
-            child: Text(
-              'MARKET\nRATES',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
-                letterSpacing: 1.5,
-                height: 1.4,
-              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (isLoading)
+          const _Shimmer(width: double.infinity, height: 132)
+        else if (rates.isEmpty)
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Icon(Icons.storefront_outlined,
+                    size: 16, color: AppConstants.outline),
+                const SizedBox(width: 8),
+                Text(
+                  'No market prices recorded yet',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-          ),
-          // Scrolling ticker
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
+          )
+        else
+          SizedBox(
+            height: 132,
+            child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              child: Row(
-                children: [
-                  ...items.map((p) => _TickerItem(price: p)),
-                  // Duplicate for seamless loop
-                  ...items.map((p) => _TickerItem(price: p)),
-                ],
-              ),
+              physics: const BouncingScrollPhysics(),
+              itemCount: rates.length,
+              itemBuilder: (context, index) {
+                // Deliberately sized so the next card visibly peeks at the
+                // screen edge — the scrollability affordance the old ticker
+                // never had.
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: index == rates.length - 1 ? 0 : 10,
+                  ),
+                  child: _MarketRateCard(
+                    rate: rates[index],
+                    onTap: () => onTapRate(rates[index]),
+                  ),
+                );
+              },
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
-
-  List<PriceRecordModel> _fallbackPrices() => [
-    PriceRecordModel(
-      id: '1',
-      cropName: 'Peanut',
-      price: 65,
-      unit: 'kg',
-      priceType: 'sp3_cooperative',
-      recordedAt: DateTime.now(),
-    ),
-    PriceRecordModel(
-      id: '2',
-      cropName: 'Ginger',
-      price: 55,
-      unit: 'kg',
-      priceType: 'da_amad_market',
-      previousPrice: 60,
-      recordedAt: DateTime.now(),
-    ),
-    PriceRecordModel(
-      id: '3',
-      cropName: 'Banana',
-      price: 18.5,
-      unit: 'kg',
-      priceType: 'open_market',
-      recordedAt: DateTime.now(),
-    ),
-  ];
 }
 
-class _TickerItem extends StatelessWidget {
-  final PriceRecordModel price;
-  const _TickerItem({required this.price});
+class _MarketRateCard extends StatelessWidget {
+  final FarmerMarketRateModel rate;
+  final VoidCallback onTap;
+
+  const _MarketRateCard({required this.rate, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final isUp = price.isUp;
-    final isDown = price.isDown;
-    final trendColor = isUp
-        ? AppConstants.successGreen
-        : isDown
-        ? AppConstants.errorRed
-        : AppConstants.onSurfaceVariant;
+    final color = MarketTypeDisplay.color(context, rate.priceType);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Text(
-            price.cropName,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: AppConstants.onSurface,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 168,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF455A64).withValues(alpha: 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '₱${price.price}/${price.unit}',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.onSurface,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                MarketTypeDisplay.label(rate.priceType),
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            isUp
-                ? '▲'
-                : isDown
-                ? '▼'
-                : '—',
-            style: TextStyle(fontSize: 10, color: trendColor),
-          ),
-        ],
+            const SizedBox(height: 10),
+            Text(
+              rate.cropName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.charcoal,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              rate.formattedPrice,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Updated ${AppUtils.formatRelativeTime(rate.recordedAt)}',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -870,7 +1029,7 @@ class _RecentActivitySection extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         if (isLoading)
-          _GlassCard(
+          GlassCard(
             child: Column(
               children: List.generate(
                 3,
@@ -882,7 +1041,7 @@ class _RecentActivitySection extends StatelessWidget {
             ),
           )
         else if (items.isEmpty)
-          _GlassCard(
+          GlassCard(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
@@ -1033,7 +1192,7 @@ class _ActivityIcon extends StatelessWidget {
     Color bg;
     Color fg;
 
-    if (isAlert) {
+    if (isAlert && type == ActivityType.loan) {
       icon = Icons.event_repeat_rounded;
       bg = AppConstants.errorRed.withValues(alpha: 0.12);
       fg = AppConstants.errorRed;
@@ -1059,6 +1218,12 @@ class _ActivityIcon extends StatelessWidget {
           bg = AppConstants.warningAmber.withValues(alpha: 0.10);
           fg = AppConstants.warningAmber;
           break;
+        case ActivityType.cropRequest:
+          icon = Icons.local_florist_outlined;
+          bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
+              .withValues(alpha: 0.10);
+          fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
+          break;
       }
     }
 
@@ -1077,47 +1242,6 @@ class _ActivityIcon extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _GlassCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-
-  const _GlassCard({required this.child, this.padding});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(AppConstants.spacingGutter),
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: 0.30),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(
-                  context,
-                ).colorScheme.shadow.withValues(alpha: 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
 
 class _Shimmer extends StatefulWidget {
   final double width;

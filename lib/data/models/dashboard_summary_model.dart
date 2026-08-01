@@ -38,7 +38,7 @@ class DashboardSummaryModel {
 
 // ─── Activity Item Types ──────────────────────────────────────────────────────
 
-enum ActivityType { harvest, order, listing, loan }
+enum ActivityType { harvest, order, listing, loan, cropRequest }
 
 class ActivityItem {
   final String id;
@@ -64,7 +64,7 @@ class ActivityItem {
 
 // ─── Activity Filter ──────────────────────────────────────────────────────────
 
-enum ActivityFilter { all, harvests, orders, finance }
+enum ActivityFilter { all, harvests, orders, finance, cropRequests }
 
 extension ActivityFilterExt on ActivityFilter {
   String get label {
@@ -73,6 +73,7 @@ extension ActivityFilterExt on ActivityFilter {
       case ActivityFilter.harvests: return 'Harvests';
       case ActivityFilter.orders: return 'Orders';
       case ActivityFilter.finance: return 'Finance';
+      case ActivityFilter.cropRequests: return 'Crop Requests';
     }
   }
 
@@ -82,6 +83,7 @@ extension ActivityFilterExt on ActivityFilter {
       case ActivityFilter.harvests: return item.type == ActivityType.harvest;
       case ActivityFilter.orders: return item.type == ActivityType.order || item.type == ActivityType.listing;
       case ActivityFilter.finance: return item.type == ActivityType.loan;
+      case ActivityFilter.cropRequests: return item.type == ActivityType.cropRequest;
     }
   }
 }

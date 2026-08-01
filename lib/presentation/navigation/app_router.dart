@@ -4,12 +4,18 @@ import '../../core/animations/app_page_transitions.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../data/models/export_model.dart';
+import '../../data/models/farmer_crop_model.dart';
+import '../../data/models/farmer_market_rate_model.dart';
 import '../../data/services/hive_service.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
-import '../../presentation/screens/farmer/add_crop_screen.dart';
+import '../../presentation/screens/auth/reset_password_screen.dart';
 import '../../presentation/screens/farmer/create_listing_screen.dart';
 import '../../presentation/screens/farmer/crop_listing_screen.dart';
+import '../../presentation/screens/farmer/crop_details_screen.dart';
+import '../../presentation/screens/farmer/select_crop_screen.dart';
+import '../../presentation/screens/farmer/view_market_screen.dart';
+import '../../presentation/screens/farmer/market_rate_details_screen.dart';
 import '../../presentation/screens/farmer/edit_farm_details_screen.dart';
 import '../../presentation/screens/farmer/farmer_analytics_screen.dart';
 import '../../presentation/screens/farmer/farmer_dashboard_screen.dart';
@@ -17,10 +23,10 @@ import '../../presentation/screens/farmer/farmer_notifications_screen.dart';
 import '../../presentation/screens/farmer/farmer_profile_screen.dart';
 import '../../presentation/screens/farmer/farmer_recent_activity_screen.dart';
 import '../../presentation/screens/farmer/farmer_settings_screen.dart';
+import '../../presentation/screens/farmer/farmer_edit_profile_screen.dart';
 import '../../presentation/screens/farmer/harvest_entry_form_screen.dart';
 import '../../presentation/screens/farmer/harvest_history_screen.dart';
 import '../../presentation/screens/farmer/harvest_hub_screen.dart';
-import '../../presentation/screens/farmer/harvest_management_screen.dart';
 import '../../presentation/screens/farmer/listing_success_screen.dart';
 import '../../presentation/screens/farmer/manage_inventory_screen.dart';
 import '../../presentation/screens/farmer/my_contribution_screen.dart';
@@ -28,15 +34,19 @@ import '../../presentation/screens/farmer/my_expenses_screen.dart';
 import '../../presentation/screens/farmer/my_harvest_summary_screen.dart';
 import '../../presentation/screens/farmer/my_listings_screen.dart';
 import '../../presentation/screens/farmer/my_loans_screen.dart';
+import '../../presentation/screens/farmer/my_programs_screen.dart';
 import '../../presentation/screens/farmer/pending_approval_screen.dart';
 import '../../presentation/screens/farmer/pending_applicant_screen.dart';
 import '../../presentation/screens/admin/admin_dashboard_screen.dart';
 import '../../presentation/screens/admin/add_new_member_screen.dart';
 import '../../presentation/screens/admin/admin_activity_screen.dart';
 import '../../presentation/screens/admin/admin_profile_screen.dart';
+import '../../presentation/screens/admin/admin_settings_screen.dart';
+import '../../presentation/screens/admin/admin_edit_profile_screen.dart';
 import '../../presentation/screens/admin/create_staff_account_screen.dart';
 import '../../presentation/screens/admin/manage_accounts_screen.dart';
 import '../../presentation/screens/admin/crop_management_screen.dart';
+import '../../presentation/screens/admin/crop_request_approval_screen.dart';
 import '../../presentation/screens/admin/loan_item_management_screen.dart';
 import '../../presentation/screens/admin/program_management_screen.dart';
 import '../../presentation/screens/admin/admin_inventory_screen.dart';
@@ -53,12 +63,12 @@ import '../../presentation/screens/admin/market_linking_screen.dart';
 import '../../presentation/screens/admin/listing_review_screen.dart';
 import '../../presentation/screens/admin/operational_reports_screen.dart';
 import '../../presentation/screens/admin/record_payment_screen.dart';
-import '../../presentation/screens/admin/harvest_report_screen.dart';
+import '../../presentation/screens/admin/harvest_management_screen.dart';
 import '../../presentation/screens/admin/sales_report_screen.dart';
 import '../../presentation/screens/admin/member_contribution_report_screen.dart';
 import '../../presentation/screens/admin/export_center_screen.dart';
 import '../../presentation/screens/admin/admin_notifications_screen.dart';
-import '../../presentation/screens/admin/inventory_report_screen.dart';
+import '../../presentation/screens/admin/cooperative_stock_report_screen.dart';
 import '../../presentation/screens/admin/expense_report_screen.dart';
 import '../../presentation/screens/admin/loan_report_screen.dart';
 import '../../presentation/screens/admin/loan_history_screen.dart';
@@ -70,8 +80,27 @@ import '../../presentation/screens/admin/broadcast_history_screen.dart';
 import '../../presentation/screens/admin/balik_tangkilik_management_screen.dart';
 import '../../presentation/screens/admin/farmer_harvest_history_screen.dart';
 import '../../presentation/screens/admin/marketplace_dashboard_screen.dart';
+import '../../presentation/screens/admin/offer_to_cooperative_screen.dart';
+import '../../presentation/screens/admin/buyer_management_screen.dart';
+import '../../presentation/screens/admin/buyer_details_screen.dart';
+import '../../presentation/screens/admin/order_management_screen.dart';
+import '../../presentation/screens/admin/admin_order_detail_screen.dart' as admin_order_detail;
+import '../../presentation/screens/buyer/marketplace_browse_screen.dart';
+import '../../presentation/screens/buyer/listing_details_screen.dart';
+import '../../presentation/screens/buyer/cart_screen.dart';
+import '../../presentation/screens/buyer/cart_checkout_result_screen.dart';
+import '../../data/models/cart_item_model.dart';
+import '../../presentation/screens/buyer/order_success_screen.dart';
+import '../../presentation/screens/buyer/my_orders_screen.dart';
+import '../../presentation/screens/buyer/order_detail_screen.dart';
+import '../../presentation/screens/buyer/price_monitoring_screen.dart';
+import '../../presentation/screens/buyer/buyer_account_screen.dart';
+import '../../presentation/screens/buyer/buyer_edit_profile_screen.dart';
+import '../../presentation/screens/buyer/buyer_settings_screen.dart';
+import '../../presentation/screens/buyer/buyer_notifications_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
 import '../../presentation/shell/admin_shell_screen.dart';
+import '../../presentation/shell/buyer_shell_screen.dart';
 import '../../presentation/shell/farmer_shell_screen.dart';
 import '../../routes/app_routes.dart';
 
@@ -110,12 +139,56 @@ class AppRouter {
     debugLabel: 'adminReports',
   );
 
+  // ── Buyer branch keys ──────────────────────────────────────────────────────
+  static final buyerBrowseKey = GlobalKey<NavigatorState>(
+    debugLabel: 'buyerBrowse',
+  );
+  static final buyerOrdersKey = GlobalKey<NavigatorState>(
+    debugLabel: 'buyerOrders',
+  );
+  static final buyerPricesKey = GlobalKey<NavigatorState>(
+    debugLabel: 'buyerPrices',
+  );
+  static final buyerAccountKey = GlobalKey<NavigatorState>(
+    debugLabel: 'buyerAccount',
+  );
+
+  // Tracks whether this app instance has completed its first redirect
+  // check yet. Resets to false on every fresh app boot (cold load or
+  // browser refresh, since that reboots the whole Dart runtime), so each
+  // reload is forced through splash exactly once, then stays true for
+  // the rest of that session.
+  static bool _hasBootstrapped = false;
+
   static GoRouter create() {
     return GoRouter(
       navigatorKey: rootNavigatorKey,
       initialLocation: AppRoutes.splash,
       redirect: (context, state) {
         final path = state.matchedLocation;
+
+        // Force the first navigation check of every fresh app boot (cold
+        // load AND browser refresh) through splash first, regardless of
+        // whatever URL is currently in the address bar. `initialLocation`
+        // alone doesn't cover this on web — a refresh already has a URL
+        // in the address bar, so GoRouter parses that directly and skips
+        // `initialLocation` entirely. Splash's own `_navigate()` then
+        // decides the real destination exactly as it already does.
+        // `_hasBootstrapped` resets naturally on every hard reload (the
+        // whole Dart app reboots), but stays true for the rest of the
+        // session so in-app navigation isn't repeatedly bounced back.
+        if (!_hasBootstrapped) {
+          _hasBootstrapped = true;
+          // reset-password is exempted: it's always hit as a cold boot
+          // (a fresh tab opened from the email link), so without this
+          // exemption every password-reset click would get bounced to
+          // splash before the app ever saw Supabase's code/error query
+          // params — silently breaking the whole flow.
+          if (path != AppRoutes.splash &&
+              path != AppRoutes.resetPasswordCallback) {
+            return AppRoutes.splash;
+          }
+        }
 
         // Only enforce for farmer paths (not auth, admin, buyer, or pending paths)
         final isFarmerPath = path.startsWith('/farmer/') &&
@@ -155,6 +228,17 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.resetPasswordCallback,
+          pageBuilder: (c, s) => AppPageTransitions.fadeThrough(
+            key: s.pageKey,
+            child: ResetPasswordScreen(
+              errorCode: s.uri.queryParameters['error_code'],
+              errorDescription: s.uri.queryParameters['error_description']
+                  ?.replaceAll('+', ' '),
+            ),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.pendingApproval,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => NoTransitionPage(
@@ -181,19 +265,19 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.farmerEditProfile,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const FarmerEditProfileScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.editFarmDetails,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const EditFarmDetailsScreen(),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.addCrop,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: const AddCropScreen(),
           ),
         ),
         GoRoute(
@@ -208,14 +292,45 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.harvestManagement,
+          path: AppRoutes.selectCropForHarvest,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: HarvestManagementScreen(
-              // prefer GoRouter extra when available; may be null
-              crop: s.extra as dynamic,
+            child: SelectCropScreen(initialCrop: s.extra as FarmerCropModel?),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.cropDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: CropDetailsScreen(crop: s.extra as dynamic),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.cropListing,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CropListingScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.harvestHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: HarvestHistoryScreen(
+              initialCropFilter: s.extra as String?,
             ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.manageInventory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ManageInventoryScreen(),
           ),
         ),
         GoRoute(
@@ -240,6 +355,24 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const FarmerNotificationsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.viewMarket,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ViewMarketScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.marketRateDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: MarketRateDetailsScreen(
+              rate: s.extra as FarmerMarketRateModel?,
+            ),
           ),
         ),
         GoRoute(
@@ -291,6 +424,14 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.cropRequestApproval,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CropRequestApprovalScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.programManagement,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -323,12 +464,26 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.announcementDashboard,
+          path: AppRoutes.supplyChainFullMap,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const NotificationBroadcastScreen(),
+            child: const SupplyChainFullMapScreen(),
           ),
+        ),
+        GoRoute(
+          path: AppRoutes.announcementDashboard,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: NotificationBroadcastScreen(
+                initialBuyerId: extra?['buyerId'] as String?,
+                initialBuyerName: extra?['buyerName'] as String?,
+              ),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.salesReport,
@@ -359,7 +514,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const HarvestReportScreen(),
+            child: const HarvestManagementScreen(),
           ),
         ),
         GoRoute(
@@ -427,14 +582,51 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.adminOrders,
+          path: AppRoutes.buyerManagement,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const AdminRoutePlaceholderScreen(
-              label: 'Orders',
-              routeName: AppRoutes.adminOrders,
+            child: const BuyerManagementScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.buyerDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: BuyerDetailsScreen(
+              buyerId: s.extra is String ? s.extra as String : '',
             ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminOrders,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: OrderManagementScreen(
+                buyerId: extra?['buyerId'] as String?,
+                buyerName: extra?['buyerName'] as String?,
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.adminOrderDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: admin_order_detail.OrderDetailScreen(orderId: s.extra as String),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.offerToCooperative,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const OfferToCooperativeScreen(),
           ),
         ),
         GoRoute(
@@ -494,6 +686,14 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.farmerRecentActivity,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const FarmerRecentActivityScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.createStaffAccount,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -534,6 +734,22 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const AdminProfileScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminSettings,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminSettingsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminEditProfile,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AdminEditProfileScreen(),
           ),
         ),
         GoRoute(
@@ -582,13 +798,7 @@ class AppRouter {
                     child: const FarmerDashboardScreen(),
                   ),
                 ),
-                GoRoute(
-                  path: AppRoutes.farmerRecentActivity,
-                  pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                    key: s.pageKey,
-                    child: const FarmerRecentActivityScreen(),
-                  ),
-                ),
+                
               ],
             ),
             StatefulShellBranch(
@@ -600,29 +810,6 @@ class AppRouter {
                     key: s.pageKey,
                     child: const HarvestHubScreen(),
                   ),
-                  routes: [
-                    GoRoute(
-                      path: 'crops',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const CropListingScreen(),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'history',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const HarvestHistoryScreen(),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'inventory',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const ManageInventoryScreen(),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -688,11 +875,89 @@ class AppRouter {
                         child: const MyContributionScreen(),
                       ),
                     ),
+                    GoRoute(
+                      path: 'programs',
+                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
+                        key: s.pageKey,
+                        child: const MyProgramsScreen(),
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ],
+        ),
+        // ─── Buyer — pushed routes (above shell) ─────────────────────────────
+        GoRoute(
+          path: AppRoutes.listingDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: ListingDetailsScreen(listingId: s.extra as String),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.buyerCart,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CartScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.cartCheckoutResult,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: CartCheckoutResultScreen(
+                succeeded: extra['succeeded'] as List<CartItemModel>,
+                failed: extra['failed'] as List<(CartItemModel, String)>,
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.orderSuccess,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: OrderSuccessScreen(orderId: s.extra as String),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.orderDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: OrderDetailScreen(orderId: s.extra as String),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.buyerEditProfile,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const BuyerEditProfileScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.buyerSettings,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const BuyerSettingsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.buyerNotifications,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const BuyerNotificationsScreen(),
+          ),
         ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
@@ -775,13 +1040,67 @@ class AppRouter {
                   ),
                   routes: [
                     GoRoute(
-                      path: 'inventory',
+                      path: 'coop-stock',
                       pageBuilder: (c, s) => AppPageTransitions.slideForward(
                         key: s.pageKey,
-                        child: const InventoryReportScreen(),
+                        child: const CooperativeStockReportScreen(),
                       ),
                     ),
                   ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) =>
+              BuyerShellScreen(navigationShell: navigationShell),
+          branches: [
+            StatefulShellBranch(
+              navigatorKey: buyerBrowseKey,
+              routes: [
+                GoRoute(
+                  path: AppRoutes.marketplaceBrowse,
+                  pageBuilder: (c, s) => NoTransitionPage(
+                    key: s.pageKey,
+                    child: const MarketplaceBrowseScreen(),
+                  ),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: buyerOrdersKey,
+              routes: [
+                GoRoute(
+                  path: AppRoutes.myOrders,
+                  pageBuilder: (c, s) => NoTransitionPage(
+                    key: s.pageKey,
+                    child: MyOrdersScreen(initialTabIndex: s.extra as int? ?? 0),
+                  ),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: buyerPricesKey,
+              routes: [
+                GoRoute(
+                  path: AppRoutes.priceMonitoring,
+                  pageBuilder: (c, s) => NoTransitionPage(
+                    key: s.pageKey,
+                    child: const PriceMonitoringScreen(),
+                  ),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: buyerAccountKey,
+              routes: [
+                GoRoute(
+                  path: AppRoutes.buyerAccount,
+                  pageBuilder: (c, s) => NoTransitionPage(
+                    key: s.pageKey,
+                    child: const BuyerAccountScreen(),
+                  ),
                 ),
               ],
             ),

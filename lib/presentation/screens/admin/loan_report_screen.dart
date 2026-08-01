@@ -119,7 +119,8 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                   const SizedBox(height: AppConstants.spacingSm),
                   _buildStatusChips(context, l10n, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
-                  if (!_isLoading) _buildStatusDistribution(context, l10n, cs),
+                  if (!_isLoading && _statusFilter == null)
+                    _buildStatusDistribution(context, l10n, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
                   _buildSearchField(context, l10n, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
@@ -170,7 +171,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                icon: Icon(Icons.file_download_outlined, color: cs.primary),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: ExportCenterArgs(

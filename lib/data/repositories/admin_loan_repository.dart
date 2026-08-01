@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/bod_schedule_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/loan_model.dart';
 import 'farmer_lookup.dart';
@@ -50,6 +51,7 @@ class AdminLoanRepository {
       int paidThisMonth = 0;
       double totalOutstanding = 0;
       double totalExpected = 0;
+      double totalOverdueAmount = 0;
       final farmersOwing = <String>{};
       final now = DateTime.now();
 
@@ -62,15 +64,17 @@ class AdminLoanRepository {
         if (status == 'active' || status == 'overdue') {
           totalExpected += monthlyPayment;
           farmersOwing.add(row['farmer_id'] as String);
+          final remaining = (totalValue - amountPaid).clamp(
+            0,
+            double.infinity,
+          );
           if (status == 'active') {
             active++;
           } else {
             overdue++;
+            totalOverdueAmount += remaining;
           }
-          totalOutstanding += (totalValue - amountPaid).clamp(
-            0,
-            double.infinity,
-          );
+          totalOutstanding += remaining;
         } else if (status == 'paid') {
           final updatedAt = DateTime.tryParse(
             row['updated_at'] as String? ?? '',
@@ -90,9 +94,43 @@ class AdminLoanRepository {
         totalOutstanding: totalOutstanding,
         totalExpectedThisCycle: totalExpected,
         farmersOutstandingCount: farmersOwing.length,
+        totalOverdueAmount: totalOverdueAmount,
       );
     } catch (_) {
       return LoanDashboardStats.empty();
+    }
+  }
+
+  /// This-month vs. last-month total collections, anchored to real calendar
+  /// boundaries. Deliberately NOT derived from fetchMonthlyCollectionTrend()
+  /// — that method's buckets only include months with actual payment rows,
+  /// so early in a new month (before payments have come in), its "last
+  /// bucket" would silently be last month's data mislabeled as current.
+  Future<(double, double)> fetchCollectionsThisVsLastMonth() async {
+    try {
+      final now = DateTime.now();
+      final startOfThisMonth = DateTime(now.year, now.month, 1);
+      final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+
+      final rows = await _client
+          .from('farmer_loan_payments')
+          .select('amount_paid, payment_date')
+          .gte('payment_date', _dateOnly(startOfLastMonth));
+
+      double thisMonth = 0;
+      double lastMonth = 0;
+      for (final row in rows) {
+        final date = DateTime.parse(row['payment_date'] as String);
+        final amount = (row['amount_paid'] as num).toDouble();
+        if (!date.isBefore(startOfThisMonth)) {
+          thisMonth += amount;
+        } else if (!date.isBefore(startOfLastMonth)) {
+          lastMonth += amount;
+        }
+      }
+      return (thisMonth, lastMonth);
+    } catch (_) {
+      return (0.0, 0.0);
     }
   }
 
@@ -376,6 +414,66 @@ class AdminLoanRepository {
     }
   }
 
+  /// Loan-eligible items, joined with their inventory identity and current
+  /// stock — powers Issue New Loan's item picker.
+  Future<List<LoanCatalogItem>> fetchLoanEligibleItems() async {
+    try {
+      final rows = await _client
+          .from('loan_items_master')
+          .select('id, unit_price, '
+                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand)')
+          .eq('is_loan_eligible', true)
+          .eq('cooperative_inventory.is_active', true);
+      return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// All catalog items regardless of eligibility, with loan-specific
+  /// settings included — powers Loan Item Catalog management (admin-only).
+  /// Unlike fetchLoanEligibleItems(), this is not filtered to eligible
+  /// items, since the admin needs to see and toggle ineligible ones too.
+  Future<List<LoanCatalogItem>> fetchAllCatalogItems() async {
+    try {
+      final rows = await _client
+          .from('loan_items_master')
+          .select('id, unit_price, is_loan_eligible, notes, '
+                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand)')
+          .eq('cooperative_inventory.is_active', true);
+      return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> updateLoanCatalogRules({
+    required String loanItemId,
+    required double unitPrice,
+    required bool isLoanEligible,
+    String? notes,
+  }) async {
+    try {
+      await _client.from('loan_items_master').update({
+        'unit_price': unitPrice,
+        'is_loan_eligible': isLoanEligible,
+        'notes': notes,
+      }).eq('id', loanItemId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> removeFromLoanCatalog(String loanItemId) async {
+    try {
+      await _client.from('loan_items_master').delete().eq('id', loanItemId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ─── Issue a new loan ───────────────────────────────────────────────────
 
   /// Inserts one farmer_loans row, then its farmer_loan_items rows.
@@ -436,6 +534,25 @@ class AdminLoanRepository {
                 )
                 .toList(),
           );
+
+      final adminId = _client.auth.currentUser?.id;
+      for (final item in items) {
+        final invId = item['inventoryItemId'] as String?;
+        if (invId == null) continue;
+        final qty = (item['quantity'] as num).toDouble();
+        await _client.from('inventory_transactions').insert({
+          'inventory_id': invId,
+          'transaction_type': 'loan_issued',
+          'quantity': -qty,
+          'reference_id': loanId,
+          'reference_type': 'loan',
+          if (adminId != null) 'recorded_by': adminId,
+        });
+        await _client.rpc('decrement_inventory_stock', params: {
+          'p_inventory_id': invId,
+          'p_quantity': qty,
+        });
+      }
     }
 
     return IssuedLoanResult(
@@ -490,10 +607,11 @@ class AdminLoanRepository {
     final updates = <String, dynamic>{
       'amount_paid': newPaid,
       'status': isFullyPaid ? 'paid' : 'active',
+      'notified_overdue_at': null,
     };
     if (!isFullyPaid) {
       updates['next_payment_date'] = _dateOnly(
-        _nextBodSaturdayAfter(paymentDate),
+        BodSchedule.after(paymentDate),
       );
     }
 
@@ -531,27 +649,6 @@ class AdminLoanRepository {
       final fallbackSeq = DateTime.now().millisecondsSinceEpoch % 1000;
       return 'LN-$year-${fallbackSeq.toString().padLeft(3, '0')}';
     }
-  }
-
-  /// Same BOD-Saturday algorithm used across the Loans Module screens,
-  /// anchored to an arbitrary [from] date rather than DateTime.now() —
-  /// needed here because a payment can be recorded for a past date.
-  DateTime _nextBodSaturdayAfter(DateTime from) {
-    var candidate = _firstSaturdayOf(from.year, from.month);
-    if (!candidate.isAfter(DateTime(from.year, from.month, from.day))) {
-      final nextMonth = from.month == 12 ? 1 : from.month + 1;
-      final nextYear = from.month == 12 ? from.year + 1 : from.year;
-      candidate = _firstSaturdayOf(nextYear, nextMonth);
-    }
-    return candidate;
-  }
-
-  DateTime _firstSaturdayOf(int year, int month) {
-    var d = DateTime(year, month, 1);
-    while (d.weekday != DateTime.saturday) {
-      d = d.add(const Duration(days: 1));
-    }
-    return d;
   }
 
   // ─── Loan Details ───────────────────────────────────────────────────────
@@ -643,8 +740,22 @@ class AdminLoanRepository {
           'amount_paid': totalValue,
           'status': 'paid',
           'notes': newNotes,
+          'notified_overdue_at': null,
         })
         .eq('id', loanId);
+  }
+
+  // ─── Overdue reconciliation ─────────────────────────────────────────────
+
+  /// App-side belt-and-suspenders call alongside the daily pg_cron job —
+  /// ensures the dashboard never shows stale status if opened before that
+  /// day's scheduled run has fired. Idempotent; safe to call on every load.
+  /// Non-fatal on failure — the cron job remains the source of truth even
+  /// if this particular call doesn't get through.
+  Future<void> reconcileOverdueLoans() async {
+    try {
+      await _client.rpc('transition_overdue_loans');
+    } catch (_) {}
   }
 }
 

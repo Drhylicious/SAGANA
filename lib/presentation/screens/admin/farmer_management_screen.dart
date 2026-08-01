@@ -6,6 +6,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/management_modal.dart';
 import '../../../data/models/farmer_member_model.dart';
 import '../../../data/repositories/farmer_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -49,29 +50,54 @@ class FarmerManagementHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!showTitle) {
+      // "+ Add Member" is the only flexible element in this row — it
+      // absorbs whatever width is left after the fixed-size icon buttons
+      // and the member-count pill. Previously every element here was a
+      // fixed size with a trailing Spacer, so on narrower screens the row
+      // overflowed and the count pill got clipped ("2 Membe..."). Giving
+      // the primary action Expanded guarantees the row always fits.
       return Row(
         children: [
-          GestureDetector(
-            onTap: onAddTap,
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.20),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Icon(Icons.add_rounded, color: colorScheme.onPrimary, size: 20),
+          Expanded(
+            child: GestureDetector(
+              onTap: onAddTap,
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.20),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_rounded, color: colorScheme.onPrimary, size: 20),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Add Member',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           _IconButton(
             icon: Icons.filter_list_rounded,
             onTap: onFilterTap,
@@ -93,19 +119,19 @@ class FarmerManagementHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
-              color: colorScheme.primary.withValues(alpha: 0.10),
+              color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(AppConstants.radiusFull),
             ),
             child: Text(
               '$memberCount Members',
+              maxLines: 1,
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: colorScheme.primary,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          const Spacer(),
         ],
       );
     }
@@ -265,65 +291,45 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       _allFarmers.applyFilter(_filter, _searchQuery);
 
   void _showAddMemberTypeSheet() {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Create New Account',
-                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _AddTypeCard(
-                        icon: Icons.person_add_alt_1_rounded,
-                        title: 'Add Farmer / Member',
-                        subtitle: 'Register new farmer or cooperative member',
-                        onTap: () {
-                          _safePop(context);
-                          context.push(AppRoutes.addNewMember);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _AddTypeCard(
-                        icon: Icons.badge_outlined,
-                        title: 'Add Staff Account',
-                        subtitle: 'Create new staff account',
-                        onTap: () {
-                          _safePop(context);
-                          context.push(AppRoutes.createStaffAccount);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+      builder: (_) => ManagementModalShell(
+        title: 'Create New Account',
+        subtitle: 'Choose which type of account to create',
+        body: Row(
+          children: [
+            Expanded(
+              child: _AddTypeCard(
+                icon: Icons.person_add_alt_1_rounded,
+                title: 'Add Farmer / Member',
+                subtitle: 'Register new farmer or cooperative member',
+                onTap: () {
+                  _safePop(context);
+                  context.push(AppRoutes.addNewMember);
+                },
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _AddTypeCard(
+                icon: Icons.badge_outlined,
+                title: 'Add Staff Account',
+                subtitle: 'Create new staff account',
+                onTap: () {
+                  _safePop(context);
+                  context.push(AppRoutes.createStaffAccount);
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   void _showFilterSheet() {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _FilterSheet(
         initial:   _filter,
         cropNames: _cropNames,
@@ -336,9 +342,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   void _showFarmerActions(FarmerMemberModel farmer) {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      backgroundColor: Colors.transparent,
       builder: (_) => _FarmerActionsSheet(
         farmer: farmer,
         onViewProfile: () {
@@ -356,7 +361,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         onToggleStatus: () async {
           _safePop(context);
           final newStatus = farmer.memberStatus == MemberStatus.active
-              ? 'inactive'
+              ? 'suspended'
               : 'active';
           await _repo.setFarmerStatus(
               userId: farmer.userId, status: newStatus);
@@ -806,7 +811,7 @@ class _FarmerCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -825,7 +830,9 @@ class _FarmerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row
+            // Header: avatar + name/ID grouped together, status + menu
+            // aligned on their own trailing column so both sit consistently
+            // regardless of name length.
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -871,113 +878,146 @@ class _FarmerCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              farmer.fullName,
-                              style: GoogleFonts.poppins(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: cs.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          _StatusBadge(status: farmer.memberStatus, cs: cs),
-                        ],
+                      Text(
+                        farmer.fullName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                          height: 1.25,
+                        ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         farmer.memberId ?? 'No Member ID',
                         style: GoogleFonts.inter(
-                            fontSize: 11, color: cs.outline),
+                            fontSize: 11.5, color: cs.outline),
                       ),
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: onMoreTap,
-                  child: Icon(Icons.more_vert_rounded,
-                      color: cs.onSurfaceVariant, size: 20),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _StatusBadge(status: farmer.memberStatus, cs: cs),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: onMoreTap,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(Icons.more_vert_rounded,
+                            color: cs.onSurfaceVariant, size: 20),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // Crop tags + last harvest
-            Row(
-              children: [
-                Expanded(
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: farmer.primaryCrops.isEmpty
-                        ? [
-                            Text(
-                              'No crops registered',
-                              style: GoogleFonts.inter(
-                                  fontSize: 11, color: cs.outline),
+            // Crop tags — tinted pills for real crops, muted/dashed treatment
+            // for "no crops" so the empty state reads as distinctly lower
+            // priority rather than just another chip.
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: farmer.primaryCrops.isEmpty
+                  ? [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(AppConstants.radiusFull),
+                          border: Border.all(
+                            color: cs.outline.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Text(
+                          'No crops registered',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: cs.outline,
+                          ),
+                        ),
+                      ),
+                    ]
+                  : farmer.primaryCrops
+                      .take(3)
+                      .map((c) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: cs.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusFull),
                             ),
-                          ]
-                        : farmer.primaryCrops
-                            .take(3)
-                            .map((c) => Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: cs.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(
-                                        AppConstants.radiusSm),
-                                  ),
-                                  child: Text(
-                                    c,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: cs.primary,
-                                    ),
-                                  ),
-                                ))
-                            .toList(),
-                  ),
-                ),
-                Text(
-                  'Last: ${farmer.lastHarvestLabel}',
-                  style: GoogleFonts.inter(
-                      fontSize: 10, color: cs.onSurfaceVariant),
-                ),
-              ],
+                            child: Text(
+                              c,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: cs.primary,
+                              ),
+                            ),
+                          ))
+                      .toList(),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
+            Text(
+              'Last activity: ${farmer.lastHarvestLabel}',
+              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
             Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // Loan status + sync row
+            // Loan status pill + sync status, each visually separated as
+            // their own pill rather than plain inline icon+text.
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _LoanIndicator(farmer: farmer, cs: cs),
                 Row(
                   children: [
-                    Icon(
-                      farmer.isSynced
-                          ? Icons.check_circle_rounded
-                          : Icons.sync_rounded,
-                      size: 15,
-                      color: farmer.isSynced
-                          ? AppConstants.successGreen
-                          : cs.outline,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      farmer.isSynced ? 'Synced' : 'Pending',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: farmer.isSynced
-                            ? AppConstants.successGreen
-                            : cs.outline,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: (farmer.isSynced
+                                ? AppConstants.successGreen
+                                : cs.outline)
+                            .withValues(alpha: 0.10),
+                        borderRadius:
+                            BorderRadius.circular(AppConstants.radiusFull),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            farmer.isSynced
+                                ? Icons.check_circle_rounded
+                                : Icons.sync_rounded,
+                            size: 14,
+                            color: farmer.isSynced
+                                ? AppConstants.successGreen
+                                : cs.outline,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            farmer.isSynced ? 'Synced' : 'Pending',
+                            style: GoogleFonts.inter(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: farmer.isSynced
+                                  ? AppConstants.successGreen
+                                  : cs.outline,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -1010,7 +1050,7 @@ class _StatusBadge extends StatelessWidget {
       case MemberStatus.pending:
         color = AppConstants.warningAmber;
         break;
-      case MemberStatus.inactive:
+      case MemberStatus.suspended:
         color = cs.outline;
         break;
     }
@@ -1042,60 +1082,68 @@ class _LoanIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (farmer.loanStatus == LoanStatusSummary.none) {
-      return Row(
-        children: [
-          const Icon(Icons.account_balance_wallet_outlined,
-              size: 17, color: AppConstants.successGreen),
-          const SizedBox(width: 6),
-          Text(
-            'No loans',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.successGreen,
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppConstants.successGreen.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.account_balance_wallet_outlined,
+                size: 15, color: AppConstants.successGreen),
+            const SizedBox(width: 6),
+            Text(
+              'No loans',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.successGreen,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
 
     final isOverdue = farmer.loanStatus == LoanStatusSummary.overdue;
     final color     = isOverdue ? cs.error : AppConstants.warningAmber;
 
-    return Row(
-      children: [
-        Icon(
-          isOverdue ? Icons.error_rounded : Icons.payments_rounded,
-          size: 17,
-          color: color,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          '₱${farmer.outstandingLoanBalance.toStringAsFixed(2)}',
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.amber,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isOverdue ? Icons.error_rounded : Icons.payments_rounded,
+            size: 15,
+            color: color,
           ),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+          const SizedBox(width: 6),
+          Text(
+            '₱${farmer.outstandingLoanBalance.toStringAsFixed(2)}',
+            style: GoogleFonts.poppins(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.amber,
+            ),
           ),
-          child: Text(
-            isOverdue ? 'OVERDUE' : 'ACTIVE LOAN',
+          const SizedBox(width: 6),
+          Text(
+            isOverdue ? 'OVERDUE' : 'ACTIVE',
             style: GoogleFonts.inter(
               fontSize: 9,
               fontWeight: FontWeight.w800,
               color: color,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1164,61 +1212,14 @@ class _FilterSheetState extends State<_FilterSheet> {
   @override
   Widget build(BuildContext context) {
     final cs     = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppConstants.radiusXl)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.outline.withValues(alpha: 0.30),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusFull),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Filter Members',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () =>
-                      setState(() => _state = const FarmerFilterState()),
-                  child: Text(
-                    'Reset All',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      color: cs.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
+    return ManagementModalShell(
+      title: 'Filter Members',
+      subtitle: 'Refine the list by status, crop, or loan',
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             // Member Status
             _FilterSectionLabel(label: 'Member Status', cs: cs),
             Wrap(
@@ -1343,9 +1344,34 @@ class _FilterSheetState extends State<_FilterSheet> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 24),
-
-            ElevatedButton(
+        ],
+      ),
+      footer: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: cs.outline.withValues(alpha: 0.30)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+              ),
+              onPressed: () =>
+                  setState(() => _state = const FarmerFilterState()),
+              child: Text(
+                'Reset All',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
               onPressed: () {
                 widget.onApply(_state);
                 _safePop(context);
@@ -1355,8 +1381,8 @@ class _FilterSheetState extends State<_FilterSheet> {
                 style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1447,41 +1473,15 @@ class _FarmerActionsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs     = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
     final isPending = farmer.memberStatus == MemberStatus.pending;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppConstants.radiusXl)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-      child: Column(
+    return ManagementModalShell(
+      title: farmer.fullName,
+      subtitle: isPending ? 'Pending application' : 'Manage member',
+      body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outline.withValues(alpha: 0.30),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusFull),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            farmer.fullName,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 12),
           _ActionRow(
             icon: Icons.person_outline_rounded,
             label: 'View Profile',
@@ -1521,7 +1521,7 @@ class _FarmerActionsSheet extends StatelessWidget {
                   ? Icons.person_off_outlined
                   : Icons.person_rounded,
               label: farmer.memberStatus == MemberStatus.active
-                  ? 'Set Inactive'
+                  ? 'Set Suspended'
                   : 'Set Active',
               onTap: onToggleStatus,
               cs: cs,

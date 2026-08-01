@@ -11,6 +11,13 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
   final Color navBarBackground;
   final Color gold;
   final Color harvestGold;
+  // Market Type tokens — the one shared color system for
+  // Cooperative / DA-AMAD / Open Market, reused across the Home
+  // carousel, Market Rate Details, and View Market screens. Never
+  // define these locally in a screen file again.
+  final Color marketCooperative;
+  final Color marketDaAmad;
+  final Color marketOpenMarket;
 
   const SaganaColors({
     required this.scaffoldBackground,
@@ -20,6 +27,9 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     required this.navBarBackground,
     required this.gold,
     required this.harvestGold,
+    required this.marketCooperative,
+    required this.marketDaAmad,
+    required this.marketOpenMarket,
   });
 
   static const light = SaganaColors(
@@ -30,6 +40,9 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     navBarBackground: Color(0xB3FFFFFF),
     gold: AppConstants.gold,
     harvestGold: AppConstants.harvestGold,
+    marketCooperative: AppConstants.primaryGreen,
+    marketDaAmad: Color(0xFF1565C0),
+    marketOpenMarket: Color(0xFF757575),
   );
 
   static const dark = SaganaColors(
@@ -40,6 +53,9 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     navBarBackground: Color(0xCC1A281E),
     gold: AppConstants.gold,
     harvestGold: AppConstants.harvestGold,
+    marketCooperative: AppConstants.lightGreen,
+    marketDaAmad: Color(0xFF64B5F6),
+    marketOpenMarket: Color(0xFFB0BEC5),
   );
 
   @override
@@ -51,6 +67,9 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     Color? navBarBackground,
     Color? gold,
     Color? harvestGold,
+    Color? marketCooperative,
+    Color? marketDaAmad,
+    Color? marketOpenMarket,
   }) {
     return SaganaColors(
       scaffoldBackground: scaffoldBackground ?? this.scaffoldBackground,
@@ -60,6 +79,9 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
       navBarBackground: navBarBackground ?? this.navBarBackground,
       gold: gold ?? this.gold,
       harvestGold: harvestGold ?? this.harvestGold,
+      marketCooperative: marketCooperative ?? this.marketCooperative,
+      marketDaAmad: marketDaAmad ?? this.marketDaAmad,
+      marketOpenMarket: marketOpenMarket ?? this.marketOpenMarket,
     );
   }
 
@@ -76,6 +98,10 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
           Color.lerp(navBarBackground, other.navBarBackground, t)!,
       gold: Color.lerp(gold, other.gold, t)!,
       harvestGold: Color.lerp(harvestGold, other.harvestGold, t)!,
+      marketCooperative:
+          Color.lerp(marketCooperative, other.marketCooperative, t)!,
+      marketDaAmad: Color.lerp(marketDaAmad, other.marketDaAmad, t)!,
+      marketOpenMarket: Color.lerp(marketOpenMarket, other.marketOpenMarket, t)!,
     );
   }
 }
@@ -83,4 +109,35 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
 extension SaganaColorsContext on BuildContext {
   SaganaColors get saganaColors =>
       Theme.of(this).extension<SaganaColors>() ?? SaganaColors.light;
+}
+
+/// Shared label + lookup for the three market-type classifications
+/// (crop_master.crop_type / price_records.price_type). One place both
+/// the color and the display text live, so Home, Market Rate Details,
+/// and View Market can never drift apart on either.
+class MarketTypeDisplay {
+  MarketTypeDisplay._();
+
+  static Color color(BuildContext context, String priceType) {
+    final colors = context.saganaColors;
+    switch (priceType) {
+      case 'sp3_cooperative':
+        return colors.marketCooperative;
+      case 'da_amad_market':
+        return colors.marketDaAmad;
+      default:
+        return colors.marketOpenMarket;
+    }
+  }
+
+  static String label(String priceType) {
+    switch (priceType) {
+      case 'sp3_cooperative':
+        return 'SP3 Cooperative';
+      case 'da_amad_market':
+        return 'DA-AMAD Reference';
+      default:
+        return 'Open Market';
+    }
+  }
 }

@@ -6,8 +6,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/contribution_model.dart';
 import '../../../data/repositories/contribution_repository.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../../routes/app_routes.dart';
-import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 
 class MyContributionScreen extends StatefulWidget {
@@ -169,11 +167,10 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
             child: FarmerTopBar(
               title: 'My Contribution',
               onBack: () => Navigator.of(context).pop(),
-              profilePhotoUrl: null,
+              hideProfileAvatar: true,
               onProfileTap: () {},
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              onSettingsTap: null,
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
         ],

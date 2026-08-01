@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,7 +29,6 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _logoOpacity;
   late final Animation<Offset> _textSlide;
   late final Animation<double> _textOpacity;
-  late final Animation<double> _barProgress;
 
   @override
   void initState() {
@@ -80,9 +78,6 @@ class _SplashScreenState extends State<SplashScreen>
     _barController = AnimationController(
       vsync: this,
       duration: AppConstants.splashBarDuration,
-    );
-    _barProgress = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _barController, curve: Curves.easeInOut),
     );
 
     // Shimmer on loading bar
@@ -224,11 +219,23 @@ class _SplashScreenState extends State<SplashScreen>
             ),
 
             // ── Center content ────────────────────────────────────────────────
-            Column(
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.2),
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                      child: Column(
               children: [
-                // Logo cluster — centered in available space
+                // Logo cluster — nudged above dead-center so it doesn't
+                // read as sitting in a well of empty space above it.
                 Expanded(
-                  child: Center(
+                  child: Align(
+                    alignment: const Alignment(0, -0.3),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -244,7 +251,7 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ),
 
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 40),
 
                         // Brand typography
                         AnimatedBuilder(
@@ -267,12 +274,12 @@ class _SplashScreenState extends State<SplashScreen>
                   padding: const EdgeInsets.only(bottom: 48),
                   child: Column(
                     children: [
-                      // Loading bar
+                      // Loading bar — fixed line with a looping shimmer
+                      // sweep, matching the mockup's footer divider (not
+                      // a growing progress fill).
                       AnimatedBuilder(
-                        animation: Listenable.merge(
-                            [_barController, _shimmerController]),
+                        animation: _shimmerController,
                         builder: (_, __) => _LoadingBar(
-                          progress: _barProgress.value,
                           shimmerValue: _shimmerController.value,
                         ),
                       ),
@@ -328,6 +335,11 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ],
             ),
+                    ),
+                  ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -362,29 +374,39 @@ class _LogoCircle extends StatelessWidget {
               ),
             ),
           ),
-          // Glass circle
+          // Icon badge — gold medallion, matching the mockup's brushed-gold
+          // circle instead of a flat white sticker. The icon's own dark
+          // green tones read clearly against the gold.
           Container(
             width: 128,
             height: 128,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.05),
+              gradient: const RadialGradient(
+                colors: [
+                  Color(0xFFF3E2A9),
+                  Color(0xFFC4A14D),
+                  Color(0xFF8C6D1F),
+                ],
+                stops: [0.0, 0.6, 1.0],
+              ),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.10),
+                color: Colors.white.withValues(alpha: 0.25),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 40,
-                  spreadRadius: 4,
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.agriculture_rounded,
-              size: 64,
-              color: AppConstants.harvestGold,
+            padding: const EdgeInsets.all(24),
+            child: Image.asset(
+              'assets/images/sagana_icon.png',
+              fit: BoxFit.contain,
             ),
           ),
         ],
@@ -402,19 +424,31 @@ class _BrandText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          AppConstants.appName,
-          style: GoogleFonts.poppins(
-            fontSize: 40,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 10,
-            color: AppConstants.onPrimaryContainer,
-            shadows: [
-              Shadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 16,
-              ),
+        ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFF3E2A9),
+              Color(0xFFC4A14D),
+              Color(0xFF8C6D1F),
             ],
+            stops: [0.0, 0.5, 1.0],
+          ).createShader(bounds),
+          child: Text(
+            AppConstants.appName,
+            style: GoogleFonts.poppins(
+              fontSize: 40,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 10,
+              color: Colors.white,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 6),
@@ -427,6 +461,20 @@ class _BrandText extends StatelessWidget {
             color: AppConstants.onTertiaryContainer.withValues(alpha: 0.9),
           ),
         ),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            '"${AppConstants.appTagline}"',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 16,
+              fontStyle: FontStyle.italic,
+              height: 1.4,
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -437,44 +485,54 @@ class _BrandText extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LoadingBar extends StatelessWidget {
-  final double progress;
   final double shimmerValue;
 
-  const _LoadingBar({required this.progress, required this.shimmerValue});
+  const _LoadingBar({required this.shimmerValue});
+
+  static const double _trackWidth = 192;
+  static const double _shimmerWidth = 64; // ~1/3 of track, matches mockup's w-1/3
 
   @override
   Widget build(BuildContext context) {
+    // Shimmer highlight sweeps from fully off-screen left to fully
+    // off-screen right, looping continuously — mirrors the mockup's fixed
+    // divider line with a moving highlight, not a growing progress fill.
+    final left = -_shimmerWidth + shimmerValue * (_trackWidth + _shimmerWidth);
+
     return SizedBox(
-      width: 192,
+      width: _trackWidth,
       height: 2,
-      child: Stack(
-        children: [
-          // Track
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          // Progress fill with shimmer
-          FractionallySizedBox(
-            widthFactor: progress,
-            child: Container(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(2),
+        child: Stack(
+          children: [
+            // Fixed base track — translucent gold line
+            Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(2),
-                gradient: LinearGradient(
-                  colors: [
-                    AppConstants.onTertiaryContainer.withValues(alpha: 0),
-                    AppConstants.onTertiaryContainer
-                        .withValues(alpha: 0.4 * math.sin(shimmerValue * math.pi)),
-                    AppConstants.onTertiaryContainer.withValues(alpha: 0),
+                color: AppConstants.gold.withValues(alpha: 0.3),
+              ),
+            ),
+            // Shimmer highlight sweeping across
+            Positioned(
+              left: left,
+              top: 0,
+              bottom: 0,
+              width: _shimmerWidth,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppConstants.gold,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppConstants.gold.withValues(alpha: 0.6),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
                   ],
-                  stops: const [0.0, 0.5, 1.0],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

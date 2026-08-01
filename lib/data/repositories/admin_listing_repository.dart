@@ -11,6 +11,7 @@ class AdminListingModel {
   final String cropName;
   final String? variety;
   final double volumeKg;
+  final double remainingKg;
   final double pricePerKg;
   final String status; // pending_review | approved | changes_required | sold
   final String? adminNotes;
@@ -35,6 +36,7 @@ class AdminListingModel {
     required this.cropName,
     this.variety,
     required this.volumeKg,
+    required this.remainingKg,
     required this.pricePerKg,
     required this.status,
     this.adminNotes,
@@ -56,6 +58,7 @@ class AdminListingModel {
   bool get isApproved => status == 'approved';
   bool get needsChanges => status == 'changes_required';
   bool get isSold => status == 'sold';
+  bool get isRejected => status == 'rejected';
 
   /// Matches MarketplaceListingModel.displayName — crop + variety when present.
   String get displayName => variety != null && variety!.isNotEmpty
@@ -77,6 +80,8 @@ class AdminListingModel {
         return 'Changes Required';
       case 'sold':
         return 'Sold';
+      case 'rejected':
+        return 'Rejected';
       default:
         return status;
     }
@@ -131,6 +136,11 @@ class AdminListingModel {
       cropName: map['crop_name'] as String,
       variety: map['variety'] as String?,
       volumeKg: (map['volume_kg'] as num).toDouble(),
+      // remaining_kg is the single source of truth for buyer-order
+      // availability (see supabase_schema_marketplace_order_reservation_fix.sql).
+      // Falls back to volume_kg if not selected/backfilled yet.
+      remainingKg: (map['remaining_kg'] as num?)?.toDouble() ??
+          (map['volume_kg'] as num).toDouble(),
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
       status: map['status'] as String? ?? 'pending_review',
       adminNotes: map['admin_notes'] as String?,
@@ -163,6 +173,7 @@ class ListingSummaryStats {
   final int approved;
   final int changesRequired;
   final int sold;
+  final int rejected;
 
   const ListingSummaryStats({
     required this.total,
@@ -170,6 +181,7 @@ class ListingSummaryStats {
     required this.approved,
     required this.changesRequired,
     required this.sold,
+    required this.rejected,
   });
 
   static const empty = ListingSummaryStats(
@@ -178,6 +190,7 @@ class ListingSummaryStats {
     approved: 0,
     changesRequired: 0,
     sold: 0,
+    rejected: 0,
   );
 }
 
@@ -185,6 +198,26 @@ class ListingSummaryStats {
 
 class AdminListingRepository {
   final SupabaseClient _client = Supabase.instance.client;
+
+  static const List<String> cropCategories = [
+    'Grain', 'Legume', 'Root & Spice Crop', 'Fruit', 'Tree Crop', 'Vegetable', 'Other',
+  ];
+
+  Future<List<String>> fetchCropsByCategory({String? category}) async {
+    try {
+      var query = _client
+          .from('crop_master')
+          .select('crop_name')
+          .eq('is_active', true);
+      if (category != null) {
+        query = query.eq('category', category);
+      }
+      final rows = await query.order('crop_name');
+      return rows.map((r) => r['crop_name'] as String).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 
   Future<List<AdminListingModel>> fetchPendingListings() async {
     return _fetchListings(statusFilter: 'pending_review');
@@ -194,11 +227,13 @@ class AdminListingRepository {
     String? statusFilter,
     String? searchQuery,
     String? cropFilter,
+    String? categoryFilter,
   }) async {
     return _fetchListings(
       statusFilter: statusFilter,
       searchQuery: searchQuery,
       cropFilter: cropFilter,
+      categoryFilter: categoryFilter,
     );
   }
 
@@ -206,25 +241,67 @@ class AdminListingRepository {
     return _fetchListings(limit: limit);
   }
 
+  /// Pending Review now browses review *outcomes* (pending/approved/rejected),
+  /// not just the open queue — a scoped fetch rather than reusing
+  /// fetchAllListings, so this screen never accidentally shows
+  /// changes_required/sold/withdrawn listings that belong to All Listings.
+  Future<List<AdminListingModel>> fetchReviewListings({
+    String? statusFilter, // null = pending_review + approved + rejected combined
+    String? searchQuery,
+    String? cropFilter,
+    String? categoryFilter,
+  }) async {
+    if (statusFilter != null) {
+      return _fetchListings(
+        statusFilter: statusFilter,
+        searchQuery: searchQuery,
+        cropFilter: cropFilter,
+        categoryFilter: categoryFilter,
+      );
+    }
+    final all = await _fetchListings(
+      searchQuery: searchQuery,
+      cropFilter: cropFilter,
+      categoryFilter: categoryFilter,
+    );
+    return all.where((l) => l.isPending || l.isApproved || l.isRejected).toList();
+  }
+
   Future<List<AdminListingModel>> _fetchListings({
     String? statusFilter,
     String? searchQuery,
     String? cropFilter,
+    String? categoryFilter,
     int? limit,
   }) async {
     try {
       var query = _client
           .from('marketplace_listings')
           .select(
-            'id, farmer_id, crop_name, variety, volume_kg, price_per_kg, '
+            'id, farmer_id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
             'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at',
           );
 
       if (statusFilter != null) {
         query = query.eq('status', statusFilter);
+      } else {
+        // Withdrawn is a farmer housekeeping action, not something admin
+        // reviews or acts on — excluded whenever no specific status was
+        // asked for (the "All" chip, and the dashboard's recent-listings
+        // preview), so All = Pending + Live + Changes + Sold + Rejected
+        // always holds without a 7th chip nobody needs.
+        query = query.neq('status', 'withdrawn');
       }
       if (cropFilter != null) {
-        query = query.ilike('crop_name', '%$cropFilter%');
+        // Crops now comes from a crop_master-backed picker rather than
+        // free-text search, so exact match is correct — .ilike substring
+        // matching was only ever a workaround for a text field with no picker.
+        query = query.eq('crop_name', cropFilter);
+      }
+      if (categoryFilter != null) {
+        final namesInCategory = await fetchCropsByCategory(category: categoryFilter);
+        if (namesInCategory.isEmpty) return [];
+        query = query.inFilter('crop_name', namesInCategory);
       }
 
       final ordered = query.order('created_at', ascending: false);
@@ -358,9 +435,12 @@ class AdminListingRepository {
 
   Future<ListingSummaryStats> fetchSummaryStats() async {
     try {
-      final rows = await _client.from('marketplace_listings').select('status');
+      final rows = await _client
+          .from('marketplace_listings')
+          .select('status')
+          .neq('status', 'withdrawn');
 
-      int pending = 0, approved = 0, changes = 0, sold = 0;
+      int pending = 0, approved = 0, changes = 0, sold = 0, rejected = 0;
       for (final r in rows) {
         switch (r['status'] as String?) {
           case 'pending_review':
@@ -375,6 +455,9 @@ class AdminListingRepository {
           case 'sold':
             sold++;
             break;
+          case 'rejected':
+            rejected++;
+            break;
         }
       }
       return ListingSummaryStats(
@@ -383,9 +466,23 @@ class AdminListingRepository {
         approved: approved,
         changesRequired: changes,
         sold: sold,
+        rejected: rejected,
       );
     } catch (_) {
       return ListingSummaryStats.empty;
+    }
+  }
+
+  Future<List<String>> fetchActiveCropNames() async {
+    try {
+      final rows = await _client
+          .from('crop_master')
+          .select('crop_name')
+          .eq('is_active', true)
+          .order('crop_name');
+      return rows.map((r) => r['crop_name'] as String).toList();
+    } catch (_) {
+      return [];
     }
   }
 
@@ -400,6 +497,12 @@ class AdminListingRepository {
         .eq('id', listingId);
   }
 
+  /// "Changes Required" is not terminal — the listing stays alive and the
+  /// farmer is expected to edit and resubmit the same listing. The batch
+  /// reservation from create_listing_with_reservation() is intentionally
+  /// left in place here: releasing it would leave the stock unprotected
+  /// between "changes requested" and the farmer's resubmission, letting
+  /// another listing claim it out from under them.
   Future<void> requestChanges({
     required String listingId,
     required String notes,
@@ -419,7 +522,7 @@ class AdminListingRepository {
       final row = await _client
           .from('marketplace_listings')
           .select(
-            'id, farmer_id, crop_name, variety, volume_kg, price_per_kg, '
+            'id, farmer_id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
             'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at',
           )
           .eq('id', listingId)
@@ -517,17 +620,22 @@ class AdminListingRepository {
     }
   }
 
+  /// Rejecting a listing is terminal — no resubmission is coming — so the
+  /// stock reserved at listing-creation time (via
+  /// create_listing_with_reservation → _apply_batch_reservation) must be
+  /// released back to the farmer's available pool. That release, the admin
+  /// authorization check, and the farmer notification all now live inside
+  /// the reject_listing RPC (see
+  /// supabase_schema_listing_rejection_release.sql) rather than being done
+  /// piecemeal from the client, so this can no longer silently leave stock
+  /// locked behind a dead listing.
   Future<void> rejectListing({
     required String listingId,
     required String reason,
   }) async {
-    await _client
-        .from('marketplace_listings')
-        .update({
-          'status': 'rejected',
-          'admin_notes': reason.trim(),
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', listingId);
+    await _client.rpc('reject_listing', params: {
+      'p_listing_id': listingId,
+      'p_reason': reason.trim(),
+    });
   }
 }

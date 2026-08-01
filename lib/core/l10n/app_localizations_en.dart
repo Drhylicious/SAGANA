@@ -38,6 +38,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navMarketplace => 'Marketplace';
 
   @override
+  String get navListings => 'Listings';
+
+  @override
   String get navAnalytics => 'Analytics';
 
   @override
@@ -119,6 +122,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsTitle => 'Settings';
+
+  @override
+  String get sectionPersonalInformation => 'Personal Information';
+
+  @override
+  String get sectionSecurity => 'Security';
+
+  @override
+  String get emailAddress => 'Email Address';
+
+  @override
+  String get emailCannotBeChanged => 'Email address cannot be changed.';
+
+  @override
+  String get updateYourPassword => 'Update your password';
 
   @override
   String get sectionAccount => 'Account';
@@ -437,6 +455,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'No exports yet. Generate one from Export Center.';
 
   @override
+  String get reportsQuickInsights => 'Quick Insights';
+
+  @override
+  String get reportsInsightTopCrop => 'Top Crop';
+
+  @override
+  String get reportsInsightTopFarmer => 'Top Contributor';
+
+  @override
+  String get reportsInsightTopExpense => 'Largest Expense';
+
+  @override
+  String get reportsViewAllExports => 'View All in Export Center';
+
+  @override
   String get reportsSalesReport => 'Sales Report';
 
   @override
@@ -444,6 +477,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportsTotalRevenue => 'Total Revenue';
+
+  @override
+  String get reportsAvgSale => 'Avg Sale';
 
   @override
   String get reportsTotalVolume => 'Total Volume';
@@ -474,7 +510,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportsNoSearchResults => 'No transactions match your search.';
 
   @override
-  String get reportsInventoryReport => 'Inventory Report';
+  String get reportsCoopStockReport => 'Cooperative Stock Report';
+
+  @override
+  String get reportsCoopStockByCategory => 'Stock by Category';
+
+  @override
+  String get reportsCoopStockItems => 'Stock Items';
+
+  @override
+  String get reportsTotalItems => 'Total Items';
+
+  @override
+  String get reportsLowStockItems => 'Low Stock';
+
+  @override
+  String get reportsCategories => 'Categories';
+
+  @override
+  String get reportsSearchItems => 'Search items…';
+
+  @override
+  String get reportsNoCoopStockYet => 'No cooperative stock recorded yet';
+
+  @override
+  String get reportsAll => 'All';
+
+  @override
+  String get reportsSoldOut => 'Sold Out';
+
+  @override
+  String get reportsInventoryReport => 'Farmer Harvest Report';
 
   @override
   String get reportsHarvestReport => 'Harvest Report';
@@ -931,6 +997,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportsLowStockBadge => 'LOW STOCK';
 
   @override
+  String get reportsHarvestManagement => 'Harvest Management';
+
+  @override
+  String get reportsActivityTrendsTab => 'Activity & Trends';
+
+  @override
+  String get reportsBatchesStockTab => 'Batches & Stock';
+
+  @override
+  String get reportsViewBatch => 'View Batch';
+
+  @override
+  String get reportsViewHarvest => 'View Harvest';
+
+  @override
+  String get reportsHarvestedQty => 'Harvested';
+
+  @override
+  String get reportsTotalAvailableStock => 'Total Available Stock';
+
+  @override
+  String get reportsLiveLabel => 'Live';
+
+  @override
+  String get reportsNoBatchFound =>
+      'No inventory batch found for this harvest.';
+
+  @override
+  String get reportsNoHarvestFound =>
+      'Couldn\'t find the source harvest for this batch.';
+
+  @override
+  String get reportsSearchHarvestsWithBatch =>
+      'Search farmer, crop, or batch number';
+
+  @override
   String get loanDashTitle => 'Loan Management';
 
   @override
@@ -973,7 +1075,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get loanDashOverdueHeroSubtitle =>
+      'Review and follow up before the next BOD meeting.';
+
+  @override
+  String get loanDashReviewOverdue => 'Review Overdue Loans';
+
+  @override
   String get loanDashActiveSection => 'Active Loans';
+
+  @override
+  String get loanDashRecentActivitySection => 'Recent Loan Activity';
 
   @override
   String get loanDashSeeAll => 'See all';
@@ -983,6 +1095,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loanDashNoActive => 'No active loans right now.';
+
+  @override
+  String get loanDashNoRecentActivity =>
+      'No active or overdue loans right now.';
 
   @override
   String get loanDashValue => 'Value';
@@ -1013,6 +1129,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loanHistoryNoResults => 'No loans match these filters.';
+
+  @override
+  String get loanHistoryNoResultsForFilter =>
+      'No loans match this status or period yet.';
 
   @override
   String get loanHistoryAllTimeSummary => 'All-Time Loan Summary';
@@ -1054,6 +1174,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loanHistorySearchHint => 'Search farmer, reference, or member ID';
+
+  @override
+  String get loanHistoryFilterTitle => 'Filter Loans';
+
+  @override
+  String get loanHistoryApplyFilter => 'Apply';
+
+  @override
+  String get loanDashActionPayments => 'Loan Payments';
+
+  @override
+  String get loanDashNoRecentActivitySubtitle =>
+      'New loans and upcoming payments will appear here once recorded.';
 
   @override
   String get adminPriceManagement => 'Price Management';
@@ -1107,6 +1240,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get issueLoanNoFarmerSelected => 'Tap to select a farmer';
 
   @override
+  String get issueLoanNoFarmerResults => 'No farmers match your search.';
+
+  @override
   String get issueLoanOutstandingBalance => 'Outstanding Balance';
 
   @override
@@ -1124,6 +1260,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get issueLoanNoItemsYet => 'No items added yet.';
+
+  @override
+  String get issueLoanSelectItem => 'Select Item';
 
   @override
   String get issueLoanItemName => 'Item Name';
@@ -1200,6 +1339,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paymentChangeFarmer => 'Change';
+
+  @override
+  String get paymentSwitchFarmer => 'Switch Farmer';
 
   @override
   String get paymentSearchHint => 'Search by name or member ID';
@@ -1284,6 +1426,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loanDetailsMarkPaid => 'Mark as Paid';
 
   @override
+  String get loanDetailsMarkPaidCaption =>
+      'For corrections or approved write-offs only.';
+
+  @override
   String get loanDetailsMarkPaidTitle => 'Mark this loan as paid?';
 
   @override
@@ -1335,7 +1481,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get priceManagementTitle => 'Price Management';
 
   @override
-  String get supplyChainTitle => 'Supply Chain Map';
+  String get supplyChainTitle => 'Supply Chain Operations';
+
+  @override
+  String get supplyChainOpsSummary => 'Operations Summary';
+
+  @override
+  String get supplyChainInsights => 'Actionable Insights';
+
+  @override
+  String get supplyChainFlow => 'Cooperative Flow';
+
+  @override
+  String get supplyChainPlannedOps => 'Planned Operations';
+
+  @override
+  String get supplyChainPlannedOpsDesc =>
+      'Collection scheduling, warehouse movement tracking, and delivery logistics will appear here once the cooperative\'s real workflow is confirmed on-site.';
+
+  @override
+  String get supplyChainMapSection => 'Farmer Locations';
+
+  @override
+  String get supplyChainRefresh => 'Refresh';
+
+  @override
+  String get supplyChainAllMapped => 'All members have a mapped farm location.';
+
+  @override
+  String get supplyChainAllSubmitted =>
+      'All harvests have been submitted to the cooperative.';
 
   @override
   String get priceLiveRates => 'Live Market Rates';
@@ -1369,4 +1544,154 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get broadcastScheduleSub => 'Send later at a specific time';
+
+  @override
+  String get buyerNavBrowse => 'Browse';
+
+  @override
+  String get buyerNavOrders => 'Orders';
+
+  @override
+  String get buyerNavPrices => 'Prices';
+
+  @override
+  String get buyerNavAccount => 'Account';
+
+  @override
+  String get buyerBrowseTitle => 'Marketplace';
+
+  @override
+  String get buyerBrowseSubtitle => 'Fresh produce from SP3 farmers';
+
+  @override
+  String get buyerBrowseSearchHint => 'Search crops or variety';
+
+  @override
+  String get buyerBrowseEmptyTitle => 'Marketplace is quiet right now';
+
+  @override
+  String get buyerBrowseEmptyBody =>
+      'Check back soon for new listings from SP3 farmers.';
+
+  @override
+  String get buyerBrowseNoResultsTitle => 'No listings match your filters';
+
+  @override
+  String get buyerBrowseNoResultsBody =>
+      'Try a different search term or category.';
+
+  @override
+  String get buyerBrowseSoldOut => 'Sold Out';
+
+  @override
+  String get buyerBrowseLowStock => 'Low Stock';
+
+  @override
+  String get buyerBrowseOrderNow => 'Order Now';
+
+  @override
+  String get buyerBrowseAvailableSuffix => 'available';
+
+  @override
+  String get buyerBrowseAboveMarketRange =>
+      'Priced outside typical market range';
+
+  @override
+  String get dashboardAllClearTitle => 'All Clear';
+
+  @override
+  String get dashboardAllClearMessage =>
+      'No urgent items today. Keep up the good work!';
+
+  @override
+  String get dashboardQuickActions => 'Quick Actions';
+
+  @override
+  String get quickActionRecordHarvest => 'Record Harvest';
+
+  @override
+  String get quickActionCreateListing => 'Create Listing';
+
+  @override
+  String get quickActionCheckPrices => 'Check Prices';
+
+  @override
+  String get purchaseSummary => 'Purchase Summary';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get buyerDefaultName => 'Buyer';
+
+  @override
+  String get statOrders => 'Orders';
+
+  @override
+  String get statCompleted => 'Completed';
+
+  @override
+  String get statSpent => 'Spent';
+
+  @override
+  String get buyerNoOrdersTitle => 'No orders yet';
+
+  @override
+  String get buyerNoOrdersSubtitle =>
+      'Start browsing the marketplace to place your first order.';
+
+  @override
+  String get browseMarketplace => 'Browse Marketplace';
+
+  @override
+  String get photoUploadFailed => 'Photo upload failed. Please try again.';
+
+  @override
+  String get fullNameEmpty => 'Full name is required.';
+
+  @override
+  String get profileUpdated => 'Profile updated.';
+
+  @override
+  String get saveChangesFailed => 'Unable to save changes. Please try again.';
+
+  @override
+  String get changePhoto => 'Change Photo';
+
+  @override
+  String get personalInformation => 'Personal Information';
+
+  @override
+  String get updatePasswordSubtitle => 'Update your account password';
+
+  @override
+  String get aboutSagana => 'About SAGANA';
+
+  @override
+  String get aboutSaganaBody =>
+      'SAGANA helps buyers connect with trusted SP3 farmers and manage purchases in one place.';
+
+  @override
+  String get contactSp3 => 'Contact SP3';
+
+  @override
+  String get contactSp3Body =>
+      'For concerns about your account, orders, or payments, please visit the cooperative office or reach out to your assigned coordinator.';
+
+  @override
+  String get privacyPolicy => 'Privacy Policy';
+
+  @override
+  String get privacyPolicyBody =>
+      'Your account, order details, and contact information are kept secure and accessible only to authorized cooperative personnel.';
+
+  @override
+  String get termsOfUse => 'Terms of Use';
+
+  @override
+  String get termsOfUseBody =>
+      'By using SAGANA, you agree to use the platform responsibly and follow cooperative policies.';
+
+  @override
+  String get logOut => 'Log Out';
 }

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -122,6 +123,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     }
   }
 
+  double _defaultAmountFor(AdminLoanSummary loan) =>
+      loan.monthlyPayment > loan.remainingBalance
+          ? loan.remainingBalance
+          : loan.monthlyPayment;
+
   Future<void> _resolveDirectLoan() async {
     AdminLoanSummary? loan;
     if (_isOnline) {
@@ -138,7 +144,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       _selectedFarmer = farmer;
       _farmerLoans = [loan!];
       _selectedLoan = loan;
-      _amountController.text = loan.monthlyPayment.toStringAsFixed(0);
+      _amountController.text = _defaultAmountFor(loan).toStringAsFixed(0);
     });
   }
 
@@ -151,7 +157,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       _farmerLoans = loans;
       _selectedLoan = loans.length == 1 ? loans.first : null;
       if (_selectedLoan != null) {
-        _amountController.text = _selectedLoan!.monthlyPayment.toStringAsFixed(0);
+        _amountController.text = _defaultAmountFor(_selectedLoan!).toStringAsFixed(0);
       }
     });
   }
@@ -159,7 +165,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   void _selectLoan(AdminLoanSummary loan) {
     setState(() {
       _selectedLoan = loan;
-      _amountController.text = loan.monthlyPayment.toStringAsFixed(0);
+      _amountController.text = _defaultAmountFor(loan).toStringAsFixed(0);
     });
   }
 
@@ -344,7 +350,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                 TextButton(
                   onPressed: _resetForNextFarmer,
                   child: Text(
-                    l10n.paymentChangeFarmer,
+                    l10n.paymentSwitchFarmer,
                     style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
                   ),
                 ),
@@ -423,56 +429,64 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                   itemBuilder: (context, index) {
                     final farmer = filtered[index];
                     final outstanding = _outstandingFor(farmer);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-                      child: AnimatedPressable(
-                        onTap: () => _selectFarmer(farmer),
-                        child: Container(
-                          padding: const EdgeInsets.all(AppConstants.spacingMd),
-                          decoration: BoxDecoration(
-                            color: sagana.cardBackground,
-                            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: AppConstants.primaryContainer,
-                                child: Text(
-                                  farmer.fullName.isNotEmpty ? farmer.fullName[0].toUpperCase() : '?',
-                                  style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700),
-                                ),
+                    final hasActiveLoans = outstanding > 0;
+
+                    final row = Container(
+                      padding: const EdgeInsets.all(AppConstants.spacingMd),
+                      decoration: BoxDecoration(
+                        color: sagana.cardBackground,
+                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+                      ),
+                      child: Opacity(
+                        opacity: hasActiveLoans ? 1.0 : 0.55,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: hasActiveLoans
+                                  ? AppConstants.primaryContainer
+                                  : cs.outline.withValues(alpha: 0.3),
+                              child: Text(
+                                farmer.fullName.isNotEmpty ? farmer.fullName[0].toUpperCase() : '?',
+                                style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700),
                               ),
-                              const SizedBox(width: AppConstants.spacingMd),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      farmer.fullName,
-                                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
-                                    ),
-                                    Text(
-                                      farmer.memberId,
-                                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-                                    ),
-                                  ],
-                                ),
+                            ),
+                            const SizedBox(width: AppConstants.spacingMd),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    farmer.fullName,
+                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                                  ),
+                                  Text(
+                                    farmer.memberId,
+                                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                                  ),
+                                ],
                               ),
-                              outstanding > 0
-                                  ? Text(
-                                      currency.format(outstanding),
-                                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: AppConstants.primaryGreen),
-                                    )
-                                  : Text(
-                                      l10n.paymentNoActiveLoans,
-                                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-                                    ),
-                            ],
-                          ),
+                            ),
+                            hasActiveLoans
+                                ? Text(
+                                    currency.format(outstanding),
+                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: AppConstants.primaryGreen),
+                                  )
+                                : Text(
+                                    l10n.paymentNoActiveLoans,
+                                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                                  ),
+                          ],
                         ),
                       ),
+                    );
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                      child: hasActiveLoans
+                          ? AnimatedPressable(onTap: () => _selectFarmer(farmer), child: row)
+                          : row,
                     );
                   },
                 ),
@@ -617,10 +631,26 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
       ),
-      child: Text(
-        l10n.paymentNoActiveLoans,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+      child: Column(
+        children: [
+          Icon(Icons.info_outline_rounded, color: cs.onSurfaceVariant, size: 22),
+          const SizedBox(height: AppConstants.spacingSm),
+          Text(
+            l10n.paymentNoActiveLoans,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          TextButton.icon(
+            onPressed: _resetForNextFarmer,
+            icon: const Icon(Icons.arrow_back_rounded, size: 16),
+            label: Text(
+              l10n.paymentSwitchFarmer,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            style: TextButton.styleFrom(foregroundColor: AppConstants.primaryGreen),
+          ),
+        ],
       ),
     );
   }
@@ -744,6 +774,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         TextField(
           controller: _amountController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
           onChanged: (_) => setState(() {}),
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: cs.onSurface),
           decoration: const InputDecoration(prefixText: '₱ '),

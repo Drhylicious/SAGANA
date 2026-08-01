@@ -20,9 +20,9 @@ import '../../widgets/shared_widgets.dart';
 /// No Delete, no Edit — issued loans are append-only once created, per the
 /// project's rule against hard-deleting financial records. The only write
 /// action here is "Mark as Paid" (an administrative settlement, online-only).
-/// Payment history is shown oldest→newest for this screen specifically —
-/// LoanModel's own default sort (newest-first) is unchanged and still used
-/// elsewhere.
+/// Payment history is shown newest→oldest, matching LoanModel's default
+/// sort — most recent payment is what an admin needs first during a
+/// BOD meeting.
 class LoanDetailsScreen extends StatefulWidget {
   final String loanId;
 
@@ -191,7 +191,6 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
 
     final detail = _detail!;
     final loan = detail.loan;
-    final reversedPayments = loan.payments.reversed.toList();
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -206,6 +205,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           _buildFarmerRow(context, detail, cs, sagana),
           const SizedBox(height: AppConstants.spacingSectionV),
           _buildSummaryCard(context, l10n, loan, cs),
+          if (!loan.isPaid && _isOnline) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            _buildMarkAsPaidAction(context, l10n),
+          ],
           const SizedBox(height: AppConstants.spacingSectionV),
           _buildSectionTitle(l10n.issueLoanInputItems, cs),
           const SizedBox(height: AppConstants.spacingSm),
@@ -219,10 +222,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           const SizedBox(height: AppConstants.spacingSectionV),
           _buildSectionTitle(l10n.loanDetailsPaymentHistory, cs),
           const SizedBox(height: AppConstants.spacingSm),
-          if (reversedPayments.isEmpty)
+          if (loan.payments.isEmpty)
             _buildEmptyPayments(l10n, cs)
           else
-            ...reversedPayments.map((p) => _buildPaymentRow(p, l10n, cs, sagana)),
+            ...loan.payments.map((p) => _buildPaymentRow(p, l10n, cs, sagana)),
           if (loan.notes != null && loan.notes!.isNotEmpty) ...[
             const SizedBox(height: AppConstants.spacingSectionV),
             _buildSectionTitle(l10n.loanDetailsNotesLabel, cs),
@@ -234,6 +237,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 color: sagana.cardBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
               ),
               child: Text(
                 loan.notes!,
@@ -280,6 +284,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
         ),
         child: Row(
           children: [
@@ -331,17 +336,24 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     ColorScheme cs,
   ) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
-    final statusColor = loan.isOverdue
-        ? Colors.white
-        : loan.isPaid
-            ? Colors.white
-            : Colors.white;
+    final isOverdueLoan = loan.isOverdue as bool;
+    final statusColor = loan.isPaid
+        ? AppConstants.buyerBlue
+        : isOverdueLoan
+            ? AppConstants.errorRed
+            : AppConstants.successGreen;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingGutter),
       decoration: BoxDecoration(
-        gradient: AppConstants.primaryButtonGradient,
+        gradient: isOverdueLoan
+            ? LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [AppConstants.errorRed.withValues(alpha: 0.92), const Color(0xFFB71C1C)],
+              )
+            : AppConstants.primaryButtonGradient,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       ),
       child: Column(
@@ -357,7 +369,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.20),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
@@ -415,28 +427,44 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               valueColor: const AlwaysStoppedAnimation(Colors.white),
             ),
           ),
-          if (!(loan.isPaid as bool) && _isOnline) ...[
-            const SizedBox(height: AppConstants.spacingSm),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _isMarkingPaid ? null : _markAsPaid,
-                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-                child: _isMarkingPaid
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(
-                        l10n.loanDetailsMarkPaid,
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white, decoration: TextDecoration.underline),
-                      ),
-              ),
-            ),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildMarkAsPaidAction(BuildContext context, AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _isMarkingPaid ? null : _markAsPaid,
+          icon: _isMarkingPaid
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.warningAmber),
+                )
+              : const Icon(Icons.fact_check_outlined, size: 18),
+          label: Text(
+            l10n.loanDetailsMarkPaid,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppConstants.warningAmber,
+            side: const BorderSide(color: AppConstants.warningAmber),
+            minimumSize: const Size(double.infinity, 44),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          l10n.loanDetailsMarkPaidCaption,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
@@ -459,6 +487,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
       ),
       child: Row(
         children: [
@@ -503,6 +532,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -569,6 +599,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
       ),
       child: Row(
         children: [

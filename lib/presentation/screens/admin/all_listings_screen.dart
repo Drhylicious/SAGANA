@@ -8,6 +8,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/management_modal.dart'; // TODO: confirm this matches your actual widget path
 
 class AllListingsScreen extends StatefulWidget {
   const AllListingsScreen({super.key});
@@ -27,7 +28,8 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
 
   String _searchQuery = '';
   String? _statusFilter; // null = All
-  String? _cropFilter;
+  String? _categoryFilter; // null = All Categories
+  String? _cropFilter; // null = All Crops
 
   @override
   void initState() {
@@ -37,9 +39,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
-    _searchCtrl.addListener(() {
-      setState(() => _searchQuery = _searchCtrl.text);
-    });
+    _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
     _loadAll();
   }
 
@@ -55,6 +55,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
       _repo.fetchAllListings(
         statusFilter: _statusFilter,
         cropFilter: _cropFilter,
+        categoryFilter: _categoryFilter,
       ),
       _repo.fetchSummaryStats(),
     ]);
@@ -70,18 +71,36 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     if (_searchQuery.isEmpty) return _allListings;
     final q = _searchQuery.toLowerCase();
     return _allListings
-        .where(
-          (l) =>
-              l.cropName.toLowerCase().contains(q) ||
-              l.farmerName.toLowerCase().contains(q) ||
-              (l.variety?.toLowerCase().contains(q) ?? false),
-        )
+        .where((l) =>
+            l.cropName.toLowerCase().contains(q) ||
+            l.farmerName.toLowerCase().contains(q) ||
+            (l.variety?.toLowerCase().contains(q) ?? false))
         .toList();
   }
 
   void _onStatusFilterChanged(String? status) {
     setState(() => _statusFilter = status);
     _loadAll();
+  }
+
+  bool get _hasActiveFilter => _categoryFilter != null || _cropFilter != null;
+
+  void _openFilterPanel() async {
+    final result = await showManagementModal<(String?, String?)>(
+      context: context,
+      builder: (_) => _ListingFilterModal(
+        repo: _repo,
+        initialCategory: _categoryFilter,
+        initialCrop: _cropFilter,
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _categoryFilter = result.$1;
+        _cropFilter = result.$2;
+      });
+      _loadAll();
+    }
   }
 
   Future<void> _quickApprove(AdminListingModel listing) async {
@@ -95,13 +114,9 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: isSuccess
-            ? AppConstants.successGreen
-            : AppConstants.charcoal,
+        backgroundColor: isSuccess ? AppConstants.successGreen : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
       ),
     );
   }
@@ -119,103 +134,105 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
-              // ── Status filter chip row ────────────────────────────────
-              _StatusFilterBar(
-                stats: _stats,
-                selected: _statusFilter,
-                onSelected: _onStatusFilterChanged,
-                cs: cs,
-                sagana: sagana,
-              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadAll,
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppConstants.primaryGreen,
-                          ),
-                        )
+                      ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
                           children: [
-                            // ── Search ──────────────────────────────────
-                            TextField(
-                              controller: _searchCtrl,
-                              decoration: InputDecoration(
-                                hintText: 'Search crop, farmer, variety...',
-                                hintStyle: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: cs.outline,
-                                ),
-                                prefixIcon: Icon(
-                                  Icons.search_rounded,
-                                  color: cs.outline,
-                                  size: 22,
-                                ),
-                                suffixIcon: _searchQuery.isNotEmpty
-                                    ? IconButton(
-                                        icon: Icon(
-                                          Icons.close_rounded,
-                                          color: cs.outline,
-                                          size: 18,
-                                        ),
-                                        onPressed: () => _searchCtrl.clear(),
-                                      )
-                                    : null,
-                              ),
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // ── Result count ─────────────────────────────
                             Row(
                               children: [
-                                Text(
-                                  '${visible.length} listing${visible.length == 1 ? '' : 's'}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: cs.onSurfaceVariant,
+                                Expanded(
+                                  child: TextField(
+                                    controller: _searchCtrl,
+                                    decoration: InputDecoration(
+                                      hintText: 'Search crop, farmer, variety...',
+                                      hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+                                      prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
+                                      suffixIcon: _searchQuery.isNotEmpty
+                                          ? IconButton(
+                                              icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
+                                              onPressed: () => _searchCtrl.clear(),
+                                            )
+                                          : null,
+                                    ),
+                                    style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
                                   ),
                                 ),
-                                if (_statusFilter != null) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
+                                const SizedBox(width: 10),
+                                GestureDetector(
+                                  onTap: _openFilterPanel,
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
                                     decoration: BoxDecoration(
-                                      color: cs.primary.withValues(alpha: 0.10),
-                                      borderRadius: BorderRadius.circular(
-                                        AppConstants.radiusFull,
-                                      ),
+                                      color: _hasActiveFilter ? cs.primary : cs.surfaceContainerHighest,
+                                      shape: BoxShape.circle,
                                     ),
-                                    child: Text(
-                                      _statusLabel(_statusFilter!),
-                                      style: GoogleFonts.inter(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: cs.primary,
-                                      ),
+                                    child: Icon(
+                                      Icons.tune_rounded,
+                                      size: 20,
+                                      color: _hasActiveFilter ? Colors.white : cs.onSurfaceVariant,
                                     ),
                                   ),
-                                ],
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
 
-                            // ── Listing cards ─────────────────────────────
+                            // ── Status chips ──────────────────────────────────
+                            SizedBox(
+                              height: 34,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                children: [
+                                  _FilterChip(
+                                    label: 'All', count: _stats.total, active: _statusFilter == null,
+                                    color: cs.primary, onTap: () => _onStatusFilterChanged(null), cs: cs,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _FilterChip(
+                                    label: 'Pending', count: _stats.pending, active: _statusFilter == 'pending_review',
+                                    color: cs.error, onTap: () => _onStatusFilterChanged('pending_review'), cs: cs,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _FilterChip(
+                                    label: 'Live', count: _stats.approved, active: _statusFilter == 'approved',
+                                    color: AppConstants.successGreen, onTap: () => _onStatusFilterChanged('approved'), cs: cs,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _FilterChip(
+                                    label: 'Changes', count: _stats.changesRequired, active: _statusFilter == 'changes_required',
+                                    color: AppConstants.warningAmber, onTap: () => _onStatusFilterChanged('changes_required'), cs: cs,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _FilterChip(
+                                    label: 'Sold', count: _stats.sold, active: _statusFilter == 'sold',
+                                    color: cs.onSurfaceVariant, onTap: () => _onStatusFilterChanged('sold'), cs: cs,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _FilterChip(
+                                    label: 'Rejected', count: _stats.rejected, active: _statusFilter == 'rejected',
+                                    color: cs.error, onTap: () => _onStatusFilterChanged('rejected'), cs: cs,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Result-count line intentionally removed — the
+                            // filter chips above already show a live count
+                            // for every status, including "All". A second
+                            // count here was pure duplication.
+
                             if (visible.isEmpty)
                               _EmptyState(
-                                hasSearch:
-                                    _searchQuery.isNotEmpty ||
-                                    _statusFilter != null,
+                                hasSearch: _searchQuery.isNotEmpty || _statusFilter != null || _hasActiveFilter,
                                 cs: cs,
+                                sagana: sagana,
                               )
                             else
                               ...visible.map(
@@ -227,13 +244,9 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                                     sagana: sagana,
                                     isOnline: _isOnline,
                                     onTap: () => context
-                                        .push(
-                                          AppRoutes.listingReview,
-                                          extra: listing.id,
-                                        )
+                                        .push(AppRoutes.listingReview, extra: listing.id)
                                         .then((_) => _loadAll()),
-                                    onQuickApprove:
-                                        listing.isPending && _isOnline
+                                    onQuickApprove: listing.isPending && _isOnline
                                         ? () => _quickApprove(listing)
                                         : null,
                                   ),
@@ -245,56 +258,27 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
               ),
             ],
           ),
-
-          // ── Top App Bar ─────────────────────────────────────────────
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: _TopAppBar(
-              totalCount: _stats.total,
-              onBack: () => context.pop(),
-              sagana: sagana,
-              cs: cs,
-            ),
+            child: _TopAppBar(onBack: () => context.pop(), sagana: sagana, cs: cs),
           ),
         ],
       ),
     );
   }
-
-  String _statusLabel(String s) {
-    switch (s) {
-      case 'pending_review':
-        return 'Pending';
-      case 'approved':
-        return 'Live';
-      case 'changes_required':
-        return 'Changes';
-      case 'sold':
-        return 'Sold';
-      default:
-        return s;
-    }
-  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Top App Bar
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ─── Top App Bar ──────────────────────────────────────────────────────────────
+// No count badge at all now — genuinely removed this time, not just
+// stopped-being-passed. Subtitle added to match the title/subtitle pattern
+// now used across Market Linking and Pending Approval.
 class _TopAppBar extends StatelessWidget {
-  final int totalCount;
   final VoidCallback onBack;
   final SaganaColors sagana;
   final ColorScheme cs;
-
-  const _TopAppBar({
-    required this.totalCount,
-    required this.onBack,
-    required this.sagana,
-    required this.cs,
-  });
+  const _TopAppBar({required this.onBack, required this.sagana, required this.cs});
 
   @override
   Widget build(BuildContext context) {
@@ -315,34 +299,9 @@ class _TopAppBar extends StatelessWidget {
                 onPressed: onBack,
               ),
               Expanded(
-                child: Text(
-                  'All Listings',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
+                child: Text('All Listings',
+                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                ),
-                child: Text(
-                  '$totalCount total',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
             ],
           ),
         ),
@@ -351,86 +310,7 @@ class _TopAppBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Status Filter Bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _StatusFilterBar extends StatelessWidget {
-  final ListingSummaryStats stats;
-  final String? selected;
-  final ValueChanged<String?> onSelected;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _StatusFilterBar({
-    required this.stats,
-    required this.selected,
-    required this.onSelected,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: sagana.cardBackground,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: SizedBox(
-        height: 34,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
-            _FilterChip(
-              label: 'All',
-              count: stats.total,
-              active: selected == null,
-              color: cs.primary,
-              onTap: () => onSelected(null),
-              cs: cs,
-            ),
-            const SizedBox(width: 8),
-            _FilterChip(
-              label: 'Pending',
-              count: stats.pending,
-              active: selected == 'pending_review',
-              color: cs.error,
-              onTap: () => onSelected('pending_review'),
-              cs: cs,
-            ),
-            const SizedBox(width: 8),
-            _FilterChip(
-              label: 'Live',
-              count: stats.approved,
-              active: selected == 'approved',
-              color: AppConstants.successGreen,
-              onTap: () => onSelected('approved'),
-              cs: cs,
-            ),
-            const SizedBox(width: 8),
-            _FilterChip(
-              label: 'Changes',
-              count: stats.changesRequired,
-              active: selected == 'changes_required',
-              color: AppConstants.warningAmber,
-              onTap: () => onSelected('changes_required'),
-              cs: cs,
-            ),
-            const SizedBox(width: 8),
-            _FilterChip(
-              label: 'Sold',
-              count: stats.sold,
-              active: selected == 'sold',
-              color: cs.onSurfaceVariant,
-              onTap: () => onSelected('sold'),
-              cs: cs,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+// ─── Status Filter Bar ────────────────────────────────────────────────────────
 class _FilterChip extends StatelessWidget {
   final String label;
   final int count;
@@ -462,31 +342,19 @@ class _FilterChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                color: active ? Colors.white : cs.onSurface,
-              ),
-            ),
+            Text(label,
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    color: active ? Colors.white : cs.onSurface)),
             const SizedBox(width: 5),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
-                color: active
-                    ? Colors.white.withValues(alpha: 0.30)
-                    : cs.outline.withValues(alpha: 0.15),
+                color: active ? Colors.white.withValues(alpha: 0.30) : cs.outline.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(AppConstants.radiusFull),
               ),
-              child: Text(
-                '$count',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: active ? Colors.white : cs.onSurfaceVariant,
-                ),
-              ),
+              child: Text('$count',
+                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: active ? Colors.white : cs.onSurfaceVariant)),
             ),
           ],
         ),
@@ -495,10 +363,172 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// All Listing Card (compact — shows more at once than Pending card)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Listing Filter Modal (category → scoped crop list, AND-combined) ─────
+// Opened via showManagementModal() as a centered dialog, matching the
+// Filter Members reference pattern (header + subtitle, sectioned body,
+// Reset All / Apply Filters footer) instead of the old bottom sheet.
+class _ListingFilterModal extends StatefulWidget {
+  final AdminListingRepository repo;
+  final String? initialCategory;
+  final String? initialCrop;
 
+  const _ListingFilterModal({
+    required this.repo,
+    this.initialCategory,
+    this.initialCrop,
+  });
+
+  @override
+  State<_ListingFilterModal> createState() => _ListingFilterModalState();
+}
+
+class _ListingFilterModalState extends State<_ListingFilterModal> {
+  String? _category;
+  String? _crop;
+  List<String> _crops = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _category = widget.initialCategory;
+    _crop = widget.initialCrop;
+    _loadCrops();
+  }
+
+  Future<void> _loadCrops() async {
+    setState(() => _isLoading = true);
+    final crops = await widget.repo.fetchCropsByCategory(category: _category);
+    if (!mounted) return;
+    setState(() {
+      _crops = crops;
+      // Category change narrows the crop list — drop the previously
+      // selected crop if it no longer belongs to the new category.
+      if (_crop != null && !_crops.contains(_crop)) _crop = null;
+      _isLoading = false;
+    });
+  }
+
+  void _onCategorySelected(String? category) {
+    setState(() => _category = category);
+    _loadCrops();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ManagementModalShell(
+      title: 'Filter Listings',
+      subtitle: 'Refine the list by crop category or crop',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('CROP CATEGORY',
+              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6, color: cs.outline)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            ...AdminListingRepository.cropCategories.map((c) =>
+                _Chip(label: c, active: _category == c,
+                    onTap: () => _onCategorySelected(_category == c ? null : c), cs: cs)),
+          ]),
+          const SizedBox(height: 20),
+          Text('CROPS',
+              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6, color: cs.outline)),
+          const SizedBox(height: 10),
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else if (_crops.isEmpty)
+            Text('No crops in this category',
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant))
+          else
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              ..._crops.map((c) =>
+                  _Chip(label: c, active: _crop == c,
+                      onTap: () => setState(() => _crop = _crop == c ? null : c), cs: cs)),
+            ]),
+        ],
+      ),
+      footer: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: cs.outline.withValues(alpha: 0.30)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context, (null, null)),
+              child: Text(
+                'Reset All',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, (_category, _crop)),
+              child: Text(
+                'Apply Filters',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final ColorScheme cs;
+
+  const _Chip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    required this.cs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: active ? cs.primary : cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            color: active ? Colors.white : cs.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── All Listing Card ─────────────────────────────────────────────────────────
 class _AllListingCard extends StatelessWidget {
   final AdminListingModel listing;
   final ColorScheme cs;
@@ -529,12 +559,7 @@ class _AllListingCard extends StatelessWidget {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -551,7 +576,6 @@ class _AllListingCard extends StatelessWidget {
                   ),
                 ),
               ),
-            // Photo thumbnail
             ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               child: SizedBox(
@@ -561,91 +585,49 @@ class _AllListingCard extends StatelessWidget {
                     ? Image.network(
                         listing.listingPhotoUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _Thumb(cs: cs, crop: listing.cropName),
+                        errorBuilder: (_, __, ___) => _Thumb(cs: cs, crop: listing.cropName),
                       )
                     : _Thumb(cs: cs, crop: listing.cropName),
               ),
             ),
             const SizedBox(width: 12),
-
-            // Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Crop + status badge
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          listing.variety != null
-                              ? '${listing.cropName} — ${listing.variety}'
-                              : listing.cropName,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
+                          listing.variety != null ? '${listing.cropName} — ${listing.variety}' : listing.cropName,
+                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 6),
-                      _StatusBadge(
-                        label: statusLabel,
-                        color: statusColor,
-                        cs: cs,
-                      ),
+                      _StatusBadge(label: statusLabel, color: statusColor, cs: cs),
                     ],
                   ),
                   const SizedBox(height: 3),
-                  // Farmer name + time
-                  Text(
-                    '${listing.farmerName} • ${listing.submittedLabel}',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text('${listing.farmerName} • ${listing.submittedLabel}',
+                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 6),
-                  // Price + qty + warnings row
                   Row(
                     children: [
-                      Text(
-                        '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: cs.primary,
-                        ),
-                      ),
-                      Text(
-                        '  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
+                      Text('₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
+                      Text('  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
+                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
                       const Spacer(),
                       if (listing.hasStockWarning)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              size: 13,
-                              color: cs.error,
-                            ),
+                            Icon(Icons.warning_amber_rounded, size: 13, color: cs.error),
                             const SizedBox(width: 2),
-                            Text(
-                              'Stock',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: cs.error,
-                              ),
-                            ),
+                            Text('Stock',
+                                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: cs.error)),
                           ],
                         ),
                     ],
@@ -653,26 +635,17 @@ class _AllListingCard extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Right: quick-approve or chevron
             const SizedBox(width: 8),
             if (onQuickApprove != null)
               GestureDetector(
                 onTap: onQuickApprove,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppConstants.successGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 18,
-                    color: AppConstants.successGreen,
-                  ),
+                  child: const Icon(Icons.check_rounded, size: 18, color: AppConstants.successGreen),
                 ),
               )
             else
@@ -685,16 +658,12 @@ class _AllListingCard extends StatelessWidget {
 
   Color _statusColor(String status, ColorScheme cs) {
     switch (status) {
-      case 'pending_review':
-        return cs.error;
-      case 'approved':
-        return AppConstants.successGreen;
-      case 'changes_required':
-        return AppConstants.warningAmber;
-      case 'sold':
-        return cs.onSurfaceVariant;
-      default:
-        return cs.outline;
+      case 'pending_review': return cs.error;
+      case 'approved': return AppConstants.successGreen;
+      case 'changes_required': return AppConstants.warningAmber;
+      case 'sold': return cs.onSurfaceVariant;
+      case 'rejected': return cs.error;
+      default: return cs.outline;
     }
   }
 }
@@ -708,13 +677,7 @@ class _Thumb extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: cs.surfaceContainerHighest,
-      child: Center(
-        child: Icon(
-          Icons.eco_outlined,
-          size: 26,
-          color: cs.outline.withValues(alpha: 0.40),
-        ),
-      ),
+      child: Center(child: Icon(Icons.eco_outlined, size: 26, color: cs.outline.withValues(alpha: 0.40))),
     );
   }
 }
@@ -723,62 +686,42 @@ class _StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
   final ColorScheme cs;
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-    required this.cs,
-  });
+  const _StatusBadge({required this.label, required this.color, required this.cs});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 8,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.3,
-          color: color,
-        ),
-      ),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
+      child: Text(label.toUpperCase(),
+          style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.3, color: color)),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Empty State
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ─── Empty State ──────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   final bool hasSearch;
   final ColorScheme cs;
-  const _EmptyState({required this.hasSearch, required this.cs});
+  final SaganaColors sagana;
+  const _EmptyState({required this.hasSearch, required this.cs, required this.sagana});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
       child: Column(
         children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 48,
-            color: cs.outline.withValues(alpha: 0.35),
-          ),
+          Icon(Icons.inventory_2_outlined, size: 44, color: cs.outline.withValues(alpha: 0.35)),
           const SizedBox(height: 12),
-          Text(
-            hasSearch ? 'No listings match your filter' : 'No listings yet',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
+          Text(hasSearch ? 'No listings match your filter' : 'No listings yet',
+              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
         ],
       ),
     );

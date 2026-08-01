@@ -260,7 +260,7 @@ class FarmerDetailsRepository {
 
   Future<void> setFarmerStatus({
     required String farmerId,
-    required String status, // 'active' | 'inactive'
+    required String status, // 'active' | 'suspended'
   }) async {
     await _client
         .from('user_roles')

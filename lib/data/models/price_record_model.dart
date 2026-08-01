@@ -1,5 +1,6 @@
 class PriceRecordModel {
   final String id;
+  final String cropId;
   final String cropName;
   final double price;
   final String unit;
@@ -11,6 +12,7 @@ class PriceRecordModel {
 
   const PriceRecordModel({
     required this.id,
+    required this.cropId,
     required this.cropName,
     required this.price,
     required this.unit,
@@ -47,6 +49,7 @@ class PriceRecordModel {
   factory PriceRecordModel.fromMap(Map<String, dynamic> map) {
     return PriceRecordModel(
       id:            map['id'] as String,
+      cropId:        map['crop_id'] as String? ?? '',
       cropName:      map['crop_name'] as String,
       price:         (map['price'] as num).toDouble(),
       unit:          map['unit'] as String? ?? 'kg',
@@ -63,6 +66,7 @@ class PriceRecordModel {
   Map<String, dynamic> toMap() {
     return {
       'id':             id,
+      'crop_id':        cropId,
       'crop_name':      cropName,
       'price':          price,
       'unit':           unit,

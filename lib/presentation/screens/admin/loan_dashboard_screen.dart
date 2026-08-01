@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -31,6 +32,16 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   LoanDashboardStats _stats = LoanDashboardStats.empty();
   List<AdminLoanSummary> _overdueLoans = [];
   List<AdminLoanSummary> _activeLoans = [];
+  (double, double) _collectionsTrend = (0.0, 0.0);
+
+  /// Overdue first (most urgent), topped up with active loans to a max
+  /// of 5 cards — replaces the old separate Overdue/Active sections.
+  List<AdminLoanSummary> get _recentLoans {
+    final combined = <AdminLoanSummary>[..._overdueLoans];
+    final remainingSlots = (5 - combined.length).clamp(0, 5);
+    combined.addAll(_activeLoans.take(remainingSlots));
+    return combined;
+  }
 
   @override
   void initState() {
@@ -44,39 +55,21 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
+    await _repo.reconcileOverdueLoans();
     final results = await Future.wait([
       _repo.fetchDashboardStats(),
       _repo.fetchOverdueLoans(limit: 3),
       _repo.fetchActiveLoans(limit: 5),
+      _repo.fetchCollectionsThisVsLastMonth(),
     ]);
     if (!mounted) return;
     setState(() {
       _stats = results[0] as LoanDashboardStats;
       _overdueLoans = results[1] as List<AdminLoanSummary>;
       _activeLoans = results[2] as List<AdminLoanSummary>;
+      _collectionsTrend = results[3] as (double, double);
       _isLoading = false;
     });
-  }
-
-  /// Next BOD meeting date — the 1st Saturday of the current or next month,
-  /// matching the same logic used on the farmer side (My Input Loans).
-  DateTime _nextBodSaturday() {
-    final now = DateTime.now();
-    var candidate = _firstSaturdayOf(now.year, now.month);
-    if (candidate.isBefore(DateTime(now.year, now.month, now.day))) {
-      final nextMonth = now.month == 12 ? 1 : now.month + 1;
-      final nextYear = now.month == 12 ? now.year + 1 : now.year;
-      candidate = _firstSaturdayOf(nextYear, nextMonth);
-    }
-    return candidate;
-  }
-
-  DateTime _firstSaturdayOf(int year, int month) {
-    var d = DateTime(year, month, 1);
-    while (d.weekday != DateTime.saturday) {
-      d = d.add(const Duration(days: 1));
-    }
-    return d;
   }
 
   @override
@@ -110,44 +103,26 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                       ),
                       children: [
                         _buildBodBanner(context, l10n, cs, sagana),
+                        const SizedBox(height: AppConstants.spacingMd),
+                        _buildQuickActions(context, l10n),
                         const SizedBox(height: AppConstants.spacingSectionV),
                         _buildKpiGrid(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
-                        _buildQuickActions(context, l10n, cs, sagana),
-                        const SizedBox(height: AppConstants.spacingSectionV),
                         _buildSectionHeader(
                           context,
-                          title: l10n.loanDashOverdueSection(_overdueLoans.length),
-                          onSeeAll: () => _goToHistory('overdue'),
+                          title: l10n.loanDashRecentActivitySection,
+                          onSeeAll: () => _goToHistory(),
                           l10n: l10n,
                         ),
                         const SizedBox(height: AppConstants.spacingMd),
-                        if (_overdueLoans.isEmpty)
-                          _buildEmptyState(l10n.loanDashNoOverdue, cs)
+                        if (_recentLoans.isEmpty)
+                          _buildEmptyState(
+                            l10n.loanDashNoRecentActivity,
+                            cs,
+                            subtitle: l10n.loanDashNoRecentActivitySubtitle,
+                          )
                         else
-                          ..._overdueLoans.map(
-                            (loan) => Padding(
-                              padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
-                              child: _AdminLoanCard(
-                                loan: loan,
-                                l10n: l10n,
-                                onTap: () => _goToDetails(loan.id),
-                                onPay: () => _goToPayment(loan.id),
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: AppConstants.spacingSectionV),
-                        _buildSectionHeader(
-                          context,
-                          title: l10n.loanDashActiveSection,
-                          onSeeAll: () => _goToHistory('active'),
-                          l10n: l10n,
-                        ),
-                        const SizedBox(height: AppConstants.spacingMd),
-                        if (_activeLoans.isEmpty)
-                          _buildEmptyState(l10n.loanDashNoActive, cs)
-                        else
-                          ..._activeLoans.map(
+                          ..._recentLoans.map(
                             (loan) => Padding(
                               padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
                               child: _AdminLoanCard(
@@ -195,10 +170,69 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final nextDate = _nextBodSaturday();
+    final hasOverdue = _stats.overdueLoansCount > 0;
+    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+
+    if (hasOverdue) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppConstants.spacingGutter),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [AppConstants.errorRed.withValues(alpha: 0.92), const Color(0xFFB71C1C)],
+          ),
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: AppConstants.spacingSm),
+                Text(
+                  l10n.loanDashOverdueSection(_stats.overdueLoansCount),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              currency.format(_stats.totalOverdueAmount),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 24, color: Colors.white),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.loanDashOverdueHeroSubtitle,
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+            ),
+            const SizedBox(height: AppConstants.spacingMd),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _goToHistory('overdue'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppConstants.errorRed,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(
+                  l10n.loanDashReviewOverdue,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final nextDate = BodSchedule.upcoming();
     final dateLabel = DateFormat('MMMM d, yyyy').format(nextDate);
-    final amountLabel = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0)
-        .format(_stats.totalExpectedThisCycle);
+    final amountLabel = currency.format(_stats.totalExpectedThisCycle);
 
     return Container(
       width: double.infinity,
@@ -242,25 +276,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             l10n.loanDashTotalExpected(amountLabel),
             style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
           ),
-          const SizedBox(height: AppConstants.spacingMd),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _goToPayment(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppConstants.primaryGreen,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Text(
-                l10n.adminGoToLoanPayments,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -275,6 +290,10 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     SaganaColors sagana,
   ) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final (thisMonth, lastMonth) = _collectionsTrend;
+    final hasDelta = lastMonth > 0;
+    final deltaPercent = hasDelta ? ((thisMonth - lastMonth) / lastMonth * 100) : 0.0;
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -286,12 +305,26 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
         _kpiCard(l10n.loanDashActiveLoans, '${_stats.activeLoansCount}', AppConstants.successGreen, cs, sagana),
         _kpiCard(l10n.loanDashTotalOutstanding, currency.format(_stats.totalOutstanding), AppConstants.buyerBlue, cs, sagana),
         _kpiCard(l10n.loanDashOverdueLoans, '${_stats.overdueLoansCount}', AppConstants.errorRed, cs, sagana),
-        _kpiCard(l10n.loanDashPaidThisMonth, '${_stats.paidThisMonthCount}', AppConstants.amber, cs, sagana),
+        _kpiCard(
+          l10n.loanDashPaidThisMonth,
+          '${_stats.paidThisMonthCount}',
+          AppConstants.amber,
+          cs,
+          sagana,
+          delta: hasDelta ? deltaPercent : null,
+        ),
       ],
     );
   }
 
-  Widget _kpiCard(String label, String value, Color accent, ColorScheme cs, SaganaColors sagana) {
+  Widget _kpiCard(
+    String label,
+    String value,
+    Color accent,
+    ColorScheme cs,
+    SaganaColors sagana, {
+    double? delta,
+  }) {
     return Container(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
@@ -301,13 +334,36 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+              ),
+              if (delta != null)
+                Row(
+                  children: [
+                    Icon(
+                      delta >= 0 ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                      size: 11,
+                      color: delta >= 0 ? AppConstants.successGreen : AppConstants.errorRed,
+                    ),
+                    Text(
+                      '${delta.abs().toStringAsFixed(0)}%',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: delta >= 0 ? AppConstants.successGreen : AppConstants.errorRed,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
           const SizedBox(height: AppConstants.spacingSm),
           Text(
@@ -320,80 +376,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ],
-      ),
-    );
-  }
-
-  // ─── Quick actions ──────────────────────────────────────────────────────
-
-  Widget _buildQuickActions(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          child: _quickActionButton(
-            icon: Icons.add_card_rounded,
-            label: l10n.loanDashActionIssue,
-            onTap: _goToIssueLoan,
-            cs: cs,
-            sagana: sagana,
-          ),
-        ),
-        const SizedBox(width: AppConstants.spacingMd),
-        Expanded(
-          child: _quickActionButton(
-            icon: Icons.payments_rounded,
-            label: l10n.loanDashActionRecordPayment,
-            onTap: () => _goToPayment(),
-            cs: cs,
-            sagana: sagana,
-          ),
-        ),
-        const SizedBox(width: AppConstants.spacingMd),
-        Expanded(
-          child: _quickActionButton(
-            icon: Icons.history_rounded,
-            label: l10n.loanDashActionViewHistory,
-            onTap: () => _goToHistory(),
-            cs: cs,
-            sagana: sagana,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _quickActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required ColorScheme cs,
-    required SaganaColors sagana,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingMd, horizontal: 4),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: AppConstants.primaryGreen, size: 22),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 11, color: cs.onSurface),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -425,18 +407,71 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     );
   }
 
-  Widget _buildEmptyState(String message, ColorScheme cs) {
+  Widget _buildEmptyState(String message, ColorScheme cs, {String? subtitle}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingSectionV, horizontal: AppConstants.spacingGutter),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
       ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: Icon(Icons.receipt_long_outlined, color: cs.primary, size: 24),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          Text(message, textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitle, textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context, AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: _quickActionButton(
+            icon: Icons.add_card_rounded,
+            label: l10n.loanDashActionIssue,
+            onTap: _goToIssueLoan,
+          ),
+        ),
+        const SizedBox(width: AppConstants.spacingSm),
+        Expanded(
+          child: _quickActionButton(
+            icon: Icons.payments_outlined,
+            label: l10n.loanDashActionPayments,
+            onTap: () => _goToPayment(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _quickActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppConstants.primaryGreen,
+        side: const BorderSide(color: AppConstants.primaryGreen),
+        minimumSize: const Size(double.infinity, 44),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
       ),
     );
   }

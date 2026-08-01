@@ -5,6 +5,7 @@ class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
   static const String register = '/register';
+  static const String resetPasswordCallback = '/reset-password';
 
   // ─── Farmer ──────────────────────────────────────────────────────────────────
   static const String farmerDashboard = '/farmer/dashboard';
@@ -17,9 +18,9 @@ class AppRoutes {
   static const String farmerNotifications = '/farmer/notifications';
   static const String harvestHub = '/farmer/harvest';
   static const String cropListing = '/farmer/harvest/crops';
-  static const String addCrop = '/farmer/harvest/crops/add';
-  static const String harvestManagement = '/farmer/harvest/manage';
-  static const String harvestEntryForm = '/farmer/harvest/entry';
+  static const String selectCropForHarvest = '/select-crop';
+  static const String cropDetails = '/crop-details';
+  static const String harvestEntryForm = '/entry-form';
   static const String harvestHistory = '/farmer/harvest/history';
   static const String manageInventory = '/farmer/harvest/inventory';
   static const String myListings = '/farmer/marketplace';
@@ -32,13 +33,18 @@ class AppRoutes {
   static const String myContribution = '/farmer/profile/contribution';
   static const String myExpenses = '/farmer/profile/expenses';
   static const String myHarvestSummary = '/farmer/profile/harvest-summary';
+  static const String myPrograms = '/farmer/profile/programs';
   static const String farmerSettings = '/farmer/settings';
+  static const String farmerEditProfile = '/farmer/profile/edit';
+  static const String viewMarket = '/farmer/market-rates';
+  static const String marketRateDetails = '/farmer/market-rates/details';
 
   // ─── Admin ───────────────────────────────────────────────────────────────────
   static const String adminDashboard = '/admin/dashboard';
   static const String priceManagement = '/admin/prices';
   static const String announcementDashboard = '/admin/announcements';
   static const String supplyChainMap = '/admin/map';
+  static const String supplyChainFullMap = '/admin/map/full';
   static const String farmerManagement = '/admin/farmers';
   static const String farmerDetails = '/admin/farmers/details';
   static const String farmerHarvestHistory = '/admin/farmers/harvest-history';
@@ -48,12 +54,12 @@ class AppRoutes {
   static const String allListings = '/admin/listings/all';
   static const String listingReview = '/admin/listings/review';
   static const String buyerManagement = '/admin/buyers';
+  static const String buyerDetails    = '/admin/buyers/details';
   static const String loanDashboard = '/admin/loans';
   static const String issueNewLoan = '/admin/loans/issue';
   static const String recordPayment = '/admin/loans/payment';
   static const String loanDetails = '/admin/loans/details';
   static const String loanHistory = '/admin/loans/history';
-  static const String inventoryReport = '/admin/reports/inventory';
   static const String loanReport = '/admin/reports/loans';
   static const String salesReport = '/admin/reports/sales';
   static const String harvestReport = '/admin/reports/harvest';
@@ -64,11 +70,16 @@ class AppRoutes {
   static const String balikTangkilikManagement = '/admin/balik-tangkilik';
   static const String exportCenter = '/admin/export';
   static const String adminProfile = '/admin/profile';
+  static const String adminSettings = '/admin/profile/settings';
+  static const String adminEditProfile = '/admin/profile/edit';
   static const String adminNotifications = '/admin/notifications';
   static const String adminActivityLog = '/admin/activity';
   static const String createStaffAccount   = '/admin/members/add-staff';
   static const String manageStaffAccounts  = '/admin/members/staff-accounts';
   static const String memberExpenseHistory = '/admin/members/expense-history';
+
+  // ─── Admin — Report Routes ───────────────────────────────────────────────────
+  static const String coopStockReport = '/admin/reports/coop-stock';
 
   // ─── Buyer ───────────────────────────────────────────────────────────────────
   static const String marketplaceBrowse = '/buyer/browse';
@@ -79,11 +90,15 @@ class AppRoutes {
   static const String priceMonitoring = '/buyer/prices';
   static const String buyerAccount = '/buyer/account';
   static const String buyerEditProfile = '/buyer/account/edit';
+  static const String buyerSettings = '/buyer/account/settings';
   static const String buyerNotifications = '/buyer/notifications';
+  static const String buyerCart = '/buyer/browse/cart';
+  static const String cartCheckoutResult = '/buyer/browse/cart/result';
 
   // ─── Admin — New Quick-Action Routes ─────────────────────────────────────────
   static const String adminInventory      = '/admin/inventory';
   static const String cropManagement      = '/admin/crops';
+  static const String cropRequestApproval = '/admin/crops/requests';
   static const String programManagement   = '/admin/programs';
   static const String loanItemManagement  = '/admin/loan-items';
   static const String adminCalendar       = '/admin/calendar';
@@ -98,5 +113,7 @@ class AppRoutes {
   // ─── Admin — Marketplace Dashboard ───────────────────────────────────────────
   static const String adminMarketplace = '/admin/marketplace';
   static const String adminOrders      = '/admin/marketplace/orders';
+  static const String adminOrderDetail = '/admin/marketplace/orders/detail';
+  static const String offerToCooperative = '/admin/marketplace/offer-to-cooperative';
 
 }

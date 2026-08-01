@@ -749,8 +749,10 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
             child: FarmerTopBar(
               title: 'Edit Farm Details',
               onBack: () => context.popRoute(),
+              hideProfileAvatar: true,
               onProfileTap: () {},
               onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
 

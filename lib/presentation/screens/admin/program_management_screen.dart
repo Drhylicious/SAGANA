@@ -1,229 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/input_validation_utils.dart';
+import '../../../data/models/program_model.dart';
+import '../../../data/repositories/program_repository.dart';
 import '../../../data/services/connectivity_service.dart';
-
-// ── Models ───────────────────────────────────────────────────────────────────
-
-class CooperativeProgram {
-  final String id;
-  final String programName;
-  final String programType;
-  final String? description;
-  final int seasonYear;
-  final String status;
-  final double? budget;
-  final int memberCount;
-
-  const CooperativeProgram({
-    required this.id,
-    required this.programName,
-    required this.programType,
-    this.description,
-    required this.seasonYear,
-    required this.status,
-    this.budget,
-    required this.memberCount,
-  });
-
-  factory CooperativeProgram.fromMap(Map<String, dynamic> m) =>
-      CooperativeProgram(
-        id: m['id'] as String,
-        programName: m['program_name'] as String,
-        programType: m['program_type'] as String? ?? 'other',
-        description: m['description'] as String?,
-        seasonYear: m['season_year'] as int? ?? DateTime.now().year,
-        status: m['status'] as String? ?? 'active',
-        budget: m['budget'] != null ? (m['budget'] as num).toDouble() : null,
-        memberCount: m['member_count'] as int? ?? 0,
-      );
-
-  bool get isActive => status == 'active';
-}
-
-class ProgramMember {
-  final String id;
-  final String programId;
-  final String farmerId;
-  final String farmerName;
-  final String status;
-  final DateTime enrolledAt;
-
-  const ProgramMember({
-    required this.id,
-    required this.programId,
-    required this.farmerId,
-    required this.farmerName,
-    required this.status,
-    required this.enrolledAt,
-  });
-
-  factory ProgramMember.fromMap(Map<String, dynamic> m) => ProgramMember(
-        id: m['id'] as String,
-        programId: m['program_id'] as String,
-        farmerId: m['farmer_id'] as String,
-        farmerName: m['user_information']?['full_name'] as String? ?? 'Unknown',
-        status: m['status'] as String? ?? 'active',
-        enrolledAt: DateTime.parse(m['enrolled_at'] as String),
-      );
-}
-
-// ── Repository ───────────────────────────────────────────────────────────────
-
-class _ProgramRepository {
-  final _client = Supabase.instance.client;
-
-  Future<List<CooperativeProgram>> fetchPrograms() async {
-    try {
-      // Fetch programs with member count
-      final rows = await _client
-          .from('cooperative_programs')
-          .select('*, program_members(count)')
-          .order('season_year', ascending: false)
-          .order('program_name');
-      return rows.map((r) {
-        final countList = r['program_members'] as List?;
-        final count = countList?.isNotEmpty == true
-            ? (countList!.first['count'] as int? ?? 0)
-            : 0;
-        return CooperativeProgram.fromMap({...r, 'member_count': count});
-      }).toList();
-    } catch (_) { return []; }
-  }
-
-  Future<List<ProgramMember>> fetchProgramMembers(String programId) async {
-    try {
-      final rows = await _client
-          .from('program_members')
-          .select('id, program_id, farmer_id, status, enrolled_at')
-          .eq('program_id', programId)
-          .eq('status', 'active')
-          .order('enrolled_at', ascending: false);
-
-      if (rows.isEmpty) return [];
-
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toList();
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', farmerIds);
-      final nameMap = {
-        for (final r in infoRows)
-          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown'
-      };
-
-      return rows.map((r) => ProgramMember(
-        id: r['id'] as String,
-        programId: r['program_id'] as String,
-        farmerId: r['farmer_id'] as String,
-        farmerName: nameMap[r['farmer_id'] as String] ?? 'Unknown',
-        status: r['status'] as String? ?? 'active',
-        enrolledAt: DateTime.parse(r['enrolled_at'] as String),
-      )).toList();
-    } catch (_) { return []; }
-  }
-
-  /// Returns farmers not yet enrolled in a given program
-  Future<List<Map<String, String>>> fetchUnenrolledFarmers(
-      String programId) async {
-    try {
-      final enrolled = await _client
-          .from('program_members')
-          .select('farmer_id')
-          .eq('program_id', programId)
-          .eq('status', 'active');
-      final enrolledIds =
-          enrolled.map((r) => r['farmer_id'] as String).toSet();
-
-      final allRoles = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'farmer')
-          .eq('status', 'active');
-
-      final unenrolledIds = allRoles
-          .map((r) => r['user_id'] as String)
-          .where((id) => !enrolledIds.contains(id))
-          .toList();
-
-      if (unenrolledIds.isEmpty) return [];
-
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', unenrolledIds);
-
-      return infoRows.map((r) => {
-        'id': r['user_id'] as String,
-        'name': r['full_name'] as String? ?? 'Unknown',
-      }).toList();
-    } catch (_) { return []; }
-  }
-
-  Future<bool> createProgram({
-    required String name,
-    required String type,
-    String? description,
-    double? budget,
-  }) async {
-    try {
-      await _client.from('cooperative_programs').insert({
-        'program_name': name.trim(),
-        'program_type': type,
-        'description': description?.trim(),
-        'budget': budget,
-        'season_year': DateTime.now().year,
-        'created_by': _client.auth.currentUser?.id,
-      });
-      return true;
-    } catch (_) { return false; }
-  }
-
-  Future<bool> updateProgram({
-    required String id,
-    required String name,
-    required String type,
-    String? description,
-    double? budget,
-    required String status,
-  }) async {
-    try {
-      await _client.from('cooperative_programs').update({
-        'program_name': name.trim(),
-        'program_type': type.trim(),
-        'description': description?.trim(),
-        'budget': budget,
-        'status': status,
-      }).eq('id', id);
-      return true;
-    } catch (_) { return false; }
-  }
-
-  Future<bool> enrollFarmer(String programId, String farmerId) async {
-    try {
-      await _client.from('program_members').upsert({
-        'program_id': programId,
-        'farmer_id': farmerId,
-        'status': 'active',
-      }, onConflict: 'program_id,farmer_id');
-      return true;
-    } catch (_) { return false; }
-  }
-
-  Future<bool> removeMember(String memberId) async {
-    try {
-      await _client
-          .from('program_members')
-          .update({'status': 'withdrawn'}).eq('id', memberId);
-      return true;
-    } catch (_) { return false; }
-  }
-}
+import '../../widgets/management_modal.dart';
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
@@ -236,7 +23,7 @@ class ProgramManagementScreen extends StatefulWidget {
 }
 
 class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
-  final _repo = _ProgramRepository();
+  final _repo = ProgramRepository();
 
   List<CooperativeProgram> _programs = [];
   bool _isLoading = true;
@@ -300,178 +87,169 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   }
 
   void _showProgramSheet(CooperativeProgram? existing) {
-    final nameCtrl =
-        TextEditingController(text: existing?.programName ?? '');
-    final typeCtrl =
-        TextEditingController(text: existing?.programType ?? '');
-    final descCtrl =
-        TextEditingController(text: existing?.description ?? '');
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController(text: existing?.programName ?? '');
+    final typeCtrl = TextEditingController(text: existing?.programType ?? '');
+    final descCtrl = TextEditingController(text: existing?.description ?? '');
     final budgetCtrl = TextEditingController(
-        text: existing?.budget != null
-            ? existing!.budget!.toStringAsFixed(2)
-            : '');
+        text: existing?.budget != null ? existing!.budget!.toStringAsFixed(2) : '');
+    final returnPercentCtrl = TextEditingController(
+        text: existing?.expectedReturnPercent?.toString() ?? '');
     String selectedStatus = existing?.status ?? 'active';
+    String selectedBenefitType = existing?.benefitType ?? 'grant';
     bool isSaving = false;
 
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
-        final cs = Theme.of(ctx).colorScheme;
         return StatefulBuilder(builder: (ctx, setSheet) {
-          return Padding(
-            padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
-              decoration: BoxDecoration(
-                color: sagana.cardBackground,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(AppConstants.radiusXl)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.outline.withValues(alpha: 0.30),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            final budget = double.tryParse(budgetCtrl.text);
+            setSheet(() => isSaving = true);
+            bool ok;
+            if (existing == null) {
+              ok = await _repo.createProgram(
+                name: nameCtrl.text,
+                type: typeCtrl.text.trim(),
+                benefitType: selectedBenefitType,
+                expectedReturnPercent: double.tryParse(returnPercentCtrl.text),
+                description: descCtrl.text.isEmpty ? null : descCtrl.text,
+                budget: budget,
+              );
+            } else {
+              ok = await _repo.updateProgram(
+                id: existing.id,
+                name: nameCtrl.text,
+                type: typeCtrl.text.trim(),
+                benefitType: selectedBenefitType,
+                expectedReturnPercent: double.tryParse(returnPercentCtrl.text),
+                description: descCtrl.text.isEmpty ? null : descCtrl.text,
+                budget: budget,
+                status: selectedStatus,
+              );
+            }
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (ok) _load();
+            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+              content: Text(ok
+                  ? existing == null
+                      ? 'Program created'
+                      : 'Program updated'
+                  : 'Failed. Try again.'),
+              backgroundColor:
+                  ok ? AppConstants.successGreen : AppConstants.errorRed,
+              behavior: SnackBarBehavior.floating,
+            ));
+          }
+
+          return ManagementModalShell(
+            title: existing == null ? 'New Program' : 'Edit Program',
+            body: Form(
+              key: formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Program Name *',
+                      hintText: 'e.g. Palay Production Program 2025',
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      existing == null ? 'New Program' : 'Edit Program',
-                      style: GoogleFonts.poppins(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface),
+                    textCapitalization: TextCapitalization.words,
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Program name is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: typeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Program Type / Category (optional)',
+                      hintText: 'e.g. Crop Production, Livestock, DA-AMAD',
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Program Name *',
-                        hintText: 'e.g. Palay Production Program 2025',
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: typeCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Program Type / Category (optional)',
-                        hintText: 'e.g. Crop Production, Livestock, DA-AMAD',
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    if (existing != null) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedStatus,
-                        decoration:
-                            const InputDecoration(labelText: 'Status *'),
-                        items: _statusOptions
-                            .map((s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(
-                                    s[0].toUpperCase() + s.substring(1))))
-                            .toList(),
-                        onChanged: (v) =>
-                            setSheet(() => selectedStatus = v!),
-                      ),
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedBenefitType,
+                    decoration: const InputDecoration(labelText: 'Benefit Type *'),
+                    items: const [
+                      DropdownMenuItem(value: 'grant', child: Text('Grant — no return expected')),
+                      DropdownMenuItem(value: 'revenue_share', child: Text('Revenue Share — farmer returns a % later')),
                     ],
+                    onChanged: (v) => setSheet(() => selectedBenefitType = v!),
+                  ),
+                  if (selectedBenefitType == 'revenue_share') ...[
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: budgetCtrl,
+                    TextFormField(
+                      controller: returnPercentCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Budget (₱) — optional',
-                        hintText: '0.00',
-                        prefixText: '₱ ',
+                        labelText: 'Expected Return % (cooperative-wide) — optional',
+                        hintText: 'e.g. 20',
+                        suffixText: '%',
                       ),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(
-                              decimal: true),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Description (optional)',
-                        hintText: 'Goals, target crops, or beneficiaries',
-                      ),
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                if (nameCtrl.text.trim().isEmpty) return;
-                                final budget =
-                                    double.tryParse(budgetCtrl.text);
-                                setSheet(() => isSaving = true);
-                                bool ok;
-                                if (existing == null) {
-                                  ok = await _repo.createProgram(
-                                    name: nameCtrl.text,
-                                    type: typeCtrl.text.trim(),
-                                    description: descCtrl.text.isEmpty
-                                        ? null
-                                        : descCtrl.text,
-                                    budget: budget,
-                                  );
-                                } else {
-                                  ok = await _repo.updateProgram(
-                                    id: existing.id,
-                                    name: nameCtrl.text,
-                                    type: typeCtrl.text.trim(),
-                                    description: descCtrl.text.isEmpty
-                                        ? null
-                                        : descCtrl.text,
-                                    budget: budget,
-                                    status: selectedStatus,
-                                  );
-                                }
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                if (ok) _load();
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(
-                                  content: Text(ok
-                                      ? existing == null
-                                          ? 'Program created'
-                                          : 'Program updated'
-                                      : 'Failed. Try again.'),
-                                  backgroundColor: ok
-                                      ? AppConstants.successGreen
-                                      : AppConstants.errorRed,
-                                  behavior: SnackBarBehavior.floating,
-                                ));
-                              },
-                        child: Text(
-                          isSaving
-                              ? 'Saving…'
-                              : existing == null
-                                  ? 'Create Program'
-                                  : 'Save Changes',
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      ],
                     ),
                   ],
-                ),
+                  if (existing != null) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStatus,
+                      decoration: const InputDecoration(labelText: 'Status *'),
+                      items: _statusOptions
+                          .map((s) => DropdownMenuItem(
+                              value: s, child: Text(s[0].toUpperCase() + s.substring(1))))
+                          .toList(),
+                      onChanged: (v) => setSheet(() => selectedStatus = v!),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: budgetCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Budget (₱) — optional',
+                      hintText: '0.00',
+                      prefixText: '₱ ',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) return null;
+                      if (!isValidCurrencyValue(value)) return 'Enter a valid amount';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: descCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (optional)',
+                      hintText: 'Goals, target crops, or beneficiaries',
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
               ),
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving
+                  ? 'Saving…'
+                  : existing == null
+                      ? 'Create Program'
+                      : 'Save Changes',
+              isLoading: isSaving,
+              onPrimary: submit,
             ),
           );
         });
@@ -480,30 +258,30 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   }
 
   void _showMembersSheet(CooperativeProgram program) {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
-        return DraggableScrollableSheet(
-          initialChildSize: 0.70,
-          minChildSize: 0.40,
-          maxChildSize: 0.92,
-          builder: (ctx, scrollCtrl) {
-            return Container(
-              decoration: BoxDecoration(
-                color: sagana.cardBackground,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(AppConstants.radiusXl)),
-              ),
-              child: _ProgramMembersSheet(
-                program: program,
-                repo: _repo,
-                scrollController: scrollCtrl,
-              ),
-            );
-          },
+        return DefaultTabController(
+          length: 2,
+          child: ManagementModalShell(
+            title: program.programName,
+            bodyIsScrollable: true,
+            body: Column(
+              children: [
+                const TabBar(
+                  tabs: [Tab(text: 'Members'), Tab(text: 'Activities')],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _ProgramMembersModalBody(program: program, repo: _repo),
+                      _ProgramActivitiesTab(program: program, repo: _repo),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -817,27 +595,25 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   }
 }
 
-// ── Program Members Sheet ─────────────────────────────────────────────────────
+// ── Program Members Modal Body ────────────────────────────────────────────────
 
-class _ProgramMembersSheet extends StatefulWidget {
+class _ProgramMembersModalBody extends StatefulWidget {
   final CooperativeProgram program;
-  final _ProgramRepository repo;
-  final ScrollController scrollController;
+  final ProgramRepository repo;
 
-  const _ProgramMembersSheet({
+  const _ProgramMembersModalBody({
     required this.program,
     required this.repo,
-    required this.scrollController,
   });
 
   @override
-  State<_ProgramMembersSheet> createState() =>
-      _ProgramMembersSheetState();
+  State<_ProgramMembersModalBody> createState() => _ProgramMembersModalBodyState();
 }
 
-class _ProgramMembersSheetState extends State<_ProgramMembersSheet> {
+class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   List<ProgramMember> _members = [];
   List<Map<String, String>> _unenrolled = [];
+  List<DistributionItem> _items = [];
   bool _isLoading = true;
   String? _selectedFarmerId;
 
@@ -847,28 +623,239 @@ class _ProgramMembersSheetState extends State<_ProgramMembersSheet> {
     _loadMembers();
   }
 
+  Map<String, DistributionItem> get _itemsById => {
+        for (final i in _items) i.id: i,
+      };
+
   Future<void> _loadMembers() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
       widget.repo.fetchProgramMembers(widget.program.id),
       widget.repo.fetchUnenrolledFarmers(widget.program.id),
+      widget.repo.fetchDistributionItems(),
     ]);
     if (!mounted) return;
     setState(() {
       _members = results[0] as List<ProgramMember>;
       _unenrolled = results[1] as List<Map<String, String>>;
+      _items = results[2] as List<DistributionItem>;
       _isLoading = false;
     });
   }
 
   Future<void> _enroll() async {
     if (_selectedFarmerId == null) return;
-    final ok = await widget.repo.enrollFarmer(
-        widget.program.id, _selectedFarmerId!);
+    final ok = await widget.repo.enrollFarmer(widget.program.id, _selectedFarmerId!);
     if (ok) {
       setState(() => _selectedFarmerId = null);
       _loadMembers();
     }
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  // ─── Distribute benefit ─────────────────────────────────────────────────
+
+  void _showDistributeSheet(ProgramMember member) {
+    if (_items.isEmpty) {
+      _showSnack('No active cooperative inventory items available.', isError: true);
+      return;
+    }
+    String? selectedItemId = _items.first.id;
+    final qtyCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          bool isSaving = false;
+
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            final qty = double.parse(qtyCtrl.text);
+            setSheet(() => isSaving = true);
+            try {
+              await widget.repo.distributeBenefit(
+                programMemberId: member.id,
+                inventoryItemId: selectedItemId!,
+                quantity: qty,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              _showSnack('Benefit distributed to ${member.farmerName}');
+              _loadMembers();
+            } catch (_) {
+              setSheet(() => isSaving = false);
+              _showSnack('Failed to distribute. Try again.', isError: true);
+            }
+          }
+
+          final selected = _itemsById[selectedItemId];
+
+          return ManagementModalShell(
+            title: 'Distribute Benefit',
+            subtitle: member.farmerName,
+            body: Form(
+              key: formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedItemId,
+                    decoration: const InputDecoration(labelText: 'Item *'),
+                    items: _items
+                        .map((i) => DropdownMenuItem(
+                              value: i.id,
+                              child: Text(
+                                '${i.itemName} (${i.quantityOnHand.toStringAsFixed(1)} ${i.unit} on hand)',
+                                style: GoogleFonts.inter(fontSize: 13),
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setSheet(() => selectedItemId = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: qtyCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Quantity${selected != null ? ' (${selected.unit})' : ''} *',
+                      hintText: '0.00',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    validator: (value) {
+                      final v = double.tryParse(value ?? '');
+                      if (v == null || v <= 0) return 'Enter a valid quantity';
+                      if (selected != null && v > selected.quantityOnHand) {
+                        return 'Only ${selected.quantityOnHand.toStringAsFixed(1)} ${selected.unit} available';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving ? 'Distributing…' : 'Distribute',
+              isLoading: isSaving,
+              onPrimary: submit,
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  // ─── Record a revenue-share return ──────────────────────────────────────
+
+  void _showRecordReturnSheet(ProgramMember member) {
+    final amountCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          bool isSaving = false;
+
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            final amount = double.parse(amountCtrl.text);
+            setSheet(() => isSaving = true);
+            try {
+              await widget.repo.confirmProgramReturn(
+                programMemberId: member.id,
+                amountReturned: amount,
+                adminNotes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              _showSnack('Return recorded for ${member.farmerName}');
+              _loadMembers();
+            } catch (_) {
+              setSheet(() => isSaving = false);
+              _showSnack('Failed to record return. Try again.', isError: true);
+            }
+          }
+
+          return ManagementModalShell(
+            title: 'Record Return',
+            subtitle: member.farmerName,
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.program.expectedReturnPercent != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                    child: Text(
+                      'Cooperative policy: ${widget.program.expectedReturnPercent}% expected return',
+                      style: GoogleFonts.inter(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                Form(
+                  key: formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                  TextFormField(
+                    controller: amountCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Amount Returned (₱) *',
+                      hintText: '0.00',
+                      prefixText: '₱ ',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    validator: (value) {
+                      if (!isValidCurrencyValue(value)) return 'Enter a valid amount';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: notesCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes (optional)',
+                      hintText: 'e.g. sold to local buyer, 2 heads',
+                    ),
+                    maxLines: 2,
+                  ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving ? 'Saving…' : 'Confirm Return',
+              isLoading: isSaving,
+              onPrimary: submit,
+            ),
+          );
+        });
+      },
+    );
   }
 
   @override
@@ -877,187 +864,343 @@ class _ProgramMembersSheetState extends State<_ProgramMembersSheet> {
 
     return Column(
       children: [
-        // Sheet handle + title
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-          child: Column(
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.outline.withValues(alpha: 0.30),
-                    borderRadius: BorderRadius.circular(2),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+          child: Text(
+            _isLoading
+                ? 'Loading members…'
+                : '${_members.length} member${_members.length == 1 ? '' : 's'} enrolled',
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+        ),
+        if (_unenrolled.isNotEmpty)
+          Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Row(children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedFarmerId,
+                    decoration: const InputDecoration(
+                      labelText: 'Enroll a member',
+                      isDense: true,
+                    ),
+                    items: _unenrolled
+                        .map((f) => DropdownMenuItem(
+                            value: f['id'],
+                            child: Text(f['name'] ?? 'Unknown', style: GoogleFonts.inter(fontSize: 13))))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedFarmerId = v),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.program.programName,
-                    style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _selectedFarmerId != null ? _enroll : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: cs.primary.withValues(alpha: 0.10),
-                      borderRadius:
-                          BorderRadius.circular(AppConstants.radiusFull),
+                      color: _selectedFarmerId != null
+                          ? AppConstants.primaryGreen
+                          : cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                     ),
                     child: Text(
-                      '${_members.length} member${_members.length == 1 ? '' : 's'}',
-                      style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary),
+                      'Enroll',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _selectedFarmerId != null ? Colors.white : cs.onSurfaceVariant,
+                      ),
                     ),
+                  ),
+                ),
+              ]),
+            ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppConstants.primaryGreen, strokeWidth: 2))
+                : _members.isEmpty
+                    ? Center(
+                        child: Text('No members enrolled yet',
+                            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)))
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        itemCount: _members.length,
+                        separatorBuilder: (_, __) =>
+                            Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
+                        itemBuilder: (_, i) {
+                          final m = _members[i];
+                          final initials = m.farmerName
+                              .trim()
+                              .split(' ')
+                              .where((p) => p.isNotEmpty)
+                              .map((p) => p[0])
+                              .take(2)
+                              .join()
+                              .toUpperCase();
+                          final item = m.inventoryItemId != null ? _itemsById[m.inventoryItemId] : null;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: AppConstants.primaryContainer,
+                                  child: Text(initials,
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(m.farmerName,
+                                          style: GoogleFonts.inter(
+                                              fontSize: 13, fontWeight: FontWeight.w500, color: cs.onSurface)),
+                                      const SizedBox(height: 2),
+                                      Text('Enrolled ${_formatDate(m.enrolledAt)}',
+                                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                                      if (m.isDistributed) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Distributed ${m.quantityGiven?.toStringAsFixed(1)}'
+                                          '${item != null ? ' ${item.unit} ${item.itemName}' : ''}'
+                                          ' on ${_formatDate(m.distributedAt!)}',
+                                          style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppConstants.primaryGreen),
+                                        ),
+                                      ],
+                                      if (m.isSettled) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Settled ₱${m.amountReturned?.toStringAsFixed(2)} on ${_formatDate(m.settledAt!)}',
+                                          style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppConstants.successGreen),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 6,
+                                        children: [
+                                          if (!m.isDistributed)
+                                            _ActionChip(
+                                              label: 'Distribute',
+                                              color: AppConstants.primaryGreen,
+                                              filled: true,
+                                              onTap: () => _showDistributeSheet(m),
+                                            )
+                                          else if (widget.program.isRevenueShare && !m.isSettled)
+                                            _ActionChip(
+                                              label: 'Record Return',
+                                              color: AppConstants.warningAmber,
+                                              filled: true,
+                                              onTap: () => _showRecordReturnSheet(m),
+                                            )
+                                          else
+                                            _ActionChip(
+                                              label: widget.program.isRevenueShare ? 'Settled' : 'Distributed',
+                                              color: AppConstants.successGreen,
+                                              filled: false,
+                                              onTap: null,
+                                              icon: Icons.check_circle_rounded,
+                                            ),
+                                          _ActionChip(
+                                            label: 'Remove',
+                                            color: AppConstants.errorRed,
+                                            filled: false,
+                                            onTap: () async {
+                                              final ok = await widget.repo.removeMember(m.id);
+                                              if (ok) _loadMembers();
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Program Activities tab — scheduled events/meetings for a program, shown
+// alongside Members inside the tabbed Program Details modal.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProgramActivitiesTab extends StatefulWidget {
+  final CooperativeProgram program;
+  final ProgramRepository repo;
+  const _ProgramActivitiesTab({required this.program, required this.repo});
+
+  @override
+  State<_ProgramActivitiesTab> createState() => _ProgramActivitiesTabState();
+}
+
+class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
+  List<ProgramActivity> _activities = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    final activities = await widget.repo.fetchActivities(widget.program.id);
+    if (!mounted) return;
+    setState(() {
+      _activities = activities;
+      _isLoading = false;
+    });
+  }
+
+  void _showAddActivitySheet() {
+    final titleCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final locationCtrl = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    final formKey = GlobalKey<FormState>();
+
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          bool isSaving = false;
+
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            setSheet(() => isSaving = true);
+            final ok = await widget.repo.createActivity(
+              programId: widget.program.id,
+              title: titleCtrl.text,
+              description: descCtrl.text.isEmpty ? null : descCtrl.text,
+              activityDate: selectedDate,
+              location: locationCtrl.text.isEmpty ? null : locationCtrl.text,
+            );
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (ok) _load();
+          }
+
+          return ManagementModalShell(
+            title: 'New Activity',
+            body: Form(
+              key: formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(labelText: 'Title *'),
+                    validator: (v) => (v ?? '').trim().isEmpty ? 'Title is required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Date: ${selectedDate.month}/${selectedDate.day}/${selectedDate.year}'),
+                    trailing: const Icon(Icons.calendar_today_rounded, size: 18),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) setSheet(() => selectedDate = picked);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: locationCtrl,
+                    decoration: const InputDecoration(labelText: 'Location (optional)'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: descCtrl,
+                    decoration: const InputDecoration(labelText: 'Description (optional)'),
+                    maxLines: 2,
                   ),
                 ],
               ),
-            ],
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving ? 'Saving…' : 'Add Activity',
+              isLoading: isSaving,
+              onPrimary: submit,
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _showAddActivitySheet,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Add Activity'),
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
-
-        // Enroll new member row
-        if (_unenrolled.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedFarmerId,
-                  decoration: const InputDecoration(
-                    labelText: 'Enroll a member',
-                    isDense: true,
-                  ),
-                  items: _unenrolled
-                      .map((f) => DropdownMenuItem(
-                          value: f['id'],
-                          child: Text(f['name'] ?? 'Unknown',
-                              style: GoogleFonts.inter(fontSize: 13))))
-                      .toList(),
-                  onChanged: (v) =>
-                      setState(() => _selectedFarmerId = v),
-                ),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _selectedFarmerId != null ? _enroll : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: _selectedFarmerId != null
-                        ? AppConstants.primaryGreen
-                        : cs.surfaceContainerHighest,
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  child: Text(
-                    'Enroll',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _selectedFarmerId != null
-                          ? Colors.white
-                          : cs.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-
-        const SizedBox(height: 8),
-
-        // Member list
         Expanded(
           child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen, strokeWidth: 2))
-              : _members.isEmpty
+              ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen, strokeWidth: 2))
+              : _activities.isEmpty
                   ? Center(
-                      child: Text('No members enrolled yet',
-                          style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: cs.onSurfaceVariant)))
+                      child: Text('No activities scheduled yet',
+                          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)))
                   : ListView.separated(
-                      controller: widget.scrollController,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                      itemCount: _members.length,
-                      separatorBuilder: (_, __) =>
-                          Divider(
-                              height: 1,
-                              color: cs.outline.withValues(alpha: 0.08)),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                      itemCount: _activities.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
                       itemBuilder: (_, i) {
-                        final m = _members[i];
-                        final initials = m.farmerName
-                            .trim()
-                            .split(' ')
-                            .where((p) => p.isNotEmpty)
-                            .map((p) => p[0])
-                            .take(2)
-                            .join()
-                            .toUpperCase();
+                        final a = _activities[i];
                         return ListTile(
-                          tileColor: Colors.transparent,
-                          contentPadding:
-                              const EdgeInsets.symmetric(
-                                  horizontal: 4, vertical: 2),
-                          leading: CircleAvatar(
-                            radius: 18,
-                            backgroundColor:
-                                AppConstants.primaryContainer,
-                            child: Text(initials,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white)),
-                          ),
-                          title: Text(m.farmerName,
-                              style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: cs.onSurface)),
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(a.title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500)),
                           subtitle: Text(
-                            'Enrolled ${_formatDate(m.enrolledAt)}',
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant),
+                            '${_formatDate(a.activityDate)}${a.location != null ? ' · ${a.location}' : ''}',
+                            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
                           ),
-                          trailing: GestureDetector(
-                            onTap: () async {
-                              final ok = await widget.repo
-                                  .removeMember(m.id);
-                              if (ok) _loadMembers();
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppConstants.errorRed),
+                            onPressed: () async {
+                              final ok = await widget.repo.deleteActivity(a.id);
+                              if (ok) _load();
                             },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: AppConstants.errorRed
-                                    .withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusFull),
-                              ),
-                              child: Text(
-                                'Remove',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppConstants.errorRed,
-                                ),
-                              ),
-                            ),
                           ),
                         );
                       },
@@ -1066,10 +1209,56 @@ class _ProgramMembersSheetState extends State<_ProgramMembersSheet> {
       ],
     );
   }
+}
 
-  String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+// ─────────────────────────────────────────────────────────────────────────────
+// Small pill-style action chip, shared by the primary contextual action
+// and the secondary Remove action on each enrolled member row.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActionChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback? onTap;
+  final IconData? icon;
+
+  const _ActionChip({
+    required this.label,
+    required this.color,
+    required this.filled,
+    required this.onTap,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: filled ? color : color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 12, color: filled ? Colors.white : color),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: filled ? Colors.white : color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

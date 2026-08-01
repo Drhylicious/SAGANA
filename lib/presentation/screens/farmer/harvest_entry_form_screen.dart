@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
+import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_entry_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -14,7 +15,7 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 
 class HarvestEntryFormScreen extends StatefulWidget {
-  final dynamic crop;
+  final FarmerCropModel? crop; // optional pre-fill from My Crops' shortcut
   const HarvestEntryFormScreen({super.key, this.crop});
 
   @override
@@ -29,18 +30,19 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   final _storageController = TextEditingController();
   final _notesController = TextEditingController();
   final _repo = HarvestEntryRepository();
+  final _cropRepo = CropRepository();
 
-  late FarmerCropModel _crop;
-  late String _batchNumber;
+  List<FarmerCropModel> _myCrops = [];
+  FarmerCropModel? _selectedCrop;
+  FarmerCropModel? _blockedCrop;
+  bool _isLoadingCrops = true;
+  String? _previewBatchNumber;
 
-  String _selectedGrade = 'Grade A';
   DateTime _harvestDate = DateTime.now();
   bool _isLoading = false;
   bool _isSuccess = false;
   String? _errorMessage;
   bool _isOnline = true;
-  bool _cropLoaded = false;
-  bool _cropMissing = false;
 
   @override
   void initState() {
@@ -53,27 +55,59 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
+    _loadCrops();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_cropLoaded) {
-      // Prefer explicit route extra passed by GoRouter, fall back to
-      // ModalRoute arguments for legacy callers.
-      final arg = widget.crop ?? ModalRoute.of(context)?.settings.arguments;
-      if (arg is FarmerCropModel) {
-        _crop = arg;
-        final code = _crop.cropName.length >= 4
-            ? _crop.cropName.substring(0, 4).toUpperCase()
-            : _crop.cropName.toUpperCase();
-        _batchNumber = AppUtils.generateBatchNumber(code);
-        _cropLoaded = true;
+  Future<void> _loadCrops() async {
+    final crops = await _cropRepo.fetchCrops(approvedOnly: true);
+    if (!mounted) return;
+    setState(() {
+      _myCrops = crops;
+      // Pre-fill from the shortcut if one was passed; otherwise auto-select
+      // when there's only one crop to begin with — one less tap for the
+      // common case of a farmer who grows a single crop.
+      //
+      // Resolve widget.crop to the matching instance from this fresh fetch
+      // (by id) rather than using the passed-in object directly — the
+      // dropdown's items list is built from `crops`, so its initialValue
+      // must be one of those exact instances or DropdownButtonFormField's
+      // "exactly one matching item" assertion fails. (FarmerCropModel now
+      // also has value equality by id, so this is a defensive backstop.)
+      if (widget.crop != null) {
+        final match = crops.where((c) => c.id == widget.crop!.id);
+        if (match.isNotEmpty) {
+          _selectedCrop = match.first;
+          _blockedCrop = null;
+        } else {
+          // The crop that was passed in isn't in the approved list —
+          // either still pending or rejected. Don't silently fall back
+          // to using it; surface that plainly instead.
+          _selectedCrop = null;
+          _blockedCrop = widget.crop;
+        }
+      } else if (crops.length == 1) {
+        _selectedCrop = crops.first;
       } else {
-        _cropMissing = true;
-        _cropLoaded = true;
+        _selectedCrop = null;
       }
-    }
+      _previewBatchNumber =
+          _selectedCrop != null ? _generateBatchNumber(_selectedCrop!) : null;
+      _isLoadingCrops = false;
+    });
+  }
+
+  void _onCropChanged(FarmerCropModel crop) {
+    setState(() {
+      _selectedCrop = crop;
+      _previewBatchNumber = _generateBatchNumber(crop);
+    });
+  }
+
+  String _generateBatchNumber(FarmerCropModel crop) {
+    final code = crop.cropName.length >= 4
+        ? crop.cropName.substring(0, 4).toUpperCase()
+        : crop.cropName.toUpperCase();
+    return AppUtils.generateBatchNumber(code);
   }
 
   @override
@@ -106,6 +140,16 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
   Future<void> _handleSubmit() async {
     setState(() => _errorMessage = null);
+    if (_selectedCrop == null) {
+      setState(() => _errorMessage = _blockedCrop != null
+          ? '${_blockedCrop!.cropName} is still awaiting admin approval and can\'t be harvested yet.'
+          : 'Please select a crop.');
+      return;
+    }
+    if (_selectedCrop!.isPendingApproval) {
+      setState(() => _errorMessage = 'This crop is still awaiting admin approval and can\'t be harvested yet.');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final qty = double.tryParse(_quantityController.text.trim());
@@ -118,19 +162,14 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final cropLower = _crop.cropName.toLowerCase();
-      final isCoop = cropLower.contains('palay') ||
-          cropLower.contains('peanut') ||
-          cropLower.contains('mani');
-
+      final batchNumber = _generateBatchNumber(_selectedCrop!);
       await _repo.submitHarvest(
-        cropId: _crop.id,
-        cropName: _crop.cropName,
-        cropCategory: _crop.category,
+        cropId: _selectedCrop!.id,
+        cropName: _selectedCrop!.cropName,
+        cropCategory: _selectedCrop!.category,
         quantityKg: qty,
-        qualityGrade: _selectedGrade,
         harvestDate: _harvestDate,
-        batchNumber: _batchNumber,
+        batchNumber: batchNumber,
         variety: _varietyController.text.trim().isEmpty
             ? null
             : _varietyController.text.trim(),
@@ -140,7 +179,6 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
-        submittedToCooperative: isCoop,
       );
 
       AppEventService.instance.notifyHarvestRecorded();
@@ -151,7 +189,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       });
 
       await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) _showSuccessDialog(qty, isCoop);
+      if (mounted) _showSuccessDialog(qty, batchNumber);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -162,7 +200,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     }
   }
 
-  void _showSuccessDialog(double qty, bool isCoop) {
+  void _showSuccessDialog(double qty, String batchNumber) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -190,9 +228,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                     color: AppConstants.charcoal)),
             const SizedBox(height: 8),
             Text(
-              '${qty.toStringAsFixed(0)} kg of ${_crop.cropName} recorded '
-              '(Batch #$_batchNumber).'
-              '${isCoop ? '\n\nMarked as submitted to the SP3 Cooperative.' : ''}',
+              '${qty.toStringAsFixed(0)} kg of ${_selectedCrop!.cropName} recorded '
+              '(Batch #$batchNumber).\n\nCheck Inventory to sell, offer it '
+              'to the cooperative, or record a sale.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                   fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5),
@@ -225,33 +263,25 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_cropLoaded) {
+    if (_isLoadingCrops) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator(
             color: AppConstants.primaryGreen)),
       );
     }
 
-    if (_cropMissing) {
-      return Scaffold(
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded, size: 56, color: AppConstants.errorRed),
-                const SizedBox(height: 12),
-                Text('Crop not found', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Text('No crop data was provided. Please return to the crop listing and try again.', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
-                const SizedBox(height: 16),
-                ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Back')),
-              ],
-            ),
-          ),
-        ),
+    if (_myCrops.isEmpty) {
+      if (_blockedCrop != null) {
+        // The farmer's only crop is the one that was passed in, and it's
+        // not approved yet — the generic "you have no crops" message would
+        // be misleading here, since they do have one, it just isn't usable.
+        return _PendingCropBlockedState(
+          cropName: _blockedCrop!.cropName,
+          onGoToMyCrops: () => context.pushRoute(AppRoutes.cropListing),
+        );
+      }
+      return _NoCropsEmptyState(
+        onGoToMyCrops: () => context.pushRoute(AppRoutes.cropListing),
       );
     }
 
@@ -271,21 +301,23 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Crop header
-                        _CropHeaderCard(crop: _crop),
-                        const SizedBox(height: 16),
+                        // Blocked-crop banner — shown when the crop passed
+                        // in via the shortcut isn't approved yet. The farmer
+                        // can still pick a different approved crop below.
+                        if (_blockedCrop != null) ...[
+                          _PendingCropBanner(cropName: _blockedCrop!.cropName),
+                          const SizedBox(height: 16),
+                        ],
+                        // Crop selector — now the first field, not a fixed header
+                        _CropSelectorField(
+                          crops: _myCrops,
+                          selected: _selectedCrop,
+                          onChanged: _onCropChanged,
+                        ),
+                        const SizedBox(height: 20),
 
                         // ── Quantity ──────────────────────────────────────
                         _QuantityField(controller: _quantityController),
-                        const SizedBox(height: 20),
-
-                        // ── Quality Grade ─────────────────────────────────
-                        const _FieldLabel('Quality Grade*'),
-                        const SizedBox(height: 8),
-                        _GradeSelector(
-                          selected: _selectedGrade,
-                          onChanged: (g) => setState(() => _selectedGrade = g),
-                        ),
                         const SizedBox(height: 20),
 
                         // ── Variety ───────────────────────────────────────
@@ -301,7 +333,8 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         // ── Batch Number ──────────────────────────────────
                         const _FieldLabel('Batch Number'),
                         const SizedBox(height: 8),
-                        _BatchNumberField(batchNumber: _batchNumber),
+                        _BatchNumberField(
+                            batchNumber: _previewBatchNumber ?? '—'),
                         const SizedBox(height: 16),
 
                         // ── Harvest Date ──────────────────────────────────
@@ -340,7 +373,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
           Positioned(
             top: 0, left: 0, right: 0,
             child: FarmerTopBar(
-              title: _crop.cropName,
+              title: _selectedCrop?.cropName ?? 'Record Harvest',
               onBack: () => Navigator.of(context).pop(),
               profilePhotoUrl: null,
               onProfileTap: () {},
@@ -448,75 +481,146 @@ class _PulsingDotState extends State<_PulsingDot>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Crop Header Card
+// Crop Selector Field
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _CropHeaderCard extends StatelessWidget {
-  final FarmerCropModel crop;
-  const _CropHeaderCard({required this.crop});
+class _CropSelectorField extends StatelessWidget {
+  final List<FarmerCropModel> crops;
+  final FarmerCropModel? selected;
+  final ValueChanged<FarmerCropModel> onChanged;
+
+  const _CropSelectorField({
+    required this.crops,
+    required this.selected,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 20, offset: const Offset(0, 4),
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text('Crop',
+              style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w500,
+                  color: AppConstants.charcoal)),
+        ),
+        DropdownButtonFormField<FarmerCropModel>(
+          initialValue: selected,
+          isExpanded: true,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            prefixIcon: const Icon(Icons.eco_outlined,
+                size: 20, color: AppConstants.outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              borderSide: BorderSide(
+                  color: AppConstants.outline.withValues(alpha: 0.20)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              borderSide: BorderSide(
+                  color: AppConstants.outline.withValues(alpha: 0.20)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              borderSide: const BorderSide(
+                  color: AppConstants.primaryContainer, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
           ),
-          child: Row(
+          hint: Text('Select a crop',
+              style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppConstants.outline.withValues(alpha: 0.60))),
+          items: crops.map((crop) => DropdownMenuItem(
+            value: crop,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(crop.cropName, style: GoogleFonts.inter(fontSize: 14)),
+                if (crop.isPendingApproval) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppConstants.warningAmber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                    ),
+                    child: Text('Pending',
+                        style: GoogleFonts.inter(
+                            fontSize: 10, color: AppConstants.warningAmber)),
+                  ),
+                ],
+              ],
+            ),
+          )).toList(),
+          validator: (v) => v == null ? 'Please select a crop' : null,
+          onChanged: (crop) { if (crop != null) onChanged(crop); },
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// No Crops Empty State
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NoCropsEmptyState extends StatelessWidget {
+  final VoidCallback onGoToMyCrops;
+  const _NoCropsEmptyState({required this.onGoToMyCrops});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppConstants.offWhite,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Crop photo or icon
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: crop.hasPhoto
-                    ? Image.network(
-                        crop.photoUrl!,
-                        width: 64, height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _CropIconBox(category: crop.category),
-                      )
-                    : _CropIconBox(category: crop.category),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('CROP NAME',
-                        style: GoogleFonts.poppins(
-                            fontSize: 9, fontWeight: FontWeight.w500,
-                            color: AppConstants.onSurfaceVariant,
-                            letterSpacing: 1.0)),
-                    const SizedBox(height: 2),
-                    Text(crop.cropName,
-                        style: GoogleFonts.poppins(
-                            fontSize: 18, fontWeight: FontWeight.w700,
-                            color: AppConstants.primaryGreen)),
-                  ],
-                ),
-              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                width: 88, height: 88,
                 decoration: BoxDecoration(
-                  color: AppConstants.secondaryContainer.withValues(alpha: 0.20),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  border: Border.all(color: AppConstants.amber.withValues(alpha: 0.20)),
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.eco_outlined,
+                    size: 40, color: AppConstants.primaryGreen),
+              ),
+              const SizedBox(height: 20),
+              Text("You don't have any crops yet",
+                  style: GoogleFonts.poppins(
+                      fontSize: 18, fontWeight: FontWeight.w700,
+                      color: AppConstants.charcoal)),
+              const SizedBox(height: 8),
+              Text(
+                'Add a crop from the cooperative\'s list before recording a harvest.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    fontSize: 13, color: AppConstants.onSurfaceVariant),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: onGoToMyCrops,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
                 ),
-                child: Text(crop.category,
+                child: Text('Go to My Crops',
                     style: GoogleFonts.poppins(
-                        fontSize: 11, fontWeight: FontWeight.w500,
-                        color: AppConstants.amber)),
+                        fontSize: 14, fontWeight: FontWeight.w500)),
               ),
             ],
           ),
@@ -526,32 +630,108 @@ class _CropHeaderCard extends StatelessWidget {
   }
 }
 
-class _CropIconBox extends StatelessWidget {
-  final String category;
-  const _CropIconBox({required this.category});
+// ───────────────────────────────────────────────────────────────────────────────
+// Pending Crop Blocked State — shown instead of _NoCropsEmptyState when
+// the farmer's only crop is the one passed in and it isn't approved yet.
+// ───────────────────────────────────────────────────────────────────────────────
+
+class _PendingCropBlockedState extends StatelessWidget {
+  final String cropName;
+  final VoidCallback onGoToMyCrops;
+  const _PendingCropBlockedState({
+    required this.cropName,
+    required this.onGoToMyCrops,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppConstants.offWhite,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 88, height: 88,
+                decoration: BoxDecoration(
+                    color: AppConstants.amber.withValues(alpha: 0.10),
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.hourglass_top_rounded,
+                    size: 40, color: AppConstants.amber),
+              ),
+              const SizedBox(height: 20),
+              Text('$cropName is still awaiting approval',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                      fontSize: 18, fontWeight: FontWeight.w700,
+                      color: AppConstants.charcoal)),
+              const SizedBox(height: 8),
+              Text(
+                'You can record a harvest once the cooperative approves this crop.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    fontSize: 13, color: AppConstants.onSurfaceVariant),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: onGoToMyCrops,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+                ),
+                child: Text('Go to My Crops',
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Pending Crop Banner — inline warning shown above the crop selector when
+// the crop passed in via a shortcut isn't approved yet, but the farmer has
+// other approved crops to choose from instead.
+// ───────────────────────────────────────────────────────────────────────────────
+
+class _PendingCropBanner extends StatelessWidget {
+  final String cropName;
+  const _PendingCropBanner({required this.cropName});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 64, height: 64,
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppConstants.onPrimaryContainer.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
+        color: AppConstants.amber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: AppConstants.amber.withValues(alpha: 0.25)),
       ),
-      child: Icon(_cropIcon(category), color: AppConstants.primaryGreen, size: 32),
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_top_rounded, size: 18, color: AppConstants.amber),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$cropName is still awaiting admin approval and can\'t be harvested yet. '
+              'Pick another crop below, or go back once it\'s approved.',
+              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.amber),
+            ),
+          ),
+        ],
+      ),
     );
-  }
-
-  IconData _cropIcon(String category) {
-    switch (category) {
-      case 'Grain': return Icons.grass_rounded;
-      case 'Legume': return Icons.eco_rounded;
-      case 'Root & Spice Crop': return Icons.spa_rounded;
-      case 'Fruit': return Icons.local_florist_rounded;
-      case 'Tree Crop': return Icons.park_rounded;
-      case 'Vegetable': return Icons.agriculture_rounded;
-      default: return Icons.eco_rounded;
-    }
   }
 }
 
@@ -630,56 +810,6 @@ class _QuantityField extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Grade Selector
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GradeSelector extends StatelessWidget {
-  final String selected;
-  final ValueChanged<String> onChanged;
-
-  const _GradeSelector({required this.selected, required this.onChanged});
-
-  static const _grades = ['Grade A', 'Grade B', 'Grade C'];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFDBF1FE),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.10)),
-      ),
-      child: Row(
-        children: _grades.map((grade) {
-          final isActive = grade == selected;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(grade),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: isActive ? AppConstants.primaryContainer : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: Text(grade,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                        fontSize: 13, fontWeight: FontWeight.w500,
-                        color: isActive
-                            ? AppConstants.onPrimaryContainer
-                            : AppConstants.onSurfaceVariant)),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 }
@@ -984,4 +1114,3 @@ class _SubmitButton extends StatelessWidget {
     );
   }
 }
-

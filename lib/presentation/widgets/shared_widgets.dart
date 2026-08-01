@@ -1,10 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../data/services/profile_state_service.dart';
 import 'animated_pressable.dart';
+import 'material_list_tile.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
+
+export 'farmer_top_bar.dart';
+export 'disposal_action_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GlassCard
@@ -50,190 +53,6 @@ class GlassCard extends StatelessWidget {
             ],
           ),
           child: child,
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FarmerTopBar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class FarmerTopBar extends StatefulWidget {
-  final String? profilePhotoUrl;
-  final String? title;
-  final VoidCallback? onBack;
-  final VoidCallback onProfileTap;
-  final VoidCallback onNotificationTap;
-  final VoidCallback? onSettingsTap;
-  final List<Widget>? trailing;
-  final bool hideProfileAvatar;
-  final bool showNotificationButton;
-
-  const FarmerTopBar({
-    super.key,
-    this.profilePhotoUrl,
-    this.title,
-    this.onBack,
-    required this.onProfileTap,
-    required this.onNotificationTap,
-    this.onSettingsTap,
-    this.trailing,
-    this.hideProfileAvatar = false,
-    this.showNotificationButton = true,
-  });
-
-  @override
-  State<FarmerTopBar> createState() => _FarmerTopBarState();
-}
-
-class _FarmerTopBarState extends State<FarmerTopBar> {
-  final FarmerProfileStateService _profileState =
-      FarmerProfileStateService.instance;
-
-  @override
-  void initState() {
-    super.initState();
-    _profileState.addListener(_onProfileStateChanged);
-  }
-
-  @override
-  void dispose() {
-    _profileState.removeListener(_onProfileStateChanged);
-    super.dispose();
-  }
-
-  void _onProfileStateChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
-    final sagana =
-        Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
-    final cs = Theme.of(context).colorScheme;
-    final effectiveProfilePhotoUrl = widget.hideProfileAvatar
-        ? null
-        : widget.profilePhotoUrl ?? _profileState.profilePhotoUrl;
-
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64 + topPadding,
-          padding: EdgeInsets.only(top: topPadding, left: 20, right: 20),
-          decoration: BoxDecoration(
-            color: sagana.navBarBackground,
-            border: Border(
-              bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20)),
-            ),
-          ),
-          child: Row(
-            children: [
-              // Left: Back button, profile, or empty placeholder
-              if (widget.onBack != null)
-                GestureDetector(
-                  onTap: widget.onBack,
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: sagana.cardBackground,
-                      border: Border.all(
-                        color: cs.primary.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    child: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                  ),
-                )
-              else if (widget.hideProfileAvatar)
-                const SizedBox(width: 40, height: 40)
-              else
-                GestureDetector(
-                  onTap: widget.onProfileTap,
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: cs.primary.withValues(alpha: 0.20),
-                        width: 2,
-                      ),
-                      color: AppConstants.limeGreen,
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: effectiveProfilePhotoUrl != null
-                        ? Image.network(
-                            effectiveProfilePhotoUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.person_rounded,
-                              color: cs.primary,
-                              size: 22,
-                            ),
-                          )
-                        : Icon(
-                            Icons.person_rounded,
-                            color: cs.primary,
-                            size: 22,
-                          ),
-                  ),
-                ),
-
-              // Center: Title (if provided)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: widget.title != null
-                      ? Text(
-                          widget.title!,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-
-              // Right: Custom trailing widgets or default Notifications + Settings
-              Row(
-                children: widget.trailing != null
-                    ? widget.trailing!
-                    : [
-                        if (widget.showNotificationButton) ...[
-                          GestureDetector(
-                            onTap: widget.onNotificationTap,
-                            child: Icon(
-                              Icons.notifications_outlined,
-                              color: cs.primary,
-                              size: 26,
-                            ),
-                          ),
-                        ],
-                        if (widget.onSettingsTap != null) ...[
-                          if (widget.showNotificationButton)
-                            const SizedBox(width: 16),
-                          GestureDetector(
-                            onTap: widget.onSettingsTap,
-                            child: Icon(
-                              Icons.settings_outlined,
-                              color: cs.primary,
-                              size: 26,
-                            ),
-                          ),
-                        ],
-                      ],
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -440,6 +259,550 @@ class OfflineBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PriorityCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PrioritySeverity { info, warning, critical }
+
+class PriorityItem {
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final PrioritySeverity severity;
+  final VoidCallback onTap;
+
+  const PriorityItem({
+    required this.title,
+    this.subtitle,
+    required this.icon,
+    this.severity = PrioritySeverity.info,
+    required this.onTap,
+  });
+}
+
+class PriorityCard extends StatelessWidget {
+  final List<PriorityItem> items;
+  final String allClearTitle;
+  final String allClearMessage;
+
+  const PriorityCard({
+    super.key,
+    required this.items,
+    required this.allClearTitle,
+    required this.allClearMessage,
+  });
+
+  Color _severityColor(PrioritySeverity severity) {
+    switch (severity) {
+      case PrioritySeverity.critical:
+        return AppConstants.errorRed;
+      case PrioritySeverity.warning:
+        return AppConstants.warningAmber;
+      case PrioritySeverity.info:
+        return AppConstants.midGreen;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (items.isEmpty) {
+      return GlassCard(
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppConstants.successGreen,
+              ),
+              child: const Icon(Icons.check_rounded,
+                  color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    allClearTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.successGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    allClearMessage,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        children: items.asMap().entries.map((entry) {
+          final isLast = entry.key == items.length - 1;
+          final item = entry.value;
+          final color = _severityColor(item.severity);
+
+          return AnimatedPressable(
+            onTap: item.onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                vertical: AppConstants.spacingMd,
+                horizontal: AppConstants.spacingSm,
+              ),
+              decoration: BoxDecoration(
+                border: isLast
+                    ? null
+                    : Border(
+                        bottom: BorderSide(
+                          color: cs.outline.withValues(alpha: 0.12),
+                        ),
+                      ),
+              ),
+              child: Row(
+                children: [
+                  Icon(item.icon, color: color, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        if (item.subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            item.subtitle!,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: cs.outline, size: 20),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QuickActionButton
+// ─────────────────────────────────────────────────────────────────────────────
+
+class QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const QuickActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: AnimatedPressable(
+        onTap: onTap,
+        scaleDown: 0.95,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            vertical: AppConstants.spacingMd,
+          ),
+          decoration: BoxDecoration(
+            color: AppConstants.primaryContainer.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            border: Border.all(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: AppConstants.primaryGreen, size: 24),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StatusStepper — shared listing-pipeline progress indicator
+// Used on the Marketplace landing page, Create Listing (preview), and
+// Listing Success screens so the same visual thread runs through the flow.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class StatusStepper extends StatelessWidget {
+  /// Index of the furthest-reached step (inclusive, shown as green).
+  /// Pass -1 for "not started yet" (all steps shown as upcoming/grey) —
+  /// used on Create Listing as a preview of what's about to happen.
+  final int currentStep;
+  final List<String> labels;
+
+  const StatusStepper({
+    super.key,
+    required this.currentStep,
+    this.labels = const ['Submitted', 'Under Review', 'Live'],
+  });
+
+  /// Maps a marketplace_listings.status value to the right step index,
+  /// matching the workflow in supabase_schema_marketplace.sql.
+  factory StatusStepper.forListingStatus(String status) {
+    return StatusStepper(currentStep: status == 'approved' ? 2 : 1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(labels.length * 2 - 1, (i) {
+        if (i.isOdd) {
+          final lineIndex = i ~/ 2;
+          final isDone = lineIndex < currentStep;
+          return Expanded(
+            child: Container(
+              height: 2,
+              color: isDone
+                  ? AppConstants.primaryGreen
+                  : AppConstants.outline.withValues(alpha: 0.20),
+            ),
+          );
+        }
+        final stepIndex = i ~/ 2;
+        final isDone = stepIndex <= currentStep;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDone
+                    ? AppConstants.primaryGreen
+                    : AppConstants.outline.withValues(alpha: 0.25),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              labels[stepIndex],
+              style: GoogleFonts.inter(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: isDone
+                    ? AppConstants.primaryGreen
+                    : AppConstants.outline,
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SectionLabel — small uppercase header above a grouped settings/profile
+// section. Replaces the four near-identical private _SectionLabel classes
+// previously duplicated in admin_profile_screen.dart (as a method),
+// buyer_account_screen.dart, buyer_edit_profile_screen.dart,
+// buyer_settings_screen.dart, and farmer_settings_screen.dart.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class SectionLabel extends StatelessWidget {
+  final String label;
+  final double bottomSpacing;
+
+  const SectionLabel({
+    super.key,
+    required this.label,
+    this.bottomSpacing = 8,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(left: 4, bottom: bottomSpacing),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SettingsCard / SettingsRow — the grouped-row settings container used by
+// every Profile/Settings screen. Replaces admin_profile_screen.dart's
+// _settingsCard()/_settingsRow() methods, buyer_settings_screen.dart's
+// _SettingsCard/_SettingsRow, and farmer_settings_screen.dart's
+// _SettingsCard/_SettingsRow — three previously-independent copies of the
+// same UI. SettingsRow is built on the existing MaterialListTile so ripple
+// behavior comes from there rather than a fourth reimplementation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class SettingsCard extends StatelessWidget {
+  final List<Widget> children;
+  const SettingsCard({super.key, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final sagana = context.saganaColors;
+    return Container(
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
+    );
+  }
+}
+
+class SettingsRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final Color? titleColor;
+  final bool showChevron;
+
+  const SettingsRow({
+    super.key,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+    this.titleColor,
+    this.showChevron = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return MaterialListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.10), shape: BoxShape.circle),
+        child: Icon(icon, color: iconColor, size: 18),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: titleColor ?? cs.onSurface),
+      ),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant))
+          : null,
+      trailing: showChevron ? Icon(Icons.chevron_right_rounded, color: cs.outline, size: 18) : null,
+    );
+  }
+}
+
+class SettingsDivider extends StatelessWidget {
+  const SettingsDivider({super.key});
+  @override
+  Widget build(BuildContext context) => Divider(
+        height: 1,
+        indent: 16,
+        endIndent: 16,
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.10),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ToggleRow — settings row with a trailing Switch instead of a chevron.
+// Currently only Farmer Settings needs this (notification preferences),
+// but shared here so Admin/Buyer can adopt the same visual language if
+// they gain toggleable preferences later, rather than a role reimplementing it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ToggleRow extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const ToggleRow({super.key, required this.title, this.subtitle, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: cs.onSurface)),
+                if (subtitle != null && subtitle!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                  ),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SignOutButton — the one Sign Out / Log Out control for all three roles.
+// Matches Buyer's existing pill treatment exactly (previously only Buyer
+// had this; Admin used a full-width SettingsRow, Farmer TBD per its own
+// private widget) so container, spacing, size, and radius are now identical
+// everywhere it appears.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class SignOutButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const SignOutButton({super.key, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppConstants.errorRed.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.15)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.logout_rounded, color: AppConstants.errorRed, size: 18),
+              const SizedBox(width: 8),
+              Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppConstants.errorRed)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AppBrandingBlock — the SAGANA info/version footer. Consolidates the two
+// previously-duplicated copies in farmer_settings_screen.dart and
+// buyer_settings_screen.dart into one. Position within each screen is up
+// to the caller — Farmer's placement moves to below Sign Out (Buyer's
+// position) as part of this same change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AppBrandingBlock extends StatelessWidget {
+  const AppBrandingBlock({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.50)),
+        boxShadow: [BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 10)],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [AppConstants.primaryGreen, AppConstants.primaryContainer]),
+              ),
+              child: const Icon(Icons.agriculture_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 12),
+            Text('SAGANA', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+            Text('Streamlined Agricultural Gateway for\nAgribusiness, Networking, and Analytics',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant, height: 1.4)),
+            const SizedBox(height: 6),
+            Text('v1.0.0', style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.amber, letterSpacing: 1.2)),
+            const SizedBox(height: 16),
+            Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+            const SizedBox(height: 14),
+            Text('Developed by Marinduque State University — BSIT',
+                textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+            Text('Partner: SP3 Agriculture Cooperative',
+                textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.onSurface)),
+          ],
+        ),
       ),
     );
   }

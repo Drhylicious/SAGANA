@@ -97,9 +97,7 @@ class _MyHarvestSummaryScreenState extends State<MyHarvestSummaryScreen> {
               label: 'View Harvests',
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(
-                  context,
-                ).pushNamed(AppRoutes.harvestManagement, arguments: crop);
+                context.pushRoute(AppRoutes.harvestHistory, extra: crop.cropName);
               },
             ),
             _MenuOption(
@@ -107,9 +105,7 @@ class _MyHarvestSummaryScreenState extends State<MyHarvestSummaryScreen> {
               label: 'Record Harvest for This Crop',
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(
-                  context,
-                ).pushNamed(AppRoutes.harvestEntryForm, arguments: crop);
+                context.pushRoute(AppRoutes.harvestEntryForm, extra: crop);
               },
             ),
           ],
@@ -166,9 +162,7 @@ class _MyHarvestSummaryScreenState extends State<MyHarvestSummaryScreen> {
                         )
                       else if (_crops.isEmpty)
                         _EmptyState(
-                          onAdd: () => Navigator.of(
-                            context,
-                          ).pushNamed(AppRoutes.addCrop),
+                          onAdd: () => context.pushRoute(AppRoutes.cropListing),
                         )
                       else
                         ..._crops.map(
@@ -179,8 +173,8 @@ class _MyHarvestSummaryScreenState extends State<MyHarvestSummaryScreen> {
                               totalKg: _kgPerCrop[crop.id] ?? 0,
                               onMenuTap: () => _showCropMenu(crop),
                               onTap: () => context.pushRoute(
-                                AppRoutes.harvestManagement,
-                                extra: crop,
+                                AppRoutes.harvestHistory,
+                                extra: crop.cropName,
                               ),
                             ),
                           ),
@@ -198,11 +192,10 @@ class _MyHarvestSummaryScreenState extends State<MyHarvestSummaryScreen> {
             child: FarmerTopBar(
               title: 'Harvest Summary',
               onBack: () => Navigator.of(context).pop(),
-              profilePhotoUrl: null,
+              hideProfileAvatar: true,
               onProfileTap: () {},
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              onSettingsTap: null,
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
         ],

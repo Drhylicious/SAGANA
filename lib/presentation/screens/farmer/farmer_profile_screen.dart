@@ -8,6 +8,8 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
@@ -23,6 +25,7 @@ class FarmerProfileScreen extends StatefulWidget {
 
 class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   final _repo = FarmerProfileRepository();
+  final _notifRepo = NotificationRepository();
   final _picker = ImagePicker();
 
   FarmerProfileModel? _profile;
@@ -30,6 +33,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   double _monthExpenses = 0;
   int _harvestCount = 0;
   int _unsyncedCount = 0;
+  int _unreadCount = 0;
+  int _programCount = 0;
   bool _isLoading = true;
   bool _farmDetailsExpanded = true;
   bool _isUploadingPhoto = false;
@@ -37,6 +42,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   @override
   void initState() {
     super.initState();
+    AppEventService.instance.addListener(_onDataChanged);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -46,6 +52,16 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    AppEventService.instance.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadData();
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
@@ -53,6 +69,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _repo.fetchOutstandingLoans(),
       _repo.fetchThisMonthExpenses(),
       _repo.fetchHarvestRecordCount(),
+      _notifRepo.fetchUnreadCount(),
+      _repo.fetchMyProgramCount(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -60,6 +78,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _outstandingLoans = results[1] as double;
       _monthExpenses = results[2] as double;
       _harvestCount = results[3] as int;
+      _unreadCount = results[4] as int;
+      _programCount = results[5] as int;
       _unsyncedCount = HiveService.getUnsyncedCount();
       _isLoading = false;
     });
@@ -152,12 +172,15 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                               outstandingLoans: _outstandingLoans,
                               monthExpenses: _monthExpenses,
                               harvestCount: _harvestCount,
+                              programCount: _programCount,
                               onLoansTap: () =>
                                   context.goTab(AppRoutes.myLoans),
                               onExpensesTap: () =>
                                   context.goTab(AppRoutes.myExpenses),
                               onHarvestSummaryTap: () =>
                                   context.goTab(AppRoutes.myHarvestSummary),
+                              onProgramsTap: () =>
+                                  context.goTab(AppRoutes.myPrograms),
                             ),
                             const SizedBox(height: 16),
                             _BalikTangkilikCard(
@@ -177,7 +200,9 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: 'Profile',
               profilePhotoUrl: _profile?.profilePhotoUrl,
+              unreadCount: _unreadCount,
               hideProfileAvatar: true,
               onProfileTap: () {},
               onNotificationTap: () =>
@@ -260,35 +285,6 @@ class _ProfileHeaderCard extends StatelessWidget {
                                       _PhotoPlaceholder(),
                                 )
                               : _PhotoPlaceholder(),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: onEditPhoto,
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: AppConstants.primaryGreen,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: isUploadingPhoto
-                                ? const SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1.5,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.edit_rounded,
-                                    size: 13,
-                                    color: Colors.white,
-                                  ),
-                          ),
                         ),
                       ),
                     ],
@@ -855,17 +851,21 @@ class _FinancialRecordsSection extends StatelessWidget {
   final double outstandingLoans;
   final double monthExpenses;
   final int harvestCount;
+  final int programCount;
   final VoidCallback onLoansTap;
   final VoidCallback onExpensesTap;
   final VoidCallback onHarvestSummaryTap;
+  final VoidCallback onProgramsTap;
 
   const _FinancialRecordsSection({
     required this.outstandingLoans,
     required this.monthExpenses,
     required this.harvestCount,
+    required this.programCount,
     required this.onLoansTap,
     required this.onExpensesTap,
     required this.onHarvestSummaryTap,
+    required this.onProgramsTap,
   });
 
   @override
@@ -909,6 +909,14 @@ class _FinancialRecordsSection extends StatelessWidget {
           subtitle:
               '$harvestCount harvest record${harvestCount == 1 ? '' : 's'}',
           onTap: onHarvestSummaryTap,
+        ),
+        const SizedBox(height: 8),
+        _RecordRow(
+          icon: Icons.volunteer_activism_rounded,
+          iconColor: AppConstants.programPurple,
+          title: 'My Programs',
+          subtitle: '$programCount active program${programCount == 1 ? '' : 's'}',
+          onTap: onProgramsTap,
         ),
       ],
     );

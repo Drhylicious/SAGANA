@@ -8,6 +8,7 @@ import '../../../data/repositories/crop_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/crop_catalog_sheet.dart';
 import '../../widgets/shared_widgets.dart';
 
 class CropListingScreen extends StatefulWidget {
@@ -57,14 +58,20 @@ class _CropListingScreenState extends State<CropListingScreen> {
     });
   }
 
-  Future<void> _navigateToAddCrop() async {
-    final result = await context.pushRoute(AppRoutes.addCrop);
-    // Refresh list if a crop was added
-    if (result == true) _loadCrops();
+  Future<void> _openCropCatalog() async {
+    final added = await showCropCatalogSheet(
+      context,
+      repo: _cropRepo,
+      existingCropMasterIds: _crops
+          .where((c) => c.cropMasterId != null)
+          .map((c) => c.cropMasterId!)
+          .toList(),
+    );
+    if (added == true) _loadCrops();
   }
 
   void _onCropTap(FarmerCropModel crop) {
-    context.pushRoute(AppRoutes.harvestManagement, extra: crop);
+    context.pushRoute(AppRoutes.cropDetails, extra: crop);
   }
 
   void _showCropMenu(BuildContext context, FarmerCropModel crop) {
@@ -75,14 +82,16 @@ class _CropListingScreenState extends State<CropListingScreen> {
         crop: crop,
         onViewHarvests: () {
           Navigator.pop(context);
-          context.pushRoute(AppRoutes.harvestManagement, extra: crop);
+          context.pushRoute(AppRoutes.harvestHistory, extra: crop.cropName);
         },
-        onRecordHarvest: () {
-          Navigator.pop(context);
-          context.pushRoute(AppRoutes.harvestEntryForm, extra: crop).then((result) {
-            if (result == true) _loadCrops();
-          });
-        },
+        onRecordHarvest: crop.isPendingApproval
+            ? null
+            : () {
+                Navigator.pop(context);
+                context.pushRoute(AppRoutes.harvestEntryForm, extra: crop).then((result) {
+                  if (result == true) _loadCrops();
+                });
+              },
         onDelete: () {
           Navigator.pop(context);
           _confirmDelete(crop);
@@ -92,47 +101,18 @@ class _CropListingScreenState extends State<CropListingScreen> {
   }
 
   Future<void> _confirmDelete(FarmerCropModel crop) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        ),
-        title: Text(
-          'Delete ${crop.cropName}?',
-          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          crop.hasHarvests
-              ? 'This crop has harvest records. Deleting it will also remove all related harvest entries. This action cannot be undone.'
-              : 'Are you sure you want to delete this crop? This action cannot be undone.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.errorRed,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-            ),
-            child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
-          ),
-        ],
-      ),
-    );
+    // Check what a cascade delete would actually wipe before asking —
+    // harvest_records, inventory_batches, and crop_requests all reference
+    // farmer_crops with ON DELETE CASCADE, so this is a real risk, not a
+    // hypothetical one.
+    setState(() => _isDeleting = true);
+    final impact = await _cropRepo.fetchCropDeleteImpact(crop.id);
+    if (!mounted) return;
+    setState(() => _isDeleting = false);
+
+    final shouldDelete = impact.isRisky
+        ? await _showRiskyDeleteDialog(crop, impact)
+        : await _showSimpleDeleteDialog(crop);
 
     if (shouldDelete != true || !mounted) return;
 
@@ -160,6 +140,173 @@ class _CropListingScreenState extends State<CropListingScreen> {
     }
   }
 
+  /// Nothing at stake — no harvests, no inventory batches. Still an
+  /// irreversible action, so still a confirm dialog, just a simple one.
+  Future<bool?> _showSimpleDeleteDialog(FarmerCropModel crop) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        ),
+        title: Text(
+          'Delete ${crop.cropName}?',
+          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Are you sure you want to delete this crop? This action cannot be undone.',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.errorRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
+            ),
+            child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// There's real data behind this crop — require typing its name to
+  /// unlock Delete, and say in plain numbers exactly what gets wiped.
+  Future<bool?> _showRiskyDeleteDialog(
+      FarmerCropModel crop, CropDeleteImpact impact) {
+    final confirmCtrl = TextEditingController();
+
+    final List<String> lines = [];
+    if (impact.checkFailed) {
+      lines.add(
+          "We couldn't verify what's linked to this crop — proceed only if you're sure.");
+    } else {
+      if (impact.harvestCount > 0) {
+        lines.add(
+            '${impact.harvestCount} harvest record${impact.harvestCount == 1 ? '' : 's'}');
+      }
+      if (impact.inventoryBatchCount > 0) {
+        lines.add(
+            '${impact.inventoryBatchCount} inventory batch${impact.inventoryBatchCount == 1 ? '' : 'es'}'
+            '${impact.hasSoldBatches ? ' (including ${impact.soldBatchCount} already marked SOLD)' : ''}');
+      }
+    }
+
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final canDelete =
+              confirmCtrl.text.trim().toLowerCase() == crop.cropName.trim().toLowerCase();
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.warning_rounded, color: AppConstants.errorRed),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Delete ${crop.cropName}?',
+                    style: GoogleFonts.poppins(
+                        fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  impact.hasSoldBatches
+                      ? 'This crop has SOLD inventory — real transaction history. Deleting it permanently removes:'
+                      : 'This will permanently remove:',
+                  style: GoogleFonts.inter(
+                      fontSize: 13, color: AppConstants.onSurfaceVariant),
+                ),
+                const SizedBox(height: 8),
+                ...lines.map((l) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('•  '),
+                          Expanded(
+                            child: Text(l,
+                                style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppConstants.errorRed)),
+                          ),
+                        ],
+                      ),
+                    )),
+                const SizedBox(height: 12),
+                Text(
+                  'Type "${crop.cropName}" to confirm.',
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: AppConstants.onSurfaceVariant),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: confirmCtrl,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                    hintText: crop.cropName,
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text('Cancel',
+                    style: GoogleFonts.poppins(color: AppConstants.outline)),
+              ),
+              ElevatedButton(
+                onPressed: canDelete
+                    ? () => Navigator.of(dialogContext).pop(true)
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.errorRed,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      AppConstants.errorRed.withValues(alpha: 0.30),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                ),
+                child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,7 +324,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
                   child: _isLoading
                       ? _LoadingBody()
                       : _crops.isEmpty
-                      ? _EmptyState(onAddCrop: _navigateToAddCrop)
+                      ? _EmptyState(onAddCrop: _openCropCatalog)
                       : _CropList(
                           crops: _crops,
                           onCropTap: _onCropTap,
@@ -196,11 +343,10 @@ class _CropListingScreenState extends State<CropListingScreen> {
             child: FarmerTopBar(
               title: 'My Crops',
               onBack: () => Navigator.of(context).pop(),
-              profilePhotoUrl: null,
+              hideProfileAvatar: true,
               onProfileTap: () {},
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              onSettingsTap: null,
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
 
@@ -221,7 +367,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
 
       // FAB
       floatingActionButton: _crops.isNotEmpty
-          ? _AddCropFab(onTap: _navigateToAddCrop)
+          ? _AddCropFab(onTap: _openCropCatalog)
           : null,
     );
   }
@@ -342,6 +488,61 @@ class _CropCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       _HarvestStatus(hasHarvests: crop.hasHarvests),
+                      if (crop.cropMasterId == null) ...[
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: crop.isRejected && crop.requestNotes != null
+                              ? () => showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                            AppConstants.radiusXl),
+                                      ),
+                                      title: Text(
+                                        'Request Declined',
+                                        style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                      content: Text(
+                                        crop.requestNotes!,
+                                        style: GoogleFonts.inter(fontSize: 13),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: const Text('Close'),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                              : null,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: crop.isRejected
+                                  ? AppConstants.errorRed.withValues(alpha: 0.10)
+                                  : AppConstants.amber.withValues(alpha: 0.12),
+                              borderRadius:
+                                  BorderRadius.circular(AppConstants.radiusFull),
+                            ),
+                            child: Text(
+                              crop.isRejected
+                                  ? 'Request Declined · Tap for reason'
+                                  : 'Pending Approval',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: crop.isRejected
+                                    ? AppConstants.errorRed
+                                    : AppConstants.amber,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -510,7 +711,7 @@ class _HarvestStatus extends StatelessWidget {
 class _CropMenuSheet extends StatelessWidget {
   final FarmerCropModel crop;
   final VoidCallback onViewHarvests;
-  final VoidCallback onRecordHarvest;
+  final VoidCallback? onRecordHarvest;
   final VoidCallback onDelete;
 
   const _CropMenuSheet({
@@ -579,6 +780,7 @@ class _CropMenuSheet extends StatelessWidget {
             label: 'Record Harvest for This Crop',
             color: AppConstants.primaryGreen,
             onTap: onRecordHarvest,
+            subtitle: onRecordHarvest == null ? 'Awaiting admin approval' : null,
           ),
           _MenuOption(
             icon: Icons.delete_outline_rounded,
@@ -596,32 +798,48 @@ class _MenuOption extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final String? subtitle;
 
   const _MenuOption({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = onTap == null;
+    final effectiveColor = isDisabled ? AppConstants.outline : color;
     return Material(
       color: Colors.transparent,
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         tileColor: Colors.transparent,
-        leading: Icon(icon, color: color, size: 22),
+        enabled: !isDisabled,
+        leading: Icon(icon, color: effectiveColor, size: 22),
         title: Text(
           label,
           style: GoogleFonts.inter(
             fontSize: 14,
-            color: color == AppConstants.errorRed
-                ? AppConstants.errorRed
-                : AppConstants.onSurface,
+            color: isDisabled
+                ? AppConstants.outline
+                : (color == AppConstants.errorRed
+                    ? AppConstants.errorRed
+                    : AppConstants.onSurface),
           ),
         ),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle!,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppConstants.outline,
+                ),
+              )
+            : null,
         onTap: onTap,
       ),
     );
@@ -659,7 +877,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'No crops added yet',
+              'No crops yet',
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -668,7 +886,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap the button below to record your first crop and start tracking your harvest.',
+              'Add a crop from the cooperative\'s list to start recording harvests.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
@@ -680,7 +898,7 @@ class _EmptyState extends StatelessWidget {
               onPressed: onAddCrop,
               icon: const Icon(Icons.add_rounded),
               label: Text(
-                'Add First Crop',
+                'Add a Crop',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

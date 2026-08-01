@@ -36,6 +36,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   SalesReportData _data = SalesReportData.empty();
+  SalesReportData _previousData = SalesReportData.empty();
 
   @override
   void initState() {
@@ -51,10 +52,14 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchSalesReport(_period);
+    final results = await Future.wait([
+      _repo.fetchSalesReport(_period),
+      _repo.fetchPreviousSalesReport(_period),
+    ]);
     if (!mounted) return;
     setState(() {
-      _data = data;
+      _data = results[0];
+      _previousData = results[1];
       _isLoading = false;
     });
   }
@@ -62,6 +67,37 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   void _setPeriod(ReportPeriod period) {
     setState(() => _period = period);
     _load();
+  }
+
+  Widget _deltaBadge(double current, double previous) {
+    if (_period == ReportPeriod.allTime || previous == 0) {
+      return const SizedBox.shrink();
+    }
+    final change = ((current - previous) / previous * 100);
+    final isUp = change >= 0;
+    final color = isUp ? AppConstants.successGreen : AppConstants.errorRed;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+            size: 10,
+            color: color,
+          ),
+          const SizedBox(width: 2),
+          Text(
+            '${change.abs().toStringAsFixed(0)}%',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<SalesTransactionRow> get _filteredTransactions {
@@ -215,33 +251,51 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       symbol: '₱',
       decimalDigits: 0,
     );
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _statCard(
-            l10n.reportsTotalRevenue,
-            currency.format(_data.totalRevenue),
-            cs,
-            sagana,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _statCard(
+                l10n.reportsTotalRevenue,
+                currency.format(_data.totalRevenue),
+                cs,
+                sagana,
+                delta: _deltaBadge(_data.totalRevenue, _previousData.totalRevenue),
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Expanded(
+              child: _statCard(
+                l10n.reportsTotalVolume,
+                '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
+                cs,
+                sagana,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: _statCard(
-            l10n.reportsTotalVolume,
-            '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
-            cs,
-            sagana,
-          ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: _statCard(
-            l10n.reportsTransactions,
-            '${_data.transactionCount}',
-            cs,
-            sagana,
-          ),
+        const SizedBox(height: AppConstants.spacingSm),
+        Row(
+          children: [
+            Expanded(
+              child: _statCard(
+                l10n.reportsTransactions,
+                '${_data.transactionCount}',
+                cs,
+                sagana,
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Expanded(
+              child: _statCard(
+                l10n.reportsAvgSale,
+                currency.format(_data.averageSaleAmount),
+                cs,
+                sagana,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -251,8 +305,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     String label,
     String value,
     ColorScheme cs,
-    SaganaColors sagana,
-  ) {
+    SaganaColors sagana, {
+    Widget? delta,
+  }) {
     return Container(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
@@ -276,6 +331,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               color: cs.onSurface,
             ),
           ),
+          if (delta != null) delta,
         ],
       ),
     );

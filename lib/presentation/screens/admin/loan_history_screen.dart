@@ -7,9 +7,9 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../widgets/management_modal.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
-import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
@@ -162,17 +162,6 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.onSurfaceVariant),
-                onPressed: () => context.push(
-                  AppRoutes.exportCenter,
-                  extra: ExportCenterArgs(
-                    preselectedModule: ReportModuleType.loan,
-                    period: _period,
-                  ),
-                ),
-                tooltip: l10n.reportsExportCenter,
-              ),
             ],
           ),
         ),
@@ -202,13 +191,17 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           32,
         ),
         children: [
-          _buildSummaryCard(context, l10n, cs),
-          const SizedBox(height: AppConstants.spacingSectionV),
-          _buildStatusChips(context, l10n, cs),
-          const SizedBox(height: AppConstants.spacingSm),
-          _buildPeriodChips(context, cs),
+          _buildStatCard(context, l10n, cs, sagana),
           const SizedBox(height: AppConstants.spacingGutter),
-          _buildSearchField(context, l10n, cs),
+          Row(
+            children: [
+              Expanded(child: _buildSearchField(context, l10n, cs)),
+              const SizedBox(width: AppConstants.spacingSm),
+              _buildFilterButton(context, l10n, cs),
+            ],
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          _buildStatusSegmentedControl(context, l10n, cs, sagana),
           const SizedBox(height: AppConstants.spacingGutter),
           if (_isLoading)
             const Padding(
@@ -216,9 +209,10 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (visibleLoans.isEmpty)
-            _buildMessageState(Icons.receipt_long_outlined, l10n.loanHistoryNoResults, cs)
+            _buildMessageState(Icons.receipt_long_outlined,
+                _statusFilter == null ? l10n.loanHistoryNoResults : l10n.loanHistoryNoResultsForFilter, cs)
           else
-            ...visibleLoans.map((loan) => _buildLoanRow(context, loan, cs, sagana)),
+            ...visibleLoans.map((loan) => _buildLoanRow(context, loan, cs, sagana, l10n)),
         ],
       ),
     );
@@ -242,133 +236,109 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     );
   }
 
-  Widget _buildSummaryCard(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildStatCard(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
     final healthColor = _summary.isHealthy ? AppConstants.successGreen : AppConstants.warningAmber;
-    final healthLabel = _summary.isHealthy ? l10n.loanHistoryHealthy : l10n.loanHistoryNeedsAttention;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingGutter),
       decoration: BoxDecoration(
-        gradient: AppConstants.primaryButtonGradient,
+        color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.loanHistoryAllTimeSummary,
-                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.85)),
-                  ),
-                  Text(
-                    currency.format(_summary.totalIssued),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: Colors.white),
-                  ),
-                ],
-              ),
+              Text(l10n.loanHistoryTotalIssued(_summary.totalLoanCount),
+                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  color: healthColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      '${_summary.repaymentRatePercent.toStringAsFixed(0)}%',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.white),
-                    ),
-                    Text(
-                      l10n.loanHistoryRate,
-                      style: GoogleFonts.inter(fontSize: 9, color: Colors.white.withValues(alpha: 0.85)),
-                    ),
-                  ],
-                ),
+                child: Text(_summary.isHealthy ? l10n.loanHistoryHealthy : l10n.loanHistoryNeedsAttention,
+                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: healthColor)),
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Text(currency.format(_summary.totalIssued),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 26, color: cs.primary)),
           const SizedBox(height: AppConstants.spacingMd),
           Row(
             children: [
-              Expanded(
-                child: _summaryStat(l10n.loanHistoryTotalIssued(_summary.totalLoanCount)),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.loanHistoryTotalCollected, style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
-                    Text(
-                      currency.format(_summary.totalCollected),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.loanDashTotalOutstanding, style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
-                    Text(
-                      currency.format(_summary.totalOutstanding),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
+              Expanded(child: _statBlock(l10n.loanHistoryTotalCollected, currency.format(_summary.totalCollected), cs)),
+              const SizedBox(width: AppConstants.spacingSm),
+              Expanded(child: _statBlock(l10n.loanDashTotalOutstanding, currency.format(_summary.totalOutstanding), cs)),
+              const SizedBox(width: AppConstants.spacingSm),
+              Expanded(child: _statBlock(l10n.loanHistoryRate, '${_summary.repaymentRatePercent.toStringAsFixed(0)}%', cs)),
             ],
-          ),
-          const SizedBox(height: AppConstants.spacingSm),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: healthColor.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-            ),
-            child: Text(
-              healthLabel,
-              style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
-            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _summaryStat(String label) {
-    return Text(label, style: GoogleFonts.inter(fontSize: 10, color: Colors.white70));
+  Widget _statBlock(String label, String value, ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+          const SizedBox(height: 2),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12, color: cs.onSurface)),
+        ],
+      ),
+    );
   }
 
-  Widget _buildStatusChips(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
-    final options = <String?, String>{
+  Widget _buildStatusSegmentedControl(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
+    final options = {
       null: l10n.loanHistoryFilterAll,
       'active': l10n.loanDashActiveLoans,
       'overdue': l10n.loanDashOverdueLoans,
       'paid': l10n.loanHistoryFilterPaid,
     };
 
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Row(
         children: options.entries.map((entry) {
           final active = _statusFilter == entry.key;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(entry.value, style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setStatusFilter(entry.key),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => _setStatusFilter(entry.key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: active ? sagana.cardBackground : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                  boxShadow: active ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4)] : null,
+                ),
+                child: Text(entry.value, textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600,
+                        color: active ? cs.primary : cs.onSurfaceVariant)),
+              ),
             ),
           );
         }).toList(),
@@ -376,24 +346,52 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     );
   }
 
-  Widget _buildPeriodChips(BuildContext context, ColorScheme cs) {
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
-          final active = _period == p;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setPeriod(p),
-              selectedColor: AppConstants.buyerBlue,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
-            ),
-          );
-        }).toList(),
+  void _openFilterSheet(BuildContext context, AppLocalizations l10n) {
+    ReportPeriod tempPeriod = _period;
+    showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        return ManagementModalShell(
+          title: l10n.loanHistoryFilterTitle,
+          body: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ReportPeriod.values.map((p) {
+              final active = tempPeriod == p;
+              return ChoiceChip(
+                label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+                selected: active,
+                onSelected: (_) => setSheet(() => tempPeriod = p),
+                selectedColor: AppConstants.buyerBlue,
+                labelStyle: TextStyle(color: active ? Colors.white : Theme.of(ctx).colorScheme.onSurface),
+              );
+            }).toList(),
+          ),
+          footer: ManagementModalActions(
+            primaryLabel: l10n.loanHistoryApplyFilter,
+            onPrimary: () {
+              Navigator.pop(ctx);
+              _setPeriod(tempPeriod);
+            },
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildFilterButton(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+    return Container(
+      height: 48,
+      width: 48,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.20)),
+      ),
+      child: IconButton(
+        icon: Icon(Icons.filter_list_rounded, color: cs.primary),
+        onPressed: () => _openFilterSheet(context, l10n),
+        tooltip: l10n.loanHistoryFilterTitle,
       ),
     );
   }
@@ -425,6 +423,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     AdminLoanSummary loan,
     ColorScheme cs,
     SaganaColors sagana,
+    AppLocalizations l10n,
   ) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
     final statusColor = loan.isPaid
@@ -433,6 +432,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
             ? AppConstants.errorRed
             : AppConstants.successGreen;
     final statusLabel = loan.isPaid ? 'PAID' : loan.isOverdue ? 'OVERDUE' : 'ACTIVE';
+    final dueDate = loan.nextPaymentDate;
 
     return GestureDetector(
       onTap: () => context.push(AppRoutes.loanDetails, extra: loan.id),
@@ -443,59 +443,82 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: cs.primary.withValues(alpha: 0.10),
+                  child: Icon(Icons.person_rounded, color: cs.primary, size: 18),
+                ),
+                const SizedBox(width: AppConstants.spacingSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          loan.farmerName,
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+                      Text(loan.farmerName,
                           overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                        ),
-                        child: Text(
-                          statusLabel,
-                          style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: statusColor),
-                        ),
-                      ),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+                      Text('${loan.memberId} • ${loan.referenceNo}',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
                     ],
                   ),
-                  Text(
-                    '${loan.memberId} • ${loan.referenceNo} • ${DateFormat('MMM d, yyyy').format(loan.issuedDate)}',
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppConstants.spacingSm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  currency.format(loan.totalValue),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
                 ),
-                if (!loan.isPaid)
-                  Text(
-                    currency.format(loan.remainingBalance),
-                    style: GoogleFonts.inter(fontSize: 10, color: statusColor),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   ),
+                  child: Text(statusLabel,
+                      style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: statusColor)),
+                ),
               ],
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant, size: 20),
+            const SizedBox(height: AppConstants.spacingSm),
+            Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+            const SizedBox(height: AppConstants.spacingSm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.issueLoanTotalValue,
+                          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      Text(currency.format(loan.totalValue),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+                      if (!loan.isPaid)
+                        Text(currency.format(loan.remainingBalance),
+                            style: GoogleFonts.inter(fontSize: 10, color: statusColor)),
+                    ],
+                  ),
+                ),
+                if (!loan.isPaid && dueDate != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(l10n.issueLoanNextPaymentDue,
+                          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      Text(DateFormat('MMM d, yyyy').format(dueDate),
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              color: loan.isOverdue ? AppConstants.errorRed : cs.onSurface)),
+                    ],
+                  ),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant, size: 18),
+              ],
+            ),
           ],
         ),
       ),

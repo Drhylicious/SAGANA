@@ -15,7 +15,12 @@ class AdminProfileStateService extends ChangeNotifier {
 
   static final AdminProfileStateService instance = AdminProfileStateService._();
 
-  final AdminProfileRepository _repo = AdminProfileRepository();
+  AdminProfileRepository? _repo;
+
+  AdminProfileRepository get _repoInstance {
+    _repo ??= AdminProfileRepository();
+    return _repo!;
+  }
 
   AdminProfileModel? _profile;
   bool _isRefreshing = false;
@@ -28,7 +33,7 @@ class AdminProfileStateService extends ChangeNotifier {
     if (_isRefreshing) return;
     _isRefreshing = true;
     try {
-      final latest = await _repo.fetchProfile();
+      final latest = await _repoInstance.fetchProfile();
       if (latest != null) {
         _profile = latest;
         notifyListeners();

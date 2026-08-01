@@ -329,12 +329,12 @@ class FarmerManagementRepository {
 
   // ─── Reject a pending member ───────────────────────────────────────────────
   //
-  // Sets status to 'inactive' — account exists but cannot log in to features.
-  // Admin can re-evaluate later; we don't delete accounts.
+  // Sets status to 'suspended' — account exists but cannot log in to
+  // features. Admin can re-evaluate later; we don't delete accounts.
 
   Future<void> rejectMember({required String userId}) async {
     await _client.from('user_roles').update({
-      'status': 'inactive',
+      'status': 'suspended',
     }).eq('user_id', userId);
 
     // Notify farmer
@@ -354,7 +354,7 @@ class FarmerManagementRepository {
 
   Future<void> setFarmerStatus({
     required String userId,
-    required String status, // 'active' | 'inactive'
+    required String status, // 'active' | 'suspended'
   }) async {
     await _client.from('user_roles').update({
       'status': status,

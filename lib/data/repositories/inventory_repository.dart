@@ -97,9 +97,63 @@ class InventoryRepository {
         .eq('id', batchId)
         .eq('farmer_id', _userId);
   }
+
+  // ─── Loan Catalog integration ─────────────────────────────────────────────
+
+  /// Publishes a cooperative_inventory item to the loan catalog.
+  Future<bool> publishToLoanCatalog({
+    required String inventoryItemId,
+    required double loanPrice,
+    String? notes,
+  }) async {
+    try {
+      await _client.from('loan_items_master').insert({
+        'inventory_item_id': inventoryItemId,
+        'unit_price': loanPrice,
+        'is_loan_eligible': true,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Updates an existing loan catalog entry's price, eligibility, and notes.
+  Future<bool> updateLoanCatalogEntry({
+    required String loanItemId,
+    required double loanPrice,
+    required bool isLoanEligible,
+    String? notes,
+  }) async {
+    try {
+      await _client.from('loan_items_master').update({
+        'unit_price': loanPrice,
+        'is_loan_eligible': isLoanEligible,
+        if (notes != null) 'notes': notes,
+      }).eq('id', loanItemId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Returns the existing loan catalog link for an inventory item, or null.
+  Future<Map<String, dynamic>?> fetchLoanCatalogLink(String inventoryItemId) async {
+    try {
+      final rows = await _client
+          .from('loan_items_master')
+          .select('id, unit_price, is_loan_eligible, notes')
+          .eq('inventory_item_id', inventoryItemId)
+          .limit(1);
+      return rows.isEmpty ? null : rows.first;
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
-// ─── Fetch available batches only (for Create Listing source selector) ────
+// ─── Fetch available batches only (for Create Listing source selector) ────────
 
 extension AvailableBatchesFetch on InventoryRepository {
   Future<List<InventoryBatchModel>> fetchAvailableBatches() async {
@@ -117,6 +171,24 @@ extension AvailableBatchesFetch on InventoryRepository {
           .toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  /// Fetches one specific batch by id regardless of status — used when
+  /// resubmitting a changes_required listing, whose batch is almost
+  /// always 'reserved' (fully committed to that pending listing) and
+  /// would be silently excluded by fetchAvailableBatches()'s status filter.
+  Future<InventoryBatchModel?> fetchBatchById(String batchId) async {
+    final client = Supabase.instance.client;
+    try {
+      final row = await client
+          .from('inventory_batches')
+          .select('*, harvest_records(harvest_date)')
+          .eq('id', batchId)
+          .maybeSingle();
+      return row != null ? InventoryBatchModel.fromMap(row) : null;
+    } catch (_) {
+      return null;
     }
   }
 }

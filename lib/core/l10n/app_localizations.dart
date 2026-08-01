@@ -152,6 +152,12 @@ abstract class AppLocalizations {
   /// **'Marketplace'**
   String get navMarketplace;
 
+  /// No description provided for @navListings.
+  ///
+  /// In en, this message translates to:
+  /// **'Listings'**
+  String get navListings;
+
   /// No description provided for @navAnalytics.
   ///
   /// In en, this message translates to:
@@ -313,6 +319,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings'**
   String get settingsTitle;
+
+  /// No description provided for @sectionPersonalInformation.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Information'**
+  String get sectionPersonalInformation;
+
+  /// No description provided for @sectionSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get sectionSecurity;
+
+  /// No description provided for @emailAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Email Address'**
+  String get emailAddress;
+
+  /// No description provided for @emailCannotBeChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Email address cannot be changed.'**
+  String get emailCannotBeChanged;
+
+  /// No description provided for @updateYourPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Update your password'**
+  String get updateYourPassword;
 
   /// No description provided for @sectionAccount.
   ///
@@ -920,6 +956,36 @@ abstract class AppLocalizations {
   /// **'No exports yet. Generate one from Export Center.'**
   String get reportsNoExportsYet;
 
+  /// No description provided for @reportsQuickInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Insights'**
+  String get reportsQuickInsights;
+
+  /// No description provided for @reportsInsightTopCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Crop'**
+  String get reportsInsightTopCrop;
+
+  /// No description provided for @reportsInsightTopFarmer.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Contributor'**
+  String get reportsInsightTopFarmer;
+
+  /// No description provided for @reportsInsightTopExpense.
+  ///
+  /// In en, this message translates to:
+  /// **'Largest Expense'**
+  String get reportsInsightTopExpense;
+
+  /// No description provided for @reportsViewAllExports.
+  ///
+  /// In en, this message translates to:
+  /// **'View All in Export Center'**
+  String get reportsViewAllExports;
+
   /// No description provided for @reportsSalesReport.
   ///
   /// In en, this message translates to:
@@ -937,6 +1003,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Total Revenue'**
   String get reportsTotalRevenue;
+
+  /// No description provided for @reportsAvgSale.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg Sale'**
+  String get reportsAvgSale;
 
   /// No description provided for @reportsTotalVolume.
   ///
@@ -992,10 +1064,70 @@ abstract class AppLocalizations {
   /// **'No transactions match your search.'**
   String get reportsNoSearchResults;
 
+  /// No description provided for @reportsCoopStockReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Cooperative Stock Report'**
+  String get reportsCoopStockReport;
+
+  /// No description provided for @reportsCoopStockByCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock by Category'**
+  String get reportsCoopStockByCategory;
+
+  /// No description provided for @reportsCoopStockItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock Items'**
+  String get reportsCoopStockItems;
+
+  /// No description provided for @reportsTotalItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Items'**
+  String get reportsTotalItems;
+
+  /// No description provided for @reportsLowStockItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Low Stock'**
+  String get reportsLowStockItems;
+
+  /// No description provided for @reportsCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Categories'**
+  String get reportsCategories;
+
+  /// No description provided for @reportsSearchItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Search items…'**
+  String get reportsSearchItems;
+
+  /// No description provided for @reportsNoCoopStockYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No cooperative stock recorded yet'**
+  String get reportsNoCoopStockYet;
+
+  /// No description provided for @reportsAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get reportsAll;
+
+  /// No description provided for @reportsSoldOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sold Out'**
+  String get reportsSoldOut;
+
   /// No description provided for @reportsInventoryReport.
   ///
   /// In en, this message translates to:
-  /// **'Inventory Report'**
+  /// **'Farmer Harvest Report'**
   String get reportsInventoryReport;
 
   /// No description provided for @reportsHarvestReport.
@@ -1790,6 +1922,72 @@ abstract class AppLocalizations {
   /// **'LOW STOCK'**
   String get reportsLowStockBadge;
 
+  /// No description provided for @reportsHarvestManagement.
+  ///
+  /// In en, this message translates to:
+  /// **'Harvest Management'**
+  String get reportsHarvestManagement;
+
+  /// No description provided for @reportsActivityTrendsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity & Trends'**
+  String get reportsActivityTrendsTab;
+
+  /// No description provided for @reportsBatchesStockTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Batches & Stock'**
+  String get reportsBatchesStockTab;
+
+  /// No description provided for @reportsViewBatch.
+  ///
+  /// In en, this message translates to:
+  /// **'View Batch'**
+  String get reportsViewBatch;
+
+  /// No description provided for @reportsViewHarvest.
+  ///
+  /// In en, this message translates to:
+  /// **'View Harvest'**
+  String get reportsViewHarvest;
+
+  /// No description provided for @reportsHarvestedQty.
+  ///
+  /// In en, this message translates to:
+  /// **'Harvested'**
+  String get reportsHarvestedQty;
+
+  /// No description provided for @reportsTotalAvailableStock.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Available Stock'**
+  String get reportsTotalAvailableStock;
+
+  /// No description provided for @reportsLiveLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get reportsLiveLabel;
+
+  /// No description provided for @reportsNoBatchFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No inventory batch found for this harvest.'**
+  String get reportsNoBatchFound;
+
+  /// No description provided for @reportsNoHarvestFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t find the source harvest for this batch.'**
+  String get reportsNoHarvestFound;
+
+  /// No description provided for @reportsSearchHarvestsWithBatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search farmer, crop, or batch number'**
+  String get reportsSearchHarvestsWithBatch;
+
   /// No description provided for @loanDashTitle.
   ///
   /// In en, this message translates to:
@@ -1862,11 +2060,29 @@ abstract class AppLocalizations {
   /// **'Overdue Loans ({count})'**
   String loanDashOverdueSection(int count);
 
+  /// No description provided for @loanDashOverdueHeroSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review and follow up before the next BOD meeting.'**
+  String get loanDashOverdueHeroSubtitle;
+
+  /// No description provided for @loanDashReviewOverdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Review Overdue Loans'**
+  String get loanDashReviewOverdue;
+
   /// No description provided for @loanDashActiveSection.
   ///
   /// In en, this message translates to:
   /// **'Active Loans'**
   String get loanDashActiveSection;
+
+  /// No description provided for @loanDashRecentActivitySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Loan Activity'**
+  String get loanDashRecentActivitySection;
 
   /// No description provided for @loanDashSeeAll.
   ///
@@ -1885,6 +2101,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No active loans right now.'**
   String get loanDashNoActive;
+
+  /// No description provided for @loanDashNoRecentActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'No active or overdue loans right now.'**
+  String get loanDashNoRecentActivity;
 
   /// No description provided for @loanDashValue.
   ///
@@ -1939,6 +2161,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No loans match these filters.'**
   String get loanHistoryNoResults;
+
+  /// No description provided for @loanHistoryNoResultsForFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'No loans match this status or period yet.'**
+  String get loanHistoryNoResultsForFilter;
 
   /// No description provided for @loanHistoryAllTimeSummary.
   ///
@@ -2017,6 +2245,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search farmer, reference, or member ID'**
   String get loanHistorySearchHint;
+
+  /// No description provided for @loanHistoryFilterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter Loans'**
+  String get loanHistoryFilterTitle;
+
+  /// No description provided for @loanHistoryApplyFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get loanHistoryApplyFilter;
+
+  /// No description provided for @loanDashActionPayments.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Payments'**
+  String get loanDashActionPayments;
+
+  /// No description provided for @loanDashNoRecentActivitySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New loans and upcoming payments will appear here once recorded.'**
+  String get loanDashNoRecentActivitySubtitle;
 
   /// No description provided for @adminPriceManagement.
   ///
@@ -2114,6 +2366,12 @@ abstract class AppLocalizations {
   /// **'Tap to select a farmer'**
   String get issueLoanNoFarmerSelected;
 
+  /// No description provided for @issueLoanNoFarmerResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No farmers match your search.'**
+  String get issueLoanNoFarmerResults;
+
   /// No description provided for @issueLoanOutstandingBalance.
   ///
   /// In en, this message translates to:
@@ -2149,6 +2407,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No items added yet.'**
   String get issueLoanNoItemsYet;
+
+  /// No description provided for @issueLoanSelectItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Item'**
+  String get issueLoanSelectItem;
 
   /// No description provided for @issueLoanItemName.
   ///
@@ -2294,6 +2558,12 @@ abstract class AppLocalizations {
   /// **'Change'**
   String get paymentChangeFarmer;
 
+  /// No description provided for @paymentSwitchFarmer.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch Farmer'**
+  String get paymentSwitchFarmer;
+
   /// No description provided for @paymentSearchHint.
   ///
   /// In en, this message translates to:
@@ -2438,6 +2708,12 @@ abstract class AppLocalizations {
   /// **'Mark as Paid'**
   String get loanDetailsMarkPaid;
 
+  /// No description provided for @loanDetailsMarkPaidCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'For corrections or approved write-offs only.'**
+  String get loanDetailsMarkPaidCaption;
+
   /// No description provided for @loanDetailsMarkPaidTitle.
   ///
   /// In en, this message translates to:
@@ -2531,8 +2807,62 @@ abstract class AppLocalizations {
   /// No description provided for @supplyChainTitle.
   ///
   /// In en, this message translates to:
-  /// **'Supply Chain Map'**
+  /// **'Supply Chain Operations'**
   String get supplyChainTitle;
+
+  /// No description provided for @supplyChainOpsSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Operations Summary'**
+  String get supplyChainOpsSummary;
+
+  /// No description provided for @supplyChainInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Actionable Insights'**
+  String get supplyChainInsights;
+
+  /// No description provided for @supplyChainFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Cooperative Flow'**
+  String get supplyChainFlow;
+
+  /// No description provided for @supplyChainPlannedOps.
+  ///
+  /// In en, this message translates to:
+  /// **'Planned Operations'**
+  String get supplyChainPlannedOps;
+
+  /// No description provided for @supplyChainPlannedOpsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection scheduling, warehouse movement tracking, and delivery logistics will appear here once the cooperative\'s real workflow is confirmed on-site.'**
+  String get supplyChainPlannedOpsDesc;
+
+  /// No description provided for @supplyChainMapSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Farmer Locations'**
+  String get supplyChainMapSection;
+
+  /// No description provided for @supplyChainRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get supplyChainRefresh;
+
+  /// No description provided for @supplyChainAllMapped.
+  ///
+  /// In en, this message translates to:
+  /// **'All members have a mapped farm location.'**
+  String get supplyChainAllMapped;
+
+  /// No description provided for @supplyChainAllSubmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'All harvests have been submitted to the cooperative.'**
+  String get supplyChainAllSubmitted;
 
   /// No description provided for @priceLiveRates.
   ///
@@ -2599,6 +2929,288 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Send later at a specific time'**
   String get broadcastScheduleSub;
+
+  /// No description provided for @buyerNavBrowse.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse'**
+  String get buyerNavBrowse;
+
+  /// No description provided for @buyerNavOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get buyerNavOrders;
+
+  /// No description provided for @buyerNavPrices.
+  ///
+  /// In en, this message translates to:
+  /// **'Prices'**
+  String get buyerNavPrices;
+
+  /// No description provided for @buyerNavAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get buyerNavAccount;
+
+  /// No description provided for @buyerBrowseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Marketplace'**
+  String get buyerBrowseTitle;
+
+  /// No description provided for @buyerBrowseSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fresh produce from SP3 farmers'**
+  String get buyerBrowseSubtitle;
+
+  /// No description provided for @buyerBrowseSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search crops or variety'**
+  String get buyerBrowseSearchHint;
+
+  /// No description provided for @buyerBrowseEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Marketplace is quiet right now'**
+  String get buyerBrowseEmptyTitle;
+
+  /// No description provided for @buyerBrowseEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Check back soon for new listings from SP3 farmers.'**
+  String get buyerBrowseEmptyBody;
+
+  /// No description provided for @buyerBrowseNoResultsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No listings match your filters'**
+  String get buyerBrowseNoResultsTitle;
+
+  /// No description provided for @buyerBrowseNoResultsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different search term or category.'**
+  String get buyerBrowseNoResultsBody;
+
+  /// No description provided for @buyerBrowseSoldOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sold Out'**
+  String get buyerBrowseSoldOut;
+
+  /// No description provided for @buyerBrowseLowStock.
+  ///
+  /// In en, this message translates to:
+  /// **'Low Stock'**
+  String get buyerBrowseLowStock;
+
+  /// No description provided for @buyerBrowseOrderNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Order Now'**
+  String get buyerBrowseOrderNow;
+
+  /// No description provided for @buyerBrowseAvailableSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'available'**
+  String get buyerBrowseAvailableSuffix;
+
+  /// No description provided for @buyerBrowseAboveMarketRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Priced outside typical market range'**
+  String get buyerBrowseAboveMarketRange;
+
+  /// No description provided for @dashboardAllClearTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'All Clear'**
+  String get dashboardAllClearTitle;
+
+  /// No description provided for @dashboardAllClearMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'No urgent items today. Keep up the good work!'**
+  String get dashboardAllClearMessage;
+
+  /// No description provided for @dashboardQuickActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Actions'**
+  String get dashboardQuickActions;
+
+  /// No description provided for @quickActionRecordHarvest.
+  ///
+  /// In en, this message translates to:
+  /// **'Record Harvest'**
+  String get quickActionRecordHarvest;
+
+  /// No description provided for @quickActionCreateListing.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Listing'**
+  String get quickActionCreateListing;
+
+  /// No description provided for @quickActionCheckPrices.
+  ///
+  /// In en, this message translates to:
+  /// **'Check Prices'**
+  String get quickActionCheckPrices;
+
+  /// No description provided for @purchaseSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase Summary'**
+  String get purchaseSummary;
+
+  /// No description provided for @account.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get account;
+
+  /// No description provided for @buyerDefaultName.
+  ///
+  /// In en, this message translates to:
+  /// **'Buyer'**
+  String get buyerDefaultName;
+
+  /// No description provided for @statOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get statOrders;
+
+  /// No description provided for @statCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get statCompleted;
+
+  /// No description provided for @statSpent.
+  ///
+  /// In en, this message translates to:
+  /// **'Spent'**
+  String get statSpent;
+
+  /// No description provided for @buyerNoOrdersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders yet'**
+  String get buyerNoOrdersTitle;
+
+  /// No description provided for @buyerNoOrdersSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start browsing the marketplace to place your first order.'**
+  String get buyerNoOrdersSubtitle;
+
+  /// No description provided for @browseMarketplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse Marketplace'**
+  String get browseMarketplace;
+
+  /// No description provided for @photoUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo upload failed. Please try again.'**
+  String get photoUploadFailed;
+
+  /// No description provided for @fullNameEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Full name is required.'**
+  String get fullNameEmpty;
+
+  /// No description provided for @profileUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile updated.'**
+  String get profileUpdated;
+
+  /// No description provided for @saveChangesFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save changes. Please try again.'**
+  String get saveChangesFailed;
+
+  /// No description provided for @changePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Photo'**
+  String get changePhoto;
+
+  /// No description provided for @personalInformation.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Information'**
+  String get personalInformation;
+
+  /// No description provided for @updatePasswordSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update your account password'**
+  String get updatePasswordSubtitle;
+
+  /// No description provided for @aboutSagana.
+  ///
+  /// In en, this message translates to:
+  /// **'About SAGANA'**
+  String get aboutSagana;
+
+  /// No description provided for @aboutSaganaBody.
+  ///
+  /// In en, this message translates to:
+  /// **'SAGANA helps buyers connect with trusted SP3 farmers and manage purchases in one place.'**
+  String get aboutSaganaBody;
+
+  /// No description provided for @contactSp3.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact SP3'**
+  String get contactSp3;
+
+  /// No description provided for @contactSp3Body.
+  ///
+  /// In en, this message translates to:
+  /// **'For concerns about your account, orders, or payments, please visit the cooperative office or reach out to your assigned coordinator.'**
+  String get contactSp3Body;
+
+  /// No description provided for @privacyPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get privacyPolicy;
+
+  /// No description provided for @privacyPolicyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account, order details, and contact information are kept secure and accessible only to authorized cooperative personnel.'**
+  String get privacyPolicyBody;
+
+  /// No description provided for @termsOfUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of Use'**
+  String get termsOfUse;
+
+  /// No description provided for @termsOfUseBody.
+  ///
+  /// In en, this message translates to:
+  /// **'By using SAGANA, you agree to use the platform responsibly and follow cooperative policies.'**
+  String get termsOfUseBody;
+
+  /// No description provided for @logOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Log Out'**
+  String get logOut;
 }
 
 class _AppLocalizationsDelegate

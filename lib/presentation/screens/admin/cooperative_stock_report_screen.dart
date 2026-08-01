@@ -11,49 +11,33 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 
-enum _GradeFilter { all, gradeA, gradeB, gradeC }
+enum _StockFilter { all, lowStock }
 
-extension on _GradeFilter {
-  String get label {
-    switch (this) {
-      case _GradeFilter.all:
-        return 'All';
-      case _GradeFilter.gradeA:
-        return 'Grade A';
-      case _GradeFilter.gradeB:
-        return 'Grade B';
-      case _GradeFilter.gradeC:
-        return 'Grade C';
-    }
-  }
-
-  bool matches(InventoryReportRow row) {
-    if (this == _GradeFilter.all) return true;
-    return row.qualityGrade == label;
-  }
-}
-
-/// Inventory Report — Admin.
-/// Pushed above the shell. Route: /admin/reports/inventory
+/// Cooperative Stock Report — Admin.
+/// Pushed above the shell. Route: /admin/reports/coop-stock
 ///
-/// No period filter — this reports current stock levels, a snapshot, not
-/// something scoped to a date range. Available/Reserved/Sold are real
-/// stored columns on inventory_batches; no cross-referencing required.
-class InventoryReportScreen extends StatefulWidget {
-  const InventoryReportScreen({super.key});
+/// Reports on cooperative_inventory exclusively — the co-op's own owned
+/// stock, distinct from the Farmer Harvest Report (inventory_batches).
+/// Deliberately reports item counts, never a summed quantity_on_hand —
+/// that table spans multiple units (bag/kg/sack/piece/liter/set/bottle),
+/// so a single summed number would be meaningless.
+class CooperativeStockReportScreen extends StatefulWidget {
+  const CooperativeStockReportScreen({super.key});
 
   @override
-  State<InventoryReportScreen> createState() => _InventoryReportScreenState();
+  State<CooperativeStockReportScreen> createState() =>
+      _CooperativeStockReportScreenState();
 }
 
-class _InventoryReportScreenState extends State<InventoryReportScreen> {
+class _CooperativeStockReportScreenState
+    extends State<CooperativeStockReportScreen> {
   final _repo = AdminReportsRepository();
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
   String _searchQuery = '';
-  _GradeFilter _gradeFilter = _GradeFilter.all;
-  InventoryReportData _data = InventoryReportData.empty();
+  _StockFilter _filter = _StockFilter.all;
+  CoopStockReportData _data = CoopStockReportData.empty;
 
   @override
   void initState() {
@@ -69,7 +53,7 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchInventoryReport();
+    final data = await _repo.fetchCoopStockReport();
     if (!mounted) return;
     setState(() {
       _data = data;
@@ -77,16 +61,18 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     });
   }
 
-  List<InventoryReportRow> get _filteredBatches {
-    var list = _data.batches.where((b) => _gradeFilter.matches(b)).toList();
+  List<CoopStockReportRow> get _filteredItems {
+    var list = _filter == _StockFilter.lowStock
+        ? _data.items.where((i) => i.isLowStock).toList()
+        : _data.items;
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list
-          .where((b) =>
-              b.farmerName.toLowerCase().contains(q) ||
-              b.memberId.toLowerCase().contains(q) ||
-              b.cropName.toLowerCase().contains(q) ||
-              b.batchNumber.toLowerCase().contains(q))
+          .where(
+            (i) =>
+                i.itemName.toLowerCase().contains(q) ||
+                i.category.toLowerCase().contains(q),
+          )
           .toList();
     }
     return list;
@@ -122,9 +108,9 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
                           _buildLowStockAlert(context, l10n, cs),
                         ],
                         const SizedBox(height: AppConstants.spacingSectionV),
-                        _buildCropBreakdown(context, l10n, cs, sagana),
+                        _buildCategoryBreakdown(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
-                        _buildBatchesSection(context, l10n, cs, sagana),
+                        _buildItemsSection(context, l10n, cs, sagana),
                       ],
                     ),
             ),
@@ -145,7 +131,9 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -158,16 +146,23 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
               ),
               Expanded(
                 child: Text(
-                  l10n.reportsInventoryReport,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  l10n.reportsCoopStockReport,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                icon: Icon(
+                  Icons.file_download_outlined,
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                ),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: const ExportCenterArgs(
-                    preselectedModule: ReportModuleType.inventory,
+                    preselectedModule: ReportModuleType.coopStock,
                   ),
                 ),
                 tooltip: l10n.reportsExportCenter,
@@ -187,16 +182,46 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
   ) {
     return Row(
       children: [
-        Expanded(child: _statCard(l10n.reportsAvailable, '${_data.totalAvailableKg.toStringAsFixed(0)} kg', AppConstants.successGreen, cs, sagana)),
+        Expanded(
+          child: _statCard(
+            l10n.reportsTotalItems,
+            '${_data.totalItems}',
+            AppConstants.buyerBlue,
+            cs,
+            sagana,
+          ),
+        ),
         const SizedBox(width: AppConstants.spacingSm),
-        Expanded(child: _statCard(l10n.reportsReserved, '${_data.totalReservedKg.toStringAsFixed(0)} kg', AppConstants.buyerBlue, cs, sagana)),
+        Expanded(
+          child: _statCard(
+            l10n.reportsLowStockItems,
+            '${_data.lowStockCount}',
+            AppConstants.errorRed,
+            cs,
+            sagana,
+          ),
+        ),
         const SizedBox(width: AppConstants.spacingSm),
-        Expanded(child: _statCard(l10n.reportsSold, '${_data.totalSoldKg.toStringAsFixed(0)} kg', AppConstants.amber, cs, sagana)),
+        Expanded(
+          child: _statCard(
+            l10n.reportsCategories,
+            '${_data.categoryCounts.length}',
+            AppConstants.amber,
+            cs,
+            sagana,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _statCard(String label, String value, Color accent, ColorScheme cs, SaganaColors sagana) {
+  Widget _statCard(
+    String label,
+    String value,
+    Color accent,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     return Container(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
@@ -207,32 +232,52 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          ),
           const SizedBox(height: AppConstants.spacingSm),
-          Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
-          Text(label, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: cs.onSurface,
+            ),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildLowStockAlert(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildLowStockAlert(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
-        color: AppConstants.errorRed.withValues(alpha: 0.08),
+        color: cs.errorContainer,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppConstants.errorRed, size: 18),
+          Icon(Icons.warning_amber_rounded, color: cs.error, size: 18),
           const SizedBox(width: AppConstants.spacingSm),
           Expanded(
             child: Text(
               l10n.reportsLowStockAlert(_data.lowStockCount),
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.errorRed),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onErrorContainer,
+              ),
             ),
           ),
         ],
@@ -240,14 +285,16 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     );
   }
 
-  Widget _buildCropBreakdown(
+  Widget _buildCategoryBreakdown(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    if (_data.cropBreakdown.isEmpty) return const SizedBox.shrink();
-    final maxKg = _data.cropBreakdown.first.totalKg;
+    if (_data.categoryCounts.isEmpty) return const SizedBox.shrink();
+    final maxCount = _data.categoryCounts.values.reduce(
+      (a, b) => a > b ? a : b,
+    );
 
     return Container(
       width: double.infinity,
@@ -260,10 +307,17 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.reportsStockByCrop, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+          Text(
+            l10n.reportsCoopStockByCategory,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingMd),
-          ..._data.cropBreakdown.map((c) {
-            final fraction = maxKg > 0 ? (c.totalKg / maxKg).clamp(0.0, 1.0) : 0.0;
+          ..._data.categoryCounts.entries.map((entry) {
+            final fraction = maxCount > 0 ? entry.value / maxCount : 0.0;
             return Padding(
               padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
               child: Column(
@@ -272,18 +326,35 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(c.cropName, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface)),
-                      Text('${c.totalKg.toStringAsFixed(0)} kg', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface)),
+                      Text(
+                        entry.key,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      Text(
+                        '${entry.value} items',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: cs.onSurface,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                     child: LinearProgressIndicator(
                       value: fraction,
                       minHeight: 6,
                       backgroundColor: cs.outline.withValues(alpha: 0.12),
-                      valueColor: const AlwaysStoppedAnimation(AppConstants.primaryGreen),
+                      valueColor: const AlwaysStoppedAnimation(
+                        AppConstants.primaryGreen,
+                      ),
                     ),
                   ),
                 ],
@@ -295,57 +366,75 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     );
   }
 
-  Widget _buildBatchesSection(
+  Widget _buildItemsSection(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final filtered = _filteredBatches;
+    final filtered = _filteredItems;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.reportsInventoryBatches, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+        Text(
+          l10n.reportsCoopStockItems,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: cs.onSurface,
+          ),
+        ),
         const SizedBox(height: AppConstants.spacingSm),
         SizedBox(
           height: 34,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            children: _GradeFilter.values.map((g) {
-              final active = _gradeFilter == g;
+            children: _StockFilter.values.map((f) {
+              final active = _filter == f;
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: ChoiceChip(
-                  label: Text(g.label, style: GoogleFonts.inter(fontSize: 12)),
+                  label: Text(
+                    f == _StockFilter.all
+                        ? l10n.reportsAll
+                        : l10n.reportsLowStockItems,
+                    style: GoogleFonts.inter(fontSize: 12),
+                  ),
                   selected: active,
-                  onSelected: (_) => setState(() => _gradeFilter = g),
+                  onSelected: (_) => setState(() => _filter = f),
                   selectedColor: AppConstants.primaryGreen,
-                  labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
+                  labelStyle: TextStyle(
+                    color: active ? Colors.white : cs.onSurface,
+                  ),
                 ),
               );
             }).toList(),
           ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
-        if (_data.batches.isNotEmpty)
+        if (_data.items.isNotEmpty)
           TextField(
             controller: _searchController,
             onChanged: (v) => setState(() => _searchQuery = v),
             decoration: InputDecoration(
-              hintText: l10n.reportsSearchBatches,
+              hintText: l10n.reportsSearchItems,
               hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 20),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: cs.outline,
+                size: 20,
+              ),
             ),
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
           ),
         const SizedBox(height: AppConstants.spacingSm),
-        if (_data.batches.isEmpty)
-          _buildEmptyState(l10n.reportsNoInventoryYet, cs)
+        if (_data.items.isEmpty)
+          _buildEmptyState(l10n.reportsNoCoopStockYet, cs)
         else if (filtered.isEmpty)
           _buildEmptyState(l10n.reportsNoSearchResults, cs)
         else
-          ...filtered.map((b) => _buildBatchRow(context, b, cs, sagana)),
+          ...filtered.map((i) => _buildItemRow(context, i, cs, sagana)),
       ],
     );
   }
@@ -366,91 +455,70 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     );
   }
 
-  Widget _buildBatchRow(
+  Widget _buildItemRow(
     BuildContext context,
-    InventoryReportRow batch,
+    CoopStockReportRow item,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final statusColor = batch.isLowStock
-        ? AppConstants.errorRed
-        : batch.status == 'sold_out'
-            ? AppConstants.buyerBlue
-            : AppConstants.successGreen;
-
-    return GestureDetector(
-      onTap: () => context.push(AppRoutes.farmerDetails, extra: batch.farmerId),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-        padding: const EdgeInsets.all(AppConstants.spacingMd),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(
-            color: batch.isLowStock ? AppConstants.errorRed.withValues(alpha: 0.3) : cs.outline.withValues(alpha: 0.10),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${batch.cropName} • ${batch.batchNumber}',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
-                      ),
-                      Text(
-                        '${batch.farmerName} • ${batch.memberId}',
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                  ),
-                  child: Text(
-                    batch.qualityGrade,
-                    style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppConstants.spacingMd),
-            Row(
-              children: [
-                _batchStat(l10n(context).reportsAvailable, '${batch.availableKg.toStringAsFixed(0)} kg', cs),
-                _batchStat(l10n(context).reportsReserved, '${batch.reservedKg.toStringAsFixed(0)} kg', cs),
-                _batchStat(l10n(context).reportsSold, '${batch.soldKg.toStringAsFixed(0)} kg', cs),
-              ],
-            ),
-            if (batch.isLowStock) ...[
-              const SizedBox(height: AppConstants.spacingSm),
-              Text(
-                l10n(context).reportsLowStockBadge,
-                style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor),
-              ),
-            ],
-          ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+      padding: const EdgeInsets.all(AppConstants.spacingMd),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(
+          color: item.isLowStock
+              ? AppConstants.errorRed.withValues(alpha: 0.3)
+              : cs.outline.withValues(alpha: 0.10),
         ),
       ),
-    );
-  }
-
-  Widget _batchStat(String label, String value, ColorScheme cs) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
-          Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(
+                  item.category,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${item.quantityOnHand.toStringAsFixed(item.quantityOnHand % 1 == 0 ? 0 : 1)} ${item.unit}',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+              ),
+              if (item.isLowStock)
+                Text(
+                  l10n(context).reportsLowStockBadge,
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.errorRed,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

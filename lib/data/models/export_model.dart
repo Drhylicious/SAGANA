@@ -12,6 +12,7 @@ enum ReportModuleType {
   expense,
   loan,
   memberContribution,
+  coopStock,
 }
 
 extension ReportModuleTypeExt on ReportModuleType {
@@ -29,6 +30,8 @@ extension ReportModuleTypeExt on ReportModuleType {
         return 'Loan Report';
       case ReportModuleType.memberContribution:
         return 'Member Contribution Report';
+      case ReportModuleType.coopStock:
+        return 'Cooperative Stock Report';
     }
   }
 
@@ -46,6 +49,8 @@ extension ReportModuleTypeExt on ReportModuleType {
         return Icons.request_page_rounded;
       case ReportModuleType.memberContribution:
         return Icons.groups_rounded;
+      case ReportModuleType.coopStock:
+        return Icons.warehouse_rounded;
     }
   }
 

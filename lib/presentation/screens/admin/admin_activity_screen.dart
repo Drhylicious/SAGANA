@@ -78,46 +78,51 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
         context.push(AppRoutes.adminInventory);
       case AdminActivityType.program:
         context.push(AppRoutes.programManagement);
+      case AdminActivityType.cropRequest:
+        context.push(AppRoutes.cropRequestApproval);
     }
   }
 
   Color _typeColor(AdminActivityType type, ColorScheme cs) {
     switch (type) {
-      case AdminActivityType.harvest:   return AppConstants.primaryGreen;
-      case AdminActivityType.listing:   return cs.primary;
-      case AdminActivityType.member:    return AppConstants.primaryGreen;
-      case AdminActivityType.order:     return AppConstants.buyerBlue;
-      case AdminActivityType.loan:      return AppConstants.errorRed;
-      case AdminActivityType.price:     return cs.outline;
-      case AdminActivityType.inventory: return AppConstants.warningAmber;
-      case AdminActivityType.program:   return AppConstants.programPurple;
+      case AdminActivityType.harvest:     return AppConstants.primaryGreen;
+      case AdminActivityType.listing:     return cs.primary;
+      case AdminActivityType.member:      return AppConstants.primaryGreen;
+      case AdminActivityType.order:       return AppConstants.buyerBlue;
+      case AdminActivityType.loan:        return AppConstants.errorRed;
+      case AdminActivityType.price:       return cs.outline;
+      case AdminActivityType.inventory:   return AppConstants.warningAmber;
+      case AdminActivityType.program:     return AppConstants.programPurple;
+      case AdminActivityType.cropRequest: return AppConstants.warningAmber;
     }
   }
 
   IconData _typeIcon(AdminActivityType type) {
     switch (type) {
-      case AdminActivityType.harvest:   return Icons.agriculture_rounded;
-      case AdminActivityType.listing:   return Icons.store_rounded;
-      case AdminActivityType.member:    return Icons.person_add_rounded;
-      case AdminActivityType.order:     return Icons.shopping_bag_rounded;
-      case AdminActivityType.loan:      return Icons.account_balance_rounded;
-      case AdminActivityType.price:     return Icons.sell_rounded;
-      case AdminActivityType.inventory: return Icons.inventory_2_rounded;
-      case AdminActivityType.program:   return Icons.star_rounded;
+      case AdminActivityType.harvest:     return Icons.agriculture_rounded;
+      case AdminActivityType.listing:     return Icons.store_rounded;
+      case AdminActivityType.member:      return Icons.person_add_rounded;
+      case AdminActivityType.order:       return Icons.shopping_bag_rounded;
+      case AdminActivityType.loan:        return Icons.account_balance_rounded;
+      case AdminActivityType.price:       return Icons.sell_rounded;
+      case AdminActivityType.inventory:   return Icons.inventory_2_rounded;
+      case AdminActivityType.program:     return Icons.star_rounded;
+      case AdminActivityType.cropRequest: return Icons.eco_outlined;
     }
   }
 
   String _typeLabel(AdminActivityType? type) {
     if (type == null) return 'All';
     switch (type) {
-      case AdminActivityType.harvest:   return 'Harvest';
-      case AdminActivityType.listing:   return 'Listings';
-      case AdminActivityType.member:    return 'Members';
-      case AdminActivityType.order:     return 'Orders';
-      case AdminActivityType.loan:      return 'Loans';
-      case AdminActivityType.price:     return 'Prices';
-      case AdminActivityType.inventory: return 'Inventory';
-      case AdminActivityType.program:   return 'Programs';
+      case AdminActivityType.harvest:     return 'Harvest';
+      case AdminActivityType.listing:     return 'Listings';
+      case AdminActivityType.member:      return 'Members';
+      case AdminActivityType.order:       return 'Orders';
+      case AdminActivityType.loan:        return 'Loans';
+      case AdminActivityType.price:       return 'Prices';
+      case AdminActivityType.inventory:   return 'Inventory';
+      case AdminActivityType.program:     return 'Programs';
+      case AdminActivityType.cropRequest: return 'Crop Requests';
     }
   }
 

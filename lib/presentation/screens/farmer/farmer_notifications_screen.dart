@@ -5,6 +5,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../widgets/shared_widgets.dart';
 
 class FarmerNotificationsScreen extends StatefulWidget {
@@ -56,6 +57,7 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
           .map((n) => n.copyWith(isRead: true))
           .toList();
     });
+    AppEventService.instance.notify();
   }
 
   Future<void> _markRead(String id) async {
@@ -65,11 +67,13 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
           .map((n) => n.id == id ? n.copyWith(isRead: true) : n)
           .toList();
     });
+    AppEventService.instance.notify();
   }
 
   Future<void> _delete(String id) async {
     await _repo.deleteNotification(id);
     setState(() => _notifications.removeWhere((n) => n.id == id));
+    AppEventService.instance.notify();
   }
 
   @override
@@ -222,7 +226,9 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: 'Notifications',
               onBack: () => Navigator.of(context).pop(),
+              hideProfileAvatar: true,
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,

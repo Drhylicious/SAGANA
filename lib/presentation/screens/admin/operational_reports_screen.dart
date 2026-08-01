@@ -8,7 +8,9 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../../data/models/admin_reports_model.dart';
+import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
+import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 
 /// Operational Reports — Admin hub.
@@ -30,6 +32,10 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   ReportPeriod _period = ReportPeriod.thisMonth;
   bool _isLoading = true;
   PerformanceSummary _summary = PerformanceSummary.empty();
+  PerformanceSummary _previousSummary = PerformanceSummary.empty();
+  QuickInsights _insights = QuickInsights.empty();
+  int _lowStockCount = 0;
+  List<ExportHistoryEntry> _recentExports = [];
 
   @override
   void initState() {
@@ -39,10 +45,22 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final summary = await _repo.fetchPerformanceSummary(_period);
+    final results = await Future.wait([
+      _repo.fetchPerformanceSummary(_period),
+      _repo.fetchPreviousPeriodSummary(_period),
+      _repo.fetchQuickInsights(_period),
+      Future.value(HiveService.getExportHistory()),
+      _repo.fetchLowStockCount(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _summary = summary;
+      _summary = results[0] as PerformanceSummary;
+      _previousSummary = results[1] as PerformanceSummary;
+      _insights = results[2] as QuickInsights;
+      _recentExports = (results[3] as List<Map<String, dynamic>>)
+          .map(ExportHistoryEntry.fromMap)
+          .toList();
+      _lowStockCount = results[4] as int;
       _isLoading = false;
     });
   }
@@ -65,7 +83,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           AdminTopBar(
             title: l10n.reportsHubTitle,
             onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
-            onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _load()),
+            onNotificationTap: () =>
+                context.push(AppRoutes.adminNotifications).then((_) => _load()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
           ),
           Expanded(
@@ -83,6 +102,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   const SizedBox(height: AppConstants.spacingGutter),
                   _buildSummaryCard(context, l10n, cs),
                   const SizedBox(height: AppConstants.spacingSectionV),
+                  _buildQuickInsights(context, l10n, cs, sagana),
+                  const SizedBox(height: AppConstants.spacingSectionV),
                   _buildSectionTitle(l10n.reportsDetailedReports, cs),
                   const SizedBox(height: AppConstants.spacingSm),
                   _buildDetailedReportsGrid(context, l10n, cs, sagana),
@@ -93,7 +114,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   const SizedBox(height: AppConstants.spacingSectionV),
                   _buildSectionTitle(l10n.reportsRecentReports, cs),
                   const SizedBox(height: AppConstants.spacingSm),
-                  _buildRecentReportsEmptyState(l10n, cs),
+                  _buildRecentReports(context, l10n, cs),
                 ],
               ),
             ),
@@ -105,12 +126,22 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
 
   // Top bar provided by shared AdminTopBar
 
+  // Display order for the period chips only — deliberately independent of
+  // ReportPeriod's declared enum order, in case other logic (sorting,
+  // previousRange(), etc.) relies on that declaration order.
+  static const _periodChipOrder = [
+    ReportPeriod.allTime,
+    ReportPeriod.thisMonth,
+    ReportPeriod.thisQuarter,
+    ReportPeriod.thisYear,
+  ];
+
   Widget _buildPeriodChips(BuildContext context, ColorScheme cs) {
     return SizedBox(
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
+        children: _periodChipOrder.map((p) {
           final active = _period == p;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -177,26 +208,44 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                     _summaryStat(
                       l10n.reportsTotalHarvest,
                       '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
+                      current: _summary.totalHarvestKg,
+                      previous: _previousSummary.totalHarvestKg,
+                      cs: cs,
                     ),
                     _summaryStat(
                       l10n.reportsCoopSales,
                       currency.format(_summary.coopSalesAmount),
+                      current: _summary.coopSalesAmount,
+                      previous: _previousSummary.coopSalesAmount,
+                      cs: cs,
                     ),
                     _summaryStat(
                       l10n.reportsMarketplaceRevenue,
                       currency.format(_summary.marketplaceRevenue),
+                      current: _summary.marketplaceRevenue,
+                      previous: _previousSummary.marketplaceRevenue,
+                      cs: cs,
                     ),
                     _summaryStat(
                       l10n.reportsActiveLoans,
                       currency.format(_summary.activeLoanOutstanding),
+                      current: _summary.activeLoanOutstanding,
+                      previous: _previousSummary.activeLoanOutstanding,
+                      cs: cs,
                     ),
                     _summaryStat(
                       l10n.reportsTotalExpenses,
                       currency.format(_summary.totalExpenses),
+                      current: _summary.totalExpenses,
+                      previous: _previousSummary.totalExpenses,
+                      cs: cs,
                     ),
                     _summaryStat(
                       l10n.reportsMemberParticipation,
                       '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
+                      current: _summary.memberParticipationPercent,
+                      previous: _previousSummary.memberParticipationPercent,
+                      cs: cs,
                     ),
                   ],
                 ),
@@ -205,7 +254,13 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     );
   }
 
-  Widget _summaryStat(String label, String value) {
+  Widget _summaryStat(
+    String label,
+    String value, {
+    required double? current,
+    required double? previous,
+    required ColorScheme cs,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -214,15 +269,154 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           label,
           style: GoogleFonts.inter(fontSize: 10, color: Colors.white70),
         ),
+        Row(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+            if (current != null && previous != null && _period != ReportPeriod.allTime && previous != 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: _deltaBadge(current, previous),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _deltaBadge(double current, double previous) {
+    if (_period == ReportPeriod.allTime || previous == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final change = ((current - previous) / previous * 100);
+    final isUp = change >= 0;
+    final color = isUp ? AppConstants.successGreen : AppConstants.errorRed;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+          size: 10,
+          color: color,
+        ),
         Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: Colors.white,
+          '${change.abs().toStringAsFixed(0)}%',
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: color,
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildQuickInsights(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    final chips = <Widget>[];
+    if (_insights.topCropName != null) {
+      chips.add(_insightChip(
+        Icons.trending_up_rounded,
+        l10n.reportsInsightTopCrop,
+        '${_insights.topCropName} • ₱${_insights.topCropAmount.toStringAsFixed(0)}',
+        AppConstants.successGreen,
+        cs,
+        sagana,
+      ));
+    }
+    if (_insights.topFarmerName != null) {
+      chips.add(_insightChip(
+        Icons.emoji_events_outlined,
+        l10n.reportsInsightTopFarmer,
+        '${_insights.topFarmerName} • ₱${_insights.topFarmerAmount.toStringAsFixed(0)}',
+        AppConstants.amber,
+        cs,
+        sagana,
+      ));
+    }
+    if (_insights.topExpenseCategory != null) {
+      chips.add(_insightChip(
+        Icons.trending_down_rounded,
+        l10n.reportsInsightTopExpense,
+        '${_insights.topExpenseCategory} • ₱${_insights.topExpenseAmount!.toStringAsFixed(0)}',
+        AppConstants.warningAmber,
+        cs,
+        sagana,
+      ));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.reportsQuickInsights,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: AppConstants.spacingSm),
+        ...chips,
+      ],
+    );
+  }
+
+  Widget _insightChip(
+    IconData icon,
+    String label,
+    String value,
+    Color accent,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -248,31 +442,54 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         l10n.reportsSalesReport,
         Icons.point_of_sale_rounded,
         AppRoutes.salesReport,
+        previewLabel: l10n.reportsCoopSales,
+        previewValue: '₱${_summary.coopSalesAmount.toStringAsFixed(0)}',
+        accent: AppConstants.primaryGreen,
       ),
       _ReportCardData(
-        l10n.reportsInventoryReport,
+        l10n.reportsHarvestManagement,
+        Icons.agriculture_rounded,
+        AppRoutes.harvestReport,
+        previewLabel: l10n.reportsTotalHarvest,
+        previewValue: '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
+        accent: AppConstants.successGreen,
+      ),
+      _ReportCardData(
+        l10n.reportsCoopStockReport,
         Icons.inventory_2_rounded,
-        AppRoutes.inventoryReport,
+        AppRoutes.coopStockReport,
+        previewLabel: l10n.reportsLowStockItems,
+        previewValue: '$_lowStockCount',
+        accent: _lowStockCount > 0
+            ? AppConstants.errorRed
+            : AppConstants.buyerBlue,
       ),
       _ReportCardData(
         l10n.reportsLoanReport,
         Icons.request_page_rounded,
         AppRoutes.loanReport,
-      ),
-      _ReportCardData(
-        l10n.reportsHarvestReport,
-        Icons.agriculture_rounded,
-        AppRoutes.harvestReport,
+        previewLabel: l10n.reportsActiveLoans,
+        previewValue: '₱${_summary.activeLoanOutstanding.toStringAsFixed(0)}',
+        accent: _summary.activeLoanOutstanding > 0
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
       ),
       _ReportCardData(
         l10n.reportsExpenseReport,
         Icons.receipt_long_rounded,
         AppRoutes.expenseReport,
+        previewLabel: l10n.reportsTotalExpenses,
+        previewValue: '₱${_summary.totalExpenses.toStringAsFixed(0)}',
+        accent: AppConstants.amber,
       ),
       _ReportCardData(
         l10n.reportsMemberContributionReport,
         Icons.groups_rounded,
         AppRoutes.memberContributionReport,
+        previewLabel: l10n.reportsMemberParticipation,
+        previewValue:
+            '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
+        accent: AppConstants.buyerBlue,
       ),
     ];
 
@@ -282,7 +499,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppConstants.spacingMd,
       crossAxisSpacing: AppConstants.spacingMd,
-      childAspectRatio: 1.35,
+      childAspectRatio: 1.05,
       children: reports
           .map((r) => _reportCard(context, r, cs, sagana))
           .toList(),
@@ -306,9 +523,9 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Icon(data.icon, color: AppConstants.primaryGreen, size: 22),
+            const SizedBox(height: AppConstants.spacingSm),
             Text(
               data.label,
               style: GoogleFonts.poppins(
@@ -317,6 +534,21 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                 color: cs.onSurface,
               ),
             ),
+            if (data.previewLabel != null && data.previewValue != null) ...[
+              const Spacer(),
+              Text(
+                data.previewLabel!,
+                style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
+              ),
+              Text(
+                data.previewValue!,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: data.accent ?? AppConstants.primaryGreen,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -391,18 +623,63 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     );
   }
 
-  Widget _buildRecentReportsEmptyState(AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildRecentReports(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
+    final recent = _recentExports.take(3).toList();
+    if (recent.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppConstants.spacingGutter),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+        child: Text(
+          l10n.reportsNoExportsYet,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ...recent.map((entry) => _recentExportRow(entry, cs)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => context.push(AppRoutes.exportCenter),
+            child: Text(l10n.reportsViewAllExports, style: GoogleFonts.inter(fontSize: 12)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _recentExportRow(ExportHistoryEntry entry, ColorScheme cs) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+      padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
       ),
-      child: Text(
-        l10n.reportsNoExportsYet,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.fileName,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${entry.periodLabel} • ${DateFormat('MMM d, h:mm a').format(entry.generatedAt)}',
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
@@ -412,5 +689,15 @@ class _ReportCardData {
   final String label;
   final IconData icon;
   final String route;
-  const _ReportCardData(this.label, this.icon, this.route);
+  final String? previewLabel;
+  final String? previewValue;
+  final Color? accent;
+  const _ReportCardData(
+    this.label,
+    this.icon,
+    this.route, {
+    this.previewLabel,
+    this.previewValue,
+    this.accent,
+  });
 }

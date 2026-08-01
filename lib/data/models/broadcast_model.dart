@@ -36,32 +36,45 @@ extension BroadcastCategoryExt on BroadcastCategory {
 
 // ─── Recipient Type ───────────────────────────────────────────────────────────
 
-enum RecipientType { allMembers, outstandingLoans, specificCrop, specificFarmer }
+enum RecipientType {
+  allMembers,
+  allBuyers,
+  outstandingLoans,
+  specificCrop,
+  specificFarmer,
+  specificBuyer,
+}
 
 extension RecipientTypeExt on RecipientType {
   String get value {
     switch (this) {
       case RecipientType.allMembers:       return 'all_members';
+      case RecipientType.allBuyers:        return 'all_buyers';
       case RecipientType.outstandingLoans: return 'outstanding_loans';
       case RecipientType.specificCrop:     return 'specific_crop';
       case RecipientType.specificFarmer:   return 'specific_farmer';
+      case RecipientType.specificBuyer:    return 'specific_buyer';
     }
   }
 
   String get label {
     switch (this) {
       case RecipientType.allMembers:       return 'All Members';
+      case RecipientType.allBuyers:        return 'All Buyers';
       case RecipientType.outstandingLoans: return 'Outstanding Loans';
       case RecipientType.specificCrop:     return 'Specific Crop';
       case RecipientType.specificFarmer:   return 'Specific Farmer';
+      case RecipientType.specificBuyer:    return 'Specific Buyer';
     }
   }
 
   static RecipientType fromString(String? v) {
     switch (v) {
+      case 'all_buyers':        return RecipientType.allBuyers;
       case 'outstanding_loans': return RecipientType.outstandingLoans;
       case 'specific_crop':     return RecipientType.specificCrop;
       case 'specific_farmer':   return RecipientType.specificFarmer;
+      case 'specific_buyer':    return RecipientType.specificBuyer;
       default:                  return RecipientType.allMembers;
     }
   }
@@ -100,6 +113,8 @@ class BroadcastModel {
 
   String get recipientLabel {
     switch (recipientType) {
+      case RecipientType.allBuyers:
+        return 'All Buyers';
       case RecipientType.outstandingLoans:
         return 'Outstanding Loans';
       case RecipientType.specificCrop:
@@ -108,6 +123,8 @@ class BroadcastModel {
             : 'Specific Crop';
       case RecipientType.specificFarmer:
         return 'Specific Farmer';
+      case RecipientType.specificBuyer:
+        return 'Specific Buyer';
       default:
         return 'All Members';
     }

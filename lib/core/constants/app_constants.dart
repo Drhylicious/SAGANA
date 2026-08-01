@@ -116,6 +116,7 @@ class AppConstants {
   static const String hiveBoxSettings = 'settings_box';
   static const String hiveBoxLoanQueue = 'loan_queue_box'; // NEW — offline loan issuance queue
   static const String hiveBoxExportHistory = 'export_history_box'; // NEW — Export Center's Recent Exports
+  static const String hiveBoxCart = 'cart_box'; // NEW — local-only buyer cart, no Supabase table
 
   // ─── Hive Keys ───────────────────────────────────────────────────────────────
   static const String hiveKeyUserRole = 'user_role';

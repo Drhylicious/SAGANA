@@ -25,7 +25,7 @@ class FarmerBottomNav extends StatelessWidget {
     final items = [
       _NavItem(icon: Icons.home_rounded, label: l10n.navHome),
       _NavItem(icon: Icons.eco_outlined, label: l10n.navHarvest),
-      _NavItem(icon: Icons.storefront_outlined, label: l10n.navMarketplace),
+      _NavItem(icon: Icons.storefront_outlined, label: l10n.navListings),
       _NavItem(icon: Icons.bar_chart_rounded, label: l10n.navAnalytics),
       _NavItem(icon: Icons.person_outline_rounded, label: l10n.navProfile),
     ];

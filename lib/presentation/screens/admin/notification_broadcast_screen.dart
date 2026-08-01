@@ -13,7 +13,17 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/web_safe_blur_container.dart';
 
 class NotificationBroadcastScreen extends StatefulWidget {
-  const NotificationBroadcastScreen({super.key});
+  /// When set, opens pre-targeted at a single buyer — reused by
+  /// BuyerManagementScreen's "Send Notification" action instead of
+  /// building a second compose screen.
+  final String? initialBuyerId;
+  final String? initialBuyerName;
+
+  const NotificationBroadcastScreen({
+    super.key,
+    this.initialBuyerId,
+    this.initialBuyerName,
+  });
 
   @override
   State<NotificationBroadcastScreen> createState() =>
@@ -32,6 +42,7 @@ class _NotificationBroadcastScreenState
   BroadcastCategory   _category        = BroadcastCategory.meeting;
   String?             _cropFilter;
   String?             _farmerFilter;
+  String?             _buyerFilter;
   bool                _scheduleEnabled = false;
   DateTime?           _scheduledAt;
 
@@ -40,6 +51,7 @@ class _NotificationBroadcastScreenState
   List<BroadcastModel>       _history        = [];
   List<String>               _cropNames      = [];
   List<Map<String, String>>  _farmers        = [];
+  List<Map<String, String>>  _buyers         = [];
 
   // ── Screen state ───────────────────────────────────────────────────────────
   bool _isLoading  = true;
@@ -58,6 +70,10 @@ class _NotificationBroadcastScreenState
     _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
+    if (widget.initialBuyerId != null) {
+      _recipientType = RecipientType.specificBuyer;
+      _buyerFilter   = widget.initialBuyerId;
+    }
     _titleCtrl.addListener(() => setState(() {}));
     _bodyCtrl.addListener(()  => setState(() {}));
     _loadAll();
@@ -78,24 +94,36 @@ class _NotificationBroadcastScreenState
       _repo.fetchRecentBroadcasts(),
       _repo.fetchCropNames(),
       _repo.fetchFarmersList(),
-      _repo.previewRecipientCount(type: _recipientType),
+      _repo.fetchBuyersList(),
+      _repo.previewRecipientCount(
+        type: _recipientType,
+        filter: _currentRecipientFilter,
+      ),
     ]);
     if (!mounted) return;
     setState(() {
       _history        = results[0] as List<BroadcastModel>;
       _cropNames      = results[1] as List<String>;
       _farmers        = results[2] as List<Map<String, String>>;
-      _recipientCount = results[3] as int;
+      _buyers         = results[3] as List<Map<String, String>>;
+      _recipientCount = results[4] as int;
       _isLoading      = false;
     });
+  }
+
+  String? get _currentRecipientFilter {
+    switch (_recipientType) {
+      case RecipientType.specificCrop:   return _cropFilter;
+      case RecipientType.specificFarmer: return _farmerFilter;
+      case RecipientType.specificBuyer:  return _buyerFilter;
+      default:                           return null;
+    }
   }
 
   Future<void> _refreshRecipientCount() async {
     final count = await _repo.previewRecipientCount(
       type:   _recipientType,
-      filter: _recipientType == RecipientType.specificCrop
-          ? _cropFilter
-          : _farmerFilter,
+      filter: _currentRecipientFilter,
     );
     if (mounted) setState(() => _recipientCount = count);
   }
@@ -164,6 +192,11 @@ class _NotificationBroadcastScreenState
       _showSnack('Please select a farmer to send to.');
       return;
     }
+    if (_recipientType == RecipientType.specificBuyer &&
+        (_buyerFilter == null || _buyerFilter!.isEmpty)) {
+      _showSnack('Please select a buyer to send to.');
+      return;
+    }
 
     setState(() => _isSending = true);
     try {
@@ -172,21 +205,23 @@ class _NotificationBroadcastScreenState
         body:            body,
         category:        _category,
         recipientType:   _recipientType,
-        recipientFilter: _recipientType == RecipientType.specificCrop
-            ? _cropFilter
-            : _recipientType == RecipientType.specificFarmer
-                ? _farmerFilter
-                : null,
+        recipientFilter: _currentRecipientFilter,
         scheduledAt: _scheduleEnabled ? _scheduledAt : null,
       );
 
       if (!mounted) return;
       setState(() => _isSending = false);
 
+      final recipientNoun =
+          (_recipientType == RecipientType.allBuyers ||
+                  _recipientType == RecipientType.specificBuyer)
+              ? 'buyer'
+              : 'member';
+
       _showSnack(
         _scheduleEnabled && _scheduledAt != null
             ? 'Scheduled for ${_formatScheduleLabel(_scheduledAt!)} • $count recipients'
-            : 'Sent to $count member${count == 1 ? '' : 's'} successfully.',
+            : 'Sent to $count $recipientNoun${count == 1 ? '' : 's'} successfully.',
         isSuccess: true,
       );
 
@@ -194,10 +229,13 @@ class _NotificationBroadcastScreenState
       _titleCtrl.clear();
       _bodyCtrl.clear();
       setState(() {
-        _recipientType  = RecipientType.allMembers;
-        _category       = BroadcastCategory.meeting;
+        _recipientType   = RecipientType.allMembers;
+        _category        = BroadcastCategory.meeting;
+        _cropFilter      = null;
+        _farmerFilter    = null;
+        _buyerFilter     = null;
         _scheduleEnabled = false;
-        _scheduledAt    = null;
+        _scheduledAt     = null;
       });
       _refreshRecipientCount();
       await Future.delayed(const Duration(milliseconds: 400));
@@ -307,8 +345,10 @@ class _NotificationBroadcastScreenState
                             recipientCount:  _recipientCount,
                             cropFilter:      _cropFilter,
                             farmerFilter:    _farmerFilter,
+                            buyerFilter:     _buyerFilter,
                             cropNames:       _cropNames,
                             farmers:         _farmers,
+                            buyers:          _buyers,
                             maxTitle:        _maxTitle,
                             maxBody:         _maxBody,
                             cs:              cs,
@@ -318,6 +358,7 @@ class _NotificationBroadcastScreenState
                                 _recipientType = type;
                                 _cropFilter    = null;
                                 _farmerFilter  = null;
+                                _buyerFilter   = null;
                               });
                               _refreshRecipientCount();
                             },
@@ -329,6 +370,10 @@ class _NotificationBroadcastScreenState
                             },
                             onFarmerFilterChanged: (id) {
                               setState(() => _farmerFilter = id);
+                              _refreshRecipientCount();
+                            },
+                            onBuyerFilterChanged: (id) {
+                              setState(() => _buyerFilter = id);
                               _refreshRecipientCount();
                             },
                           ),
@@ -507,8 +552,10 @@ class _ComposeCard extends StatelessWidget {
   final int recipientCount;
   final String? cropFilter;
   final String? farmerFilter;
+  final String? buyerFilter;
   final List<String> cropNames;
   final List<Map<String, String>> farmers;
+  final List<Map<String, String>> buyers;
   final int maxTitle;
   final int maxBody;
   final ColorScheme cs;
@@ -517,6 +564,7 @@ class _ComposeCard extends StatelessWidget {
   final ValueChanged<BroadcastCategory> onCategoryChanged;
   final ValueChanged<String?> onCropFilterChanged;
   final ValueChanged<String?> onFarmerFilterChanged;
+  final ValueChanged<String?> onBuyerFilterChanged;
 
   const _ComposeCard({
     required this.titleCtrl,
@@ -526,8 +574,10 @@ class _ComposeCard extends StatelessWidget {
     required this.recipientCount,
     required this.cropFilter,
     required this.farmerFilter,
+    required this.buyerFilter,
     required this.cropNames,
     required this.farmers,
+    required this.buyers,
     required this.maxTitle,
     required this.maxBody,
     required this.cs,
@@ -536,7 +586,14 @@ class _ComposeCard extends StatelessWidget {
     required this.onCategoryChanged,
     required this.onCropFilterChanged,
     required this.onFarmerFilterChanged,
+    required this.onBuyerFilterChanged,
   });
+
+  String _recipientNoun(RecipientType t) =>
+      (t == RecipientType.allBuyers || t == RecipientType.specificBuyer)
+          ? 'buyer'
+          : 'member';
+
 
   @override
   Widget build(BuildContext context) {
@@ -570,7 +627,8 @@ class _ComposeCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Sending to: $recipientCount member${recipientCount == 1 ? '' : 's'}',
+                'Sending to: $recipientCount ${_recipientNoun(recipientType)}'
+                '${recipientCount == 1 ? '' : 's'}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -644,6 +702,30 @@ class _ComposeCard extends StatelessWidget {
                       ))
                   .toList(),
               onChanged: onFarmerFilterChanged,
+            ),
+          ],
+
+          // ── Buyer filter (visible only for specificBuyer) ─────────────
+          if (recipientType == RecipientType.specificBuyer) ...[
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: buyerFilter,
+              hint: Text('Select buyer',
+                  style: GoogleFonts.inter(
+                      fontSize: 14, color: cs.outline)),
+              decoration: const InputDecoration(
+                contentPadding: EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+              ),
+              style: GoogleFonts.inter(
+                  fontSize: 14, color: cs.onSurface),
+              items: buyers
+                  .map((b) => DropdownMenuItem(
+                        value: b['id'],
+                        child: Text(b['name'] ?? ''),
+                      ))
+                  .toList(),
+              onChanged: onBuyerFilterChanged,
             ),
           ],
           const SizedBox(height: 16),

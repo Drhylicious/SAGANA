@@ -22,7 +22,7 @@ class SyncService {
 
     // Listen for connectivity restored
     ConnectivityService.instance.onConnectivityChanged.listen((isOnline) {
-      if (isOnline) syncPending();
+      if (isOnline && HiveService.getBackgroundSync()) syncPending();
     });
   }
 

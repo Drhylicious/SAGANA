@@ -7,6 +7,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/listing_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
@@ -21,16 +23,21 @@ class MyListingsScreen extends StatefulWidget {
 
 class _MyListingsScreenState extends State<MyListingsScreen> {
   final _repo = ListingRepository();
+  final _notifRepo = NotificationRepository();
+  final _searchController = TextEditingController();
 
   List<MarketplaceListingModel> _allListings = [];
   List<MarketplaceListingModel> _filtered = [];
   ListingFilter _activeFilter = ListingFilter.all;
+  String _searchQuery = '';
+  int _unreadCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
 
   @override
   void initState() {
     super.initState();
+    AppEventService.instance.addListener(_onDataChanged);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -41,15 +48,38 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
+    _searchController.addListener(_onSearchChanged);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    AppEventService.instance.removeListener(_onDataChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadData();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _applyFilter();
+    });
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final listings = await _repo.fetchListings();
+    final results = await Future.wait([
+      _repo.fetchListings(),
+      _notifRepo.fetchUnreadCount(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _allListings = listings;
+      _allListings = results[0] as List<MarketplaceListingModel>;
+      _unreadCount = results[1] as int;
       _applyFilter();
       _isLoading = false;
     });
@@ -63,11 +93,34 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   }
 
   void _applyFilter() {
-    _filtered = _allListings.where((l) => _activeFilter.matches(l)).toList();
+    final q = _searchQuery.trim().toLowerCase();
+    _filtered = _allListings.where((l) {
+      if (!_activeFilter.matches(l)) return false;
+      if (q.isEmpty) return true;
+      return l.cropName.toLowerCase().contains(q) ||
+          (l.variety?.toLowerCase().contains(q) ?? false);
+    }).toList();
   }
 
   int _countFor(bool Function(MarketplaceListingModel) test) =>
       _allListings.where(test).length;
+
+  int _countForFilter(ListingFilter f) =>
+      _allListings.where((l) => f.matches(l)).length;
+
+  // ── KPI computations ────────────────────────────────────────────────────
+
+  double get _activeMarketValue => _allListings
+      .where((l) => l.isLive)
+      .fold<double>(0, (sum, l) => sum + (l.pricePerKg * l.volumeKg));
+
+  int get _liveCount => _countFor((l) => l.isLive);
+
+  int get _awaitingActionCount =>
+      _countFor((l) => l.isPending) + _countFor((l) => l.needsChanges);
+
+  List<MarketplaceListingModel> get _needsAttention =>
+      _allListings.where((l) => l.needsChanges).toList();
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -215,9 +268,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
-    final pendingCount = _countFor((l) => l.isPending);
-    final liveCount = _countFor((l) => l.isLive);
-    final changesCount = _countFor((l) => l.needsChanges);
+    final needsAttention = _needsAttention;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
@@ -234,23 +285,65 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(0, 16, 0, 100),
                     children: [
-                      // Quick stats row
-                      if (!_isLoading)
+                      // KPI overview
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _isLoading
+                            ? Row(
+                                children: const [
+                                  Expanded(child: _Shimmer(height: 92)),
+                                  SizedBox(width: 12),
+                                  Expanded(child: _Shimmer(height: 92)),
+                                ],
+                              )
+                            : _KpiRow(
+                                activeMarketValue: _activeMarketValue,
+                                liveCount: _liveCount,
+                                awaitingActionCount: _awaitingActionCount,
+                              ),
+                      ),
+
+                      // Needs attention
+                      if (!_isLoading && needsAttention.isNotEmpty) ...[
+                        const SizedBox(height: 16),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: _QuickStatsRow(
-                            pending: pendingCount,
-                            live: liveCount,
-                            changesRequired: changesCount,
+                          child: PriorityCard(
+                            items: needsAttention
+                                .map(
+                                  (l) => PriorityItem(
+                                    title: '${l.displayName} needs changes',
+                                    subtitle: (l.adminNotes != null &&
+                                            l.adminNotes!.isNotEmpty)
+                                        ? l.adminNotes
+                                        : 'Admin requested an update before this can go live',
+                                    icon: Icons.error_outline_rounded,
+                                    severity: PrioritySeverity.critical,
+                                    onTap: () => _editAndResubmit(l),
+                                  ),
+                                )
+                                .toList(),
+                            allClearTitle: '',
+                            allClearMessage: '',
                           ),
                         ),
+                      ],
+
                       const SizedBox(height: 16),
+
+                      // Search
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _SearchBar(controller: _searchController),
+                      ),
+                      const SizedBox(height: 14),
 
                       // Filter chips
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: _FilterChips(
                           active: _activeFilter,
+                          countFor: _countForFilter,
                           onSelected: _setFilter,
                         ),
                       ),
@@ -271,7 +364,8 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                               )
                             : _filtered.isEmpty
                             ? _EmptyState(
-                                hasFilter: _activeFilter != ListingFilter.all,
+                                hasFilter: _activeFilter != ListingFilter.all ||
+                                    _searchQuery.isNotEmpty,
                               )
                             : Column(
                                 children: _filtered
@@ -308,6 +402,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: 'Marketplace',
+              unreadCount: _unreadCount,
+              hideProfileAvatar: true,
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
@@ -324,139 +421,151 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
+// KPI Row
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
+class _KpiRow extends StatelessWidget {
+  final double activeMarketValue;
+  final int liveCount;
+  final int awaitingActionCount;
+
+  const _KpiRow({
+    required this.activeMarketValue,
+    required this.liveCount,
+    required this.awaitingActionCount,
+  });
+
+  String _formatCurrency(double v) {
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
+    return v.toStringAsFixed(0);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: Theme.of(
-        context,
-      ).colorScheme.secondaryContainer.withValues(alpha: 0.18),
-      child: Row(
-        children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            size: 18,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'Offline — Showing cached listings.',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSecondaryContainer,
+    return Row(
+      children: [
+        Expanded(
+          child: GlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Active Market Value',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '₱${_formatCurrency(activeMarketValue)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '$liveCount live on market',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Quick Stats Row
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _QuickStatsRow extends StatelessWidget {
-  final int pending;
-  final int live;
-  final int changesRequired;
-
-  const _QuickStatsRow({
-    required this.pending,
-    required this.live,
-    required this.changesRequired,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _StatChip(
-            count: pending,
-            label: 'Pending',
-            color: AppConstants.warningAmber,
-          ),
-          const SizedBox(width: 10),
-          _StatChip(
-            count: live,
-            label: 'Live',
-            color: AppConstants.successGreen,
-          ),
-          const SizedBox(width: 10),
-          _StatChip(
-            count: changesRequired,
-            label: 'Changes Required',
-            color: AppConstants.errorRed,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final int count;
-  final String label;
-  final Color color;
-
-  const _StatChip({
-    required this.count,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border(left: BorderSide(color: color, width: 4)),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(
-                  context,
-                ).colorScheme.shadow.withValues(alpha: 0.05),
-                blurRadius: 8,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$count $label',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurface,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: GlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Awaiting Action',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                Text(
+                  '$awaitingActionCount',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: awaitingActionCount > 0
+                        ? AppConstants.warningAmber
+                        : AppConstants.charcoal,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  awaitingActionCount > 0
+                      ? 'Pending review or changes'
+                      : 'All caught up',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search Bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  const _SearchBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+      decoration: InputDecoration(
+        hintText: 'Search your listings...',
+        hintStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: AppConstants.outline.withValues(alpha: 0.60),
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: AppConstants.outline,
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          borderSide: BorderSide(
+            color: AppConstants.outline.withValues(alpha: 0.20),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          borderSide: BorderSide(
+            color: AppConstants.outline.withValues(alpha: 0.20),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          borderSide: const BorderSide(color: AppConstants.primaryGreen),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
         ),
       ),
     );
@@ -469,9 +578,14 @@ class _StatChip extends StatelessWidget {
 
 class _FilterChips extends StatelessWidget {
   final ListingFilter active;
+  final int Function(ListingFilter) countFor;
   final ValueChanged<ListingFilter> onSelected;
 
-  const _FilterChips({required this.active, required this.onSelected});
+  const _FilterChips({
+    required this.active,
+    required this.countFor,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -480,6 +594,10 @@ class _FilterChips extends StatelessWidget {
       child: Row(
         children: ListingFilter.values.map((f) {
           final isActive = f == active;
+          final count = countFor(f);
+          final label = (f != ListingFilter.all && count > 0)
+              ? '${f.label} ($count)'
+              : f.label;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
@@ -505,7 +623,7 @@ class _FilterChips extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  f.label,
+                  label,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -731,6 +849,10 @@ class _StandardContent extends StatelessWidget {
             ),
           ],
         ),
+        if (listing.isPending || listing.isLive) ...[
+          const SizedBox(height: 14),
+          StatusStepper.forListingStatus(listing.status),
+        ],
         if (listing.isPending) ...[
           const SizedBox(height: 12),
           SizedBox(
@@ -884,7 +1006,6 @@ class _ChangesRequiredContent extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Admin feedback box
         if (listing.adminNotes != null && listing.adminNotes!.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(12),
@@ -1305,6 +1426,7 @@ class _MenuOption extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   final bool hasFilter;
+
   const _EmptyState({required this.hasFilter});
 
   @override
@@ -1323,14 +1445,16 @@ class _EmptyState extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.storefront_outlined,
+              hasFilter
+                  ? Icons.search_off_rounded
+                  : Icons.storefront_outlined,
               size: 38,
               color: AppConstants.outline.withValues(alpha: 0.60),
             ),
           ),
           const SizedBox(height: 18),
           Text(
-            hasFilter ? 'No listings match this filter' : 'No listings yet',
+            hasFilter ? 'No listings match this search' : 'No listings yet',
             style: GoogleFonts.poppins(
               fontSize: 17,
               fontWeight: FontWeight.w700,
@@ -1340,8 +1464,8 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             hasFilter
-                ? 'Try a different filter'
-                : 'Create a listing from your inventory to start selling.',
+                ? 'Try a different search term or filter'
+                : 'Create a listing from your inventory to start selling to buyers. Tap the + button to get started.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,
@@ -1355,7 +1479,66 @@ class _EmptyState extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shimmer
+// Small shimmer block (KPI loading state)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Shimmer extends StatelessWidget {
+  final double height;
+  const _Shimmer({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.40),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Offline Banner
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      color: Theme.of(
+        context,
+      ).colorScheme.secondaryContainer.withValues(alpha: 0.18),
+      child: Row(
+        children: [
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Offline — Showing cached listings.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shimmer (listing card)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ListingShimmer extends StatefulWidget {

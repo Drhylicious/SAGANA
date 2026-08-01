@@ -47,14 +47,16 @@ class CsvExportService {
       final file = File('${exportsDir.path}/$fileName');
       await file.writeAsString(csv);
 
-      await HiveService.addExportHistoryEntry(ExportHistoryEntry(
-        id: 'export_${DateTime.now().millisecondsSinceEpoch}_${module.name}',
-        fileName: fileName,
-        filePath: file.path,
-        moduleLabels: [module.label],
-        periodLabel: periodLabel,
-        generatedAt: DateTime.now(),
-      ).toMap());
+      await HiveService.addExportHistoryEntry(
+        ExportHistoryEntry(
+          id: 'export_${DateTime.now().millisecondsSinceEpoch}_${module.name}',
+          fileName: fileName,
+          filePath: file.path,
+          moduleLabels: [module.label],
+          periodLabel: periodLabel,
+          generatedAt: DateTime.now(),
+        ).toMap(),
+      );
 
       paths.add(file.path);
     }
@@ -68,19 +70,33 @@ class CsvExportService {
   ) async {
     switch (module) {
       case ReportModuleType.sales:
-        return serializeSalesReportCsv(await _reportsRepo.fetchSalesReport(period));
+        return serializeSalesReportCsv(
+          await _reportsRepo.fetchSalesReport(period),
+        );
       case ReportModuleType.inventory:
-        return serializeInventoryReportCsv(await _reportsRepo.fetchInventoryReport());
+        return serializeInventoryReportCsv(
+          await _reportsRepo.fetchInventoryReport(),
+        );
       case ReportModuleType.harvest:
-        return serializeHarvestReportCsv(await _reportsRepo.fetchHarvestReport(period));
+        return serializeHarvestReportCsv(
+          await _reportsRepo.fetchHarvestReport(period),
+        );
       case ReportModuleType.expense:
-        return serializeExpenseReportCsv(await _reportsRepo.fetchExpenseReport(period));
+        return serializeExpenseReportCsv(
+          await _reportsRepo.fetchExpenseReport(period),
+        );
       case ReportModuleType.loan:
-        final loans = await _loanRepo.fetchAllLoans(issuedAfter: period.startDate);
+        final loans = await _loanRepo.fetchAllLoans(
+          issuedAfter: period.startDate,
+        );
         return serializeLoanReportCsv(loans);
       case ReportModuleType.memberContribution:
         return serializeMemberContributionReportCsv(
           await _reportsRepo.fetchMemberContributionReport(contributionYear),
+        );
+      case ReportModuleType.coopStock:
+        return serializeCoopStockReportCsv(
+          await _reportsRepo.fetchCoopStockReport(),
         );
     }
   }

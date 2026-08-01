@@ -47,8 +47,14 @@ class DashboardRepository {
       );
     } catch (_) {}
 
-    // Total earnings from completed orders this month
-    // orders table now exists — queries approved marketplace listings as fallback
+    // Total earnings from completed orders this month.
+    // No fallback to approved-listing value: that would substitute a
+    // fundamentally different metric (total listed value, whether or
+    // not anything sold) for a farmer's actual earnings — worse than
+    // showing 0, since it looks like a real number. Every other read
+    // path in this app already fails toward "show less," never toward
+    // "show a plausible but wrong bigger number" — this now matches
+    // that convention instead of being the one exception.
     try {
       final earningsResponse = await _client
           .from('orders')
@@ -61,21 +67,7 @@ class DashboardRepository {
         (sum, row) => sum + (row['total_price'] as num).toDouble(),
       );
     } catch (_) {
-      // Fallback: approximate from approved marketplace listings
-      try {
-        final listingRows = await _client
-            .from('marketplace_listings')
-            .select('price_per_kg, volume_kg')
-            .eq('farmer_id', _userId)
-            .eq('status', 'approved');
-        totalEarnings = listingRows.fold<double>(
-          0,
-          (sum, row) =>
-              sum +
-              (row['price_per_kg'] as num).toDouble() *
-                  (row['volume_kg'] as num).toDouble(),
-        );
-      } catch (_) {}
+      totalEarnings = 0;
     }
 
     final unsyncedCount = HiveService.getUnsyncedCount();
@@ -102,16 +94,16 @@ class DashboardRepository {
       final List<PriceRecordModel> prices = [];
       final Set<String> seen = {};
       for (final row in response) {
-        final cropName = row['crop_name'] as String;
-        if (!seen.contains(cropName)) {
-          seen.add(cropName);
+        final key = '${row['crop_id']}_${row['price_type']}';
+        if (!seen.contains(key)) {
+          seen.add(key);
           prices.add(PriceRecordModel.fromMap(row));
         }
       }
 
       if (prices.isNotEmpty) {
         await HiveService.cachePrices(
-          {for (var p in prices) p.cropName: p.toMap()},
+          {for (var p in prices) '${p.cropId}_${p.priceType}': p.toMap()},
         );
       }
       return prices;
@@ -213,6 +205,9 @@ class DashboardRepository {
       }
     } catch (_) {}
 
+    // Recent crop request activity
+    items.addAll(await _fetchCropRequestActivity(userId: _userId, limit: 3));
+
     items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return items.take(limit).toList();
   }
@@ -232,6 +227,62 @@ class DashboardRepository {
     } catch (_) {
       return 0;
     }
+  }
+
+  // ─── Crop Request Activity (submission + outcome) ─────────────────────────
+  // A single crop_requests row can produce up to two ActivityItems: the
+  // submission itself, and — once reviewed — the approval/rejection outcome.
+
+  Future<List<ActivityItem>> _fetchCropRequestActivity({
+    required String userId,
+    String? searchQuery,
+    int limit = 50,
+  }) async {
+    final List<ActivityItem> items = [];
+    try {
+      final requests = await _client
+          .from('crop_requests')
+          .select('id, requested_name, status, created_at, reviewed_at')
+          .eq('farmer_id', userId)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      for (final r in requests) {
+        final name = r['requested_name'] as String;
+        if (searchQuery != null &&
+            searchQuery.isNotEmpty &&
+            !name.toLowerCase().contains(searchQuery.toLowerCase())) {
+          continue;
+        }
+
+        final status = r['status'] as String;
+        final createdAt = DateTime.parse(r['created_at'] as String);
+
+        items.add(ActivityItem(
+          id: '${r['id']}_submitted',
+          type: ActivityType.cropRequest,
+          title: 'Crop Request Submitted',
+          subtitle: name,
+          statusLabel: status == 'pending' ? 'Pending Review' : 'Submitted',
+          timestamp: createdAt,
+        ));
+
+        if (status != 'pending' && r['reviewed_at'] != null) {
+          final reviewedAt = DateTime.parse(r['reviewed_at'] as String);
+          final isRejected = status == 'rejected';
+          items.add(ActivityItem(
+            id: '${r['id']}_reviewed',
+            type: ActivityType.cropRequest,
+            title: isRejected ? 'Crop Request Declined' : 'Crop Request Approved',
+            subtitle: name,
+            statusLabel: isRejected ? 'Declined' : 'Approved',
+            isAlert: isRejected,
+            timestamp: reviewedAt,
+          ));
+        }
+      }
+    } catch (_) {}
+    return items;
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -399,6 +450,13 @@ extension FullActivityFetch on DashboardRepository {
         ));
       }
     } catch (_) {}
+
+    // Crop requests (submission + outcome), search-aware
+    items.addAll(await DashboardRepository()._fetchCropRequestActivity(
+      userId: userId,
+      searchQuery: searchQuery,
+      limit: limit,
+    ));
 
     items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return items.take(limit).toList();

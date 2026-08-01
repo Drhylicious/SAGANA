@@ -171,11 +171,15 @@ class MarketLinkingRepository {
     }
   }
 
-  // Fetch Ginger farmers not yet enrolled in current season
-  Future<List<Map<String, dynamic>>> fetchUnenrolledGingerFarmers() async {
+  // Replaces fetchUnenrolledGingerFarmers() — that method collapsed two
+  // different situations into the same empty list: "every Ginger farmer is
+  // already enrolled" and "no farmer has Ginger registered at all" produced
+  // identical output, so the UI couldn't tell them apart and always showed
+  // the same (sometimes wrong) message.
+  Future<Map<String, dynamic>> fetchEnrollmentCandidates() async {
     try {
       final year = DateTime.now().year;
-      // Get already enrolled farmer IDs for this year
+
       final enrolled = await _client
           .from('market_linking_programs')
           .select('farmer_id')
@@ -183,34 +187,38 @@ class MarketLinkingRepository {
           .neq('status', 'cancelled');
       final enrolledIds = enrolled.map((r) => r['farmer_id'] as String).toSet();
 
-      // Ginger farmers
       final gingerRows = await _client
           .from('farmer_crops')
           .select('farmer_id')
           .ilike('crop_name', '%ginger%');
-      final gingerFarmerIds = gingerRows
-          .map((r) => r['farmer_id'] as String)
-          .where((id) => !enrolledIds.contains(id))
-          .toSet()
-          .toList();
+      final allGingerFarmerIds =
+          gingerRows.map((r) => r['farmer_id'] as String).toSet();
 
-      if (gingerFarmerIds.isEmpty) return [];
+      final unenrolledIds =
+          allGingerFarmerIds.difference(enrolledIds).toList();
 
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name, sitio')
-          .inFilter('user_id', gingerFarmerIds)
-          .order('full_name', ascending: true);
+      List<Map<String, dynamic>> unenrolled = [];
+      if (unenrolledIds.isNotEmpty) {
+        final infoRows = await _client
+            .from('user_information')
+            .select('user_id, full_name, sitio')
+            .inFilter('user_id', unenrolledIds)
+            .order('full_name', ascending: true);
+        unenrolled = infoRows
+            .map((r) => {
+                  'id': r['user_id'] as String,
+                  'name': r['full_name'] as String? ?? 'Farmer',
+                  'sitio': r['sitio'] as String?,
+                })
+            .toList();
+      }
 
-      return infoRows
-          .map((r) => {
-                'id':   r['user_id'] as String,
-                'name': r['full_name'] as String? ?? 'Farmer',
-                'sitio': r['sitio'] as String?,
-              })
-          .toList();
+      return {
+        'totalGingerFarmers': allGingerFarmerIds.length,
+        'unenrolled': unenrolled,
+      };
     } catch (_) {
-      return [];
+      return {'totalGingerFarmers': 0, 'unenrolled': <Map<String, dynamic>>[]};
     }
   }
 

@@ -1,6 +1,7 @@
 class FarmerProfileModel {
   final String userId;
   final String fullName;
+  final String? email;
   final String? phoneNumber;
   final String? profilePhotoUrl;
   final String? sitio;
@@ -30,6 +31,7 @@ class FarmerProfileModel {
   const FarmerProfileModel({
     required this.userId,
     required this.fullName,
+    this.email,
     this.phoneNumber,
     this.profilePhotoUrl,
     this.sitio,
@@ -128,6 +130,7 @@ class FarmerProfileModel {
     return FarmerProfileModel(
       userId:             map['user_id'] as String,
       fullName:           map['full_name'] as String? ?? 'Farmer',
+      email:              map['email'] as String? ?? map['user_email'] as String?,
       phoneNumber:        map['phone_number'] as String?,
       profilePhotoUrl:    map['profile_photo_url'] as String?,
       sitio:              map['sitio'] as String?,
@@ -157,6 +160,66 @@ class FarmerProfileModel {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+    );
+  }
+}
+
+// ─── My Programs (farmer-facing view of program_members enrollments) ────────
+
+class MyProgramEntry {
+  final String id;
+  final String programName;
+  final String benefitType;
+  final String programStatus;
+  final String enrollmentStatus;
+  final DateTime enrolledAt;
+  final String? itemName;
+  final String? itemUnit;
+  final double? quantityGiven;
+  final DateTime? distributedAt;
+  final double? expectedReturnPercent;
+  final double? amountReturned;
+  final DateTime? settledAt;
+
+  const MyProgramEntry({
+    required this.id,
+    required this.programName,
+    required this.benefitType,
+    required this.programStatus,
+    required this.enrollmentStatus,
+    required this.enrolledAt,
+    this.itemName,
+    this.itemUnit,
+    this.quantityGiven,
+    this.distributedAt,
+    this.expectedReturnPercent,
+    this.amountReturned,
+    this.settledAt,
+  });
+
+  bool get isRevenueShare => benefitType == 'revenue_share';
+  bool get isDistributed => distributedAt != null;
+  bool get isSettled => settledAt != null;
+
+  factory MyProgramEntry.fromMap(Map<String, dynamic> m) {
+    final program = m['cooperative_programs'] as Map<String, dynamic>? ?? {};
+    final item = m['cooperative_inventory'] as Map<String, dynamic>?;
+    return MyProgramEntry(
+      id: m['id'] as String,
+      programName: program['program_name'] as String? ?? 'Program',
+      benefitType: program['benefit_type'] as String? ?? 'grant',
+      programStatus: program['status'] as String? ?? 'active',
+      enrollmentStatus: m['status'] as String? ?? 'active',
+      enrolledAt: DateTime.parse(m['enrolled_at'] as String),
+      itemName: item?['item_name'] as String?,
+      itemUnit: item?['unit'] as String?,
+      quantityGiven: m['quantity_given'] != null ? (m['quantity_given'] as num).toDouble() : null,
+      distributedAt: m['distributed_at'] != null ? DateTime.parse(m['distributed_at'] as String) : null,
+      expectedReturnPercent: program['expected_return_percent'] != null
+          ? (program['expected_return_percent'] as num).toDouble()
+          : null,
+      amountReturned: m['amount_returned'] != null ? (m['amount_returned'] as num).toDouble() : null,
+      settledAt: m['settled_at'] != null ? DateTime.parse(m['settled_at'] as String) : null,
     );
   }
 }

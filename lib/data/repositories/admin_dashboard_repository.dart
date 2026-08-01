@@ -51,23 +51,23 @@ class AdminDashboardRepository {
       pendingMembers = pendingRows.length;
     } catch (_) {}
 
-    // [INVENTORY-AWARE]
+    int activeInventoryItems = 0;
+    int lowStockAlertCount = 0;
     try {
-      final coopRows = await _client
+      final rows = await _client
           .from('cooperative_inventory')
-          .select('quantity_on_hand')
+          .select('quantity_on_hand, reorder_level')
           .eq('is_active', true);
-      if (coopRows.isNotEmpty) {
-        totalStockKg = coopRows.fold<double>(
-            0, (s, r) => s + (r['quantity_on_hand'] as num).toDouble());
-      } else {
-        final batchRows = await _client
-            .from('inventory_batches')
-            .select('available_kg')
-            .inFilter('status', ['available', 'low_stock']);
-        totalStockKg = batchRows.fold<double>(
-            0, (s, r) => s + (r['available_kg'] as num).toDouble());
-      }
+      activeInventoryItems = rows.length;
+      totalStockKg = rows.fold<double>(
+        0,
+        (sum, r) => sum + (r['quantity_on_hand'] as num).toDouble(),
+      );
+      lowStockAlertCount = rows.where((r) {
+        final onHand = (r['quantity_on_hand'] as num).toDouble();
+        final reorder = (r['reorder_level'] as num?)?.toDouble() ?? 0;
+        return onHand <= reorder;
+      }).length;
     } catch (_) {}
 
     try {
@@ -95,7 +95,9 @@ class AdminDashboardRepository {
           .eq('status', 'completed')
           .gte('created_at', monthStart.toIso8601String());
       totalRevenue = rows.fold<double>(
-          0, (s, r) => s + (r['total_price'] as num).toDouble());
+        0,
+        (s, r) => s + (r['total_price'] as num).toDouble(),
+      );
     } catch (_) {}
 
     try {
@@ -116,6 +118,8 @@ class AdminDashboardRepository {
       totalMembersTarget: 52,
       pendingMembers: pendingMembers,
       totalStockKg: totalStockKg,
+      activeInventoryItems: activeInventoryItems,
+      lowStockAlertCount: lowStockAlertCount,
       pendingListings: pendingListings,
       pendingOrders: pendingOrders,
       totalRevenueThisMonth: totalRevenue,
@@ -143,20 +147,24 @@ class AdminDashboardRepository {
             .from('farmer_loans')
             .select('farmer_id')
             .neq('status', 'paid');
-        farmersWithLoans =
-            rows.map((r) => r['farmer_id'] as String).toSet().length;
+        farmersWithLoans = rows
+            .map((r) => r['farmer_id'] as String)
+            .toSet()
+            .length;
       } catch (_) {}
 
-      priorities.add(DashboardPriority(
-        id: 'bod',
-        level: DashboardPriorityLevel.warning,
-        label: daysUntilBod == 0
-            ? 'BOD Meeting — TODAY'
-            : 'BOD Meeting in $daysUntilBod day${daysUntilBod == 1 ? '' : 's'}',
-        value: '$farmersWithLoans farmers with outstanding loans',
-        route: AppRoutes.loanDashboard,
-        useGo: true, // switch to Loans tab
-      ));
+      priorities.add(
+        DashboardPriority(
+          id: 'bod',
+          level: DashboardPriorityLevel.warning,
+          label: daysUntilBod == 0
+              ? 'BOD Meeting — TODAY'
+              : 'BOD Meeting in $daysUntilBod day${daysUntilBod == 1 ? '' : 's'}',
+          value: '$farmersWithLoans farmers with outstanding loans',
+          route: AppRoutes.loanDashboard,
+          useGo: true, // switch to Loans tab
+        ),
+      );
     }
 
     // Overdue loans — always critical
@@ -166,14 +174,16 @@ class AdminDashboardRepository {
           .select('id')
           .eq('status', 'overdue');
       if (rows.isNotEmpty) {
-        priorities.add(DashboardPriority(
-          id: 'overdue_loans',
-          level: DashboardPriorityLevel.critical,
-          label: '${rows.length} Overdue Loan${rows.length == 1 ? '' : 's'}',
-          value: 'Immediate attention required',
-          route: AppRoutes.loanDashboard,
-          useGo: true,
-        ));
+        priorities.add(
+          DashboardPriority(
+            id: 'overdue_loans',
+            level: DashboardPriorityLevel.critical,
+            label: '${rows.length} Overdue Loan${rows.length == 1 ? '' : 's'}',
+            value: 'Immediate attention required',
+            route: AppRoutes.loanDashboard,
+            useGo: true,
+          ),
+        );
       }
     } catch (_) {}
 
@@ -184,34 +194,69 @@ class AdminDashboardRepository {
           .select('id')
           .eq('status', 'pending_review');
       if (rows.isNotEmpty) {
-        priorities.add(DashboardPriority(
-          id: 'pending_listings',
-          level: DashboardPriorityLevel.warning,
-          label: '${rows.length} Listing${rows.length == 1 ? '' : 's'} Awaiting Approval',
-          value: 'Farmers waiting for review',
-          route: AppRoutes.pendingApprovals,
-          useGo: true, // switch to Listings tab
-        ));
+        priorities.add(
+          DashboardPriority(
+            id: 'pending_listings',
+            level: DashboardPriorityLevel.warning,
+            label:
+                '${rows.length} Listing${rows.length == 1 ? '' : 's'} Awaiting Approval',
+            value: 'Farmers waiting for review',
+            route: AppRoutes.pendingApprovals,
+            useGo: true, // switch to Listings tab
+          ),
+        );
       }
     } catch (_) {}
 
-    // Low stock — [INVENTORY-AWARE]
+    // Low stock — cooperative-owned stock only, per the Inventory
+    // architecture decision (inventory_batches is farmer-owned, a
+    // different domain — this priority is specifically about the
+    // co-op's own input stock running low).
     try {
       final rows = await _client
-          .from('inventory_batches')
-          .select('crop_name')
-          .eq('status', 'low_stock');
+          .from('cooperative_inventory')
+          .select('item_name, quantity_on_hand, reorder_level')
+          .eq('is_active', true);
+      final lowItems = rows.where((r) {
+        final onHand = (r['quantity_on_hand'] as num).toDouble();
+        final reorder = (r['reorder_level'] as num?)?.toDouble() ?? 0;
+        return onHand <= reorder;
+      }).toList();
+      if (lowItems.isNotEmpty) {
+        final names =
+            lowItems.map((r) => r['item_name'] as String).take(2).join(', ');
+        priorities.add(
+          DashboardPriority(
+            id: 'low_stock',
+            level: DashboardPriorityLevel.warning,
+            label:
+                '${lowItems.length} Item${lowItems.length == 1 ? '' : 's'} Low on Stock',
+            value: names,
+            route: AppRoutes.adminInventory,
+            useGo: false, // push above shell
+          ),
+        );
+      }
+    } catch (_) {}
+
+    // Crop requests awaiting review
+    try {
+      final rows = await _client
+          .from('crop_requests')
+          .select('id')
+          .eq('status', 'pending');
       if (rows.isNotEmpty) {
-        final crops =
-            rows.map((r) => r['crop_name'] as String).toSet().take(2).join(', ');
-        priorities.add(DashboardPriority(
-          id: 'low_stock',
-          level: DashboardPriorityLevel.warning,
-          label: '${rows.length} Batch${rows.length == 1 ? '' : 'es'} Low on Stock',
-          value: crops,
-          route: AppRoutes.adminInventory,
-          useGo: false, // push above shell
-        ));
+        priorities.add(
+          DashboardPriority(
+            id: 'crop_requests',
+            level: DashboardPriorityLevel.warning,
+            label:
+                '${rows.length} Crop Request${rows.length == 1 ? '' : 's'} Pending',
+            value: 'Farmers waiting for catalog review',
+            route: AppRoutes.cropRequestApproval,
+            useGo: false, // push above shell
+          ),
+        );
       }
     } catch (_) {}
 
@@ -223,14 +268,17 @@ class AdminDashboardRepository {
           .eq('role', 'farmer')
           .eq('status', 'pending');
       if (rows.isNotEmpty) {
-        priorities.add(DashboardPriority(
-          id: 'pending_members',
-          level: DashboardPriorityLevel.info,
-          label: '${rows.length} Member${rows.length == 1 ? '' : 's'} Pending Verification',
-          value: 'New registrations to review',
-          route: AppRoutes.farmerManagement,
-          useGo: true, // switch to Members tab
-        ));
+        priorities.add(
+          DashboardPriority(
+            id: 'pending_members',
+            level: DashboardPriorityLevel.info,
+            label:
+                '${rows.length} Member${rows.length == 1 ? '' : 's'} Pending Verification',
+            value: 'New registrations to review',
+            route: AppRoutes.farmerManagement,
+            useGo: true, // switch to Members tab
+          ),
+        );
       }
     } catch (_) {}
 
@@ -278,14 +326,16 @@ class AdminDashboardRepository {
 
     // BOD Meeting — auto-generated
     final bodDate = _firstSaturdayOf(year, month);
-    events.add(CalendarEvent(
-      id: 'bod-$year-$month',
-      type: CalendarEventType.bodMeeting,
-      date: bodDate,
-      title: 'BOD Meeting',
-      subtitle: 'Board of Directors Monthly Meeting',
-      sourceModule: 'system',
-    ));
+    events.add(
+      CalendarEvent(
+        id: 'bod-$year-$month',
+        type: CalendarEventType.bodMeeting,
+        date: bodDate,
+        title: 'BOD Meeting',
+        subtitle: 'Board of Directors Monthly Meeting',
+        sourceModule: 'system',
+      ),
+    );
 
     // Loan due dates
     try {
@@ -309,20 +359,22 @@ class AdminDashboardRepository {
             .inFilter('user_id', farmerIds);
         final nameMap = {
           for (final r in infoRows)
-            r['user_id'] as String: r['full_name'] as String? ?? 'Farmer'
+            r['user_id'] as String: r['full_name'] as String? ?? 'Farmer',
         };
         for (final r in loanRows) {
           final dt = DateTime.parse(r['next_payment_date'] as String);
           final name = nameMap[r['farmer_id'] as String] ?? 'Farmer';
-          events.add(CalendarEvent(
-            id: 'loan-${r['id']}',
-            type: CalendarEventType.loanDue,
-            date: dt,
-            title: 'Loan Payment Due',
-            subtitle: name,
-            referenceId: r['id'] as String,
-            sourceModule: 'loans',
-          ));
+          events.add(
+            CalendarEvent(
+              id: 'loan-${r['id']}',
+              type: CalendarEventType.loanDue,
+              date: dt,
+              title: 'Loan Payment Due',
+              subtitle: name,
+              referenceId: r['id'] as String,
+              sourceModule: 'loans',
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -350,14 +402,16 @@ class AdminDashboardRepository {
             .toSet()
             .take(2)
             .join(', ');
-        events.add(CalendarEvent(
-          id: 'harvest-${entry.key}',
-          type: CalendarEventType.harvest,
-          date: dt,
-          title: '$count Harvest${count == 1 ? '' : 's'} Recorded',
-          subtitle: crops,
-          sourceModule: 'harvest',
-        ));
+        events.add(
+          CalendarEvent(
+            id: 'harvest-${entry.key}',
+            type: CalendarEventType.harvest,
+            date: dt,
+            title: '$count Harvest${count == 1 ? '' : 's'} Recorded',
+            subtitle: crops,
+            sourceModule: 'harvest',
+          ),
+        );
       }
     } catch (_) {}
 
@@ -373,19 +427,48 @@ class AdminDashboardRepository {
           .not('sent_at', 'is', null);
       for (final r in rows) {
         final dt = DateTime.parse(r['sent_at'] as String);
-        events.add(CalendarEvent(
-          id: 'broadcast-${r['id']}',
-          type: CalendarEventType.announcement,
-          date: dt,
-          title: r['title'] as String,
-          subtitle: (r['category'] as String?)?.toUpperCase(),
-          referenceId: r['id'] as String,
-          sourceModule: 'broadcast',
-        ));
+        events.add(
+          CalendarEvent(
+            id: 'broadcast-${r['id']}',
+            type: CalendarEventType.announcement,
+            date: dt,
+            title: r['title'] as String,
+            subtitle: (r['category'] as String?)?.toUpperCase(),
+            referenceId: r['id'] as String,
+            sourceModule: 'broadcast',
+          ),
+        );
       }
     } catch (_) {}
 
-    // Programs placeholder — insert point for program_activities table
+    // Program activities
+    try {
+      final start = DateTime(year, month, 1);
+      final end = DateTime(year, month + 1, 1);
+      final rows = await _client
+          .from('program_activities')
+          .select('id, title, description, activity_date, location, program_id, '
+              'cooperative_programs(program_name)')
+          .gte('activity_date', start.toIso8601String().split('T').first)
+          .lt('activity_date', end.toIso8601String().split('T').first);
+      for (final r in rows) {
+        final dt = DateTime.parse(r['activity_date'] as String);
+        final program = r['cooperative_programs'] as Map<String, dynamic>?;
+        final programName = program?['program_name'] as String?;
+        events.add(
+          CalendarEvent(
+            id: 'program-${r['id']}',
+            type: CalendarEventType.program,
+            date: dt,
+            title: r['title'] as String,
+            subtitle: (r['location'] as String?) ?? programName,
+            referenceId: r['program_id'] as String,
+            sourceModule: 'programs',
+          ),
+        );
+      }
+    } catch (_) {}
+
     events.sort((a, b) => a.date.compareTo(b.date));
     return events;
   }
@@ -399,8 +482,10 @@ class AdminDashboardRepository {
           .from('farmer_loans')
           .select('farmer_id')
           .neq('status', 'paid');
-      farmersWithLoans =
-          rows.map((r) => r['farmer_id'] as String).toSet().length;
+      farmersWithLoans = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .length;
     } catch (_) {}
 
     return BodMeetingInfo(
@@ -418,6 +503,7 @@ class AdminDashboardRepository {
     String loanItemsBadge = '—';
     String supplyChainBadge = '—';
     String pricesBadge = '—';
+    String programsBadge = '—';
 
     // Reads from cooperative_inventory (admin-managed) — NOT inventory_batches
     try {
@@ -435,8 +521,8 @@ class AdminDashboardRepository {
       inventoryBadge = total == 0
           ? 'No items'
           : lowOrDepleted > 0
-              ? '$lowOrDepleted low / $total items'
-              : '$total items';
+          ? '$lowOrDepleted low / $total items'
+          : '$total items';
       inventoryAlert = lowOrDepleted > 0;
     } catch (_) {
       inventoryBadge = 'No items';
@@ -463,7 +549,9 @@ class AdminDashboardRepository {
           .from('farmer_profiles')
           .select('user_id')
           .not('farm_latitude', 'is', null);
-      supplyChainBadge = mapped.isEmpty ? '0 mapped' : '${mapped.length} mapped';
+      supplyChainBadge = mapped.isEmpty
+          ? '0 mapped'
+          : '${mapped.length} mapped';
     } catch (_) {}
 
     try {
@@ -479,6 +567,14 @@ class AdminDashboardRepository {
       } else {
         pricesBadge = 'No entries';
       }
+    } catch (_) {}
+
+    try {
+      final rows = await _client
+          .from('cooperative_programs')
+          .select('id')
+          .eq('status', 'active');
+      programsBadge = rows.isEmpty ? 'No programs' : '${rows.length} active';
     } catch (_) {}
 
     return [
@@ -500,11 +596,11 @@ class AdminDashboardRepository {
         route: AppRoutes.cropManagement,
         useGo: false,
       ),
-      const ManagementModuleCard(
+      ManagementModuleCard(
         id: 'programs',
         title: 'Program Management',
         subtitle: 'Cooperative programs',
-        badgeLabel: 'Manage',
+        badgeLabel: programsBadge,
         hasBadgeAlert: false,
         route: AppRoutes.programManagement,
         useGo: false,
@@ -558,7 +654,7 @@ class AdminDashboardRepository {
             .inFilter('user_id', ids);
         return {
           for (final r in rows)
-            r['user_id'] as String: r['full_name'] as String? ?? 'Unknown'
+            r['user_id'] as String: r['full_name'] as String? ?? 'Unknown',
         };
       } catch (_) {
         return {};
@@ -580,17 +676,19 @@ class AdminDashboardRepository {
           final qty = r['quantity_kg'];
           final crop = r['crop_name'] as String;
           final ts = DateTime.parse(r['created_at'] as String);
-          items.add(AdminActivityItem(
-            id: r['id'] as String,
-            type: AdminActivityType.harvest,
-            description: 'New harvest: $name — ${qty}kg $crop',
-            highlightedName: name,
-            timeLabel: _timeLabel(ts, now),
-            timestamp: ts,
-            isPrimary: true,
-            sourceModule: 'harvest',
-            referenceId: r['farmer_id'] as String,
-          ));
+          items.add(
+            AdminActivityItem(
+              id: r['id'] as String,
+              type: AdminActivityType.harvest,
+              description: 'New harvest: $name — ${qty}kg $crop',
+              highlightedName: name,
+              timeLabel: _timeLabel(ts, now),
+              timestamp: ts,
+              isPrimary: true,
+              sourceModule: 'harvest',
+              referenceId: r['farmer_id'] as String,
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -611,19 +709,21 @@ class AdminDashboardRepository {
           final status = r['status'] as String;
           final ts = DateTime.parse(r['submitted_at'] as String);
           final isApproved = status == 'approved';
-          items.add(AdminActivityItem(
-            id: r['id'] as String,
-            type: AdminActivityType.listing,
-            description: isApproved
-                ? 'Listing approved: $crop — $name'
-                : 'Listing submitted: $name — $crop',
-            highlightedName: isApproved ? crop : name,
-            timeLabel: _timeLabel(ts, now),
-            timestamp: ts,
-            isPrimary: isApproved,
-            sourceModule: 'listings',
-            referenceId: r['id'] as String,
-          ));
+          items.add(
+            AdminActivityItem(
+              id: r['id'] as String,
+              type: AdminActivityType.listing,
+              description: isApproved
+                  ? 'Listing approved: $crop — $name'
+                  : 'Listing submitted: $name — $crop',
+              highlightedName: isApproved ? crop : name,
+              timeLabel: _timeLabel(ts, now),
+              timestamp: ts,
+              isPrimary: isApproved,
+              sourceModule: 'listings',
+              referenceId: r['id'] as String,
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -637,16 +737,18 @@ class AdminDashboardRepository {
       for (final r in rows) {
         final price = (r['total_price'] as num).toStringAsFixed(2);
         final ts = DateTime.parse(r['created_at'] as String);
-        items.add(AdminActivityItem(
-          id: r['id'] as String,
-          type: AdminActivityType.order,
-          description: 'Order placed: ₱$price',
-          timeLabel: _timeLabel(ts, now),
-          timestamp: ts,
-          isPrimary: false,
-          sourceModule: 'listings',
-          referenceId: r['id'] as String,
-        ));
+        items.add(
+          AdminActivityItem(
+            id: r['id'] as String,
+            type: AdminActivityType.order,
+            description: 'Order placed: ₱$price',
+            timeLabel: _timeLabel(ts, now),
+            timestamp: ts,
+            isPrimary: false,
+            sourceModule: 'listings',
+            referenceId: r['id'] as String,
+          ),
+        );
       }
     } catch (_) {}
 
@@ -660,16 +762,18 @@ class AdminDashboardRepository {
         final crop = r['crop_name'] as String;
         final price = (r['price'] as num).toStringAsFixed(2);
         final ts = DateTime.parse(r['recorded_at'] as String);
-        items.add(AdminActivityItem(
-          id: r['id'] as String,
-          type: AdminActivityType.price,
-          description: 'Price updated: $crop — ₱$price/kg',
-          highlightedName: crop,
-          timeLabel: _timeLabel(ts, now),
-          timestamp: ts,
-          isPrimary: false,
-          sourceModule: 'prices',
-        ));
+        items.add(
+          AdminActivityItem(
+            id: r['id'] as String,
+            type: AdminActivityType.price,
+            description: 'Price updated: $crop — ₱$price/kg',
+            highlightedName: crop,
+            timeLabel: _timeLabel(ts, now),
+            timestamp: ts,
+            isPrimary: false,
+            sourceModule: 'prices',
+          ),
+        );
       }
     } catch (_) {}
 
@@ -687,17 +791,50 @@ class AdminDashboardRepository {
         for (final r in rows) {
           final name = names[r['user_id'] as String] ?? 'New Member';
           final ts = DateTime.parse(r['created_at'] as String);
-          items.add(AdminActivityItem(
-            id: r['user_id'] as String,
-            type: AdminActivityType.member,
-            description: 'New member: $name',
-            highlightedName: name,
-            timeLabel: _timeLabel(ts, now),
-            timestamp: ts,
-            isPrimary: true,
-            sourceModule: 'members',
-            referenceId: r['user_id'] as String,
-          ));
+          items.add(
+            AdminActivityItem(
+              id: r['user_id'] as String,
+              type: AdminActivityType.member,
+              description: 'New member: $name',
+              highlightedName: name,
+              timeLabel: _timeLabel(ts, now),
+              timestamp: ts,
+              isPrimary: true,
+              sourceModule: 'members',
+              referenceId: r['user_id'] as String,
+            ),
+          );
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final rows = await _client
+          .from('crop_requests')
+          .select('id, requested_name, farmer_id, created_at')
+          .order('created_at', ascending: false)
+          .limit(2);
+      if (rows.isNotEmpty) {
+        final names = await fetchNames(
+          rows.map((r) => r['farmer_id'] as String).toList(),
+        );
+        for (final r in rows) {
+          final name = names[r['farmer_id'] as String] ?? 'Farmer';
+          final crop = r['requested_name'] as String;
+          final ts = DateTime.parse(r['created_at'] as String);
+          items.add(
+            AdminActivityItem(
+              id: r['id'] as String,
+              type: AdminActivityType.cropRequest,
+              description: 'Crop requested: $name — $crop',
+              highlightedName: crop,
+              timeLabel: _timeLabel(ts, now),
+              timestamp: ts,
+              isPrimary: false,
+              sourceModule: 'crops',
+              referenceId: r['id'] as String,
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -715,7 +852,6 @@ class AdminDashboardRepository {
 
   Future<CoopPerformanceSummary> fetchCoopPerformance() async {
     int totalHarvests = 0;
-    double totalStock = 0;
     int activeListings = 0;
     int completedSales = 0;
     int activeMembersThisSeason = 0;
@@ -725,24 +861,15 @@ class AdminDashboardRepository {
       totalHarvests = rows.length;
     } catch (_) {}
 
-    // Cooperative-managed inventory stock (admin_inventory_screen source of truth)
-    // Falls back to inventory_batches sum if cooperative_inventory is empty
+    double farmerAvailableStockKg = 0;
     try {
-      final coopRows = await _client
-          .from('cooperative_inventory')
-          .select('quantity_on_hand')
-          .eq('is_active', true);
-      if (coopRows.isNotEmpty) {
-        totalStock = coopRows.fold<double>(
-            0, (s, r) => s + (r['quantity_on_hand'] as num).toDouble());
-      } else {
-        // Fallback: sum farmer batches until cooperative_inventory is populated
-        final batchRows = await _client
-            .from('inventory_batches')
-            .select('available_kg');
-        totalStock = batchRows.fold<double>(
-            0, (s, r) => s + (r['available_kg'] as num).toDouble());
-      }
+      final rows = await _client
+          .from('inventory_batches')
+          .select('available_kg');
+      farmerAvailableStockKg = rows.fold<double>(
+        0,
+        (s, r) => s + (r['available_kg'] as num).toDouble(),
+      );
     } catch (_) {}
 
     try {
@@ -762,19 +889,20 @@ class AdminDashboardRepository {
     } catch (_) {}
 
     try {
-      final seasonStart =
-          DateTime(DateTime.now().year, 1, 1).toIso8601String();
+      final seasonStart = DateTime(DateTime.now().year, 1, 1).toIso8601String();
       final rows = await _client
           .from('harvest_records')
           .select('farmer_id')
           .gte('harvest_date', seasonStart);
-      activeMembersThisSeason =
-          rows.map((r) => r['farmer_id'] as String).toSet().length;
+      activeMembersThisSeason = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .length;
     } catch (_) {}
 
     return CoopPerformanceSummary(
       totalHarvests: totalHarvests,
-      totalStockKg: totalStock,
+      farmerAvailableStockKg: farmerAvailableStockKg,
       activeListings: activeListings,
       completedSales: completedSales,
       activeMembersThisSeason: activeMembersThisSeason,

@@ -8,7 +8,9 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/input_validation_utils.dart';
+import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/management_modal.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -40,31 +42,26 @@ class InventoryItem {
   });
 
   double get available => quantityOnHand - quantityReserved;
-  bool get isLow =>
-      reorderLevel > 0 && quantityOnHand <= reorderLevel;
+  bool get isLow => reorderLevel > 0 && quantityOnHand <= reorderLevel;
   bool get isDepleted => quantityOnHand <= 0;
 
   factory InventoryItem.fromMap(Map<String, dynamic> m) => InventoryItem(
-        id: m['id'] as String,
-        itemName: m['item_name'] as String,
-        category: m['category'] as String? ?? 'Agricultural Supplies',
-        unit: m['unit'] as String? ?? 'kg',
-        quantityOnHand:
-            (m['quantity_on_hand'] as num?)?.toDouble() ?? 0,
-        quantityReserved:
-            (m['quantity_reserved'] as num?)?.toDouble() ?? 0,
-        reorderLevel:
-            (m['reorder_level'] as num?)?.toDouble() ?? 0,
-        unitCost:
-            m['unit_cost'] != null
-                ? (m['unit_cost'] as num).toDouble()
-                : null,
-        notes: m['notes'] as String?,
-        isActive: m['is_active'] as bool? ?? true,
-        lastRestockedAt: m['last_restocked_at'] != null
-            ? DateTime.parse(m['last_restocked_at'] as String)
-            : null,
-      );
+    id: m['id'] as String,
+    itemName: m['item_name'] as String,
+    category: m['category'] as String? ?? 'Agricultural Supplies',
+    unit: m['unit'] as String? ?? 'kg',
+    quantityOnHand: (m['quantity_on_hand'] as num?)?.toDouble() ?? 0,
+    quantityReserved: (m['quantity_reserved'] as num?)?.toDouble() ?? 0,
+    reorderLevel: (m['reorder_level'] as num?)?.toDouble() ?? 0,
+    unitCost: m['unit_cost'] != null
+        ? (m['unit_cost'] as num).toDouble()
+        : null,
+    notes: m['notes'] as String?,
+    isActive: m['is_active'] as bool? ?? true,
+    lastRestockedAt: m['last_restocked_at'] != null
+        ? DateTime.parse(m['last_restocked_at'] as String)
+        : null,
+  );
 }
 
 class InventoryTransaction {
@@ -105,27 +102,30 @@ class _CoopInventoryRepository {
   Future<List<InventoryItem>> fetchAll({bool activeOnly = true}) async {
     try {
       final rows = activeOnly
-        ? await _client
-          .from('cooperative_inventory')
-          .select()
-          .eq('is_active', true)
-          .order('category')
-          .order('item_name')
-        : await _client
-          .from('cooperative_inventory')
-          .select()
-          .order('category')
-          .order('item_name');
+          ? await _client
+                .from('cooperative_inventory')
+                .select()
+                .eq('is_active', true)
+                .order('category')
+                .order('item_name')
+          : await _client
+                .from('cooperative_inventory')
+                .select()
+                .order('category')
+                .order('item_name');
       final items = rows.map((r) => InventoryItem.fromMap(r)).toList();
       return _dedupeItems(items);
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   List<InventoryItem> _dedupeItems(List<InventoryItem> items) {
     final seen = <String>{};
     final result = <InventoryItem>[];
     for (final item in items) {
-      final key = '${item.itemName.trim().toLowerCase()}::${item.category.trim().toLowerCase()}::${item.unit.trim().toLowerCase()}';
+      final key =
+          '${item.itemName.trim().toLowerCase()}::${item.category.trim().toLowerCase()}::${item.unit.trim().toLowerCase()}';
       if (seen.add(key)) {
         result.add(item);
       }
@@ -145,9 +145,15 @@ class _CoopInventoryRepository {
           .order('item_name');
       final normalizedName = name.trim().toLowerCase();
       return rows.any((row) {
-        final existingName = (row['item_name'] as String? ?? '').trim().toLowerCase();
-        final existingCategory = (row['category'] as String? ?? '').trim().toLowerCase();
-        final existingUnit = (row['unit'] as String? ?? '').trim().toLowerCase();
+        final existingName = (row['item_name'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final existingCategory = (row['category'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final existingUnit = (row['unit'] as String? ?? '')
+            .trim()
+            .toLowerCase();
         return existingName == normalizedName &&
             existingCategory == category.trim().toLowerCase() &&
             existingUnit == unit.trim().toLowerCase();
@@ -158,7 +164,8 @@ class _CoopInventoryRepository {
   }
 
   Future<List<InventoryTransaction>> fetchTransactions(
-      String inventoryId) async {
+    String inventoryId,
+  ) async {
     try {
       final rows = await _client
           .from('inventory_transactions')
@@ -166,10 +173,10 @@ class _CoopInventoryRepository {
           .eq('inventory_id', inventoryId)
           .order('created_at', ascending: false)
           .limit(20);
-      return rows
-          .map((r) => InventoryTransaction.fromMap(r))
-          .toList();
-    } catch (_) { return []; }
+      return rows.map((r) => InventoryTransaction.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<bool> addItem({
@@ -181,7 +188,11 @@ class _CoopInventoryRepository {
     String? notes,
   }) async {
     try {
-      final duplicate = await itemExists(name: name, category: category, unit: unit);
+      final duplicate = await itemExists(
+        name: name,
+        category: category,
+        unit: unit,
+      );
       if (duplicate) return false;
       await _client.from('cooperative_inventory').insert({
         'item_name': name.trim(),
@@ -193,7 +204,9 @@ class _CoopInventoryRepository {
         'created_by': _client.auth.currentUser?.id,
       });
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> adjustStock({
@@ -218,25 +231,33 @@ class _CoopInventoryRepository {
           .select('quantity_on_hand')
           .eq('id', inventoryId)
           .single();
-      final currentQty =
-          (current['quantity_on_hand'] as num).toDouble();
+      final currentQty = (current['quantity_on_hand'] as num).toDouble();
       final newQty = (currentQty + quantity).clamp(0.0, double.infinity);
 
-      await _client.from('cooperative_inventory').update({
-        'quantity_on_hand': newQty,
-        if (quantity > 0) 'last_restocked_at': DateTime.now().toIso8601String(),
-      }).eq('id', inventoryId);
+      await _client
+          .from('cooperative_inventory')
+          .update({
+            'quantity_on_hand': newQty,
+            if (quantity > 0)
+              'last_restocked_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', inventoryId);
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
-  Future<bool> updateReorderLevel(
-      String id, double level) async {
+  Future<bool> updateReorderLevel(String id, double level) async {
     try {
-      await _client.from('cooperative_inventory')
-          .update({'reorder_level': level}).eq('id', id);
+      await _client
+          .from('cooperative_inventory')
+          .update({'reorder_level': level})
+          .eq('id', id);
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 }
 
@@ -246,8 +267,7 @@ class AdminInventoryScreen extends StatefulWidget {
   const AdminInventoryScreen({super.key});
 
   @override
-  State<AdminInventoryScreen> createState() =>
-      _AdminInventoryScreenState();
+  State<AdminInventoryScreen> createState() => _AdminInventoryScreenState();
 }
 
 class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
@@ -259,25 +279,35 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   String? _categoryFilter;
 
   static const _categories = [
-    'Fertilizer', 'Seeds', 'Animal Feeds', 'Pesticide',
-    'Tools & Equipment', 'Agricultural Supplies', 'Harvest Stock',
+    'Fertilizer',
+    'Seeds',
+    'Animal Feeds',
+    'Pesticide',
+    'Tools & Equipment',
+    'Agricultural Supplies',
+    'Harvest Stock',
   ];
 
   static const _units = [
-    'bag', 'kg', 'sack', 'piece', 'liter', 'set', 'bottle',
+    'bag',
+    'kg',
+    'sack',
+    'piece',
+    'liter',
+    'set',
+    'bottle',
   ];
 
-  static const _transactionTypes = [
-    'restock', 'adjustment', 'written_off',
-  ];
+  static const _transactionTypes = ['restock', 'adjustment', 'written_off'];
 
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen(
-        (v) { if (mounted) setState(() => _isOnline = v); });
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -285,7 +315,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     setState(() => _isLoading = true);
     final result = await _repo.fetchAll();
     if (!mounted) return;
-    setState(() { _items = result; _isLoading = false; });
+    setState(() {
+      _items = result;
+      _isLoading = false;
+    });
   }
 
   List<InventoryItem> get _filtered {
@@ -307,57 +340,57 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     String selectedUnit = 'kg';
     bool isSaving = false;
 
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
-        final cs = Theme.of(ctx).colorScheme;
-        return StatefulBuilder(builder: (ctx, setSheet) {
-          return Padding(
-            padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
-              decoration: BoxDecoration(
-                color: sagana.cardBackground,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(AppConstants.radiusXl)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: SingleChildScrollView(
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            Future<void> submit() async {
+              if (!formKey.currentState!.validate()) return;
+              setSheet(() => isSaving = true);
+              final ok = await _repo.addItem(
+                name: nameCtrl.text,
+                category: selectedCategory,
+                unit: selectedUnit,
+                unitCost: costCtrl.text.trim().isEmpty
+                    ? null
+                    : double.tryParse(costCtrl.text.trim()),
+                reorderLevel: double.tryParse(reorderCtrl.text.trim()) ?? 0,
+                notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (ok) _load();
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok
+                        ? 'Item added'
+                        : 'That item already exists or could not be saved.',
+                  ),
+                  backgroundColor: ok
+                      ? AppConstants.successGreen
+                      : AppConstants.errorRed,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+
+            return ManagementModalShell(
+              title: 'Add Inventory Item',
+              subtitle:
+                  'New items start with 0 stock. Use Adjust Stock to add quantity.',
+              body: Form(
+                key: formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.outline.withValues(alpha: 0.30),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Add Inventory Item',
-                      style: GoogleFonts.poppins(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'New items start with 0 stock. Use Adjust Stock to add quantity.',
-                      style: GoogleFonts.inter(
-                          fontSize: 12, color: cs.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 16),
                     TextFormField(
                       controller: nameCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Item Name *'),
+                        labelText: 'Item Name *',
+                      ),
                       textCapitalization: TextCapitalization.words,
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
@@ -369,58 +402,62 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: selectedCategory,
-                      decoration:
-                          const InputDecoration(labelText: 'Category *'),
+                      decoration: const InputDecoration(
+                        labelText: 'Category *',
+                      ),
                       items: _categories
-                          .map((c) => DropdownMenuItem(
-                              value: c, child: Text(c)))
+                          .map(
+                            (c) => DropdownMenuItem(value: c, child: Text(c)),
+                          )
                           .toList(),
-                      onChanged: (v) =>
-                          setSheet(() => selectedCategory = v!),
+                      onChanged: (v) => setSheet(() => selectedCategory = v!),
                     ),
                     const SizedBox(height: 12),
-                    Row(children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: selectedUnit,
-                          decoration:
-                              const InputDecoration(labelText: 'Unit *'),
-                          items: _units
-                              .map((u) => DropdownMenuItem(
-                                  value: u, child: Text(u)))
-                              .toList(),
-                          onChanged: (v) =>
-                              setSheet(() => selectedUnit = v!),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: costCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit Cost (₱)',
-                            prefixText: '₱ ',
-                          ),
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                                  decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d*'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit *',
                             ),
-                          ],
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return null;
-                            }
-                            if (!isValidCurrencyValue(value)) {
-                              return 'Enter a valid amount';
-                            }
-                            return null;
-                          },
+                            items: _units
+                                .map(
+                                  (u) => DropdownMenuItem(
+                                    value: u,
+                                    child: Text(u),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) => setSheet(() => selectedUnit = v!),
+                          ),
                         ),
-                      ),
-                    ]),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: costCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit Cost (₱)',
+                              prefixText: '₱ ',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d*'),
+                              ),
+                            ],
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) return null;
+                              if (!isValidCurrencyValue(value))
+                                return 'Enter a valid amount';
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: reorderCtrl,
@@ -429,21 +466,18 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         hintText: 'Alert when stock drops below this',
                         suffixText: 'units',
                       ),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(
-                              decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
                           RegExp(r'^\d*\.?\d*'),
                         ),
                       ],
                       validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return null;
-                        }
-                        if (!isValidWholeNumberValue(value)) {
+                        if ((value ?? '').trim().isEmpty) return null;
+                        if (!isValidWholeNumberValue(value))
                           return 'Enter a whole number';
-                        }
                         return null;
                       },
                     ),
@@ -451,59 +485,127 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     TextFormField(
                       controller: notesCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Notes (optional)'),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                if (!formKey.currentState!.validate()) return;
-                                setSheet(() => isSaving = true);
-                                final ok = await _repo.addItem(
-                                  name: nameCtrl.text,
-                                  category: selectedCategory,
-                                  unit: selectedUnit,
-                                  unitCost: costCtrl.text.trim().isEmpty
-                                      ? null
-                                      : double.tryParse(costCtrl.text.trim()),
-                                  reorderLevel:
-                                      double.tryParse(reorderCtrl.text.trim()) ??
-                                          0,
-                                  notes: notesCtrl.text.isEmpty
-                                      ? null
-                                      : notesCtrl.text,
-                                );
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                if (ok) _load();
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(
-                                  content: Text(
-                                      ok ? 'Item added' : 'That item already exists or could not be saved.'),
-                                  backgroundColor: ok
-                                      ? AppConstants.successGreen
-                                      : AppConstants.errorRed,
-                                  behavior: SnackBarBehavior.floating,
-                                ));
-                              },
-                        child: Text(
-                          isSaving ? 'Saving…' : 'Add Item',
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600),
-                        ),
+                        labelText: 'Notes (optional)',
                       ),
+                      maxLines: 2,
                     ),
                   ],
                 ),
               ),
-            ),
-          );
-        });
+              footer: ManagementModalActions(
+                primaryLabel: isSaving ? 'Saving…' : 'Add Item',
+                isLoading: isSaving,
+                onPrimary: submit,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showLoanCatalogSheet(InventoryItem item) async {
+    final repo = InventoryRepository();
+    final existing = await repo.fetchLoanCatalogLink(item.id);
+    final priceCtrl = TextEditingController(
+      text: existing?['unit_price']?.toString() ?? '',
+    );
+    final notesCtrl = TextEditingController(
+      text: existing?['notes'] as String? ?? '',
+    );
+    bool isSaving = false;
+
+    if (!mounted) return;
+
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            Future<void> submit() async {
+              final loanPrice = double.tryParse(priceCtrl.text.trim());
+              if (loanPrice == null || loanPrice < 0) return;
+
+              setSheet(() => isSaving = true);
+              final ok = existing == null
+                  ? await repo.publishToLoanCatalog(
+                      inventoryItemId: item.id,
+                      loanPrice: loanPrice,
+                      notes: notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim(),
+                    )
+                  : await repo.updateLoanCatalogEntry(
+                      loanItemId: existing['id'] as String,
+                      loanPrice: loanPrice,
+                      isLoanEligible: true,
+                      notes: notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim(),
+                    );
+
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok
+                        ? (existing == null
+                              ? 'Published to loan catalog'
+                              : 'Loan catalog updated')
+                        : 'Could not update the loan catalog.',
+                  ),
+                  backgroundColor: ok
+                      ? AppConstants.successGreen
+                      : AppConstants.errorRed,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+
+            return ManagementModalShell(
+              title: existing == null
+                  ? 'Publish to Loan Catalog'
+                  : 'Update Loan Catalog',
+              subtitle: item.itemName,
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: priceCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Loan Price (₱) *',
+                      prefixText: '₱ ',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notesCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes (optional)',
+                      hintText: 'Eligibility or pricing note',
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+              footer: ManagementModalActions(
+                primaryLabel: isSaving
+                    ? 'Saving…'
+                    : (existing == null ? 'Publish' : 'Update'),
+                isLoading: isSaving,
+                onPrimary: submit,
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -514,143 +616,98 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     String selectedType = 'restock';
     bool isSaving = false;
 
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
-        final cs = Theme.of(ctx).colorScheme;
-        return StatefulBuilder(builder: (ctx, setSheet) {
-          final isDeduction =
-              selectedType == 'written_off' || selectedType == 'adjustment';
-          return Padding(
-            padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
-              decoration: BoxDecoration(
-                color: sagana.cardBackground,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(AppConstants.radiusXl)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.outline.withValues(alpha: 0.30),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Adjust Stock — ${item.itemName}',
-                      style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Current: ${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
-                      style: GoogleFonts.inter(
-                          fontSize: 12, color: cs.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedType,
-                      decoration:
-                          const InputDecoration(labelText: 'Transaction Type *'),
-                      items: _transactionTypes.map((t) {
-                        final label = {
-                          'restock': 'Restock (add stock)',
-                          'adjustment': 'Adjustment (deduct)',
-                          'written_off': 'Write-off (loss/damage)',
-                        }[t]!;
-                        return DropdownMenuItem(
-                            value: t, child: Text(label));
-                      }).toList(),
-                      onChanged: (v) =>
-                          setSheet(() => selectedType = v!),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: qtyCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Quantity *',
-                        suffixText: item.unit,
-                        hintText: isDeduction
-                            ? 'Amount to deduct'
-                            : 'Amount to add',
-                      ),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(
-                              decimal: true),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: notesCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Notes (optional)',
-                        hintText: 'Reason, supplier, reference number',
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                final qty =
-                                    double.tryParse(qtyCtrl.text);
-                                if (qty == null || qty <= 0) return;
-                                setSheet(() => isSaving = true);
-                                final adjustedQty =
-                                    isDeduction ? -qty : qty;
-                                final ok = await _repo.adjustStock(
-                                  inventoryId: item.id,
-                                  quantity: adjustedQty,
-                                  transactionType: selectedType,
-                                  notes: notesCtrl.text.isEmpty
-                                      ? null
-                                      : notesCtrl.text,
-                                );
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                if (ok) _load();
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(
-                                  content: Text(ok
-                                      ? 'Stock updated'
-                                      : 'Failed. Try again.'),
-                                  backgroundColor: ok
-                                      ? AppConstants.successGreen
-                                      : AppConstants.errorRed,
-                                  behavior: SnackBarBehavior.floating,
-                                ));
-                              },
-                        child: Text(
-                          isSaving ? 'Saving…' : 'Confirm Adjustment',
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            final isDeduction =
+                selectedType == 'written_off' || selectedType == 'adjustment';
+
+            Future<void> submit() async {
+              final qty = double.tryParse(qtyCtrl.text);
+              if (qty == null || qty <= 0) return;
+              setSheet(() => isSaving = true);
+              final adjustedQty = isDeduction ? -qty : qty;
+              final ok = await _repo.adjustStock(
+                inventoryId: item.id,
+                quantity: adjustedQty,
+                transactionType: selectedType,
+                notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (ok) _load();
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(
+                  content: Text(ok ? 'Stock updated' : 'Failed. Try again.'),
+                  backgroundColor: ok
+                      ? AppConstants.successGreen
+                      : AppConstants.errorRed,
+                  behavior: SnackBarBehavior.floating,
                 ),
+              );
+            }
+
+            return ManagementModalShell(
+              title: 'Adjust Stock',
+              subtitle:
+                  '${item.itemName} · Current: ${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedType,
+                    decoration: const InputDecoration(
+                      labelText: 'Transaction Type *',
+                    ),
+                    items: _transactionTypes.map((t) {
+                      final label = {
+                        'restock': 'Restock (add stock)',
+                        'adjustment': 'Adjustment (deduct)',
+                        'written_off': 'Write-off (loss/damage)',
+                      }[t]!;
+                      return DropdownMenuItem(value: t, child: Text(label));
+                    }).toList(),
+                    onChanged: (v) => setSheet(() => selectedType = v!),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: qtyCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Quantity *',
+                      suffixText: item.unit,
+                      hintText: isDeduction
+                          ? 'Amount to deduct'
+                          : 'Amount to add',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notesCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes (optional)',
+                      hintText: 'Reason, supplier, reference number',
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
               ),
-            ),
-          );
-        });
+              footer: ManagementModalActions(
+                primaryLabel: isSaving ? 'Saving…' : 'Confirm Adjustment',
+                isLoading: isSaving,
+                onPrimary: submit,
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -659,160 +716,135 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final transactions = await _repo.fetchTransactions(item.id);
     if (!mounted) return;
 
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final sagana = ctx.saganaColors;
         final cs = Theme.of(ctx).colorScheme;
-        return DraggableScrollableSheet(
-          initialChildSize: 0.60,
-          maxChildSize: 0.90,
-          builder: (ctx, ctrl) => Container(
-            decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppConstants.radiusXl)),
-            ),
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                child: Column(children: [
-                  Center(
-                    child: Container(
-                      width: 40, height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.outline.withValues(alpha: 0.30),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+        return ManagementModalShell(
+          title: 'Transaction History',
+          subtitle: item.itemName,
+          bodyIsScrollable: true,
+          body: transactions.isEmpty
+              ? Center(
+                  child: Text(
+                    'No transactions yet',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Transaction History',
-                          style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: cs.onSurface)),
-                      Text(item.itemName,
-                          style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: cs.onSurfaceVariant)),
-                    ],
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  itemCount: transactions.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.08),
                   ),
-                ]),
-              ),
-              Divider(height: 1,
-                  color: cs.outline.withValues(alpha: 0.10)),
-              Expanded(
-                child: transactions.isEmpty
-                    ? Center(
-                        child: Text('No transactions yet',
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: cs.onSurfaceVariant)))
-                    : ListView.separated(
-                        controller: ctrl,
-                        padding: const EdgeInsets.fromLTRB(
-                            16, 12, 16, 32),
-                        itemCount: transactions.length,
-                        separatorBuilder: (_, __) => Divider(
-                            height: 1,
-                            color: cs.outline.withValues(alpha: 0.08)),
-                        itemBuilder: (_, i) {
-                          final t = transactions[i];
-                          final isIn = t.isIncoming;
-                          final color = isIn
-                              ? AppConstants.successGreen
-                              : AppConstants.errorRed;
-                          final label = {
-                            'restock': 'Restock',
-                            'loan_issued': 'Loan Issued',
-                            'adjustment': 'Adjustment',
-                            'harvest_received': 'Harvest In',
-                            'sold': 'Sold',
-                            'returned': 'Returned',
-                            'written_off': 'Write-off',
-                          }[t.transactionType] ?? t.transactionType;
+                  itemBuilder: (_, i) {
+                    final t = transactions[i];
+                    final isIn = t.isIncoming;
+                    final color = isIn
+                        ? AppConstants.successGreen
+                        : AppConstants.errorRed;
+                    final label =
+                        {
+                          'restock': 'Restock',
+                          'loan_issued': 'Loan Issued',
+                          'adjustment': 'Adjustment',
+                          'harvest_received': 'Harvest In',
+                          'sold': 'Sold',
+                          'returned': 'Returned',
+                          'written_off': 'Write-off',
+                        }[t.transactionType] ??
+                        t.transactionType;
 
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10),
-                            child: Row(children: [
-                              Container(
-                                width: 36, height: 36,
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.12),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  isIn
-                                      ? Icons.add_rounded
-                                      : Icons.remove_rounded,
-                                  color: color,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(label,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: cs.onSurface,
-                                        )),
-                                    if (t.notes != null)
-                                      Text(t.notes!,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            color: cs.onSurfaceVariant,
-                                          )),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '${isIn ? '+' : ''}${t.quantity.toStringAsFixed(1)} ${item.unit}',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: color,
-                                    ),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isIn ? Icons.add_rounded : Icons.remove_rounded,
+                              color: color,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  label,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: cs.onSurface,
                                   ),
+                                ),
+                                if (t.notes != null)
                                   Text(
-                                    _formatDate(t.createdAt),
+                                    t.notes!,
                                     style: GoogleFonts.inter(
-                                      fontSize: 10,
+                                      fontSize: 11,
                                       color: cs.onSurfaceVariant,
                                     ),
                                   ),
-                                ],
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${isIn ? '+' : ''}${t.quantity.toStringAsFixed(1)} ${item.unit}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: color,
+                                ),
                               ),
-                            ]),
-                          );
-                        },
+                              Text(
+                                _formatDate(t.createdAt),
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-              ),
-            ]),
-          ),
+                    );
+                  },
+                ),
         );
       },
     );
   }
 
   String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
@@ -840,27 +872,28 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               child: Container(
                 height: 64 + MediaQuery.of(context).padding.top,
                 padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top,
-                    left: 8, right: 8),
+                  top: MediaQuery.of(context).padding.top,
+                  left: 8,
+                  right: 8,
+                ),
                 decoration: BoxDecoration(
                   color: sagana.glassBackground,
-                  border: Border(
-                      bottom: BorderSide(color: sagana.glassBorder)),
+                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
                 ),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.arrow_back_rounded,
-                          color: cs.onSurface),
+                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
                       onPressed: () => context.pop(),
                     ),
                     Expanded(
                       child: Text(
                         'Cooperative Inventory',
                         style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
                   ],
@@ -872,69 +905,71 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
           if (!_isOnline)
             Container(
               color: AppConstants.warningAmber,
-              padding: const EdgeInsets.symmetric(
-                  vertical: 6, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.cloud_off_rounded,
-                      size: 14, color: AppConstants.charcoal),
+                  const Icon(
+                    Icons.cloud_off_rounded,
+                    size: 14,
+                    color: AppConstants.charcoal,
+                  ),
                   const SizedBox(width: 6),
-                  Text('Offline — changes will not be saved',
-                      style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.charcoal)),
+                  Text(
+                    'Offline — changes will not be saved',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.charcoal,
+                    ),
+                  ),
                 ],
               ),
             ),
 
           // Alert bar
-          if (!_isLoading &&
-              (_lowStockCount > 0 || _depletedCount > 0))
+          if (!_isLoading && (_lowStockCount > 0 || _depletedCount > 0))
             Container(
               margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: _depletedCount > 0
                     ? AppConstants.errorRed.withValues(alpha: 0.08)
                     : AppConstants.warningAmber.withValues(alpha: 0.10),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusMd),
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 border: Border.all(
                   color: _depletedCount > 0
                       ? AppConstants.errorRed.withValues(alpha: 0.20)
                       : AppConstants.warningAmber.withValues(alpha: 0.25),
                 ),
               ),
-              child: Row(children: [
-                Icon(
-                  _depletedCount > 0
-                      ? Icons.error_rounded
-                      : Icons.warning_rounded,
-                  size: 16,
-                  color: _depletedCount > 0
-                      ? AppConstants.errorRed
-                      : AppConstants.warningAmber,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  [
-                    if (_depletedCount > 0)
-                      '$_depletedCount depleted',
-                    if (_lowStockCount > 0)
-                      '$_lowStockCount low stock',
-                  ].join(' · '),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              child: Row(
+                children: [
+                  Icon(
+                    _depletedCount > 0
+                        ? Icons.error_rounded
+                        : Icons.warning_rounded,
+                    size: 16,
                     color: _depletedCount > 0
                         ? AppConstants.errorRed
                         : AppConstants.warningAmber,
                   ),
-                ),
-              ]),
+                  const SizedBox(width: 8),
+                  Text(
+                    [
+                      if (_depletedCount > 0) '$_depletedCount depleted',
+                      if (_lowStockCount > 0) '$_lowStockCount low stock',
+                    ].join(' · '),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _depletedCount > 0
+                          ? AppConstants.errorRed
+                          : AppConstants.warningAmber,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
           // Category filter
@@ -950,8 +985,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     _Chip(
                       label: 'All',
                       selected: _categoryFilter == null,
-                      onTap: () =>
-                          setState(() => _categoryFilter = null),
+                      onTap: () => setState(() => _categoryFilter = null),
                       cs: cs,
                       sagana: sagana,
                     ),
@@ -961,8 +995,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         child: _Chip(
                           label: cat,
                           selected: _categoryFilter == cat,
-                          onTap: () =>
-                              setState(() => _categoryFilter = cat),
+                          onTap: () => setState(() => _categoryFilter = cat),
                           cs: cs,
                           sagana: sagana,
                         ),
@@ -977,35 +1010,45 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                        strokeWidth: 2))
+                      color: AppConstants.primaryGreen,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
                     child: filtered.isEmpty
-                        ? ListView(children: [
-                            const SizedBox(height: 100),
-                            Center(
-                              child: Column(children: [
-                                Icon(Icons.inventory_2_rounded,
-                                    size: 48,
-                                    color: cs.onSurfaceVariant),
-                                const SizedBox(height: 12),
-                                Text('No inventory items yet',
-                                    style: GoogleFonts.inter(
+                        ? ListView(
+                            children: [
+                              const SizedBox(height: 100),
+                              Center(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.inventory_2_rounded,
+                                      size: 48,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No inventory items yet',
+                                      style: GoogleFonts.inter(
                                         fontSize: 14,
-                                        color: cs.onSurfaceVariant)),
-                                const SizedBox(height: 8),
-                                TextButton(
-                                  onPressed: _showAddSheet,
-                                  child: const Text('Add First Item'),
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextButton(
+                                      onPressed: _showAddSheet,
+                                      child: const Text('Add First Item'),
+                                    ),
+                                  ],
                                 ),
-                              ]),
-                            ),
-                          ])
+                              ),
+                            ],
+                          )
                         : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(
-                                16, 12, 16, 40),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
                             itemCount: filtered.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 10),
@@ -1014,241 +1057,372 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                               final stockColor = item.isDepleted
                                   ? AppConstants.errorRed
                                   : item.isLow
-                                      ? AppConstants.warningAmber
-                                      : AppConstants.successGreen;
+                                  ? AppConstants.warningAmber
+                                  : AppConstants.successGreen;
                               final stockLabel = item.isDepleted
                                   ? 'DEPLETED'
                                   : item.isLow
-                                      ? 'LOW STOCK'
-                                      : 'IN STOCK';
+                                  ? 'LOW STOCK'
+                                  : 'IN STOCK';
 
                               return Container(
                                 decoration: BoxDecoration(
                                   color: sagana.cardBackground,
                                   borderRadius: BorderRadius.circular(
-                                      AppConstants.radiusLg),
+                                    AppConstants.radiusLg,
+                                  ),
                                   border: Border.all(
-                                      color: cs.outline
-                                          .withValues(alpha: 0.10)),
+                                    color: cs.outline.withValues(alpha: 0.10),
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black
-                                          .withValues(alpha: 0.03),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.03,
+                                      ),
                                       blurRadius: 6,
                                     ),
                                   ],
                                 ),
-                                padding: const EdgeInsets.all(14),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
+                                clipBehavior: Clip.antiAlias,
+                                child: IntrinsicHeight(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Container(width: 4, color: stockColor),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(14),
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                item.itemName,
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 14,
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                  color: cs.onSurface,
-                                                ),
+                                              Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          item.itemName,
+                                                          style:
+                                                              GoogleFonts.poppins(
+                                                                fontSize: 14,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: cs
+                                                                    .onSurface,
+                                                              ),
+                                                        ),
+                                                        Text(
+                                                          item.category,
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 11,
+                                                            color: cs
+                                                                .onSurfaceVariant,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 3,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: stockColor
+                                                          .withValues(
+                                                            alpha: 0.12,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            AppConstants
+                                                                .radiusFull,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      stockLabel,
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 9,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: stockColor,
+                                                        letterSpacing: 0.4,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              Text(
-                                                item.category,
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 11,
-                                                  color:
-                                                      cs.onSurfaceVariant,
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  _StockStat(
+                                                    label: 'On Hand',
+                                                    value:
+                                                        '${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
+                                                    color: stockColor,
+                                                  ),
+                                                  const SizedBox(width: 16),
+                                                  _StockStat(
+                                                    label: 'Available',
+                                                    value:
+                                                        '${item.available.toStringAsFixed(1)} ${item.unit}',
+                                                    color: cs.onSurface,
+                                                  ),
+                                                  if (item.reorderLevel >
+                                                      0) ...[
+                                                    const SizedBox(width: 16),
+                                                    _StockStat(
+                                                      label: 'Reorder At',
+                                                      value:
+                                                          '${item.reorderLevel.toStringAsFixed(0)} ${item.unit}',
+                                                      color:
+                                                          cs.onSurfaceVariant,
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                              if (item.unitCost != null ||
+                                                  item.lastRestockedAt !=
+                                                      null) ...[
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  children: [
+                                                    if (item.unitCost != null)
+                                                      Text(
+                                                        '₱${item.unitCost!.toStringAsFixed(2)} / ${item.unit}',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 11,
+                                                          color: cs
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                      ),
+                                                    if (item.unitCost != null &&
+                                                        item.lastRestockedAt !=
+                                                            null)
+                                                      Text(
+                                                        ' · ',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 11,
+                                                          color: cs
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                      ),
+                                                    if (item.lastRestockedAt !=
+                                                        null)
+                                                      Text(
+                                                        'Last restocked ${_formatDate(item.lastRestockedAt!)}',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 11,
+                                                          color: cs
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
+                                              ],
+                                              const SizedBox(height: 12),
+                                              // Stock level progress bar
+                                              if (item.reorderLevel > 0) ...[
+                                                ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                  child: LinearProgressIndicator(
+                                                    value:
+                                                        (item.quantityOnHand /
+                                                                (item.reorderLevel *
+                                                                    3))
+                                                            .clamp(0.0, 1.0),
+                                                    minHeight: 6,
+                                                    backgroundColor: cs.outline
+                                                        .withValues(
+                                                          alpha: 0.12,
+                                                        ),
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation(
+                                                          stockColor,
+                                                        ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                              ],
+                                              // Action buttons
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: GestureDetector(
+                                                      onTap: _isOnline
+                                                          ? () =>
+                                                                _showAdjustSheet(
+                                                                  item,
+                                                                )
+                                                          : null,
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 9,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: cs.primary
+                                                              .withValues(
+                                                                alpha: 0.08,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                AppConstants
+                                                                    .radiusMd,
+                                                              ),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .center,
+                                                          children: [
+                                                            Icon(
+                                                              Icons
+                                                                  .tune_rounded,
+                                                              size: 16,
+                                                              color: cs.primary,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 6,
+                                                            ),
+                                                            Text(
+                                                              'Adjust Stock',
+                                                              style: GoogleFonts.poppins(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color:
+                                                                    cs.primary,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: GestureDetector(
+                                                      onTap: _isOnline
+                                                          ? () =>
+                                                                _showLoanCatalogSheet(
+                                                                  item,
+                                                                )
+                                                          : null,
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 9,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: AppConstants
+                                                              .primaryGreen
+                                                              .withValues(
+                                                                alpha: 0.10,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                AppConstants
+                                                                    .radiusMd,
+                                                              ),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .center,
+                                                          children: [
+                                                            Icon(
+                                                              Icons
+                                                                  .request_page_rounded,
+                                                              size: 16,
+                                                              color: AppConstants
+                                                                  .primaryGreen,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 6,
+                                                            ),
+                                                            Text(
+                                                              'Publish',
+                                                              style: GoogleFonts.poppins(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: AppConstants
+                                                                    .primaryGreen,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  GestureDetector(
+                                                    onTap: () =>
+                                                        _showTransactionHistory(
+                                                          item,
+                                                        ),
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 9,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: cs
+                                                            .surfaceContainerHighest,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              AppConstants
+                                                                  .radiusMd,
+                                                            ),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            Icons
+                                                                .history_rounded,
+                                                            size: 16,
+                                                            color: cs
+                                                                .onSurfaceVariant,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 6,
+                                                          ),
+                                                          Text(
+                                                            'History',
+                                                            style: GoogleFonts.poppins(
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color: cs
+                                                                  .onSurfaceVariant,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
                                         ),
-                                        Container(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: stockColor.withValues(
-                                                alpha: 0.12),
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                                    AppConstants.radiusFull),
-                                          ),
-                                          child: Text(
-                                            stockLabel,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w700,
-                                              color: stockColor,
-                                              letterSpacing: 0.4,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(children: [
-                                      _StockStat(
-                                        label: 'On Hand',
-                                        value:
-                                            '${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
-                                        color: stockColor,
                                       ),
-                                      const SizedBox(width: 16),
-                                      _StockStat(
-                                        label: 'Available',
-                                        value:
-                                            '${item.available.toStringAsFixed(1)} ${item.unit}',
-                                        color: cs.onSurface,
-                                      ),
-                                      if (item.reorderLevel > 0) ...[
-                                        const SizedBox(width: 16),
-                                        _StockStat(
-                                          label: 'Reorder At',
-                                          value:
-                                              '${item.reorderLevel.toStringAsFixed(0)} ${item.unit}',
-                                          color: cs.onSurfaceVariant,
-                                        ),
-                                      ],
-                                    ]),
-                                    if (item.unitCost != null ||
-                                        item.lastRestockedAt != null) ...[
-                                      const SizedBox(height: 6),
-                                      Row(children: [
-                                        if (item.unitCost != null)
-                                          Text(
-                                            '₱${item.unitCost!.toStringAsFixed(2)} / ${item.unit}',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color: cs.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        if (item.unitCost != null &&
-                                            item.lastRestockedAt != null)
-                                          Text(' · ',
-                                              style: GoogleFonts.inter(
-                                                  fontSize: 11,
-                                                  color:
-                                                      cs.onSurfaceVariant)),
-                                        if (item.lastRestockedAt != null)
-                                          Text(
-                                            'Last restocked ${_formatDate(item.lastRestockedAt!)}',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color: cs.onSurfaceVariant,
-                                            ),
-                                          ),
-                                      ]),
                                     ],
-                                    const SizedBox(height: 12),
-                                    // Stock level progress bar
-                                    if (item.reorderLevel > 0) ...[
-                                      ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(4),
-                                        child: LinearProgressIndicator(
-                                          value: (item.quantityOnHand /
-                                                  (item.reorderLevel * 3))
-                                              .clamp(0.0, 1.0),
-                                          minHeight: 6,
-                                          backgroundColor: cs.outline
-                                              .withValues(alpha: 0.12),
-                                          valueColor:
-                                              AlwaysStoppedAnimation(
-                                                  stockColor),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
-                                    // Action buttons
-                                    Row(children: [
-                                      Expanded(
-                                        child: GestureDetector(
-                                          onTap: _isOnline
-                                              ? () => _showAdjustSheet(
-                                                  item)
-                                              : null,
-                                          child: Container(
-                                            padding:
-                                                const EdgeInsets.symmetric(
-                                                    vertical: 9),
-                                            decoration: BoxDecoration(
-                                              color: cs.primary
-                                                  .withValues(alpha: 0.08),
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      AppConstants.radiusMd),
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                    Icons.tune_rounded,
-                                                    size: 16,
-                                                    color: cs.primary),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Adjust Stock',
-                                                  style:
-                                                      GoogleFonts.poppins(
-                                                    fontSize: 12,
-                                                    fontWeight:
-                                                        FontWeight.w600,
-                                                    color: cs.primary,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      GestureDetector(
-                                        onTap: () =>
-                                            _showTransactionHistory(item),
-                                        child: Container(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                                  horizontal: 14,
-                                                  vertical: 9),
-                                          decoration: BoxDecoration(
-                                            color: cs
-                                                .surfaceContainerHighest,
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                                    AppConstants.radiusMd),
-                                          ),
-                                          child: Row(children: [
-                                            Icon(
-                                                Icons.history_rounded,
-                                                size: 16,
-                                                color:
-                                                    cs.onSurfaceVariant),
-                                            const SizedBox(width: 6),
-                                            Text('History',
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 12,
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                  color:
-                                                      cs.onSurfaceVariant,
-                                                )),
-                                          ]),
-                                        ),
-                                      ),
-                                    ]),
-                                  ],
+                                  ),
                                 ),
                               );
                             },
@@ -1265,7 +1439,11 @@ class _StockStat extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _StockStat({required this.label, required this.value, required this.color});
+  const _StockStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1273,16 +1451,24 @@ class _StockStat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label.toUpperCase(),
-            style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: cs.onSurfaceVariant)),
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.inter(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            color: cs.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 1),
-        Text(value,
-            style: GoogleFonts.poppins(
-                fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
       ],
     );
   }
@@ -1294,8 +1480,13 @@ class _Chip extends StatelessWidget {
   final VoidCallback onTap;
   final ColorScheme cs;
   final SaganaColors sagana;
-  const _Chip({required this.label, required this.selected,
-      required this.onTap, required this.cs, required this.sagana});
+  const _Chip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.cs,
+    required this.sagana,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1307,13 +1498,17 @@ class _Chip extends StatelessWidget {
           color: selected ? cs.primary : sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusFull),
           border: Border.all(
-              color: selected ? cs.primary : cs.outline.withValues(alpha: 0.20)),
+            color: selected ? cs.primary : cs.outline.withValues(alpha: 0.20),
+          ),
         ),
-        child: Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : cs.onSurfaceVariant)),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : cs.onSurfaceVariant,
+          ),
+        ),
       ),
     );
   }

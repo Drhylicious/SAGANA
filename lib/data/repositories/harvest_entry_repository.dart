@@ -10,13 +10,11 @@ class HarvestEntryRepository {
     required String cropName,
     required String cropCategory,
     required double quantityKg,
-    required String qualityGrade,
     required DateTime harvestDate,
     required String batchNumber,
     String? variety,
     String? storageLocation,
     String? notes,
-    bool submittedToCooperative = false,
   }) async {
     final harvestResponse = await _client
         .from('harvest_records')
@@ -26,19 +24,41 @@ class HarvestEntryRepository {
           'crop_name': cropName,
           'crop_category': cropCategory,
           'quantity_kg': quantityKg,
-          'quality_grade': qualityGrade,
           'harvest_date': harvestDate.toIso8601String().split('T').first,
           'batch_number': batchNumber,
           'variety': variety,
           'storage_location': storageLocation,
           'notes': notes,
-          'submitted_to_cooperative': submittedToCooperative,
           'is_synced': true,
         })
         .select()
         .single();
 
     final harvest = HarvestModel.fromMap(harvestResponse);
+
+    // Look up cooperative eligibility once, at harvest time, via the crop's
+    // catalog link — denormalized onto the batch so Inventory never needs
+    // to join through farmer_crops → crop_master at render time.
+    bool isCoopEligible = false;
+    try {
+      final cropRow = await _client
+          .from('farmer_crops')
+          .select('crop_master_id')
+          .eq('id', cropId)
+          .single();
+      final cropMasterId = cropRow['crop_master_id'] as String?;
+      if (cropMasterId != null) {
+        final catalogRow = await _client
+            .from('crop_master')
+            .select('is_cooperative_eligible')
+            .eq('id', cropMasterId)
+            .single();
+        isCoopEligible = catalogRow['is_cooperative_eligible'] as bool? ?? false;
+      }
+    } catch (_) {
+      // Unlinked or unresolved crop — defaults to not eligible, matches
+      // the "pending approval crops can't yet be offered to the coop" rule.
+    }
 
     // Auto-create inventory batch
     try {
@@ -52,8 +72,8 @@ class HarvestEntryRepository {
         'available_kg': quantityKg,
         'reserved_kg': 0,
         'sold_kg': 0,
-        'quality_grade': qualityGrade,
         'status': 'available',
+        'is_coop_eligible': isCoopEligible,
       });
     } catch (_) {
       // Inventory batch failure does not block harvest submission

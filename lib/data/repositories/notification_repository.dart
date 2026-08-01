@@ -71,4 +71,15 @@ class NotificationRepository {
           .eq('user_id', _userId);
     } catch (_) {}
   }
+
+  // ─── Delete all notifications for current user ────────────────────────────
+
+  Future<void> deleteAllNotifications() async {
+    try {
+      await _client
+          .from('notifications')
+          .delete()
+          .eq('user_id', _userId);
+    } catch (_) {}
+  }
 }

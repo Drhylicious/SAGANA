@@ -4,8 +4,11 @@ import '../models/price_record_model.dart';
 class PriceManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
-  // ─── Fetch latest price per crop (one row per crop name) ──────────────────
+  // ─── Fetch latest price per (crop, price_type) ─────────────────────────────
   // Used for the "Live Market Rates" cards grid.
+  // Keyed on (crop_id, price_type) rather than crop_name alone, so a crop's
+  // SP3 price and its Market Average price both show up as separate cards
+  // instead of one collapsing into the other.
 
   Future<List<PriceRecordModel>> fetchLatestPricePerCrop() async {
     try {
@@ -14,12 +17,11 @@ class PriceManagementRepository {
           .select()
           .order('recorded_at', ascending: false);
 
-      // Deduplicate: keep first (most recent) per crop_name
       final Map<String, PriceRecordModel> latest = {};
       for (final row in rows) {
-        final crop = row['crop_name'] as String;
-        if (!latest.containsKey(crop)) {
-          latest[crop] = PriceRecordModel.fromMap(row);
+        final key = '${row['crop_id']}_${row['price_type']}';
+        if (!latest.containsKey(key)) {
+          latest[key] = PriceRecordModel.fromMap(row);
         }
       }
       return latest.values.toList()
@@ -45,9 +47,10 @@ class PriceManagementRepository {
   }
 
   // ─── Fetch 30-day trend for a specific crop (for mini chart) ──────────────
+  // Keyed on crop_id instead of an ilike match against crop_name.
 
   Future<List<PriceRecordModel>> fetchTrendForCrop(
-    String cropName, {
+    String cropId, {
     int days = 30,
   }) async {
     try {
@@ -57,7 +60,7 @@ class PriceManagementRepository {
       final rows = await _client
           .from('price_records')
           .select()
-          .ilike('crop_name', cropName)
+          .eq('crop_id', cropId)
           .gte('recorded_at', cutoff)
           .order('recorded_at', ascending: true);
       return rows.map((r) => PriceRecordModel.fromMap(r)).toList();
@@ -67,9 +70,13 @@ class PriceManagementRepository {
   }
 
   // ─── Insert new price record ───────────────────────────────────────────────
+  // cropId + cropName are passed together: the caller already has both fresh
+  // from the crop_master-backed crop picker (see fetchAvailableCrops).
+  // cropName is stored as a point-in-time snapshot and never rewritten later.
   // Also updates previous_price by reading the current latest before inserting.
 
   Future<PriceRecordModel> upsertPrice({
+    required String cropId,
     required String cropName,
     required double price,
     required String priceType,
@@ -85,7 +92,7 @@ class PriceManagementRepository {
       final existing = await _client
           .from('price_records')
           .select('price')
-          .ilike('crop_name', cropName)
+          .eq('crop_id', cropId)
           .eq('price_type', priceType)
           .order('recorded_at', ascending: false)
           .limit(1);
@@ -97,6 +104,7 @@ class PriceManagementRepository {
     final row = await _client
         .from('price_records')
         .insert({
+          'crop_id':        cropId,
           'crop_name':      cropName.trim(),
           'price':          price,
           'price_type':     priceType,
@@ -118,20 +126,21 @@ class PriceManagementRepository {
     await _client.from('price_records').delete().eq('id', id);
   }
 
-  // ─── Fetch distinct crop names already in price_records ───────────────────
-  // Used to populate the crop name dropdown when adding new price.
+  // ─── Fetch crops available for pricing ─────────────────────────────────────
+  // Replaces fetchKnownCropNames(), which only ever returned crops that
+  // already had a price on record — meaning a brand-new crop could never
+  // get its first price entered. Now sources directly from crop_master, so
+  // every active crop (including ones with no price yet) is selectable, and
+  // each entry carries its id (needed for the crop_id FK) and crop_type.
 
-  Future<List<String>> fetchKnownCropNames() async {
+  Future<List<Map<String, dynamic>>> fetchAvailableCrops() async {
     try {
       final rows = await _client
-          .from('price_records')
-          .select('crop_name')
-          .order('crop_name', ascending: true);
-      return rows
-          .map((r) => r['crop_name'] as String)
-          .toSet()
-          .toList()
-        ..sort();
+          .from('crop_master')
+          .select('id, crop_name, crop_type')
+          .eq('is_active', true)
+          .order('crop_name');
+      return List<Map<String, dynamic>>.from(rows);
     } catch (_) {
       return [];
     }

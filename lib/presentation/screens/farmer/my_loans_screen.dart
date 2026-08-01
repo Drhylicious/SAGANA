@@ -7,8 +7,6 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/loan_model.dart';
 import '../../../data/repositories/loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../../routes/app_routes.dart';
-import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 
 class MyLoansScreen extends StatefulWidget {
@@ -169,11 +167,10 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
             child: FarmerTopBar(
               title: 'My Input Loans',
               onBack: () => Navigator.of(context).pop(),
-              profilePhotoUrl: null,
+              hideProfileAvatar: true,
               onProfileTap: () {},
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              onSettingsTap: null,
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
         ],

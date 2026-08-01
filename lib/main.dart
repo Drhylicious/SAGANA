@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'core/l10n/app_localizations.dart';
 import 'core/theme/app_theme.dart';
+import 'data/services/admin_profile_state_service.dart';
 import 'data/services/app_settings_service.dart';
 import 'data/services/auth_service.dart';
 import 'data/services/connectivity_service.dart';
@@ -13,6 +15,12 @@ import 'presentation/navigation/app_router.dart';
 import 'supabase_options.dart';
 
 Future<void> main() async {
+  // Removes the '#' from web URLs (e.g. /reset-password instead of
+  // /#/reset-password). Without this, the Supabase password-reset
+  // redirect lands on a URL GoRouter can't cleanly match against the
+  // registered path. No-op on non-web platforms, safe to always call.
+  usePathUrlStrategy();
+
   WidgetsFlutterBinding.ensureInitialized();
 
   await HiveService.init();
@@ -22,6 +30,7 @@ Future<void> main() async {
 
   if (AuthService.isLoggedIn) {
     await FarmerProfileStateService.instance.refresh();
+    await AdminProfileStateService.instance.refresh();
   }
 
   SyncService.startAutoSync();

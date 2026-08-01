@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/repositories/analytics_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
@@ -22,6 +24,7 @@ class FarmerAnalyticsScreen extends StatefulWidget {
 
 class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   final _repo = AnalyticsRepository();
+  final _notifRepo = NotificationRepository();
 
   AnalyticsPeriod _period = AnalyticsPeriod.thisSeason;
   FarmPerformanceSummary _performance = FarmPerformanceSummary.empty;
@@ -30,6 +33,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   List<PriceHistoryPoint> _priceHistory = [];
   List<PlantingForecast> _forecasts = [];
   List<TopSellingCrop> _topSelling = [];
+  int _unreadCount = 0;
 
   String? _selectedPriceCrop;
   bool _isLoading = true;
@@ -38,6 +42,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   @override
   void initState() {
     super.initState();
+    AppEventService.instance.addListener(_onDataChanged);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -51,6 +56,16 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     _loadAll();
   }
 
+  @override
+  void dispose() {
+    AppEventService.instance.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadAll();
+  }
+
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
@@ -59,6 +74,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       _repo.fetchPriceCards(),
       _repo.fetchPlantingForecasts(),
       _repo.fetchTopSellingCrops(),
+      _notifRepo.fetchUnreadCount(),
     ]);
     if (!mounted) return;
 
@@ -73,6 +89,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       _priceCards = priceCards;
       _forecasts = results[3] as List<PlantingForecast>;
       _topSelling = results[4] as List<TopSellingCrop>;
+      _unreadCount = results[5] as int;
       _selectedPriceCrop = initialCrop;
       _isLoading = false;
     });
@@ -81,7 +98,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   }
 
   Future<void> _loadPriceHistory(String cropName) async {
-    final history = await _repo.fetchPriceHistory(cropName);
+    final history = await _repo.fetchPriceHistory(cropName, startDate: _period.startDate);
     if (!mounted) return;
     setState(() {
       _selectedPriceCrop = cropName;
@@ -91,9 +108,22 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
 
   Future<void> _onPeriodChanged(AnalyticsPeriod p) async {
     setState(() => _period = p);
-    final performance = await _repo.fetchFarmPerformance(p);
+    final results = await Future.wait([
+      _repo.fetchFarmPerformance(p),
+      // Re-fetch history for whichever crop is currently selected too —
+      // previously this chart never responded to the period selector at
+      // all, contradicting the screen's own "Applies to Farm Performance
+      // and Price History" caption.
+      if (_selectedPriceCrop != null)
+        _repo.fetchPriceHistory(_selectedPriceCrop!, startDate: p.startDate),
+    ]);
     if (!mounted) return;
-    setState(() => _performance = performance);
+    setState(() {
+      _performance = results[0] as FarmPerformanceSummary;
+      if (_selectedPriceCrop != null) {
+        _priceHistory = results[1] as List<PriceHistoryPoint>;
+      }
+    });
   }
 
   @override
@@ -162,6 +192,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                         _PriceHistoryChart(
                           cropName: _selectedPriceCrop!,
                           points: _priceHistory,
+                          periodLabel: _period.label,
                         ),
                       const SizedBox(height: 28),
 
@@ -209,6 +240,9 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: 'Analytics',
+              unreadCount: _unreadCount,
+              hideProfileAvatar: true,
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
@@ -831,8 +865,13 @@ class _PriceCardsRow extends StatelessWidget {
 class _PriceHistoryChart extends StatelessWidget {
   final String cropName;
   final List<PriceHistoryPoint> points;
+  final String periodLabel;
 
-  const _PriceHistoryChart({required this.cropName, required this.points});
+  const _PriceHistoryChart({
+    required this.cropName,
+    required this.points,
+    required this.periodLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -882,7 +921,7 @@ class _PriceHistoryChart extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      '30-Day Trend',
+                      periodLabel,
                       style: GoogleFonts.inter(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,

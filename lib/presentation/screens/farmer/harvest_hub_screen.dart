@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/harvest_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/services/profile_state_service.dart';
@@ -21,6 +22,7 @@ class HarvestHubScreen extends StatefulWidget {
 
 class _HarvestHubScreenState extends State<HarvestHubScreen> {
   final _harvestRepo = HarvestRepository();
+  final _notifRepo = NotificationRepository();
   final _profileState = FarmerProfileStateService.instance;
 
   HarvestStats _stats = HarvestStats.empty;
@@ -28,6 +30,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   List<HarvestModel> _filtered = [];
   Map<String, int> _inventoryStats = {'total': 0, 'low_stock': 0};
   HarvestFilter _activeFilter = HarvestFilter.all;
+  int _unreadCount = 0;
   bool _isLoading = true;
 
   @override
@@ -66,6 +69,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         _harvestRepo.fetchStats(),
         _harvestRepo.fetchRecentHarvests(),
         _harvestRepo.fetchInventoryStats(),
+        _notifRepo.fetchUnreadCount(),
       ]);
       await _profileState.refresh();
       if (!mounted) return;
@@ -73,6 +77,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         _stats = results[0] as HarvestStats;
         _allHarvests = results[1] as List<HarvestModel>;
         _inventoryStats = results[2] as Map<String, int>;
+        _unreadCount = results[3] as int;
         _applyFilter();
         _isLoading = false;
       });
@@ -122,8 +127,12 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                         _HeroCards(
                           inventoryTotal: _inventoryStats['total'] ?? 0,
                           inventoryLowStock: _inventoryStats['low_stock'] ?? 0,
-                            onRecordHarvest: () => context.goTab(AppRoutes.cropListing),
-                            onManageInventory: () => context.goTab(AppRoutes.manageInventory),
+                          onRecordHarvest: () =>
+                              context.pushRoute(AppRoutes.selectCropForHarvest),
+                          onMyCrops: () =>
+                              context.pushRoute(AppRoutes.cropListing),
+                          onManageInventory: () =>
+                              context.pushRoute(AppRoutes.manageInventory),
                         ),
                         const SizedBox(height: 16),
 
@@ -155,6 +164,9 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
+              title: 'Harvest Hub',
+              unreadCount: _unreadCount,
+              hideProfileAvatar: true,
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
@@ -196,28 +208,7 @@ class _DotPatternPainter extends CustomPainter {
 class _HeaderSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Harvest Hub',
-          style: GoogleFonts.poppins(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.charcoal,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Centralized crop and inventory intelligence.',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
+    return const SizedBox.shrink();
   }
 }
 
@@ -229,12 +220,14 @@ class _HeroCards extends StatelessWidget {
   final int inventoryTotal;
   final int inventoryLowStock;
   final VoidCallback onRecordHarvest;
+  final VoidCallback onMyCrops;
   final VoidCallback onManageInventory;
 
   const _HeroCards({
     required this.inventoryTotal,
     required this.inventoryLowStock,
     required this.onRecordHarvest,
+    required this.onMyCrops,
     required this.onManageInventory,
   });
 
@@ -257,6 +250,23 @@ class _HeroCards extends StatelessWidget {
           onTap: onRecordHarvest,
         ),
         const SizedBox(height: 12),
+
+        // My Crops
+        _HeroCard(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppConstants.lightGreen, AppConstants.midGreen],
+          ),
+          icon: Icons.grass_rounded,
+          iconBg: Colors.white.withValues(alpha: 0.20),
+          title: 'My Crops',
+          subtitle: 'Manage the crops you grow',
+          subtitleColor: Colors.white.withValues(alpha: 0.85),
+          onTap: onMyCrops,
+        ),
+        const SizedBox(height: 12),
+
         // Manage Inventory
         _HeroCard(
           gradient: const LinearGradient(

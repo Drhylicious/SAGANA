@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/constants/app_constants.dart';
 import '../models/user_model.dart';
 import 'hive_service.dart';
 
@@ -141,9 +143,13 @@ class AuthService {
       await _client.from('user_roles').insert({
         'user_id': userId,
         'role': role,
-        // SP3-verified farmers become active immediately
-        // Non-member farmers and buyers default to pending
-        'status': registryId != null ? 'active' : 'pending',
+        // SP3-verified farmers become active immediately.
+        // Buyers self-activate on registration — no admin verification
+        // required (see buyer_profiles in supabase_schema_auth.sql).
+        // Non-member farmers default to pending, awaiting SP3 staff review.
+        'status': (role == AppConstants.roleBuyer || registryId != null)
+            ? 'active'
+            : 'pending',
       });
 
       await _client.from('user_information').insert({
@@ -200,9 +206,27 @@ class AuthService {
   }
 
   // ── Password Reset ───────────────────────────────────────────────────────────
+  //
+  // Admin-only in practice (see LoginScreen — farmers/staff/buyers are routed
+  // to a "contact SP3" message instead of this, since they authenticate with
+  // usernames, not real inboxes). redirectTo is built from Uri.base.origin
+  // rather than hardcoded, so it's always correct for whatever port/domain
+  // the app is actually running on — including Flutter web's random dev
+  // port — as long as that origin is allow-listed in the Supabase dashboard
+  // (Authentication → URL Configuration → Redirect URLs). See
+  // ResetPasswordScreen for what happens when the link is clicked.
+  //
+  // Native mobile builds have no deep-link scheme registered yet, so this
+  // is deliberately web-only for now (kIsWeb guard) rather than sending a
+  // redirectTo mobile can't actually catch.
 
   static Future<void> sendPasswordReset(String email) async {
-    await _client.auth.resetPasswordForEmail(email.trim());
+    await _client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: kIsWeb
+          ? '${Uri.base.origin}/reset-password'
+          : null,
+    );
   }
 
   // ── Check username availability ───────────────────────────────────────────────

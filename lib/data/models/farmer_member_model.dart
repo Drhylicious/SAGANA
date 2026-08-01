@@ -1,29 +1,40 @@
 // ─── Member Status ────────────────────────────────────────────────────────────
 
-enum MemberStatus { active, inactive, pending }
+enum MemberStatus { active, suspended, pending }
 
 extension MemberStatusExt on MemberStatus {
   String get value {
     switch (this) {
-      case MemberStatus.active:   return 'active';
-      case MemberStatus.inactive: return 'inactive';
-      case MemberStatus.pending:  return 'pending';
+      case MemberStatus.active:    return 'active';
+      case MemberStatus.suspended: return 'suspended';
+      case MemberStatus.pending:   return 'pending';
     }
   }
 
+  // Label unchanged — this is exactly the "user-friendly wording,
+  // different stored value" pattern from the buyer-side fix. The chip
+  // still reads "Inactive" to the admin; only what's written to the
+  // database changed.
   String get label {
     switch (this) {
-      case MemberStatus.active:   return 'Active';
-      case MemberStatus.inactive: return 'Inactive';
-      case MemberStatus.pending:  return 'Pending';
+      case MemberStatus.active:    return 'Active';
+      case MemberStatus.suspended: return 'Inactive';
+      case MemberStatus.pending:   return 'Pending';
     }
   }
 
   static MemberStatus fromString(String? v) {
     switch (v) {
-      case 'active':   return MemberStatus.active;
-      case 'inactive': return MemberStatus.inactive;
-      default:         return MemberStatus.pending;
+      case 'active':    return MemberStatus.active;
+      case 'suspended': return MemberStatus.suspended;
+      case 'inactive':  return MemberStatus.suspended; // defensive: no row can
+                                                         // actually hold this
+                                                         // value, but parsing
+                                                         // it correctly instead
+                                                         // of silently
+                                                         // mis-bucketing costs
+                                                         // nothing.
+      default:          return MemberStatus.pending;
     }
   }
 }

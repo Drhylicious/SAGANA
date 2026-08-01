@@ -27,7 +27,7 @@ class AdminBottomNav extends StatelessWidget {
     final items = [
       _NavItem(icon: Icons.dashboard_rounded,    label: l10n.adminNavDashboard),
       _NavItem(icon: Icons.groups_rounded,        label: l10n.adminNavMembers),
-      _NavItem(icon: Icons.storefront_outlined,   label: l10n.adminNavListings),
+      _NavItem(icon: Icons.storefront_outlined,   label: l10n.navMarketplace),
       _NavItem(icon: Icons.eco_outlined,          label: l10n.adminNavLoans),
       _NavItem(icon: Icons.bar_chart_rounded,     label: l10n.adminNavReports),
     ];

@@ -30,6 +30,52 @@ extension ReportPeriodExt on ReportPeriod {
         return null;
     }
   }
+
+  ({DateTime? startDate, DateTime? endDate}) range() {
+    final now = DateTime.now();
+    switch (this) {
+      case ReportPeriod.thisMonth:
+        return (
+          startDate: DateTime(now.year, now.month, 1),
+          endDate: DateTime(now.year, now.month + 1, 0),
+        );
+      case ReportPeriod.thisQuarter:
+        final quarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
+        final start = DateTime(now.year, quarterStartMonth, 1);
+        final end = DateTime(now.year, quarterStartMonth + 3, 0);
+        return (startDate: start, endDate: end);
+      case ReportPeriod.thisYear:
+        return (
+          startDate: DateTime(now.year, 1, 1),
+          endDate: DateTime(now.year + 1, 1, 0),
+        );
+      case ReportPeriod.allTime:
+        return (startDate: null, endDate: null);
+    }
+  }
+
+  ({DateTime? startDate, DateTime? endDate})? previousRange() {
+    final now = DateTime.now();
+    switch (this) {
+      case ReportPeriod.thisMonth:
+        return (
+          startDate: DateTime(now.year, now.month - 1, 1),
+          endDate: DateTime(now.year, now.month, 0),
+        );
+      case ReportPeriod.thisQuarter:
+        final quarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
+        final start = DateTime(now.year, quarterStartMonth - 3, 1);
+        final end = DateTime(now.year, quarterStartMonth, 0);
+        return (startDate: start, endDate: end);
+      case ReportPeriod.thisYear:
+        return (
+          startDate: DateTime(now.year - 1, 1, 1),
+          endDate: DateTime(now.year, 1, 0),
+        );
+      case ReportPeriod.allTime:
+        return null;
+    }
+  }
 }
 
 class PerformanceSummary {
@@ -57,6 +103,26 @@ class PerformanceSummary {
     totalExpenses: 0,
     memberParticipationPercent: 0,
   );
+}
+
+class QuickInsights {
+  final String? topCropName;
+  final double topCropAmount;
+  final String? topFarmerName;
+  final double topFarmerAmount;
+  final String? topExpenseCategory;
+  final double? topExpenseAmount;
+
+  const QuickInsights({
+    this.topCropName,
+    this.topCropAmount = 0,
+    this.topFarmerName,
+    this.topFarmerAmount = 0,
+    this.topExpenseCategory,
+    this.topExpenseAmount,
+  });
+
+  static QuickInsights empty() => const QuickInsights();
 }
 
 // ─── Sales Report ───────────────────────────────────────────────────────────
@@ -268,6 +334,7 @@ class HarvestReportRow {
   final DateTime harvestDate;
   final bool submittedToCooperative;
   final bool isSynced;
+  final String batchNumber; // links 1:1 to InventoryReportRow.batchNumber
 
   const HarvestReportRow({
     required this.id,
@@ -280,6 +347,7 @@ class HarvestReportRow {
     required this.harvestDate,
     required this.submittedToCooperative,
     required this.isSynced,
+    required this.batchNumber,
   });
 }
 
@@ -343,6 +411,51 @@ class ExpenseReportRow {
 /// There is therefore no meaningful peso total for "subsidized spending" —
 /// only a count. Don't add a subsidizedAmount field; it would always be
 /// zero and would misleadingly imply a real tracked total.
+class CoopStockReportRow {
+  final String id;
+  final String itemName;
+  final String category;
+  final String unit;
+  final double quantityOnHand;
+  final double reorderLevel;
+  final bool isLowStock;
+  final double? unitCost;
+  final DateTime? lastRestockedAt;
+
+  const CoopStockReportRow({
+    required this.id,
+    required this.itemName,
+    required this.category,
+    required this.unit,
+    required this.quantityOnHand,
+    required this.reorderLevel,
+    required this.isLowStock,
+    this.unitCost,
+    this.lastRestockedAt,
+  });
+}
+
+class CoopStockReportData {
+  final int totalItems;
+  final int lowStockCount;
+  final Map<String, int> categoryCounts;
+  final List<CoopStockReportRow> items;
+
+  const CoopStockReportData({
+    required this.totalItems,
+    required this.lowStockCount,
+    required this.categoryCounts,
+    required this.items,
+  });
+
+  static const empty = CoopStockReportData(
+    totalItems: 0,
+    lowStockCount: 0,
+    categoryCounts: {},
+    items: [],
+  );
+}
+
 class ExpenseReportData {
   final double totalFarmerFundedAmount;
   final int subsidizedCount;

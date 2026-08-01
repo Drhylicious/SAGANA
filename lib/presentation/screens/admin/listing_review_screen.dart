@@ -1443,6 +1443,8 @@ class _ReadOnlyFooter extends StatelessWidget {
         return AppConstants.warningAmber;
       case 'sold':
         return cs.onSurfaceVariant;
+      case 'rejected':
+        return cs.error;
       default:
         return cs.outline;
     }
@@ -1456,6 +1458,8 @@ class _ReadOnlyFooter extends StatelessWidget {
         return Icons.edit_note_rounded;
       case 'sold':
         return Icons.sell_outlined;
+      case 'rejected':
+        return Icons.cancel_outlined;
       default:
         return Icons.info_outline_rounded;
     }

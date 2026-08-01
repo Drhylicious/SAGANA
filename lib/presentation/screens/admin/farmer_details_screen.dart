@@ -13,6 +13,7 @@ import '../../../data/models/contribution_model.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/management_modal.dart';
 
 class FarmerDetailsScreen extends StatefulWidget {
   final String farmerId;
@@ -74,9 +75,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       .fold(0.0, (sum, l) => sum + l.remainingBalance);
 
   void _showActionsMenu() {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      backgroundColor: Colors.transparent,
       builder: (_) => _ActionsMenu(
         isActive: true, // wire to real status if needed
         onNotify: () {
@@ -86,7 +86,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
         onToggleStatus: () async {
           Navigator.pop(context);
           await _repo.setFarmerStatus(
-              farmerId: widget.farmerId, status: 'inactive');
+              farmerId: widget.farmerId, status: 'suspended');
           _loadAll();
         },
       ),
@@ -359,76 +359,80 @@ class _IdentityCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Stack(
+          // Status badge now lives in its own full-width Row so it always
+          // anchors to the card's right edge. Previously it sat inside a
+          // Stack whose only sized child was the identity Column — a Stack
+          // shrinks to the width of its widest non-positioned child, so the
+          // Positioned badge drifted left/right depending on name length
+          // ("Jhon Drhy M. Salangsang" wrapping to two lines vs. "Juan Dela
+          // Cruz" on one). That was the source of the inconsistent badge
+          // placement between member cards.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Column(
-                children: [
-                  Container(
-                    width: 84,
-                    height: 84,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: cs.primary, width: 3),
-                    ),
-                    child: profile.hasPhoto
-                        ? ClipOval(
-                            child: Image.network(
-                              profile.profilePhotoUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _avatarFallback(profile.fullName, cs),
-                            ),
-                          )
-                        : _avatarFallback(profile.fullName, cs),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    profile.fullName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Member ID: ${profile.memberId ?? 'Not yet assigned'}',
-                    style: GoogleFonts.inter(
-                        fontSize: 12, color: cs.outline),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Member since ${profile.memberSinceLabel}'
-                    '${profile.sitio != null ? ' • ${profile.sitio}' : ''}',
-                    style: GoogleFonts.inter(
-                        fontSize: 11, color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppConstants.successGreen.withValues(alpha: 0.10),
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusFull),
-                  ),
-                  child: Text(
-                    profile.isVerified ? 'Active Member' : 'Pending Verification',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: profile.isVerified
-                          ? AppConstants.successGreen
-                          : AppConstants.warningAmber,
-                    ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppConstants.successGreen.withValues(alpha: 0.10),
+                  borderRadius:
+                      BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                child: Text(
+                  profile.isVerified ? 'Active Member' : 'Pending Verification',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: profile.isVerified
+                        ? AppConstants.successGreen
+                        : AppConstants.warningAmber,
                   ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: cs.primary, width: 3),
+            ),
+            child: profile.hasPhoto
+                ? ClipOval(
+                    child: Image.network(
+                      profile.profilePhotoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _avatarFallback(profile.fullName, cs),
+                    ),
+                  )
+                : _avatarFallback(profile.fullName, cs),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            profile.fullName,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Member ID: ${profile.memberId ?? 'Not yet assigned'}',
+            style: GoogleFonts.inter(
+                fontSize: 12, color: cs.outline),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Member since ${profile.memberSinceLabel}'
+            '${profile.sitio != null ? ' • ${profile.sitio}' : ''}',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+                fontSize: 11, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
           Divider(color: cs.outline.withValues(alpha: 0.10)),
@@ -1480,34 +1484,17 @@ class _ActionsMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
+    final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppConstants.radiusXl)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-      child: Column(
+    return ManagementModalShell(
+      title: 'Member Actions',
+      body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outline.withValues(alpha: 0.30),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusFull),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           InkWell(
             onTap: onNotify,
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
@@ -1524,6 +1511,7 @@ class _ActionsMenu extends StatelessWidget {
           ),
           InkWell(
             onTap: onToggleStatus,
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
@@ -1537,7 +1525,7 @@ class _ActionsMenu extends StatelessWidget {
                   ),
                   const SizedBox(width: 14),
                   Text(
-                    isActive ? 'Set Inactive' : 'Set Active',
+                    isActive ? 'Set Suspended' : 'Set Active',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: isActive ? cs.error : cs.onSurface,

@@ -11,6 +11,7 @@ class InventoryBatchModel {
   final double soldKg;
   final String qualityGrade;
   final String status; // available | reserved | sold_out | withdrawn | low_stock
+  final bool isCoopEligible;
   final DateTime createdAt;
   final DateTime? harvestDate;
 
@@ -27,6 +28,7 @@ class InventoryBatchModel {
     required this.soldKg,
     required this.qualityGrade,
     required this.status,
+    this.isCoopEligible = false,
     required this.createdAt,
     this.harvestDate,
   });
@@ -71,28 +73,9 @@ class InventoryBatchModel {
       soldKg: (map['sold_kg'] as num).toDouble(),
       qualityGrade: map['quality_grade'] as String? ?? 'Grade A',
       status: map['status'] as String? ?? 'available',
+      isCoopEligible: map['is_coop_eligible'] as bool? ?? false,
       createdAt: parseDate(map['created_at']) ?? DateTime.now(),
       harvestDate: harvestDate,
     );
-  }
-}
-
-// ─── Inventory Filter ─────────────────────────────────────────────────────────
-
-enum InventoryGradeFilter { all, gradeA, gradeB, gradeC }
-
-extension InventoryGradeFilterExt on InventoryGradeFilter {
-  String get label {
-    switch (this) {
-      case InventoryGradeFilter.all: return 'All';
-      case InventoryGradeFilter.gradeA: return 'Grade A';
-      case InventoryGradeFilter.gradeB: return 'Grade B';
-      case InventoryGradeFilter.gradeC: return 'Grade C';
-    }
-  }
-
-  bool matches(InventoryBatchModel batch) {
-    if (this == InventoryGradeFilter.all) return true;
-    return batch.qualityGrade == label;
   }
 }

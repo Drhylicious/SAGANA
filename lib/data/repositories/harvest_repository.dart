@@ -25,27 +25,27 @@ class HarvestRepository {
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
       final response = await _client
           .from('harvest_records')
-          .select('quantity_kg, quality_grade, harvest_date')
+          .select('quantity_kg, is_synced, harvest_date')
           .eq('farmer_id', farmerId)
           .gte('harvest_date', cutoff.toIso8601String().split('T').first);
 
       double totalYield = 0;
-      int gradeACount = 0;
+      int syncedCount = 0;
       final total = response.length;
 
       for (final row in response) {
         totalYield += (row['quantity_kg'] as num).toDouble();
-        if (row['quality_grade'] == 'Grade A') gradeACount++;
+        if (row['is_synced'] as bool? ?? false) syncedCount++;
       }
 
-      final premiumPercent = total > 0 ? (gradeACount / total) * 100 : 0.0;
+      final syncedPercent = total > 0 ? (syncedCount / total) * 100 : 100.0;
 
       return {
         'total_yield': totalYield,
-        'premium_percent': premiumPercent,
+        'synced_percent': syncedPercent,
       };
     } catch (_) {
-      return {'total_yield': 0, 'premium_percent': 0};
+      return {'total_yield': 0, 'synced_percent': 100};
     }
   }
 
@@ -145,7 +145,7 @@ extension HarvestHistoryFetch on HarvestRepository {
     return _fetchHarvestsForFarmer(farmerId);
   }
 
-  /// Stats for the History screen: 30-day total yield + premium (Grade A) %.
+  /// Stats for the History screen: 30-day total yield + sync health %.
   Future<Map<String, double>> fetchHistoryStats() async {
     return _fetchHistoryStatsForFarmer(_userId);
   }

@@ -120,3 +120,69 @@ extension MapCropFilterExt on MapCropFilter {
 }
 
 enum MapStatusFilter { active, loans }
+
+// ─── Supply Chain Operations Snapshot (for Operations Summary + Insights) ────
+
+class SupplyChainOperationsSnapshot {
+  final int totalMembers;
+  final int mappedMembers;
+  final int activeLoanCount;
+  final int overdueLoanCount;
+  final int awaitingApprovalListings;
+  final int lowStockBatches;
+  final int unsubmittedHarvests;
+
+  const SupplyChainOperationsSnapshot({
+    required this.totalMembers,
+    required this.mappedMembers,
+    required this.activeLoanCount,
+    required this.overdueLoanCount,
+    required this.awaitingApprovalListings,
+    required this.lowStockBatches,
+    required this.unsubmittedHarvests,
+  });
+
+  int get unmappedMembers => (totalMembers - mappedMembers).clamp(0, totalMembers);
+
+  static const empty = SupplyChainOperationsSnapshot(
+    totalMembers: 52,
+    mappedMembers: 0,
+    activeLoanCount: 0,
+    overdueLoanCount: 0,
+    awaitingApprovalListings: 0,
+    lowStockBatches: 0,
+    unsubmittedHarvests: 0,
+  );
+}
+
+// ─── Unmapped Member (for the "no farm location" insight list) ───────────────
+
+class UnmappedMemberEntry {
+  final String userId;
+  final String fullName;
+  final String? sitio;
+
+  const UnmappedMemberEntry({
+    required this.userId,
+    required this.fullName,
+    this.sitio,
+  });
+}
+
+// ─── Unsubmitted Harvest (for the "not yet submitted to coop" insight list) ──
+
+class UnsubmittedHarvestEntry {
+  final String id;
+  final String farmerName;
+  final String cropName;
+  final double quantityKg;
+  final DateTime harvestDate;
+
+  const UnsubmittedHarvestEntry({
+    required this.id,
+    required this.farmerName,
+    required this.cropName,
+    required this.quantityKg,
+    required this.harvestDate,
+  });
+}

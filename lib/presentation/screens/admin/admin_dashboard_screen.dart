@@ -164,6 +164,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         context.push(AppRoutes.adminInventory);
       case AdminActivityType.program:
         context.push(AppRoutes.programManagement);
+      case AdminActivityType.cropRequest:
+        context.push(AppRoutes.cropRequestApproval);
     }
   }
 
@@ -1183,7 +1185,7 @@ class _ManagementModulesGrid extends StatelessWidget {
         return GestureDetector(
           onTap: () => onTap(m),
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: sagana.cardBackground,
               borderRadius:
@@ -1198,7 +1200,7 @@ class _ManagementModulesGrid extends StatelessWidget {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1217,7 +1219,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: m.hasBadgeAlert
                             ? AppConstants.warningAmber
@@ -1229,7 +1231,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                       child: Text(
                         m.badgeLabel,
                         style: GoogleFonts.inter(
-                          fontSize: 9,
+                          fontSize: 8,
                           fontWeight: FontWeight.w700,
                           color: m.hasBadgeAlert
                               ? AppConstants.warningAmber
@@ -1240,26 +1242,32 @@ class _ManagementModulesGrid extends StatelessWidget {
                     ),
                   ],
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      m.title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        m.title,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Text(
-                      m.subtitle,
-                      style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: cs.onSurfaceVariant),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                      Text(
+                        m.subtitle,
+                        style: GoogleFonts.inter(
+                            fontSize: 9,
+                            color: cs.onSurfaceVariant),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1361,6 +1369,7 @@ class _ActivityRow extends StatelessWidget {
       case AdminActivityType.price:     return cs.outline;
       case AdminActivityType.inventory: return AppConstants.warningAmber;
       case AdminActivityType.program:   return AppConstants.programPurple;
+      case AdminActivityType.cropRequest: return AppConstants.warningAmber;
     }
   }
 
@@ -1494,23 +1503,35 @@ class _CoopPerformanceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'COOPERATIVE PERFORMANCE',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: cs.onSurfaceVariant,
+                Expanded(
+                  child: Text(
+                    'COOPERATIVE PERFORMANCE',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
-                Text(
-                  'View Reports →',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'View Reports →',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary,
+                      ),
+                    ),
                   ),
                 ),
               ],

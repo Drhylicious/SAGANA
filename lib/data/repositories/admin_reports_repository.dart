@@ -16,14 +16,30 @@ class AdminReportsRepository {
   Future<PerformanceSummary> fetchPerformanceSummary(
     ReportPeriod period,
   ) async {
+    final window = period.range();
+    return fetchPerformanceSummaryForRange(window.startDate, window.endDate);
+  }
+
+  Future<PerformanceSummary> fetchPreviousPeriodSummary(
+    ReportPeriod period,
+  ) async {
+    final previous = period.previousRange();
+    if (previous == null) return PerformanceSummary.empty();
+    return fetchPerformanceSummaryForRange(previous.startDate, previous.endDate);
+  }
+
+  Future<PerformanceSummary> fetchPerformanceSummaryForRange(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
     try {
       final results = await Future.wait([
-        _fetchTotalHarvestKg(period),
-        _fetchCoopSalesAmount(period),
-        _fetchMarketplaceRevenue(period),
+        _fetchTotalHarvestKg(startDate: startDate, endDate: endDate),
+        _fetchCoopSalesAmount(startDate: startDate, endDate: endDate),
+        _fetchMarketplaceRevenue(startDate: startDate, endDate: endDate),
         _fetchActiveLoanOutstanding(),
-        _fetchTotalExpenses(period),
-        _fetchMemberParticipationPercent(period),
+        _fetchTotalExpenses(startDate: startDate, endDate: endDate),
+        _fetchMemberParticipationPercent(startDate: startDate, endDate: endDate),
       ]);
 
       return PerformanceSummary(
@@ -39,11 +55,17 @@ class AdminReportsRepository {
     }
   }
 
-  Future<double> _fetchTotalHarvestKg(ReportPeriod period) async {
+  Future<double> _fetchTotalHarvestKg({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     try {
       var query = _client.from('harvest_records').select('quantity_kg');
-      if (period.startDate != null) {
-        query = query.gte('harvest_date', _dateOnly(period.startDate!));
+      if (startDate != null) {
+        query = query.gte('harvest_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('harvest_date', _dateOnly(endDate));
       }
       final rows = await query;
       return rows.fold<double>(
@@ -55,11 +77,17 @@ class AdminReportsRepository {
     }
   }
 
-  Future<double> _fetchCoopSalesAmount(ReportPeriod period) async {
+  Future<double> _fetchCoopSalesAmount({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     try {
       var query = _client.from('member_sales_transactions').select('amount');
-      if (period.startDate != null) {
-        query = query.gte('sale_date', _dateOnly(period.startDate!));
+      if (startDate != null) {
+        query = query.gte('sale_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('sale_date', _dateOnly(endDate));
       }
       final rows = await query;
       return rows.fold<double>(
@@ -71,14 +99,20 @@ class AdminReportsRepository {
     }
   }
 
-  Future<double> _fetchMarketplaceRevenue(ReportPeriod period) async {
+  Future<double> _fetchMarketplaceRevenue({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     try {
       var query = _client
           .from('orders')
           .select('total_price')
           .eq('status', 'completed');
-      if (period.startDate != null) {
-        query = query.gte('created_at', _dateOnly(period.startDate!));
+      if (startDate != null) {
+        query = query.gte('created_at', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('created_at', _dateOnly(endDate));
       }
       final rows = await query;
       return rows.fold<double>(
@@ -106,14 +140,74 @@ class AdminReportsRepository {
     }
   }
 
-  Future<double> _fetchTotalExpenses(ReportPeriod period) async {
+  Future<QuickInsights> fetchQuickInsights(ReportPeriod period) async {
+    try {
+      final window = period.range();
+      var query = _client.from('member_sales_transactions').select('*');
+      if (window.startDate != null) {
+        query = query.gte('sale_date', _dateOnly(window.startDate!));
+      }
+      if (window.endDate != null) {
+        query = query.lte('sale_date', _dateOnly(window.endDate!));
+      }
+      final rows = await query;
+      if (rows.isEmpty) return QuickInsights.empty();
+
+      final cropTotals = <String, double>{};
+      final farmerTotals = <String, double>{};
+      for (final row in rows) {
+        final amount = (row['amount'] as num).toDouble();
+        final crop = row['crop_name'] as String;
+        final farmerId = row['farmer_id'] as String;
+        cropTotals[crop] = (cropTotals[crop] ?? 0) + amount;
+        farmerTotals[farmerId] = (farmerTotals[farmerId] ?? 0) + amount;
+      }
+
+      final topCropEntry = cropTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
+      final topFarmerEntry = farmerTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
+      final farmerInfo = await fetchFarmerInfoMap(_client, [topFarmerEntry.key]);
+
+      final expenseRows = await _client
+          .from('farmer_expenses')
+          .select('category, amount')
+          .eq('is_subsidy', false);
+      final expenseCategoryTotals = <String, double>{};
+      for (final row in expenseRows) {
+        final cat = row['category'] as String;
+        expenseCategoryTotals[cat] =
+            (expenseCategoryTotals[cat] ?? 0) + (row['amount'] as num).toDouble();
+      }
+      final topExpenseCategory = expenseCategoryTotals.isEmpty
+          ? null
+          : expenseCategoryTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
+
+      return QuickInsights(
+        topCropName: topCropEntry.key,
+        topCropAmount: topCropEntry.value,
+        topFarmerName: farmerInfo[topFarmerEntry.key]?.fullName ?? 'Unknown Farmer',
+        topFarmerAmount: topFarmerEntry.value,
+        topExpenseCategory: topExpenseCategory?.key,
+        topExpenseAmount: topExpenseCategory?.value,
+      );
+    } catch (_) {
+      return QuickInsights.empty();
+    }
+  }
+
+  Future<double> _fetchTotalExpenses({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     try {
       var query = _client
           .from('farmer_expenses')
           .select('amount')
           .eq('is_subsidy', false);
-      if (period.startDate != null) {
-        query = query.gte('expense_date', _dateOnly(period.startDate!));
+      if (startDate != null) {
+        query = query.gte('expense_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('expense_date', _dateOnly(endDate));
       }
       final rows = await query;
       return rows.fold<double>(
@@ -125,7 +219,10 @@ class AdminReportsRepository {
     }
   }
 
-  Future<double> _fetchMemberParticipationPercent(ReportPeriod period) async {
+  Future<double> _fetchMemberParticipationPercent({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     try {
       final totalFarmersRows = await _client
           .from('farmer_profiles')
@@ -136,11 +233,11 @@ class AdminReportsRepository {
       final activeIds = <String>{};
 
       var harvestQuery = _client.from('harvest_records').select('farmer_id');
-      if (period.startDate != null) {
-        harvestQuery = harvestQuery.gte(
-          'harvest_date',
-          _dateOnly(period.startDate!),
-        );
+      if (startDate != null) {
+        harvestQuery = harvestQuery.gte('harvest_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        harvestQuery = harvestQuery.lte('harvest_date', _dateOnly(endDate));
       }
       final harvestRows = await harvestQuery;
       activeIds.addAll(harvestRows.map((r) => r['farmer_id'] as String));
@@ -148,8 +245,11 @@ class AdminReportsRepository {
       var salesQuery = _client
           .from('member_sales_transactions')
           .select('farmer_id');
-      if (period.startDate != null) {
-        salesQuery = salesQuery.gte('sale_date', _dateOnly(period.startDate!));
+      if (startDate != null) {
+        salesQuery = salesQuery.gte('sale_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        salesQuery = salesQuery.lte('sale_date', _dateOnly(endDate));
       }
       final salesRows = await salesQuery;
       activeIds.addAll(salesRows.map((r) => r['farmer_id'] as String));
@@ -157,11 +257,11 @@ class AdminReportsRepository {
       var listingQuery = _client
           .from('marketplace_listings')
           .select('farmer_id');
-      if (period.startDate != null) {
-        listingQuery = listingQuery.gte(
-          'submitted_at',
-          period.startDate!.toIso8601String(),
-        );
+      if (startDate != null) {
+        listingQuery = listingQuery.gte('submitted_at', startDate.toIso8601String());
+      }
+      if (endDate != null) {
+        listingQuery = listingQuery.lte('submitted_at', endDate.toIso8601String());
       }
       final listingRows = await listingQuery;
       activeIds.addAll(listingRows.map((r) => r['farmer_id'] as String));
@@ -178,11 +278,30 @@ class AdminReportsRepository {
   /// SP3) per the agreed pivot away from the empty `orders` table. Trend
   /// is aggregated by month, capped to the most recent 6 buckets within
   /// the selected period so the chart stays readable regardless of range.
-  Future<SalesReportData> fetchSalesReport(ReportPeriod period) async {
+  Future<SalesReportData> fetchSalesReport(ReportPeriod period) {
+    final window = period.range();
+    return fetchSalesReportForRange(window.startDate, window.endDate);
+  }
+
+  /// Previous-period Sales figures, for a Total Revenue delta badge —
+  /// same range → previousRange pattern as fetchPreviousPeriodSummary().
+  Future<SalesReportData> fetchPreviousSalesReport(ReportPeriod period) {
+    final previous = period.previousRange();
+    if (previous == null) return Future.value(SalesReportData.empty());
+    return fetchSalesReportForRange(previous.startDate, previous.endDate);
+  }
+
+  Future<SalesReportData> fetchSalesReportForRange(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
     try {
       var query = _client.from('member_sales_transactions').select('*');
-      if (period.startDate != null) {
-        query = query.gte('sale_date', _dateOnly(period.startDate!));
+      if (startDate != null) {
+        query = query.gte('sale_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('sale_date', _dateOnly(endDate));
       }
       final rows = await query.order('sale_date', ascending: false);
 
@@ -337,15 +456,22 @@ class AdminReportsRepository {
 
   Future<HarvestReportData> fetchHarvestReport(ReportPeriod period) async {
     try {
+      final window = period.range();
       var query = _client.from('harvest_records').select('*');
-      if (period.startDate != null) {
-        query = query.gte('harvest_date', _dateOnly(period.startDate!));
+      if (window.startDate != null) {
+        query = query.gte('harvest_date', _dateOnly(window.startDate!));
+      }
+      if (window.endDate != null) {
+        query = query.lte('harvest_date', _dateOnly(window.endDate!));
       }
       final rows = await query.order('harvest_date', ascending: false);
 
       if (rows.isEmpty) return HarvestReportData.empty();
 
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
       double totalYield = 0;
@@ -367,32 +493,40 @@ class AdminReportsRepository {
         if (!isSynced) unsyncedCount++;
         cropTotals[cropName] = (cropTotals[cropName] ?? 0) + qty;
 
-        final bucketKey = '${harvestDate.year}-${harvestDate.month.toString().padLeft(2, '0')}';
+        final bucketKey =
+            '${harvestDate.year}-${harvestDate.month.toString().padLeft(2, '0')}';
         monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + qty;
 
         final info = farmerInfo[row['farmer_id']];
-        harvests.add(HarvestReportRow(
-          id: row['id'] as String,
-          farmerId: row['farmer_id'] as String,
-          farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
-          cropName: cropName,
-          qualityGrade: grade,
-          quantityKg: qty,
-          harvestDate: harvestDate,
-          submittedToCooperative: row['submitted_to_cooperative'] as bool? ?? false,
-          isSynced: isSynced,
-        ));
+        harvests.add(
+          HarvestReportRow(
+            id: row['id'] as String,
+            farmerId: row['farmer_id'] as String,
+            farmerName: info?.fullName ?? 'Unknown Farmer',
+            memberId: info?.memberId ?? '—',
+            cropName: cropName,
+            qualityGrade: grade,
+            quantityKg: qty,
+            harvestDate: harvestDate,
+            submittedToCooperative:
+                row['submitted_to_cooperative'] as bool? ?? false,
+            isSynced: isSynced,
+            batchNumber: row['batch_number'] as String? ?? '—',
+          ),
+        );
       }
 
       final sortedMonthKeys = monthlyBuckets.keys.toList()..sort();
       final fullTrend = sortedMonthKeys.map((k) => monthlyBuckets[k]!).toList();
-      final trend = fullTrend.length > 6 ? fullTrend.sublist(fullTrend.length - 6) : fullTrend;
+      final trend = fullTrend.length > 6
+          ? fullTrend.sublist(fullTrend.length - 6)
+          : fullTrend;
 
-      final cropBreakdown = cropTotals.entries
-          .map((e) => CropStockBreakdown(cropName: e.key, totalKg: e.value))
-          .toList()
-        ..sort((a, b) => b.totalKg.compareTo(a.totalKg));
+      final cropBreakdown =
+          cropTotals.entries
+              .map((e) => CropStockBreakdown(cropName: e.key, totalKg: e.value))
+              .toList()
+            ..sort((a, b) => b.totalKg.compareTo(a.totalKg));
 
       return HarvestReportData(
         totalYieldKg: totalYield,
@@ -412,15 +546,22 @@ class AdminReportsRepository {
 
   Future<ExpenseReportData> fetchExpenseReport(ReportPeriod period) async {
     try {
+      final window = period.range();
       var query = _client.from('farmer_expenses').select('*');
-      if (period.startDate != null) {
-        query = query.gte('expense_date', _dateOnly(period.startDate!));
+      if (window.startDate != null) {
+        query = query.gte('expense_date', _dateOnly(window.startDate!));
+      }
+      if (window.endDate != null) {
+        query = query.lte('expense_date', _dateOnly(window.endDate!));
       }
       final rows = await query.order('expense_date', ascending: false);
 
       if (rows.isEmpty) return ExpenseReportData.empty();
 
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
       final expenses = rows.map((r) => ExpenseModel.fromMap(r)).toList();
@@ -441,27 +582,32 @@ class AdminReportsRepository {
           totalFarmerFunded += expense.amount;
           final bucketKey =
               '${expense.expenseDate.year}-${expense.expenseDate.month.toString().padLeft(2, '0')}';
-          monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + expense.amount;
+          monthlyBuckets[bucketKey] =
+              (monthlyBuckets[bucketKey] ?? 0) + expense.amount;
         }
 
         final info = farmerInfo[row['farmer_id']];
-        expenseRows.add(ExpenseReportRow(
-          farmerId: row['farmer_id'] as String,
-          farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
-          category: expense.category,
-          description: expense.description,
-          amount: expense.amount,
-          isSubsidy: expense.isSubsidy,
-          expenseDate: expense.expenseDate,
-        ));
+        expenseRows.add(
+          ExpenseReportRow(
+            farmerId: row['farmer_id'] as String,
+            farmerName: info?.fullName ?? 'Unknown Farmer',
+            memberId: info?.memberId ?? '—',
+            category: expense.category,
+            description: expense.description,
+            amount: expense.amount,
+            isSubsidy: expense.isSubsidy,
+            expenseDate: expense.expenseDate,
+          ),
+        );
       }
 
       final categoryBreakdown = _buildExpenseCategoryBreakdown(expenses);
 
       final sortedMonthKeys = monthlyBuckets.keys.toList()..sort();
       final fullTrend = sortedMonthKeys.map((k) => monthlyBuckets[k]!).toList();
-      final trend = fullTrend.length > 6 ? fullTrend.sublist(fullTrend.length - 6) : fullTrend;
+      final trend = fullTrend.length > 6
+          ? fullTrend.sublist(fullTrend.length - 6)
+          : fullTrend;
 
       return ExpenseReportData(
         totalFarmerFundedAmount: totalFarmerFunded,
@@ -479,7 +625,9 @@ class AdminReportsRepository {
   /// Mirrors ExpenseRepository.buildBreakdown()'s exact algorithm, admin-
   /// scoped across all farmers. See class doc comment for why this is
   /// re-implemented here rather than calling that farmer-scoped method.
-  List<CategoryBreakdown> _buildExpenseCategoryBreakdown(List<ExpenseModel> expenses) {
+  List<CategoryBreakdown> _buildExpenseCategoryBreakdown(
+    List<ExpenseModel> expenses,
+  ) {
     final Map<String, double> totals = {};
     final Map<String, bool> hasSubsidy = {};
 
@@ -499,21 +647,27 @@ class AdminReportsRepository {
 
     final maxVal = totals.values.reduce((a, b) => a > b ? a : b);
     return totals.entries
-        .map((e) => CategoryBreakdown(
-              category: e.key,
-              total: e.value,
-              percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
-              hasSubsidy: hasSubsidy.containsKey(e.key),
-            ))
+        .map(
+          (e) => CategoryBreakdown(
+            category: e.key,
+            total: e.value,
+            percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
+            hasSubsidy: hasSubsidy.containsKey(e.key),
+          ),
+        )
         .toList()
       ..sort((a, b) => b.total.compareTo(a.total));
   }
 
-  Future<MemberContributionReportData> fetchMemberContributionReport(int year) async {
+  Future<MemberContributionReportData> fetchMemberContributionReport(
+    int year,
+  ) async {
     try {
       final salesTotals = await fetchMemberSalesTotals(_client, year);
 
-      final rosterRows = await _client.from('farmer_profiles').select('user_id, member_id');
+      final rosterRows = await _client
+          .from('farmer_profiles')
+          .select('user_id, member_id');
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
@@ -524,8 +678,11 @@ class AdminReportsRepository {
 
       final rows = farmerIds.map((farmerId) {
         final info = farmerInfo[farmerId];
-        final MemberSalesTotals totals = salesTotals[farmerId] ?? MemberSalesTotals();
-        final sharePercent = totalCoopSales > 0 ? (totals.totalAmount / totalCoopSales * 100) : 0.0;
+        final MemberSalesTotals totals =
+            salesTotals[farmerId] ?? MemberSalesTotals();
+        final sharePercent = totalCoopSales > 0
+            ? (totals.totalAmount / totalCoopSales * 100)
+            : 0.0;
         return MemberContributionRow(
           farmerId: farmerId,
           farmerName: info?.fullName ?? 'Unknown Farmer',
@@ -537,8 +694,7 @@ class AdminReportsRepository {
           totalAmount: totals.totalAmount,
           sharePercent: sharePercent,
         );
-      }).toList()
-        ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+      }).toList()..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
 
       return MemberContributionReportData(
         year: year,
@@ -550,6 +706,64 @@ class AdminReportsRepository {
     } catch (_) {
       return MemberContributionReportData.empty(year);
     }
+  }
+
+  Future<CoopStockReportData> fetchCoopStockReport() async {
+    try {
+      final rows = await _client
+          .from('cooperative_inventory')
+          .select('*')
+          .eq('is_active', true)
+          .order('item_name');
+
+      if (rows.isEmpty) return CoopStockReportData.empty;
+
+      final categoryTotals = <String, int>{};
+      int lowStockCount = 0;
+      final items = <CoopStockReportRow>[];
+
+      for (final row in rows) {
+        final onHand = (row['quantity_on_hand'] as num).toDouble();
+        final reorder = (row['reorder_level'] as num?)?.toDouble() ?? 0;
+        final category = row['category'] as String;
+        final isLow = onHand <= reorder;
+
+        categoryTotals[category] = (categoryTotals[category] ?? 0) + 1;
+        if (isLow) lowStockCount++;
+
+        items.add(
+          CoopStockReportRow(
+            id: row['id'] as String,
+            itemName: row['item_name'] as String,
+            category: category,
+            unit: row['unit'] as String,
+            quantityOnHand: onHand,
+            reorderLevel: reorder,
+            isLowStock: isLow,
+            unitCost: (row['unit_cost'] as num?)?.toDouble(),
+            lastRestockedAt: row['last_restocked_at'] != null
+                ? DateTime.tryParse(row['last_restocked_at'] as String)
+                : null,
+          ),
+        );
+      }
+
+      return CoopStockReportData(
+        totalItems: rows.length,
+        lowStockCount: lowStockCount,
+        categoryCounts: categoryTotals,
+        items: items,
+      );
+    } catch (_) {
+      return CoopStockReportData.empty;
+    }
+  }
+
+  /// Lightweight preview for the Cooperative Stock Report card — reuses
+  /// fetchCoopStockReport() as-is rather than a second query path.
+  Future<int> fetchLowStockCount() async {
+    final data = await fetchCoopStockReport();
+    return data.lowStockCount;
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;

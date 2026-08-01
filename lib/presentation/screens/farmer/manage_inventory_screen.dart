@@ -5,12 +5,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/inventory_batch_model.dart';
+import '../../../data/repositories/cooperative_offer_repository.dart';
+import '../../../data/repositories/informal_sale_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../../data/repositories/crop_repository.dart';
+import '../../../data/models/farmer_crop_model.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/management_modal.dart';
 
 class ManageInventoryScreen extends StatefulWidget {
   const ManageInventoryScreen({super.key});
@@ -21,13 +26,16 @@ class ManageInventoryScreen extends StatefulWidget {
 
 class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   final _repo = InventoryRepository();
+  final _cropRepo = CropRepository();
+  final _offerRepo = CooperativeOfferRepository();
   final _searchController = TextEditingController();
 
   List<InventoryBatchModel> _allBatches = [];
   List<InventoryBatchModel> _filtered = [];
   Map<String, double> _summary = {'available': 0, 'reserved': 0, 'sold': 0};
+  bool _hasCrops = true; // assume true until loaded, avoids an empty-state flash
+  Set<String> _pendingOfferBatchIds = {};
 
-  InventoryGradeFilter _gradeFilter = InventoryGradeFilter.all;
   bool _showSold = false;
   bool _isLoading = true;
   bool _isDeleting = false;
@@ -68,11 +76,15 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     final results = await Future.wait([
       _repo.fetchBatches(),
       _repo.fetchSummary(),
+      _cropRepo.fetchCrops(),
+      _offerRepo.fetchBatchIdsWithPendingOffers(),
     ]);
     if (!mounted) return;
     setState(() {
       _allBatches = results[0] as List<InventoryBatchModel>;
       _summary = results[1] as Map<String, double>;
+      _hasCrops = (results[2] as List<FarmerCropModel>).isNotEmpty;
+      _pendingOfferBatchIds = results[3] as Set<String>;
       _applyFilters();
       _isLoading = false;
     });
@@ -81,13 +93,6 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   void _onSearchChanged() {
     setState(() {
       _searchQuery = _searchController.text;
-      _applyFilters();
-    });
-  }
-
-  void _setGradeFilter(InventoryGradeFilter f) {
-    setState(() {
-      _gradeFilter = f;
       _applyFilters();
     });
   }
@@ -102,9 +107,6 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   void _applyFilters() {
     final q = _searchQuery.trim().toLowerCase();
     _filtered = _allBatches.where((b) {
-      // Apply grade filter first
-      if (!_gradeFilter.matches(b)) return false;
-
       // Apply sold filter: binary toggle
       // When _showSold is TRUE: show ONLY sold/withdrawn batches
       // When _showSold is FALSE: show ONLY available batches
@@ -122,23 +124,17 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   void _showBatchMenu(InventoryBatchModel batch) {
-    showModalBottomSheet(
+    showManagementModal(
       context: context,
-      backgroundColor: Colors.transparent,
       builder: (_) => _BatchActionSheet(
         batch: batch,
         onUpdateQuantity: () {
           Navigator.pop(context);
           _showUpdateQuantityDialog(batch);
         },
-        onMarkAsSold: () {
-          Navigator.pop(context);
-          _confirmMarkAsSold(batch);
-        },
         onViewHarvestRecord: () {
           Navigator.pop(context);
-          // Navigates to harvest history filtered by this batch's crop
-          context.goTab(AppRoutes.harvestHistory);
+          context.pushRoute(AppRoutes.harvestHistory, extra: batch.cropName);
         },
         onDelete: () {
           Navigator.pop(context);
@@ -236,52 +232,6 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     );
   }
 
-  void _confirmMarkAsSold(InventoryBatchModel batch) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        ),
-        title: Text(
-          'Mark as Sold?',
-          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'This will mark the remaining ${batch.availableKg.toStringAsFixed(0)} kg of ${batch.cropName} (Batch #${batch.batchNumber}) as sold outside the marketplace.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _repo.markAsSold(batch.id);
-              _loadData();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.successGreen,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-            ),
-            child: Text('Confirm', style: GoogleFonts.poppins(fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _confirmDelete(InventoryBatchModel batch) {
     showDialog(
       context: context,
@@ -349,14 +299,69 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     );
   }
 
-  void _handleBatchAction(InventoryBatchModel batch) {
-    if (batch.isAvailable) {
-      context.pushRoute(AppRoutes.createListing, extra: batch);
-    } else if (batch.isReserved) {
-      context.goTab(AppRoutes.myListings);
-    } else {
-      context.goTab(AppRoutes.harvestHistory);
+  Future<void> _handleBatchAction(InventoryBatchModel batch) async {
+    if (!batch.isAvailable) {
+      // Reserved batches now branch on which disposal path actually
+      // claimed them, rather than assuming 'reserved' always means a
+      // marketplace listing — a batch offered to the cooperative and
+      // awaiting confirmation has nothing relevant on My Listings.
+      if (batch.isReserved && _pendingOfferBatchIds.contains(batch.id)) {
+        _showPendingOfferStatus(batch);
+      } else if (batch.isReserved) {
+        context.goTab(AppRoutes.myListings);
+      } else {
+        context.pushRoute(AppRoutes.harvestHistory, extra: batch.cropName);
+      }
+      return;
     }
+
+    final action = await showDisposalActionSheet(
+      context,
+      cropName: batch.cropName,
+      availableKg: batch.availableKg,
+      isCoopEligible: batch.isCoopEligible,
+    );
+    if (action == null || !mounted) return;
+
+    switch (action) {
+      case DisposalAction.marketplace:
+        final result = await context.pushRoute(AppRoutes.createListing, extra: batch);
+        if (result == true) _loadData();
+        break;
+      case DisposalAction.cooperative:
+        final result = await showOfferToCooperativeDialog(context, batch: batch);
+        if (result == true) _loadData();
+        break;
+      case DisposalAction.informal:
+        final result = await showRecordInformalSaleDialog(context, batch: batch);
+        if (result == true) _loadData();
+        break;
+    }
+  }
+
+  void _showPendingOfferStatus(InventoryBatchModel batch) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
+        title: Row(children: [
+          const Icon(Icons.groups_outlined, color: AppConstants.primaryGreen),
+          const SizedBox(width: 10),
+          Text('Offered to Cooperative', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
+        ]),
+        content: Text(
+          '${batch.cropName} • Batch #${batch.batchNumber} has been offered to SP3 and is awaiting cooperative confirmation. '
+          'SP3 will confirm the final weighed quantity and price at pickup.',
+          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Got it', style: GoogleFonts.poppins(color: AppConstants.primaryGreen)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -368,7 +373,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           Column(
             children: [
               const SizedBox(height: 72),
-              if (!_isOnline) const _OfflineBanner(),
+              if (!_isOnline) const OfflineBanner(),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -386,9 +391,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
                       // Filter row
                       _FilterRow(
-                        gradeFilter: _gradeFilter,
                         showSold: _showSold,
-                        onGradeChanged: _setGradeFilter,
                         onToggleShowSold: _toggleShowSold,
                       ),
                       const SizedBox(height: 20),
@@ -414,13 +417,13 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                           ),
                         )
                       else if (_filtered.isEmpty)
-                        _EmptyState(
-                          hasFilter:
-                              _searchQuery.isNotEmpty ||
-                              _gradeFilter != InventoryGradeFilter.all ||
-                              _showSold, // Show filtered message when "Show Sold" is active
+                        _InventoryEmptyState(
+                          hasCrops: _hasCrops,
+                          hasFilter: _searchQuery.isNotEmpty || _showSold,
+                          onGoToMyCrops: () =>
+                              context.pushRoute(AppRoutes.cropListing),
                           onRecordHarvest: () =>
-                              context.goTab(AppRoutes.cropListing),
+                              context.pushRoute(AppRoutes.selectCropForHarvest),
                         )
                       else
                         ..._filtered.map(
@@ -428,6 +431,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _BatchCard(
                               batch: b,
+                              hasPendingOffer: _pendingOfferBatchIds.contains(b.id),
                               onMenuTap: () => _showBatchMenu(b),
                               onActionTap: () => _handleBatchAction(b),
                             ),
@@ -446,11 +450,10 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
             child: FarmerTopBar(
               title: 'Manage Inventory',
               onBack: () => Navigator.of(context).pop(),
-              profilePhotoUrl: null,
+              hideProfileAvatar: true,
               onProfileTap: () {},
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              onSettingsTap: null,
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
           // Deleting overlay
@@ -474,36 +477,6 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Offline Banner
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      color: const Color(0xFFFFDAD6),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            size: 18,
-            color: Color(0xFF93000A),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Offline: Data may be outdated',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: const Color(0xFF93000A),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary Metrics
@@ -684,15 +657,11 @@ class _SearchBar extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FilterRow extends StatelessWidget {
-  final InventoryGradeFilter gradeFilter;
   final bool showSold;
-  final ValueChanged<InventoryGradeFilter> onGradeChanged;
   final VoidCallback onToggleShowSold;
 
   const _FilterRow({
-    required this.gradeFilter,
     required this.showSold,
-    required this.onGradeChanged,
     required this.onToggleShowSold,
   });
 
@@ -756,48 +725,6 @@ class _FilterRow extends StatelessWidget {
               ),
             ),
           ),
-          // Grade chips
-          ...InventoryGradeFilter.values.map((f) {
-            final isActive = f == gradeFilter;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () => onGradeChanged(f),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? AppConstants.primaryGreen.withValues(alpha: 0.10)
-                        : const Color(0xFFD5ECF8),
-                    borderRadius: BorderRadius.circular(
-                      AppConstants.radiusFull,
-                    ),
-                    border: isActive
-                        ? Border.all(
-                            color: AppConstants.primaryGreen.withValues(
-                              alpha: 0.30,
-                            ),
-                          )
-                        : null,
-                  ),
-                  child: Text(
-                    f.label,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: isActive
-                          ? AppConstants.primaryGreen
-                          : AppConstants.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
         ],
       ),
     );
@@ -810,11 +737,13 @@ class _FilterRow extends StatelessWidget {
 
 class _BatchCard extends StatelessWidget {
   final InventoryBatchModel batch;
+  final bool hasPendingOffer;
   final VoidCallback onMenuTap;
   final VoidCallback onActionTap;
 
   const _BatchCard({
     required this.batch,
+    this.hasPendingOffer = false,
     required this.onMenuTap,
     required this.onActionTap,
   });
@@ -887,7 +816,7 @@ class _BatchCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Batch: #${batch.batchNumber} • ${batch.qualityGrade}',
+                          'Batch: #${batch.batchNumber}',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             color: AppConstants.outline,
@@ -985,7 +914,7 @@ class _BatchCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    _ActionButton(status: batch.status, onTap: onActionTap),
+                    _ActionButton(status: batch.status, hasPendingOffer: hasPendingOffer, onTap: onActionTap),
                   ],
                 ),
               ),
@@ -1112,9 +1041,10 @@ class _StatusBadge extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String status;
+  final bool hasPendingOffer;
   final VoidCallback onTap;
 
-  const _ActionButton({required this.status, required this.onTap});
+  const _ActionButton({required this.status, this.hasPendingOffer = false, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1126,7 +1056,7 @@ class _ActionButton extends StatelessWidget {
         label = 'Create Listing';
         break;
       case 'reserved':
-        label = 'View Order';
+        label = hasPendingOffer ? 'Offer Status' : 'View Order';
         break;
       default:
         label = 'View History';
@@ -1180,63 +1110,29 @@ class _ActionButton extends StatelessWidget {
 class _BatchActionSheet extends StatelessWidget {
   final InventoryBatchModel batch;
   final VoidCallback onUpdateQuantity;
-  final VoidCallback onMarkAsSold;
   final VoidCallback onViewHarvestRecord;
   final VoidCallback onDelete;
 
   const _BatchActionSheet({
     required this.batch,
     required this.onUpdateQuantity,
-    required this.onMarkAsSold,
     required this.onViewHarvestRecord,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      child: Column(
+    return ManagementModalShell(
+      title: '${batch.cropName} — Batch #${batch.batchNumber}',
+      body: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: AppConstants.outline.withValues(alpha: 0.30),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Text(
-            '${batch.cropName} — Batch #${batch.batchNumber}',
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const Divider(height: 20),
-          if (!batch.isSoldOut) ...[
+          if (!batch.isSoldOut)
             _MenuOption(
               icon: Icons.edit_outlined,
               label: 'Update Quantity',
               onTap: onUpdateQuantity,
             ),
-            _MenuOption(
-              icon: Icons.check_circle_outline_rounded,
-              label: 'Mark as Sold',
-              onTap: onMarkAsSold,
-            ),
-          ],
           _MenuOption(
             icon: Icons.receipt_long_outlined,
             label: 'View Harvest Record',
@@ -1296,55 +1192,110 @@ class _MenuOption extends StatelessWidget {
 // Empty State
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _EmptyState extends StatelessWidget {
+class _InventoryEmptyState extends StatelessWidget {
+  final bool hasCrops;
   final bool hasFilter;
+  final VoidCallback onGoToMyCrops;
   final VoidCallback onRecordHarvest;
 
-  const _EmptyState({required this.hasFilter, required this.onRecordHarvest});
+  const _InventoryEmptyState({
+    required this.hasCrops,
+    required this.hasFilter,
+    required this.onGoToMyCrops,
+    required this.onRecordHarvest,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDBF1FE),
-              shape: BoxShape.circle,
+    // Filtered-to-empty takes priority over the two onboarding cases —
+    // a farmer who filtered their own real inventory to nothing isn't
+    // missing crops or harvests, they just need to adjust the filter.
+    if (hasFilter) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Column(
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: const BoxDecoration(
+                color: Color(0xFFDBF1FE),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.filter_alt_off_rounded,
+                size: 40,
+                color: AppConstants.outline.withValues(alpha: 0.60),
+              ),
             ),
-            child: const Center(
-              child: Text('📦', style: TextStyle(fontSize: 36)),
+            const SizedBox(height: 20),
+            Text(
+              'No Matching Batches',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.onSurface,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            hasFilter ? 'No batches match this filter' : 'No inventory yet',
-            style: GoogleFonts.poppins(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
+            const SizedBox(height: 8),
+            Text(
+              'Try a different search or adjust your filters.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            hasFilter
-                ? 'Try a different search or filter'
-                : 'Start by recording your first harvest.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.outline),
-          ),
-          const SizedBox(height: 20),
-          if (!hasFilter)
+          ],
+        ),
+      );
+    }
+
+    // Tier 1 — no crops at all yet.
+    if (!hasCrops) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Column(
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.eco_outlined,
+                size: 40,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              "You don't have any crops yet",
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add a crop before you can build up inventory.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: onRecordHarvest,
+              onPressed: onGoToMyCrops,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
+                  horizontal: 28,
                   vertical: 14,
                 ),
                 shape: RoundedRectangleBorder(
@@ -1352,13 +1303,76 @@ class _EmptyState extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Go to Record Harvest',
+                'Go to My Crops',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
+          ],
+        ),
+      );
+    }
+
+    // Tier 2 — has crops, but no harvests recorded yet.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: const BoxDecoration(
+              color: Color(0xFFDBF1FE),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.inventory_2_outlined,
+              size: 40,
+              color: AppConstants.outline.withValues(alpha: 0.60),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'No Inventory Yet',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Record a harvest to start building your inventory.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: onRecordHarvest,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.primaryGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 28,
+                vertical: 14,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              ),
+            ),
+            child: Text(
+              'Record New Harvest',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1453,6 +1467,251 @@ class _BatchShimmerState extends State<_BatchShimmer>
           _block(double.infinity, 8),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Offer to Cooperative Dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+Future<bool?> showOfferToCooperativeDialog(
+  BuildContext context, {
+  required InventoryBatchModel batch,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (_) => _OfferToCooperativeDialog(batch: batch),
+  );
+}
+
+class _OfferToCooperativeDialog extends StatefulWidget {
+  final InventoryBatchModel batch;
+  const _OfferToCooperativeDialog({required this.batch});
+
+  @override
+  State<_OfferToCooperativeDialog> createState() => _OfferToCooperativeDialogState();
+}
+
+class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
+  late final TextEditingController _qtyController;
+  final _repo = CooperativeOfferRepository();
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _qtyController = TextEditingController(
+      text: widget.batch.availableKg.toStringAsFixed(0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final qty = double.tryParse(_qtyController.text.trim());
+    if (qty == null || qty <= 0 || qty > widget.batch.availableKg) {
+      setState(() => _error =
+          'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.');
+      return;
+    }
+
+    setState(() { _isSubmitting = true; _error = null; });
+    try {
+      await _repo.offerToCooperative(batch: widget.batch, quantityKg: qty);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _error = 'Could not submit offer. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
+      title: Text('Offer to Cooperative',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SP3 will confirm the actual weighed quantity and price when they pick this up.',
+            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _qtyController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Quantity to offer (kg)',
+              errorText: _error,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppConstants.primaryGreen,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+          ),
+          child: _isSubmitting
+              ? const SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text('Submit Offer', style: GoogleFonts.poppins(fontSize: 14)),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Record Informal Sale Dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+Future<bool?> showRecordInformalSaleDialog(
+  BuildContext context, {
+  required InventoryBatchModel batch,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (_) => _RecordInformalSaleDialog(batch: batch),
+  );
+}
+
+class _RecordInformalSaleDialog extends StatefulWidget {
+  final InventoryBatchModel batch;
+  const _RecordInformalSaleDialog({required this.batch});
+
+  @override
+  State<_RecordInformalSaleDialog> createState() => _RecordInformalSaleDialogState();
+}
+
+class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
+  late final TextEditingController _qtyController;
+  final _buyerController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _repo = InformalSaleRepository();
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _qtyController = TextEditingController(
+      text: widget.batch.availableKg.toStringAsFixed(0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    _buyerController.dispose();
+    _amountController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final qty = double.tryParse(_qtyController.text.trim());
+    if (qty == null || qty <= 0 || qty > widget.batch.availableKg) {
+      setState(() => _error =
+          'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.');
+      return;
+    }
+
+    setState(() { _isSubmitting = true; _error = null; });
+    try {
+      await _repo.recordInformalSale(
+        batch: widget.batch,
+        quantityKg: qty,
+        buyerName: _buyerController.text.trim().isEmpty ? null : _buyerController.text.trim(),
+        amount: double.tryParse(_amountController.text.trim()),
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _error = 'Could not record sale. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
+      title: Text('Record Informal Sale',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _qtyController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: 'Quantity sold (kg)', errorText: _error),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _buyerController,
+              decoration: const InputDecoration(labelText: 'Buyer name (optional)'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Amount received (optional)'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notesController,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Notes (optional)'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppConstants.primaryGreen,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+          ),
+          child: _isSubmitting
+              ? const SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text('Save', style: GoogleFonts.poppins(fontSize: 14)),
+        ),
+      ],
     );
   }
 }
