@@ -1,0 +1,26 @@
+# Triggers the daily-loan-maintenance Edge Function on a schedule, since
+# pg_cron is unavailable on the project's Free-tier Supabase plan.
+# Runs 00:05 UTC = 08:05 AM Philippine time, matching the original
+# pg_cron schedule documented in supabase_schema_loan_overdue_automation.sql.
+
+name: Daily Loan Maintenance
+
+on:
+  schedule:
+    - cron: '5 0 * * *'
+  workflow_dispatch: {}  # allows manual trigger from the Actions tab for testing
+
+jobs:
+  trigger-loan-maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call daily-loan-maintenance Edge Function
+        run: |
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/daily-loan-maintenance" \
+            -H "x-maintenance-secret: ${{ secrets.LOAN_MAINTENANCE_SECRET }}")
+          cat /tmp/response.json
+          if [ "$response" -ne 200 ]; then
+            echo "Edge Function call failed with status $response"
+            exit 1
+          fi
