@@ -4,19 +4,39 @@ import '../models/program_model.dart';
 class ProgramRepository {
   final _client = Supabase.instance.client;
 
+  /// member_count must match fetchProgramMembers()'s own definition of
+  /// "enrolled" (status='active') exactly, or the list card and the
+  /// Members modal disagree — which is exactly what was reported. Computed
+  /// as a separate lightweight query + client-side tally rather than
+  /// PostgREST's embedded `program_members(count)`, since that syntax
+  /// counts every row regardless of status (active/withdrawn/completed)
+  /// with no reliable way to filter it inline without an inner join that
+  /// would incorrectly drop programs with zero active members entirely.
   Future<List<CooperativeProgram>> fetchPrograms() async {
     try {
-      final rows = await _client
-          .from('cooperative_programs')
-          .select('*, program_members(count)')
-          .order('season_year', ascending: false)
-          .order('program_name');
-      return rows.map((r) {
-        final countList = r['program_members'] as List?;
-        final count = countList?.isNotEmpty == true
-            ? (countList!.first['count'] as int? ?? 0)
-            : 0;
-        return CooperativeProgram.fromMap({...r, 'member_count': count});
+      final results = await Future.wait([
+        _client
+            .from('cooperative_programs')
+            .select()
+            .order('season_year', ascending: false)
+            .order('program_name'),
+        _client
+            .from('program_members')
+            .select('program_id')
+            .eq('status', 'active'),
+      ]);
+      final programRows = results[0] as List;
+      final memberRows = results[1] as List;
+
+      final countByProgram = <String, int>{};
+      for (final r in memberRows) {
+        final id = r['program_id'] as String;
+        countByProgram[id] = (countByProgram[id] ?? 0) + 1;
+      }
+
+      return programRows.map((r) {
+        final id = r['id'] as String;
+        return CooperativeProgram.fromMap({...r, 'member_count': countByProgram[id] ?? 0});
       }).toList();
     } catch (_) { return []; }
   }
@@ -27,7 +47,8 @@ class ProgramRepository {
           .from('program_members')
           .select('id, program_id, farmer_id, status, enrolled_at, '
               'inventory_item_id, quantity_given, distributed_at, '
-              'amount_returned, settled_at')
+              'amount_returned, settled_at, distribution_outcome, '
+              'outcome_recorded_at, converted_loan_id')
           .eq('program_id', programId)
           .eq('status', 'active')
           .order('enrolled_at', ascending: false);
@@ -92,6 +113,7 @@ class ProgramRepository {
     double? expectedReturnPercent,
     String? description,
     double? budget,
+    String? distributionCategory,
   }) async {
     try {
       await _client.from('cooperative_programs').insert({
@@ -101,6 +123,7 @@ class ProgramRepository {
         'expected_return_percent': expectedReturnPercent,
         'description': description?.trim(),
         'budget': budget,
+        'distribution_category': distributionCategory,
         'season_year': DateTime.now().year,
         'created_by': _client.auth.currentUser?.id,
       });
@@ -117,6 +140,7 @@ class ProgramRepository {
     String? description,
     double? budget,
     required String status,
+    String? distributionCategory,
   }) async {
     try {
       await _client.from('cooperative_programs').update({
@@ -127,13 +151,75 @@ class ProgramRepository {
         'description': description?.trim(),
         'budget': budget,
         'status': status,
+        'distribution_category': distributionCategory,
       }).eq('id', id);
       return true;
     } catch (_) { return false; }
   }
 
+  // ─── Delete program ─────────────────────────────────────────────────────
+  // program_members and program_activities both cascade-delete with the
+  // program (ON DELETE CASCADE); farmer_loans.source_program_id uses
+  // ON DELETE SET NULL, so a loan converted from a distribution survives —
+  // it just loses the "From Program Distribution" tag, which is correct
+  // (deleting a program record shouldn't make a real loan disappear).
+
+  Future<ProgramDeleteImpact> fetchProgramDeleteImpact(String programId) async {
+    try {
+      final rows = await _client
+          .from('program_members')
+          .select('distributed_at')
+          .eq('program_id', programId);
+      final memberCount = rows.length;
+      final distributedCount =
+          rows.where((r) => r['distributed_at'] != null).length;
+      return ProgramDeleteImpact(
+        memberCount: memberCount,
+        distributedCount: distributedCount,
+      );
+    } catch (_) {
+      return const ProgramDeleteImpact(
+        memberCount: 0,
+        distributedCount: 0,
+        checkFailed: true,
+      );
+    }
+  }
+
+  Future<bool> deleteProgram(String programId) async {
+    try {
+      await _client.from('cooperative_programs').delete().eq('id', programId);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  /// program_members has UNIQUE(program_id, farmer_id), and removeMember()
+  /// only ever soft-deletes (status='withdrawn') rather than deleting the
+  /// row — so a blind insert here would 409 the moment anyone tries to
+  /// re-enroll a farmer who was previously removed. Checking for an
+  /// existing row first and reactivating it (rather than inserting a
+  /// second one) fixes both that conflict and the member-count drift it
+  /// caused: fetchPrograms()'s count includes every row regardless of
+  /// status, so a leftover withdrawn row was inflating that count above
+  /// what the Members modal's active-only count showed.
   Future<bool> enrollFarmer(String programId, String farmerId) async {
     try {
+      final existing = await _client
+          .from('program_members')
+          .select('id, status')
+          .eq('program_id', programId)
+          .eq('farmer_id', farmerId)
+          .maybeSingle();
+
+      if (existing != null) {
+        if (existing['status'] == 'active') return false; // already enrolled
+        await _client.from('program_members').update({
+          'status': 'active',
+          'enrolled_at': DateTime.now().toIso8601String(),
+        }).eq('id', existing['id'] as String);
+        return true;
+      }
+
       await _client.from('program_members').insert({
         'program_id': programId,
         'farmer_id': farmerId,
@@ -160,38 +246,30 @@ class ProgramRepository {
   Future<List<DistributionItem>> fetchDistributionItems() async {
     final rows = await _client
         .from('cooperative_inventory')
-        .select('id, item_name, unit, quantity_on_hand')
+        .select('id, item_name, category, unit, quantity_on_hand')
         .eq('is_active', true)
         .order('item_name');
     return rows.map((r) => DistributionItem.fromMap(r)).toList();
   }
 
+  /// Atomic via distribute_program_benefit() — see
+  /// supabase_schema_program_atomic_distribution.sql. Rejects if
+  /// cooperative_inventory lacks enough quantity_on_hand, rather than
+  /// silently distributing less than what gets recorded. Still
+  /// deliberately uncaught (per the original comment this replaces) — a
+  /// stock-moving write failing silently would let inventory drift from
+  /// reality.
   Future<void> distributeBenefit({
     required String programMemberId,
     required String inventoryItemId,
     required double quantity,
   }) async {
-    final adminId = _client.auth.currentUser?.id;
-
-    await _client.from('inventory_transactions').insert({
-      'inventory_id': inventoryItemId,
-      'transaction_type': 'program_distribution',
-      'quantity': -quantity,
-      'reference_id': programMemberId,
-      'reference_type': 'program',
-      'recorded_by': adminId,
-    });
-
-    await _client.rpc('decrement_inventory_stock', params: {
-      'p_inventory_id': inventoryItemId,
+    await _client.rpc('distribute_program_benefit', params: {
+      'p_program_member_id': programMemberId,
+      'p_inventory_item_id': inventoryItemId,
       'p_quantity': quantity,
+      'p_recorded_by': _client.auth.currentUser?.id,
     });
-
-    await _client.from('program_members').update({
-      'inventory_item_id': inventoryItemId,
-      'quantity_given': quantity,
-      'distributed_at': DateTime.now().toIso8601String(),
-    }).eq('id', programMemberId);
   }
 
   // ─── Revenue-share settlement ───────────────────────────────────────────
@@ -206,6 +284,46 @@ class ProgramRepository {
       'p_amount_returned': amountReturned,
       'p_admin_notes': adminNotes,
     });
+  }
+
+  // ─── Distribution outcome (Phase 8 / Issue 3's Loan/ROI workflow) ───────
+  // 'thriving' is a plain column update (program_members' existing
+  // "admin manages all" RLS policy already covers this) — it just marks the
+  // member eligible for the Revenue Share settlement above, which already
+  // exists and needed no changes. 'failed' needs an RPC because it must
+  // atomically create the farmer_loans row and mark the distribution
+  // converted in one transaction — see convertDistributionToLoan() below.
+
+  Future<bool> recordThrivingOutcome(String programMemberId) async {
+    try {
+      await _client.from('program_members').update({
+        'distribution_outcome': 'thriving',
+        'outcome_recorded_at': DateTime.now().toIso8601String(),
+      }).eq('id', programMemberId);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  /// Converts a failed distribution into a farmer_loans entry via
+  /// convert_program_distribution_to_loan() — see
+  /// supabase_schema_program_loan_roi_workflow.sql. Deliberately does not
+  /// deduct inventory again: the stock was already taken at distribution
+  /// time by distributeBenefit().
+  Future<bool> convertDistributionToLoan({
+    required String programMemberId,
+    required double monthlyPayment,
+    required DateTime nextPaymentDate,
+    String? notes,
+  }) async {
+    try {
+      await _client.rpc('convert_program_distribution_to_loan', params: {
+        'p_program_member_id': programMemberId,
+        'p_monthly_payment': monthlyPayment,
+        'p_next_payment_date': nextPaymentDate.toIso8601String().split('T').first,
+        'p_notes': notes,
+      });
+      return true;
+    } catch (_) { return false; }
   }
 
   // ─── Program activities ──────────────────────────────────────────────────

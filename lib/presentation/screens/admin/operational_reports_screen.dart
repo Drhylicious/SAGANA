@@ -12,6 +12,12 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/models/admin_loan_model.dart';
+import '../../../data/models/admin_analytics_model.dart';
+import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/repositories/admin_analytics_repository.dart';
+import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/app_dialog.dart';
 
 /// Operational Reports — Admin hub.
 /// Shell tab landing screen (branch 4, adminReportsKey). No back button.
@@ -28,14 +34,19 @@ class OperationalReportsScreen extends StatefulWidget {
 
 class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   final _repo = AdminReportsRepository();
+  final _loanRepo = AdminLoanRepository();
+  final _analyticsRepo = AdminAnalyticsRepository();
 
   ReportPeriod _period = ReportPeriod.thisMonth;
   bool _isLoading = true;
+  bool _isSendingReminders = false;
   PerformanceSummary _summary = PerformanceSummary.empty();
   PerformanceSummary _previousSummary = PerformanceSummary.empty();
   QuickInsights _insights = QuickInsights.empty();
   int _lowStockCount = 0;
   List<ExportHistoryEntry> _recentExports = [];
+  LoanDashboardStats _loanStats = LoanDashboardStats.empty();
+  MemberParticipationSummary _participation = MemberParticipationSummary.empty();
 
   @override
   void initState() {
@@ -51,6 +62,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       _repo.fetchQuickInsights(_period),
       Future.value(HiveService.getExportHistory()),
       _repo.fetchLowStockCount(),
+      _loanRepo.fetchDashboardStats(),
+      _analyticsRepo.fetchMemberParticipation(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -61,8 +74,63 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           .map(ExportHistoryEntry.fromMap)
           .toList();
       _lowStockCount = results[4] as int;
+      _loanStats = results[5] as LoanDashboardStats;
+      _participation = results[6] as MemberParticipationSummary;
       _isLoading = false;
     });
+  }
+
+  Future<void> _confirmAndSendReminders(AppLocalizations l10n) async {
+    final count = _participation.inactiveCount;
+    if (count == 0) return;
+
+    final confirmed = await AppDialog.show<bool>(
+      context: context,
+      child: AlertDialog(
+        title: Text(
+          l10n.analyticsSendReminderTitle,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        content: Text(
+          l10n.analyticsSendReminderMessage(count),
+          style: GoogleFonts.inter(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.issueLoanCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              l10n.analyticsSendReminderConfirm,
+              style: const TextStyle(color: AppConstants.primaryGreen),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isSendingReminders = true);
+    try {
+      await _analyticsRepo.sendReminders(
+        farmerIds: _participation.inactiveFarmers.map((f) => f.id).toList(),
+        title: l10n.analyticsReminderNotifTitle,
+        body: l10n.analyticsReminderNotifBody,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.analyticsReminderSent(count))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.analyticsReminderError)),
+      );
+    } finally {
+      if (mounted) setState(() => _isSendingReminders = false);
+    }
   }
 
   void _setPeriod(ReportPeriod period) {
@@ -100,7 +168,11 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                 children: [
                   _buildPeriodChips(context, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
-                  _buildSummaryCard(context, l10n, cs),
+                  _buildExecutiveSnapshot(context, l10n, cs),
+                  const SizedBox(height: AppConstants.spacingSectionV),
+                  _buildSectionTitle(l10n.reportsNeedsAttention, cs),
+                  const SizedBox(height: AppConstants.spacingSm),
+                  _buildNeedsAttention(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
                   _buildQuickInsights(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
@@ -108,13 +180,13 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   const SizedBox(height: AppConstants.spacingSm),
                   _buildDetailedReportsGrid(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildSectionTitle(l10n.reportsManagementTools, cs),
+                  _buildSectionTitle(l10n.reportsReportingTools, cs),
                   const SizedBox(height: AppConstants.spacingSm),
-                  _buildManagementToolsList(context, l10n, cs, sagana),
+                  _buildReportingToolsRow(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildSectionTitle(l10n.reportsRecentReports, cs),
+                  _buildSectionTitle(l10n.reportsExportHistory, cs),
                   const SizedBox(height: AppConstants.spacingSm),
-                  _buildRecentReports(context, l10n, cs),
+                  _buildExportHistory(context, l10n, cs),
                 ],
               ),
             ),
@@ -160,7 +232,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     );
   }
 
-  Widget _buildSummaryCard(
+  Widget _buildExecutiveSnapshot(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
@@ -170,152 +242,162 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       symbol: '₱',
       decimalDigits: 0,
     );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        gradient: AppConstants.primaryButtonGradient,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.reportsPerformanceSummary,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          _isLoading
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  ),
-                )
-              : GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: AppConstants.spacingMd,
-                  crossAxisSpacing: AppConstants.spacingMd,
-                  childAspectRatio: 2.2,
-                  children: [
-                    _summaryStat(
-                      l10n.reportsTotalHarvest,
-                      '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
-                      current: _summary.totalHarvestKg,
-                      previous: _previousSummary.totalHarvestKg,
-                      cs: cs,
-                    ),
-                    _summaryStat(
-                      l10n.reportsCoopSales,
-                      currency.format(_summary.coopSalesAmount),
-                      current: _summary.coopSalesAmount,
-                      previous: _previousSummary.coopSalesAmount,
-                      cs: cs,
-                    ),
-                    _summaryStat(
-                      l10n.reportsMarketplaceRevenue,
-                      currency.format(_summary.marketplaceRevenue),
-                      current: _summary.marketplaceRevenue,
-                      previous: _previousSummary.marketplaceRevenue,
-                      cs: cs,
-                    ),
-                    _summaryStat(
-                      l10n.reportsActiveLoans,
-                      currency.format(_summary.activeLoanOutstanding),
-                      current: _summary.activeLoanOutstanding,
-                      previous: _previousSummary.activeLoanOutstanding,
-                      cs: cs,
-                    ),
-                    _summaryStat(
-                      l10n.reportsTotalExpenses,
-                      currency.format(_summary.totalExpenses),
-                      current: _summary.totalExpenses,
-                      previous: _previousSummary.totalExpenses,
-                      cs: cs,
-                    ),
-                    _summaryStat(
-                      l10n.reportsMemberParticipation,
-                      '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
-                      current: _summary.memberParticipationPercent,
-                      previous: _previousSummary.memberParticipationPercent,
-                      cs: cs,
-                    ),
-                  ],
-                ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryStat(
-    String label,
-    String value, {
-    required double? current,
-    required double? previous,
-    required ColorScheme cs,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 10, color: Colors.white70),
+    return ReportHeroCard(
+      title: l10n.reportsExecutiveSnapshot,
+      period: _period,
+      isLoading: _isLoading,
+      primaryStats: [
+        ReportHeroStat(
+          label: l10n.reportsCoopSales,
+          value: currency.format(_summary.coopSalesAmount),
+          current: _summary.coopSalesAmount,
+          previous: _previousSummary.coopSalesAmount,
         ),
-        Row(
-          children: [
-            Text(
-              value,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.white,
-              ),
-            ),
-            if (current != null && previous != null && _period != ReportPeriod.allTime && previous != 0)
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: _deltaBadge(current, previous),
-              ),
-          ],
+        ReportHeroStat(
+          label: l10n.reportsTotalHarvest,
+          value: '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
+          current: _summary.totalHarvestKg,
+          previous: _previousSummary.totalHarvestKg,
+        ),
+      ],
+      secondaryStats: [
+        ReportHeroStat(
+          label: l10n.reportsMarketplaceRevenue,
+          value: currency.format(_summary.marketplaceRevenue),
+          current: _summary.marketplaceRevenue,
+          previous: _previousSummary.marketplaceRevenue,
+        ),
+        ReportHeroStat(
+          label: l10n.reportsActiveLoans,
+          value: currency.format(_summary.activeLoanOutstanding),
+          current: _summary.activeLoanOutstanding,
+          previous: _previousSummary.activeLoanOutstanding,
+        ),
+        ReportHeroStat(
+          label: l10n.reportsTotalExpenses,
+          value: currency.format(_summary.totalExpenses),
+          current: _summary.totalExpenses,
+          previous: _previousSummary.totalExpenses,
+        ),
+        ReportHeroStat(
+          label: l10n.reportsMemberParticipation,
+          value: '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
+          current: _summary.memberParticipationPercent,
+          previous: _previousSummary.memberParticipationPercent,
         ),
       ],
     );
   }
 
-  Widget _deltaBadge(double current, double previous) {
-    if (_period == ReportPeriod.allTime || previous == 0) {
-      return const SizedBox.shrink();
+  /// Needs Attention — pulls together signals already computed elsewhere
+  /// (low stock, overdue loans, inactive members) so an admin sees "where
+  /// do I look first" without opening three separate screens.
+  Widget _buildNeedsAttention(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
+    final items = <_AttentionItem>[];
+
+    if (_lowStockCount > 0) {
+      items.add(_AttentionItem(
+        icon: Icons.inventory_2_rounded,
+        label: l10n.reportsLowStockItems,
+        value: '$_lowStockCount',
+        color: AppConstants.errorRed,
+        onTap: () => context.push(AppRoutes.coopStockReport),
+      ));
+    }
+    if (_loanStats.overdueLoansCount > 0) {
+      items.add(_AttentionItem(
+        icon: Icons.request_page_rounded,
+        label: l10n.reportsOverdueLoans,
+        value:
+            '${_loanStats.overdueLoansCount} • ${currency.format(_loanStats.totalOverdueAmount)}',
+        color: AppConstants.errorRed,
+        onTap: () => context.push(AppRoutes.loanReport),
+      ));
+    }
+    if (_participation.inactiveCount > 0) {
+      items.add(_AttentionItem(
+        icon: Icons.person_off_rounded,
+        label: l10n.reportsInactiveMembers,
+        value: '${_participation.inactiveCount}',
+        color: AppConstants.warningAmber,
+        trailingAction: TextButton(
+          onPressed: _isSendingReminders
+              ? null
+              : () => _confirmAndSendReminders(l10n),
+          child: _isSendingReminders
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  l10n.analyticsSendReminder(_participation.inactiveCount),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+        ),
+      ));
     }
 
-    final change = ((current - previous) / previous * 100);
-    final isUp = change >= 0;
-    final color = isUp ? AppConstants.successGreen : AppConstants.errorRed;
+    if (items.isEmpty) {
+      return ReportEmptyState(message: l10n.reportsAllClear);
+    }
+    return Column(children: items.map((i) => _attentionRow(i, cs, sagana)).toList());
+  }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          isUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-          size: 10,
-          color: color,
+  Widget _attentionRow(_AttentionItem item, ColorScheme cs, SaganaColors sagana) {
+    return GestureDetector(
+      onTap: item.onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+        padding: const EdgeInsets.all(AppConstants.spacingMd),
+        decoration: BoxDecoration(
+          color: sagana.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          border: Border.all(color: item.color.withValues(alpha: 0.25)),
         ),
-        Text(
-          '${change.abs().toStringAsFixed(0)}%',
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
+        child: Row(
+          children: [
+            Icon(item.icon, size: 18, color: item.color),
+            const SizedBox(width: AppConstants.spacingMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.label,
+                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  ),
+                  Text(
+                    item.value,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (item.trailingAction != null)
+              item.trailingAction!
+            else if (item.onTap != null)
+              Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -535,7 +617,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
               ),
             ),
             if (data.previewLabel != null && data.previewValue != null) ...[
-              const Spacer(),
+              const SizedBox(height: AppConstants.spacingSm),
               Text(
                 data.previewLabel!,
                 style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
@@ -555,7 +637,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     );
   }
 
-  Widget _buildManagementToolsList(
+  Widget _buildReportingToolsRow(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
@@ -566,6 +648,11 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         l10n.reportsAnalyticsDashboard,
         Icons.insights_rounded,
         AppRoutes.adminAnalytics,
+        previewLabel: l10n.reportsInactiveMembers,
+        previewValue: '${_participation.inactiveCount}',
+        accent: _participation.inactiveCount > 0
+            ? AppConstants.warningAmber
+            : AppConstants.successGreen,
       ),
       _ReportCardData(
         l10n.reportsBalikTangkilikManagement,
@@ -576,54 +663,25 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         l10n.reportsExportCenter,
         Icons.file_download_rounded,
         AppRoutes.exportCenter,
+        previewLabel: l10n.reportsLastExport,
+        previewValue: _recentExports.isEmpty
+            ? l10n.reportsNoExportsYet
+            : DateFormat('MMM d').format(_recentExports.first.generatedAt),
       ),
     ];
 
-    return Column(
-      children: tools
-          .map(
-            (t) => Padding(
-              padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-              child: GestureDetector(
-                onTap: () => context.push(t.route),
-                child: Container(
-                  padding: const EdgeInsets.all(AppConstants.spacingMd),
-                  decoration: BoxDecoration(
-                    color: sagana.cardBackground,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                    border: Border.all(
-                      color: cs.outline.withValues(alpha: 0.10),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(t.icon, color: AppConstants.primaryGreen, size: 20),
-                      const SizedBox(width: AppConstants.spacingMd),
-                      Expanded(
-                        child: Text(
-                          t.label,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          )
-          .toList(),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < tools.length; i++) ...[
+          if (i > 0) const SizedBox(width: AppConstants.spacingMd),
+          Expanded(child: _reportCard(context, tools[i], cs, sagana)),
+        ],
+      ],
     );
   }
 
-  Widget _buildRecentReports(
+  Widget _buildExportHistory(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
@@ -699,5 +757,22 @@ class _ReportCardData {
     this.previewLabel,
     this.previewValue,
     this.accent,
+  });
+}
+
+class _AttentionItem {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final VoidCallback? onTap;
+  final Widget? trailingAction;
+  const _AttentionItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.onTap,
+    this.trailingAction,
   });
 }

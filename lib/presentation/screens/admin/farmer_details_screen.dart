@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,10 +8,12 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/models/farmer_member_model.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/loan_model.dart';
 import '../../../data/models/contribution_model.dart';
 import '../../../data/models/analytics_model.dart';
+import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
@@ -25,6 +28,7 @@ class FarmerDetailsScreen extends StatefulWidget {
 
 class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   final _repo = FarmerDetailsRepository();
+  final _capitalRepo = CapitalContributionRepository();
 
   FarmerProfileModel?       _profile;
   FarmPerformanceSummary    _harvestSummary = FarmPerformanceSummary.empty;
@@ -32,6 +36,9 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   List<LoanModel>           _loans          = [];
   MemberContribution?       _contribution;
   CapitalSharesModel?       _capitalShares;
+  MemberCapitalSummary?     _capitalSummary;
+  List<CapitalContributionEvent> _capitalLedger = [];
+  List<MemberStatusEvent>   _statusHistory = [];
   List<Map<String, dynamic>> _expenses = [];
   List<Map<String, dynamic>> _programs = [];
 
@@ -55,6 +62,9 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       _repo.fetchCapitalShares(widget.farmerId),
       _repo.fetchFarmerExpenses(widget.farmerId),
       _repo.fetchAssignedPrograms(widget.farmerId),
+      _capitalRepo.fetchCapitalSummary(widget.farmerId),
+      _capitalRepo.fetchLedger(widget.farmerId),
+      _repo.fetchStatusHistory(widget.farmerId),
     ]);
     if (!mounted) return;
     setState(() {
@@ -66,27 +76,142 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       _capitalShares  = results[5] as CapitalSharesModel?;
       _expenses       = results[6] as List<Map<String, dynamic>>;
       _programs       = results[7] as List<Map<String, dynamic>>;
+      _capitalSummary = results[8] as MemberCapitalSummary?;
+      _capitalLedger  = results[9] as List<CapitalContributionEvent>;
+      _statusHistory  = results[10] as List<MemberStatusEvent>;
       _isLoading      = false;
     });
+  }
+
+  Future<void> _recordContribution() async {
+    final result = await showDialog<_RecordContributionInput>(
+      context: context,
+      builder: (_) => const _RecordContributionDialog(),
+    );
+    if (result == null) return;
+    try {
+      await _capitalRepo.recordContribution(
+        farmerId: widget.farmerId,
+        amount: result.amount,
+        source: result.source,
+        note: result.note,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Contribution recorded.',
+              style: GoogleFonts.inter(fontSize: 13)),
+          backgroundColor: AppConstants.successGreen,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadAll();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not record the contribution. Please try again.',
+              style: GoogleFonts.inter(fontSize: 13)),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   double get _totalOutstanding => _loans
       .where((l) => !l.isPaid)
       .fold(0.0, (sum, l) => sum + l.remainingBalance);
 
+  Future<String?> _promptSuspendReason() {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dc) {
+        final cs = Theme.of(dc).colorScheme;
+        return AlertDialog(
+          title: Text('Suspend Member',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Reason — the member sees this and cannot log in '
+                  'until reactivated.',
+              hintStyle: GoogleFonts.inter(fontSize: 12, color: cs.outline),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dc),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dc, ctrl.text.trim()),
+              child: const Text('Next'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showActionsMenu() {
     showManagementModal(
       context: context,
       builder: (_) => _ActionsMenu(
-        isActive: true, // wire to real status if needed
+        status: _profile?.memberStatus ?? MemberStatus.active,
         onNotify: () {
           Navigator.pop(context);
           context.push(AppRoutes.announcementDashboard);
         },
         onToggleStatus: () async {
           Navigator.pop(context);
+          final status = _profile?.memberStatus ?? MemberStatus.active;
+          // Bugfix (verification pass): the toggle only applies to
+          // Active/Inactive/Suspended. Pending/Rejected/Draft must not
+          // reach here — the menu itself hides the row for them — but
+          // stay defensive in case a stale menu instance calls through.
+          if (!status.supportsSuspendToggle) return;
+          if (!status.isEffectivelyActive) {
+            // Suspended — reactivate, single tap.
+            await _repo.setFarmerStatus(
+                farmerId: widget.farmerId, status: 'active');
+            _loadAll();
+            return;
+          }
+          // Active or Inactive — suspend, two-step (Decision D17).
+          final reason = await _promptSuspendReason();
+          if (reason == null || reason.trim().isEmpty || !mounted) return;
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (dc) => AlertDialog(
+              title: Text('Confirm Suspension',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+              content: Text(
+                'Member: ${_profile?.fullName ?? ''}\n'
+                'Outcome: Suspended — blocked from logging in\n'
+                'Reason: ${reason.trim()}',
+                style: GoogleFonts.inter(fontSize: 13),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dc, false),
+                    child: const Text('Back')),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dc, true),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConstants.errorRed,
+                      foregroundColor: Colors.white),
+                  child: const Text('Suspend Account'),
+                ),
+              ],
+            ),
+          );
+          if (ok != true) return;
           await _repo.setFarmerStatus(
-              farmerId: widget.farmerId, status: 'suspended');
+              farmerId: widget.farmerId,
+              status: 'suspended',
+              reason: reason.trim());
           _loadAll();
         },
       ),
@@ -172,9 +297,22 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                               ListView(
                                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
                                 children: [
+                                  if (profile.memberStatus == MemberStatus.rejected) ...[
+                                    _RejectedApplicationBanner(
+                                        profile: profile, cs: cs),
+                                    const SizedBox(height: 16),
+                                  ],
                                   _IdentityCard(profile: profile, cs: cs, sagana: sagana),
                                   const SizedBox(height: 16),
                                   _FarmDetailsCard(profile: profile, cs: cs, sagana: sagana),
+                                  if (_statusHistory.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    _StatusHistoryCard(
+                                      events: _statusHistory,
+                                      cs: cs,
+                                      sagana: sagana,
+                                    ),
+                                  ],
                                 ],
                               ),
                               ListView(
@@ -209,8 +347,11 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   _ContributionCard(
                                     contribution: _contribution,
                                     capitalShares: _capitalShares,
+                                    capitalSummary: _capitalSummary,
+                                    capitalLedger: _capitalLedger,
                                     cs: cs,
                                     sagana: sagana,
+                                    onRecordContribution: _recordContribution,
                                     onViewFull: () => context.push(
                                       AppRoutes.memberContributionReport,
                                     ),
@@ -331,6 +472,65 @@ class _TopAppBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Rejected Application banner (verification-pass fix — Issue 5 workflow)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RejectedApplicationBanner extends StatelessWidget {
+  final FarmerProfileModel profile;
+  final ColorScheme cs;
+
+  const _RejectedApplicationBanner({required this.profile, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = profile.rejectionReason?.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppConstants.errorRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.cancel_rounded,
+                  size: 18, color: AppConstants.errorRed),
+              const SizedBox(width: 8),
+              Text('Application Rejected',
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.errorRed)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            (reason != null && reason.isNotEmpty)
+                ? 'Reason: $reason'
+                : 'No reason was recorded.',
+            style: GoogleFonts.inter(
+                fontSize: 12, color: cs.onSurface, height: 1.5),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Kept for reference and the 3-attempt resubmission history. '
+            'This record is not an active or inactive member and has no '
+            'status toggle — the applicant may resubmit from their own '
+            'account.',
+            style: GoogleFonts.inter(
+                fontSize: 11, color: cs.onSurfaceVariant, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Identity Card
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -429,7 +629,7 @@ class _IdentityCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             'Member since ${profile.memberSinceLabel}'
-            '${profile.sitio != null ? ' • ${profile.sitio}' : ''}',
+            '${profile.purok != null ? ' • ${profile.purok}' : ''}',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
                 fontSize: 11, color: cs.onSurfaceVariant),
@@ -444,6 +644,14 @@ class _IdentityCard extends StatelessWidget {
               label: profile.phoneNumber!,
               cs: cs,
             ),
+          if (profile.contactEmail != null && profile.contactEmail!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _ContactRow(
+              icon: Icons.email_rounded,
+              label: profile.contactEmail!,
+              cs: cs,
+            ),
+          ],
         ],
       ),
     );
@@ -1075,20 +1283,47 @@ class _LoanSummaryCard extends StatelessWidget {
 class _ContributionCard extends StatelessWidget {
   final MemberContribution? contribution;
   final CapitalSharesModel? capitalShares;
+  final MemberCapitalSummary? capitalSummary;
+  final List<CapitalContributionEvent> capitalLedger;
   final ColorScheme cs;
   final SaganaColors sagana;
+  final VoidCallback onRecordContribution;
   final VoidCallback onViewFull;
 
   const _ContributionCard({
     required this.contribution,
     required this.capitalShares,
+    required this.capitalSummary,
+    required this.capitalLedger,
     required this.cs,
     required this.sagana,
+    required this.onRecordContribution,
     required this.onViewFull,
   });
 
+  static String _sourceLabel(String source) {
+    switch (source) {
+      case 'member_payment':
+        return 'Payment';
+      case 'patronage_capital':
+        return 'Patronage → capital';
+      case 'manual_adjustment':
+        return 'Adjustment';
+      case 'opening_balance':
+        return 'Opening balance';
+      default:
+        return source;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final summary = capitalSummary;
+    final contributionTotal =
+        summary?.shares.totalContribution ?? capitalShares?.totalContribution ?? 0;
+    final completedShares =
+        summary?.shares.totalShares ?? capitalShares?.totalShares ?? 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1115,15 +1350,108 @@ class _ContributionCard extends StatelessWidget {
               ),
               Expanded(
                 child: _StatLabel(
-                  label: 'Capital Shares',
-                  value: capitalShares != null
-                      ? '${capitalShares!.totalShares} (₱${capitalShares!.investmentValue.toStringAsFixed(0)})'
-                      : 'None',
+                  label: 'Completed Shares',
+                  value: '$completedShares (₱${(completedShares * 2000).toStringAsFixed(0)})',
                   cs: cs,
                   alignEnd: true,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+
+          // ── Capital contribution (Issue 4d) ─────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Capital Contribution',
+                        style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurfaceVariant)),
+                    Text('₱${contributionTotal.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: cs.onSurface)),
+                  ],
+                ),
+                if (summary != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: summary.annualShareProgress,
+                      minHeight: 6,
+                      backgroundColor: cs.outline.withValues(alpha: 0.15),
+                      color: AppConstants.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    summary.meetsLoanEligibility
+                        ? 'Meets the ₱${summary.minimumForLoan.toStringAsFixed(0)} minimum for a loan.'
+                        : 'Needs ₱${summary.loanShortfall.toStringAsFixed(0)} more to reach the ₱${summary.minimumForLoan.toStringAsFixed(0)} loan minimum.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: summary.meetsLoanEligibility
+                          ? AppConstants.successGreen
+                          : AppConstants.warningAmber,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onRecordContribution,
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: Text('Record Contribution',
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+                if (capitalLedger.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  ...capitalLedger.take(4).map((e) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${_sourceLabel(e.source)} · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
+                                style: GoogleFonts.inter(
+                                    fontSize: 11, color: cs.onSurfaceVariant),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${e.amount < 0 ? '−' : '+'}₱${e.amount.abs().toStringAsFixed(2)}',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: e.amount < 0
+                                    ? AppConstants.errorRed
+                                    : cs.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           Container(
@@ -1472,12 +1800,12 @@ class _OutlineActionButton extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ActionsMenu extends StatelessWidget {
-  final bool isActive;
+  final MemberStatus status;
   final VoidCallback onNotify;
   final VoidCallback onToggleStatus;
 
   const _ActionsMenu({
-    required this.isActive,
+    required this.status,
     required this.onNotify,
     required this.onToggleStatus,
   });
@@ -1485,6 +1813,7 @@ class _ActionsMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isActive = status.isEffectivelyActive;
 
     return ManagementModalShell(
       title: 'Member Actions',
@@ -1509,32 +1838,295 @@ class _ActionsMenu extends StatelessWidget {
               ),
             ),
           ),
-          InkWell(
-            onTap: onToggleStatus,
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: Padding(
+          // Bugfix (verification pass): Pending/Rejected/Draft have no
+          // Active⇄Suspended toggle — Pending is reviewed via
+          // Approve/Reject on the Members list; Rejected is reviewed only
+          // by the applicant resubmitting (up to 3 attempts), never by an
+          // admin "reactivating" it here.
+          if (status.supportsSuspendToggle)
+            InkWell(
+              onTap: onToggleStatus,
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      isActive
+                          ? Icons.person_off_outlined
+                          : Icons.person_rounded,
+                      size: 20,
+                      color: isActive ? cs.error : cs.onSurface,
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      isActive ? 'Set Suspended' : 'Set Active',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: isActive ? cs.error : cs.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (status == MemberStatus.rejected)
+            Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
                 children: [
-                  Icon(
-                    isActive
-                        ? Icons.person_off_outlined
-                        : Icons.person_rounded,
-                    size: 20,
-                    color: isActive ? cs.error : cs.onSurface,
-                  ),
+                  Icon(Icons.info_outline_rounded,
+                      size: 20, color: cs.onSurfaceVariant),
                   const SizedBox(width: 14),
-                  Text(
-                    isActive ? 'Set Suspended' : 'Set Active',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: isActive ? cs.error : cs.onSurface,
+                  Expanded(
+                    child: Text(
+                      'Rejected — only the applicant can resubmit; '
+                      'nothing to activate or suspend here.',
+                      style: GoogleFonts.inter(
+                          fontSize: 12, color: cs.onSurfaceVariant),
                     ),
                   ),
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Record Contribution dialog (Issue 4d)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecordContributionInput {
+  final double amount;
+  final String source;
+  final String? note;
+  const _RecordContributionInput({
+    required this.amount,
+    required this.source,
+    this.note,
+  });
+}
+
+class _RecordContributionDialog extends StatefulWidget {
+  const _RecordContributionDialog();
+
+  @override
+  State<_RecordContributionDialog> createState() =>
+      _RecordContributionDialogState();
+}
+
+class _RecordContributionDialogState extends State<_RecordContributionDialog> {
+  final _amountCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  String _source = 'member_payment';
+  String? _error;
+
+  static const _sources = <String, String>{
+    'member_payment': 'Payment toward capital share',
+    'patronage_capital': 'Patronage refund left as capital',
+    'manual_adjustment': 'Manual adjustment (may be negative)',
+    'opening_balance': 'Opening balance',
+  };
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final raw = _amountCtrl.text.trim().replaceAll(',', '');
+    final amount = double.tryParse(raw);
+    if (amount == null || amount == 0) {
+      setState(() => _error = 'Enter a non-zero amount.');
+      return;
+    }
+    if (amount < 0 && _source != 'manual_adjustment') {
+      setState(() => _error = 'Only a manual adjustment can be negative.');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _RecordContributionInput(
+        amount: amount,
+        source: _source,
+        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Record Contribution',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _amountCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true, signed: true),
+              inputFormatters: [
+                // Digits only, an optional single leading minus, one dot.
+                FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Amount (₱)',
+                hintText: 'e.g. 100.00',
+                prefixText: '₱ ',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _source,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Type'),
+              items: _sources.entries
+                  .map((e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(e.value,
+                            style: GoogleFonts.inter(fontSize: 13),
+                            overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _source = v ?? _source),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Note (optional)',
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!,
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: AppConstants.errorRed)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: const Text('Record'),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Status History card — member_status_events audit trail (Issue 5 / D13)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StatusHistoryCard extends StatelessWidget {
+  final List<MemberStatusEvent> events;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _StatusHistoryCard({
+    required this.events,
+    required this.cs,
+    required this.sagana,
+  });
+
+  static String _label(String s) {
+    switch (s) {
+      case 'active':    return 'Active';
+      case 'inactive':  return 'Inactive';
+      case 'suspended': return 'Suspended';
+      case 'pending':   return 'Pending';
+      case 'rejected':  return 'Rejected';
+      case 'draft':     return 'Draft';
+      default:          return s;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history_rounded, size: 18, color: cs.primary),
+              const SizedBox(width: 8),
+              Text('Status History',
+                  style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface)),
+            ],
           ),
+          const SizedBox(height: 12),
+          ...events.map((e) {
+            final d = e.createdAt.toLocal();
+            final date =
+                '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                          color: cs.primary, shape: BoxShape.circle),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          e.fromStatus != null
+                              ? '${_label(e.fromStatus!)} → ${_label(e.toStatus)}'
+                              : _label(e.toStatus),
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface),
+                        ),
+                        if (e.reason != null && e.reason!.trim().isNotEmpty)
+                          Text(e.reason!.trim(),
+                              style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: cs.onSurfaceVariant,
+                                  height: 1.4)),
+                        Text(date,
+                            style: GoogleFonts.inter(
+                                fontSize: 10, color: cs.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

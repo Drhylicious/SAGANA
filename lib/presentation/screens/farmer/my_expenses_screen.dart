@@ -4,8 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/repositories/expense_repository.dart';
+import '../../../data/services/app_event_service.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
 
 class MyExpensesScreen extends StatefulWidget {
@@ -24,6 +27,7 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
   double _allTimeTotal = 0;
   ExpensePeriod _period = ExpensePeriod.thisMonth;
   bool _isLoading = true;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -34,6 +38,10 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadData();
   }
 
@@ -79,12 +87,17 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.saganaColors.scaffoldBackground,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 64),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — new expenses are saved on your device and will sync automatically once you're reconnected."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 64),
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
@@ -161,6 +174,9 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -603,6 +619,10 @@ class _ExpenseRow extends StatelessWidget {
                           ),
                         ),
                       ],
+                      if (!expense.isSynced) ...[
+                        const SizedBox(width: 8),
+                        _SyncBadge(isSynced: expense.isSynced),
+                      ],
                     ],
                   ),
                   Text(
@@ -695,8 +715,9 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
       );
       return;
     }
-    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    if (!_isSubsidy && amount <= 0) {
+    final amountText = _amountController.text.trim();
+    final amount = double.tryParse(amountText) ?? 0;
+    if (!_isSubsidy && (!isValidCurrencyValue(amountText) || amount <= 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid amount.')),
       );
@@ -704,14 +725,35 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     }
     setState(() => _isSaving = true);
     try {
-      await widget.repo.addExpense(
+      final result = await widget.repo.addExpense(
         category: _category,
         description: _descController.text.trim(),
         amount: amount,
         expenseDate: _date,
         isSubsidy: _isSubsidy,
       );
-      if (mounted) widget.onSaved();
+      if (mounted) {
+        // Shown on the sheet's own context before it's popped by
+        // widget.onSaved() below — so the farmer knows this was queued,
+        // not lost (Phase 2 / U2, closes the gap where an offline
+        // expense used to just fail with no queuing).
+        if (!result.isSynced) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Saved offline — will sync once you\'re back online.',
+              ),
+            ),
+          );
+        }
+        // Broadcasts to Profile (and any other listening screen) so the
+        // "This month's expenses" tile doesn't go stale after adding an
+        // expense here and navigating back — mirrors what
+        // harvest_entry_form_screen.dart already does after a harvest
+        // submission (Final Verification, item 1).
+        AppEventService.instance.notify();
+        widget.onSaved();
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -881,6 +923,11 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9.]'),
+                            ),
+                          ],
                           enabled: !_isSubsidy,
                           style: GoogleFonts.inter(
                             fontSize: 14,
@@ -1145,6 +1192,59 @@ class _ExpenseShimmer extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sync Badge
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Visually identical to harvest_hub_screen.dart's private _SyncBadge, so
+// "Pending"/"Synced" reads the same way across both offline-capable
+// features. Duplicated rather than shared because extracting it into
+// shared_widgets.dart would mean modifying harvest_hub_screen.dart too —
+// outside this phase's approved Profile Tab scope. Flagged below as a
+// refactoring opportunity for whenever Harvest is next touched.
+
+class _SyncBadge extends StatelessWidget {
+  final bool isSynced;
+  const _SyncBadge({required this.isSynced});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: isSynced
+            ? AppConstants.successGreen.withValues(alpha: 0.10)
+            : AppConstants.warningAmber.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isSynced ? Icons.cloud_done_rounded : Icons.sync_rounded,
+            size: 10,
+            color: isSynced
+                ? AppConstants.successGreen
+                : AppConstants.warningAmber,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            isSynced ? 'Synced' : 'Pending',
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: isSynced
+                  ? AppConstants.successGreen
+                  : AppConstants.warningAmber,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

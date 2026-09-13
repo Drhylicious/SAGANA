@@ -1,4 +1,10 @@
 -- ============================================================
+-- ⚠️ SUPERSEDED — resubmit_listing_with_reservation here doesn't
+-- sync remaining_kg. The canonical version is now in
+-- supabase_schema_marketplace_order_reservation_fix.sql. See
+-- supabase_schema_RESERVATION_MODEL_NOTES.md. Kept for history
+-- only.
+-- ============================================================
 -- SAGANA — Resubmit Listing Inventory Reconciliation
 -- resubmitListing() previously only updated the listing row —
 -- a quantity change on resubmit never touched the batch

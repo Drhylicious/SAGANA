@@ -34,6 +34,12 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   int _cartCount = 0;
   int _unreadCount = 0;
 
+  static const _pageSize = 20;
+  final _scrollController = ScrollController();
+  int _offset = 0;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +49,15 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_hasMore || _isLoadingMore) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
+      _loadMore();
+    }
   }
 
   Future<void> _loadCartCount() async {
@@ -60,16 +75,35 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
+  // Phase 8, item 5: fetchApprovedListings() has supported limit/offset
+  // since an earlier backend-only pass (Buyer review finding 2.2), but
+  // nothing called it with either until now. _load() is the initial/
+  // refresh fetch — always resets back to page one.
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final listings = await _repository.fetchApprovedListings();
+    final listings = await _repository.fetchApprovedListings(limit: _pageSize, offset: 0);
     if (!mounted) return;
     setState(() {
       _allListings = listings;
+      _offset = listings.length;
+      _hasMore = listings.length == _pageSize;
       _isLoading = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    setState(() => _isLoadingMore = true);
+    final more = await _repository.fetchApprovedListings(limit: _pageSize, offset: _offset);
+    if (!mounted) return;
+    setState(() {
+      _allListings = [..._allListings, ...more];
+      _offset += more.length;
+      _hasMore = more.length == _pageSize;
+      _isLoadingMore = false;
     });
   }
 
@@ -115,6 +149,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                   child: RefreshIndicator(
                     onRefresh: _load,
                     child: CustomScrollView(
+                      controller: _scrollController,
                       slivers: [
                         SliverToBoxAdapter(child: _buildHeader(l10n)),
                         if (_allListings.isNotEmpty) ...[
@@ -129,8 +164,16 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                           SliverFillRemaining(child: _buildEmptyState(l10n, isFilterEmpty: false))
                         else if (filtered.isEmpty)
                           SliverFillRemaining(child: _buildEmptyState(l10n, isFilterEmpty: true))
-                        else
+                        else ...[
                           _buildGrid(filtered),
+                          if (_isLoadingMore)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                              ),
+                            ),
+                        ],
                       ],
                     ),
                   ),
@@ -143,7 +186,17 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
             child: BuyerTopBar(
               title: l10n.buyerBrowseTitle,
               unreadCount: _unreadCount,
-              onNotificationTap: () => context.push(AppRoutes.buyerNotifications),
+              // Was fire-and-forget — unreadCount was fetched once in
+              // initState() and never re-fetched, so it went stale as soon
+              // as a notification was read on the pushed screen, since
+              // StatefulShellRoute keeps this tab's State alive rather than
+              // rebuilding it on tab switches. Awaiting the push and
+              // refreshing on return covers the only way this screen's own
+              // read-state actually changes.
+              onNotificationTap: () async {
+                await context.push(AppRoutes.buyerNotifications);
+                _loadUnreadCount();
+              },
             ),
           ),
         ],
@@ -191,7 +244,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     final cropsShown = <String>{};
     final tickerItems = <BuyerListingModel>[];
     for (final l in priced) {
-      if (cropsShown.add(l.cropName)) tickerItems.add(l);
+      if (cropsShown.add(l.canonicalDisplayCropName)) tickerItems.add(l);
     }
     if (tickerItems.isEmpty) return const SizedBox.shrink();
 
@@ -211,7 +264,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
               borderRadius: BorderRadius.circular(AppConstants.radiusFull),
             ),
             child: Text(
-              '${l.cropName} · ₱${l.marketRefPricePerKg!.toStringAsFixed(2)}/kg',
+              '${l.canonicalDisplayCropName} · ₱${l.marketRefPricePerKg!.toStringAsFixed(2)}/kg',
               style: GoogleFonts.inter(
                 fontSize: 12, fontWeight: FontWeight.w600,
                 color: AppConstants.primaryGreen,
@@ -280,7 +333,8 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           crossAxisCount: 2,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 0.72,
+          // Give the cards enough vertical room for the image, title, price, stock, and CTA.
+          childAspectRatio: 0.62,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, i) => _ListingCard(listing: listings[i], onReturn: _loadCartCount),
@@ -397,14 +451,6 @@ class _ListingCard extends StatelessWidget {
                           color: AppConstants.warningAmber,
                         ),
                       ),
-                    if (listing.qualityGrade != null)
-                      Positioned(
-                        top: 8, right: 8,
-                        child: _Badge(
-                          label: listing.qualityGrade!,
-                          color: AppConstants.primaryGreen,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -412,6 +458,7 @@ class _ListingCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(10),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(

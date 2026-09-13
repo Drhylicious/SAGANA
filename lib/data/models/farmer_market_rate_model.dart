@@ -25,6 +25,7 @@ class FarmerMarketRateModel {
   String get unit => price.unit;
   String get priceType => price.priceType;
   String get priceTypeLabel => price.priceTypeLabel;
+  String? get cropImageUrl => price.cropImageUrl;
   DateTime get recordedAt => price.recordedAt;
   String? get source => price.source;
   bool get isUp => price.isUp;

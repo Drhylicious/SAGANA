@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -15,8 +16,10 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/material_list_tile.dart';
+import '../../widgets/profile_avatar.dart';
 
 /// Issue New Loan — Admin.
 /// Pushed above the shell (has a back button). Route: /admin/loans/issue
@@ -119,6 +122,17 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
   // ─── Derived values ─────────────────────────────────────────────────────
 
+  /// Whether the selected farmer clears the capital-share minimum. Only
+  /// blocks the Issue button when we have a fresh online standing read
+  /// AND a policy minimum > 0; otherwise stays permissive (issue_loan()
+  /// enforces the rule hard server-side either way).
+  bool get _capitalEligible {
+    final standing = _farmerStanding;
+    if (!_standingCheckedOnline || standing == null) return true;
+    if (standing.minimumCapitalRequired <= 0) return true;
+    return standing.meetsCapitalEligibility;
+  }
+
   double get _totalValue =>
       _items.fold<double>(0, (sum, i) => sum + i.lineTotal);
 
@@ -192,9 +206,27 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       return;
     }
 
+    // Capital-share eligibility — UI hard-stop (Issue 4d). Only enforced
+    // when we actually have a fresh online standing read; issue_loan()
+    // re-checks server-side regardless.
+    final standing = _farmerStanding;
+    if (_standingCheckedOnline &&
+        standing != null &&
+        standing.minimumCapitalRequired > 0 &&
+        !standing.meetsCapitalEligibility) {
+      _showSnack(
+        l10n.issueLoanCapitalBlocked(
+          NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0)
+              .format(standing.minimumCapitalRequired),
+        ),
+        isError: true,
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
-    final nextPaymentDate = BodSchedule.upcoming();
+    final nextPaymentDate = BodSchedule.upcoming(_issuedDate);
     final items = _items
         .map(
           (i) => {
@@ -238,11 +270,29 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         _showSnack(l10n.issueLoanQueuedOffline);
         context.pop(true);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      _showSnack(l10n.issueLoanErrorGeneric, isError: true);
+      _showSnack(_describeIssueLoanError(e), isError: true);
     }
+  }
+
+  /// issueLoan() throws on failure by design (see AdminLoanRepository's
+  /// class doc comment — financial writes must not fail silently). The
+  /// issue_loan() RPC raises specific, useful exceptions (e.g. "Insufficient
+  /// stock for X: Y on hand, Z requested" or "Inventory item ... no longer
+  /// exists") — surfacing that text instead of a generic message tells the
+  /// admin exactly what to fix, rather than leaving them stuck after being
+  /// told at item-entry time that a shortfall could still "proceed."
+  /// Falls back to the generic message for anything that isn't a
+  /// recognizable business-rule failure (e.g. a network/timeout error),
+  /// since those don't have a useful specific message to show.
+  String _describeIssueLoanError(Object error) {
+    final l10n = AppLocalizations.of(context);
+    if (error is PostgrestException && error.message.isNotEmpty) {
+      return error.message;
+    }
+    return l10n.issueLoanErrorGeneric;
   }
 
   void _showSnack(String message, {bool isError = false}) {
@@ -378,17 +428,21 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppConstants.primaryContainer,
-                  child: Icon(
-                    _selectedFarmer == null
-                        ? Icons.person_search_rounded
-                        : Icons.person_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
+                _selectedFarmer == null
+                    ? const CircleAvatar(
+                        radius: 18,
+                        backgroundColor: AppConstants.primaryContainer,
+                        child: Icon(
+                          Icons.person_search_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      )
+                    : ProfileAvatar(
+                        photoUrl: _selectedFarmer!.profilePhotoUrl,
+                        displayName: _selectedFarmer!.fullName,
+                        radius: 18,
+                      ),
                 const SizedBox(width: AppConstants.spacingMd),
                 Expanded(
                   child: _selectedFarmer == null
@@ -438,7 +492,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    if (!_isOnline || !_standingCheckedOnline) {
+    if (!_isOnline) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -449,6 +503,40 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         child: Text(
           l10n.issueLoanStandingUnavailableOffline,
           style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+
+    // Online but the standing check for this farmer hasn't resolved yet —
+    // a brief, genuine loading state, not an offline one. Showing the
+    // "unavailable while offline" text here (the previous behavior) was
+    // simply the wrong message for this case, and it flashed on screen for
+    // the duration of the network round-trip every time a farmer was
+    // selected while online.
+    if (!_standingCheckedOnline) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppConstants.spacingMd),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: AppConstants.spacingSm),
+            Text(
+              l10n.issueLoanStandingLoading,
+              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          ],
         ),
       );
     }
@@ -501,6 +589,22 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: AppConstants.errorRed,
+                    ),
+                  ),
+                if (!standing.meetsCapitalEligibility &&
+                    standing.minimumCapitalRequired > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      l10n.issueLoanCapitalIneligible(
+                        currency.format(standing.capitalContribution),
+                        currency.format(standing.minimumCapitalRequired),
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.errorRed,
+                      ),
                     ),
                   ),
               ],
@@ -895,7 +999,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submit,
+              onPressed: (_isSubmitting || !_capitalEligible) ? null : _submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,
@@ -1021,14 +1125,10 @@ class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
                       final farmer = filtered[index];
                       return MaterialListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: AppConstants.primaryContainer,
-                          child: Text(
-                            farmer.fullName.isNotEmpty
-                                ? farmer.fullName[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(color: Colors.white),
-                          ),
+                        leading: ProfileAvatar(
+                          photoUrl: farmer.profilePhotoUrl,
+                          displayName: farmer.fullName,
+                          radius: 20,
                         ),
                         title: Text(
                           farmer.fullName,
@@ -1114,7 +1214,7 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
       _selected != null && _quantity > _selected!.quantityOnHand;
 
   void _confirm() {
-    if (_selected == null || _quantity <= 0) return;
+    if (_selected == null || _quantity <= 0 || _insufficientStock) return;
     widget.onSave(
       _LoanItemDraft(
         id:
@@ -1193,18 +1293,11 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
-          DropdownButtonFormField<LoanCatalogItem>(
-            initialValue: _selected,
-            isExpanded: true,
-            hint: const Text('Select a loanable item'),
-            items: widget.loanCatalog
-                .map(
-                  (c) => DropdownMenuItem(
-                    value: c,
-                    child: Text('${c.itemName} (${c.unit})'),
-                  ),
-                )
-                .toList(),
+          AppDropdownField<LoanCatalogItem>(
+            value: _selected,
+            hintText: 'Select a loanable item',
+            items: widget.loanCatalog,
+            itemLabel: (c) => '${c.itemName} (${c.unit})',
             onChanged: (v) => setState(() => _selected = v),
           ),
           if (_selected != null) ...[
@@ -1261,22 +1354,22 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppConstants.amber.withValues(alpha: 0.12),
+                  color: AppConstants.errorRed.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.warning_amber_rounded,
+                      Icons.error_outline_rounded,
                       size: 16,
-                      color: AppConstants.amber,
+                      color: AppConstants.errorRed,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '${_quantity.toStringAsFixed(0)} requested — only '
                         '${_selected!.quantityOnHand.toStringAsFixed(0)} ${_selected!.unit} available. '
-                        'You can still proceed if the BOD has approved this.',
+                        'Reduce the quantity or restock this item in Inventory Management before adding it to the loan.',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: cs.onSurface,
@@ -1292,7 +1385,7 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
       ),
       footer: ManagementModalActions(
         primaryLabel: l10n.issueLoanConfirmItem,
-        onPrimary: _confirm,
+        onPrimary: _insufficientStock ? null : _confirm,
       ),
     );
   }

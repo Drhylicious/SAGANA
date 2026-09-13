@@ -1,9 +1,10 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'animated_pressable.dart';
 import 'material_list_tile.dart';
+import 'web_safe_blur_container.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 
 export 'farmer_top_bar.dart';
@@ -34,26 +35,29 @@ class GlassCard extends StatelessWidget {
     final sagana =
         Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
 
+    // WebSafeBlurContainer only clips as a rectangle (Clip.antiAlias on a
+    // ClipRect, not ClipRRect) — GlassCard needs rounded corners on the
+    // blur itself, so an outer ClipRRect rounds the final composited
+    // result. Nesting a stricter rounded clip outside a looser
+    // rectangular one still produces correctly rounded corners.
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(AppConstants.spacingGutter),
-          decoration: BoxDecoration(
-            color: backgroundColor ?? sagana.glassBackground,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: sagana.glassBorder, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: child,
+      child: WebSafeBlurContainer(
+        blurSigma: blurSigma,
+        padding: padding ?? const EdgeInsets.all(AppConstants.spacingGutter),
+        decoration: BoxDecoration(
+          color: backgroundColor ?? sagana.glassBackground,
+          borderRadius: BorderRadius.circular(borderRadius),
+          border: Border.all(color: sagana.glassBorder, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
+        child: child,
       ),
     );
   }
@@ -133,12 +137,16 @@ class PrimaryButton extends StatelessWidget {
                         Icon(icon, size: 18, color: cs.onPrimary),
                         const SizedBox(width: 8),
                       ],
-                      Text(
-                        label,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: cs.onPrimary,
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onPrimary,
+                          ),
                         ),
                       ),
                     ],
@@ -229,11 +237,67 @@ class _AppTextFieldState extends State<AppTextField> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ConfirmDialog — shared confirm/cancel pattern, used via AppDialog.show<bool>
+// from Buyer/Admin/Farmer Settings (clear cache, sign out). Previously three
+// near-identical private _ConfirmDialog classes. cancelLabel stays a
+// parameter (mirroring confirmLabel) rather than a fixed string, so each
+// caller's current behavior carries over unchanged — Admin already localizes
+// it (l10n.issueLoanCancel); Buyer/Farmer keep the existing default and can
+// move to a localized string later without another widget change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ConfirmDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final String cancelLabel;
+
+  const ConfirmDialog({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    this.cancelLabel = 'Cancel',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(message, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, false), child: Text(cancelLabel))),
+                const SizedBox(width: 10),
+                Expanded(child: PrimaryButton(label: confirmLabel, height: 44, onPressed: () => Navigator.pop(context, true))),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // OfflineBanner
 // ─────────────────────────────────────────────────────────────────────────────
 
 class OfflineBanner extends StatelessWidget {
-  const OfflineBanner({super.key});
+  // Default message is a safe fallback; callers should pass a
+  // screen-accurate message via the `message` parameter.
+  final String? message;
+
+  const OfflineBanner({super.key, this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -245,12 +309,14 @@ class OfflineBanner extends StatelessWidget {
       ),
       color: AppConstants.warningAmber,
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.wifi_off_rounded, size: 16, color: Colors.white),
           const SizedBox(width: 8),
-          Expanded(
+          Flexible(
             child: Text(
-              'You\'re offline — changes will sync when connected',
+              message ?? 'You\'re offline',
+              textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -766,12 +832,14 @@ class AppBrandingBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final sagana = context.saganaColors;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
+        color: sagana.cardBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.50)),
+        border: Border.all(color: sagana.cardBackground.withValues(alpha: 0.50)),
         boxShadow: [BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 10)],
       ),
       child: Padding(
@@ -789,7 +857,7 @@ class AppBrandingBlock extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text('SAGANA', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-            Text('Streamlined Agricultural Gateway for\nAgribusiness, Networking, and Analytics',
+            Text(l10n.brandingTagline,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant, height: 1.4)),
             const SizedBox(height: 6),
@@ -797,9 +865,9 @@ class AppBrandingBlock extends StatelessWidget {
             const SizedBox(height: 16),
             Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
             const SizedBox(height: 14),
-            Text('Developed by Marinduque State University — BSIT',
+            Text(l10n.brandingDevelopedBy,
                 textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-            Text('Partner: SP3 Agriculture Cooperative',
+            Text(l10n.brandingPartner,
                 textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.onSurface)),
           ],
         ),

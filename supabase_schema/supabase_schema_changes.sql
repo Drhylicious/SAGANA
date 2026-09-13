@@ -74,3 +74,58 @@ CREATE POLICY "notifications: admin reads all"
 ALTER TABLE public.sp3_member_registry
 ADD CONSTRAINT sp3_member_registry_registered_user_id_key
 UNIQUE (registered_user_id);  
+
+ALTER TABLE public.marketplace_listings
+  DROP CONSTRAINT marketplace_listings_status_check;
+
+ALTER TABLE public.marketplace_listings
+  ADD CONSTRAINT marketplace_listings_status_check
+  CHECK (status = ANY (ARRAY[
+    'pending_review'::text,
+    'approved'::text,
+    'changes_required'::text,
+    'withdrawn'::text,
+    'rejected'::text,
+    'sold'::text
+  ]));
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- SAGANA — Phase 4 Dead Code Cleanup
+-- Completes Step 3 of supabase_schema_loan_inventory_link.sql,
+-- which was left commented out (manual checkpoint) rather than
+-- run automatically. Confirmed dead: no Dart code in the Loan or
+-- Inventory modules reads item_name/category/unit from
+-- loan_items_master — every read goes through the
+-- cooperative_inventory join added by that migration's Step 1.
+--
+-- Deliberately narrower than the original Step 3: this drops only
+-- the three unused columns. It does NOT add inventory_item_id
+-- NOT NULL — that's a data-integrity constraint change, not a
+-- dead-code removal, and is out of scope for this cleanup.
+--
+-- Idempotent — safe to run whether or not Step 3 was already
+-- applied by hand.
+-- ============================================================
+
+ALTER TABLE public.loan_items_master
+  DROP COLUMN IF EXISTS item_name,
+  DROP COLUMN IF EXISTS category,
+  DROP COLUMN IF EXISTS unit;
+
+  DROP FUNCTION IF EXISTS decrement_inventory_stock(UUID, NUMERIC);
+
+ALTER TABLE public.crop_master
+ADD COLUMN IF NOT EXISTS crop_type TEXT;
+
+NOTIFY pgrst, 'reload schema';
+
+-- Phase 6a: optional real contact email for Farmers and Buyers.
+-- Distinct from auth.users.email, which stays the synthetic
+-- "username@sagana.local" address used for login (see AuthService).
+-- No format/uniqueness constraint yet — deferred to Phase 6b, when this
+-- value starts actually gating authentication behavior.
+ALTER TABLE public.user_information
+  ADD COLUMN IF NOT EXISTS contact_email TEXT;
+

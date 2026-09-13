@@ -88,6 +88,7 @@ class CsvExportService {
       case ReportModuleType.loan:
         final loans = await _loanRepo.fetchAllLoans(
           issuedAfter: period.startDate,
+          issuedBefore: period.range().endDate,
         );
         return serializeLoanReportCsv(loans);
       case ReportModuleType.memberContribution:

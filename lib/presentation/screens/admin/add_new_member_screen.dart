@@ -1,16 +1,29 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/add_member_repository.dart';
+import '../../../data/repositories/crop_repository.dart';
+import '../../../data/services/auth_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
 
-// SP3's real 5 primary crops, consistent with the rest of the app
-const _kSp3PrimaryCrops = ['Peanut', 'Ginger', 'Banana', 'Palay', 'Copra'];
+/// Fixed ₱2,000 per capital share (Phase B / Decision D2).
+const double _kShareValuePerUnit = 2000;
+
+// Gender labels are shared with the Register screen's translations
+// (registerGenderMale/Female/PreferNotToSay) rather than duplicated here.
+Map<String, String> _kGenderOptions(AppLocalizations l10n) => {
+      'male': l10n.registerGenderMale,
+      'female': l10n.registerGenderFemale,
+      'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+    };
 
 class AddNewMemberScreen extends StatefulWidget {
   const AddNewMemberScreen({super.key});
@@ -21,6 +34,7 @@ class AddNewMemberScreen extends StatefulWidget {
 
 class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   final _repo    = AddMemberRepository();
+  final _cropRepo = CropRepository();
   final _formKey = GlobalKey<FormState>();
 
   // ── Controllers ────────────────────────────────────────────────────────────
@@ -29,13 +43,24 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   final _fullNameCtrl    = TextEditingController();
   final _phoneCtrl       = TextEditingController();
   final _memberIdCtrl    = TextEditingController();
-  final _capitalSharesCtrl = TextEditingController(text: '100');
-  final _shareValueCtrl    = TextEditingController(text: '1000');
+  final _initialContributionCtrl = TextEditingController();
 
   // ── Form state ─────────────────────────────────────────────────────────────
-  String? _selectedSitio;
+  String? _selectedPurok;
+  DateTime? _dateOfBirth;
+  String? _gender; // key of _kGenderOptions
   bool    _obscurePassword = true;
   final List<String> _selectedCrops = [];
+
+  // Active crop_master catalog (Issue 4e) — replaces the old hardcoded list.
+  List<Map<String, dynamic>> _catalogCrops = [];
+
+  // Registry auto-fill (Issue 4a)
+  Timer? _nameDebounce;
+  bool _isCheckingRegistry = false;
+  bool _registryChecked = false;
+  bool _isOfficialMember = false;
+  String? _registryId;
 
   bool _isSaving  = false;
   bool _isOnline  = true;
@@ -48,27 +73,92 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
+    _fullNameCtrl.addListener(_onFullNameChanged);
     _loadSuggestions();
+    _loadCropCatalog();
   }
 
   Future<void> _loadSuggestions() async {
     final suggestedMemberId = await _repo.suggestNextMemberId();
     final suggestedUsername = await _repo.suggestNextUsername();
     if (mounted) {
-      _memberIdCtrl.text = suggestedMemberId;
-      _usernameCtrl.text = suggestedUsername;
+      setState(() {
+        _memberIdCtrl.text = suggestedMemberId;
+        _usernameCtrl.text = suggestedUsername;
+      });
     }
+  }
+
+  Future<void> _loadCropCatalog() async {
+    final catalog = await _cropRepo.fetchCropCatalog();
+    if (mounted) setState(() => _catalogCrops = catalog);
+  }
+
+  // ── Registry auto-fill lookup — debounced (Issue 4a) ───────────────────────
+
+  void _onFullNameChanged() {
+    final name = _fullNameCtrl.text.trim();
+    if (_registryChecked || _isOfficialMember) {
+      setState(() {
+        _registryChecked = false;
+        _isOfficialMember = false;
+        _registryId = null;
+      });
+    }
+    if (name.length < 3) return;
+    _nameDebounce?.cancel();
+    _nameDebounce = Timer(const Duration(milliseconds: 600), () {
+      _checkRegistry(name);
+    });
+  }
+
+  Future<void> _checkRegistry(String name) async {
+    if (!mounted) return;
+    setState(() => _isCheckingRegistry = true);
+    final result = await AuthService.checkSp3Registry(name);
+    if (!mounted) return;
+    setState(() {
+      _isCheckingRegistry = false;
+      _registryChecked = true;
+      if (result != null && !result.alreadyRegistered) {
+        _isOfficialMember = true;
+        _registryId = result.registryId;
+        if (result.phone != null && _phoneCtrl.text.trim().isEmpty) {
+          _phoneCtrl.text = result.phone!;
+        }
+        final mappedPurok = _mapPurok(result.suggestedPurok);
+        if (mappedPurok != null) _selectedPurok = mappedPurok;
+      } else {
+        _isOfficialMember = false;
+        _registryId = null;
+      }
+    });
+  }
+
+  String? _mapPurok(String? suggested) {
+    if (suggested == null) return null;
+    String norm(String s) => s
+        .replaceAll(RegExp(r'[–—–-]'), '-')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim()
+        .toLowerCase();
+    final target = norm(suggested);
+    for (final p in AppConstants.payanasPuroks) {
+      if (norm(p) == target) return p;
+    }
+    return null;
   }
 
   @override
   void dispose() {
+    _nameDebounce?.cancel();
+    _fullNameCtrl.removeListener(_onFullNameChanged);
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     _fullNameCtrl.dispose();
     _phoneCtrl.dispose();
     _memberIdCtrl.dispose();
-    _capitalSharesCtrl.dispose();
-    _shareValueCtrl.dispose();
+    _initialContributionCtrl.dispose();
     super.dispose();
   }
 
@@ -90,6 +180,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   // ── Crop selection ────────────────────────────────────────────────────────
 
   void _showCropDialog() {
+    final l10n = AppLocalizations.of(context);
+    final available = _catalogCrops
+        .where((c) => !_selectedCrops.contains(c['crop_name'] as String))
+        .toList();
     showDialog(
       context: context,
       builder: (ctx) {
@@ -99,47 +193,62 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
           ),
           title: Text(
-            'Select Crop',
+            l10n.addMemberSelectCropTitle,
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w700, color: cs.primary),
           ),
           content: SizedBox(
             width: double.maxFinite,
-            child: GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 2.4,
-              children: _kSp3PrimaryCrops
-                  .where((c) => !_selectedCrops.contains(c))
-                  .map((crop) => GestureDetector(
-                        onTap: () {
-                          setState(() => _selectedCrops.add(crop));
-                          Navigator.pop(ctx);
-                        },
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                                color: cs.outline.withValues(alpha: 0.20)),
-                            borderRadius: BorderRadius.circular(
-                                AppConstants.radiusMd),
-                          ),
-                          child: Text(
-                            crop,
-                            style: GoogleFonts.poppins(
-                                fontSize: 13, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ))
-                  .toList(),
-            ),
+            child: available.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      _catalogCrops.isEmpty
+                          ? l10n.addMemberNoCatalogCrops
+                          : l10n.addMemberAllCropsAdded,
+                      style: GoogleFonts.inter(
+                          fontSize: 13, color: cs.onSurfaceVariant),
+                    ),
+                  )
+                : GridView.count(
+                    shrinkWrap: true,
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 2.4,
+                    children: available
+                        .map((entry) {
+                          final crop = entry['crop_name'] as String;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedCrops.add(crop));
+                              Navigator.pop(ctx);
+                            },
+                            child: Container(
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                    color: cs.outline.withValues(alpha: 0.20)),
+                                borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusMd),
+                              ),
+                              child: Text(
+                                crop,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          );
+                        })
+                        .toList(),
+                  ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
+              child: Text(l10n.addMemberClose),
             ),
           ],
         );
@@ -150,27 +259,38 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   // ── Save ───────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedSitio == null) {
-      _showSnack('Please select a sitio/purok.');
+    if (_selectedPurok == null) {
+      _showSnack(l10n.addMemberSelectPurok);
+      return;
+    }
+    if (_dateOfBirth != null &&
+        _dateOfBirth!.isAfter(
+            DateTime(DateTime.now().year - 18, DateTime.now().month,
+                DateTime.now().day))) {
+      _showSnack(l10n.addMemberAgeRequirement);
       return;
     }
 
-    final capitalShares = int.tryParse(_capitalSharesCtrl.text.trim()) ?? 0;
-    final shareValue    = double.tryParse(_shareValueCtrl.text.trim()) ?? 0;
+    final initialContribution =
+        double.tryParse(_initialContributionCtrl.text.trim().replaceAll(',', '')) ??
+            0;
 
     setState(() => _isSaving = true);
 
     final result = await _repo.createMember(
-      username:          _usernameCtrl.text.trim(),
-      password:          _passwordCtrl.text.trim(),
-      fullName:          _fullNameCtrl.text.trim(),
-      phoneNumber:       _phoneCtrl.text.trim(),
-      sitio:             _selectedSitio!,
-      memberId:          _memberIdCtrl.text.trim(),
-      capitalShares:     capitalShares,
-      shareValuePerUnit: shareValue,
-      initialCrops:      _selectedCrops,
+      username:            _usernameCtrl.text.trim(),
+      password:            _passwordCtrl.text.trim(),
+      fullName:            _fullNameCtrl.text.trim(),
+      phoneNumber:         _phoneCtrl.text.trim(),
+      purok:               _selectedPurok!,
+      dateOfBirth:         _dateOfBirth,
+      gender:              _gender,
+      shareValuePerUnit:   _kShareValuePerUnit,
+      initialContribution: initialContribution,
+      initialCrops:        _selectedCrops,
+      registryId:          _registryId,
     );
 
     if (!mounted) return;
@@ -178,18 +298,30 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
 
     if (result.isSuccess) {
       _showSnack(
-        '${_fullNameCtrl.text.trim()} was added successfully.',
+        l10n.addMemberCreatedSuccess(_fullNameCtrl.text.trim()),
         isSuccess: true,
       );
       context.pop(true);
     } else if (result.isPartial) {
       _showSnack(
-        '${result.failedStep} step had an issue: ${result.message}',
+        l10n.addMemberPartialIssue(
+            result.failedStep ?? '', result.message ?? ''),
       );
       // Member account exists — still pop back so admin sees them in the list
       context.pop(true);
     } else {
-      _showSnack(result.message ?? 'Failed to create member. Please try again.');
+      final msg = result.message ?? l10n.addMemberCreateFailed;
+      if (msg.toLowerCase().contains('already taken') ||
+          msg.toLowerCase().contains('already exists')) {
+        // Suggestion collided with a username created since it was
+        // fetched — refresh it rather than leaving the Admin stuck on a
+        // dead value with no way to recover except backing out entirely.
+        final fresh = await _repo.suggestNextUsername();
+        if (mounted) setState(() => _usernameCtrl.text = fresh);
+        _showSnack(l10n.addMemberUsernameTakenRetry);
+      } else {
+        _showSnack(msg);
+      }
     }
   }
 
@@ -212,6 +344,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs     = Theme.of(context).colorScheme;
+    final l10n   = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -250,7 +383,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                     CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Admin Notice',
+                                    l10n.addMemberAdminNoticeTitle,
                                     style: GoogleFonts.poppins(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -259,7 +392,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'The member will be created with active status and can log in immediately using the credentials below.',
+                                    l10n.addMemberAdminNoticeBody,
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       color: cs.onSurfaceVariant,
@@ -277,25 +410,34 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                       // ── Account Credentials ─────────────────────────────
                       _FormSection(
                         icon: Icons.lock_person_rounded,
-                        title: 'Account Credentials',
+                        title: l10n.addMemberSectionCredentials,
                         cs: cs,
                         sagana: sagana,
                         children: [
-                          _FieldLabel(label: 'SAGANA Username', cs: cs),
+                          _FieldLabel(label: l10n.addMemberUsernameLabel, cs: cs),
                           TextFormField(
                             controller: _usernameCtrl,
+                            readOnly: true,
+                            style: TextStyle(color: cs.onSurfaceVariant),
                             decoration: const InputDecoration(
                               hintText: 'SP3-0001',
                             ),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
-                                return 'Username is required';
+                                return l10n.addMemberUsernameRequired;
                               }
                               return null;
                             },
                           ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 4),
+                            child: Text(
+                              l10n.addMemberUsernameHelp,
+                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                          ),
                           const SizedBox(height: 14),
-                          _FieldLabel(label: 'Temporary Password', cs: cs),
+                          _FieldLabel(label: l10n.addMemberPasswordLabel, cs: cs),
                           TextFormField(
                             controller: _passwordCtrl,
                             obscureText: _obscurePassword,
@@ -351,10 +493,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             ),
                             validator: (v) {
                               if (v == null || v.isEmpty) {
-                                return 'Password is required';
+                                return l10n.addMemberPasswordRequired;
                               }
                               if (v.length < 8) {
-                                return 'Minimum 8 characters';
+                                return l10n.addMemberPasswordTooShort;
                               }
                               return null;
                             },
@@ -366,22 +508,70 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                       // ── Personal Information ─────────────────────────────
                       _FormSection(
                         icon: Icons.person_rounded,
-                        title: 'Personal Information',
+                        title: l10n.addMemberSectionPersonal,
                         cs: cs,
                         sagana: sagana,
                         children: [
-                          _FieldLabel(label: 'Full Name', cs: cs),
+                          _FieldLabel(label: l10n.addMemberFullNameLabel, cs: cs),
                           TextFormField(
                             controller: _fullNameCtrl,
                             textCapitalization: TextCapitalization.words,
-                            decoration: const InputDecoration(
-                              hintText: 'e.g. Juan Dela Cruz',
+                            decoration: InputDecoration(
+                              hintText: l10n.addMemberFullNameHint,
+                              suffixIcon: _isCheckingRegistry
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      ),
+                                    )
+                                  : null,
                             ),
                             validator: (v) =>
                                 (v == null || v.trim().isEmpty)
-                                    ? 'Full name is required'
+                                    ? l10n.addMemberFullNameRequired
                                     : null,
                           ),
+                          if (_registryChecked) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: (_isOfficialMember
+                                        ? AppConstants.successGreen
+                                        : AppConstants.warningAmber)
+                                    .withValues(alpha: 0.10),
+                                borderRadius:
+                                    BorderRadius.circular(AppConstants.radiusMd),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isOfficialMember
+                                        ? Icons.verified_rounded
+                                        : Icons.info_outline_rounded,
+                                    size: 16,
+                                    color: _isOfficialMember
+                                        ? AppConstants.successGreen
+                                        : AppConstants.warningAmber,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _isOfficialMember
+                                          ? l10n.addMemberRegistryMatch
+                                          : l10n.addMemberRegistryNoMatch,
+                                      style: GoogleFonts.inter(
+                                          fontSize: 11, color: cs.onSurface),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 14),
                           Row(
                             children: [
@@ -391,17 +581,21 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     _FieldLabel(
-                                        label: 'Phone Number', cs: cs),
+                                        label: l10n.addMemberPhoneLabel, cs: cs),
                                     TextFormField(
                                       controller: _phoneCtrl,
                                       keyboardType: TextInputType.phone,
                                       decoration: const InputDecoration(
                                         hintText: '09XX XXX XXXX',
                                       ),
-                                      validator: (v) =>
-                                          (v == null || v.trim().isEmpty)
-                                              ? 'Required'
-                                              : null,
+                                      validator: (v) {
+                                        final t = v?.trim() ?? '';
+                                        if (t.isEmpty) return null;
+                                        if (!RegExp(r'^09\d{9}$').hasMatch(t)) {
+                                          return l10n.addMemberPhoneInvalid;
+                                        }
+                                        return null;
+                                      },
                                     ),
                                   ],
                                 ),
@@ -413,17 +607,17 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     _FieldLabel(
-                                        label: 'Sitio / Purok', cs: cs),
+                                        label: l10n.addMemberPurokLabel, cs: cs),
                                     DropdownButtonFormField<String>(
-                                      initialValue: _selectedSitio,
+                                      initialValue: _selectedPurok,
                                       isExpanded: true,
                                       hint: Text(
-                                        'Select',
+                                        l10n.addMemberSelectHint,
                                         style: GoogleFonts.inter(
                                             fontSize: 13,
                                             color: cs.outline),
                                       ),
-                                      items: AppConstants.payanasSitios
+                                      items: AppConstants.payanasPuroks
                                           .map((s) => DropdownMenuItem(
                                                 value: s,
                                                 child: Text(
@@ -436,7 +630,78 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                               ))
                                           .toList(),
                                       onChanged: (v) => setState(
-                                          () => _selectedSitio = v),
+                                          () => _selectedPurok = v),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _FieldLabel(
+                                        label: l10n.addMemberDobLabel, cs: cs),
+                                    InkWell(
+                                      onTap: () async {
+                                        final now = DateTime.now();
+                                        final picked = await showDatePicker(
+                                          context: context,
+                                          initialDate: _dateOfBirth ??
+                                              DateTime(now.year - 25),
+                                          firstDate: DateTime(1930),
+                                          lastDate: DateTime(
+                                              now.year - 18, now.month, now.day),
+                                        );
+                                        if (picked != null) {
+                                          setState(() => _dateOfBirth = picked);
+                                        }
+                                      },
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(),
+                                        child: Text(
+                                          _dateOfBirth == null
+                                              ? l10n.addMemberSelectHint
+                                              : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            color: _dateOfBirth == null
+                                                ? cs.outline
+                                                : cs.onSurface,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _FieldLabel(label: l10n.addMemberGenderLabel, cs: cs),
+                                    DropdownButtonFormField<String>(
+                                      initialValue: _gender,
+                                      isExpanded: true,
+                                      hint: Text(l10n.addMemberSelectHint,
+                                          style: GoogleFonts.inter(
+                                              fontSize: 13, color: cs.outline)),
+                                      items: _kGenderOptions(l10n).entries
+                                          .map((e) => DropdownMenuItem(
+                                                value: e.key,
+                                                child: Text(e.value,
+                                                    style: GoogleFonts.inter(
+                                                        fontSize: 13)),
+                                              ))
+                                          .toList(),
+                                      onChanged: (v) =>
+                                          setState(() => _gender = v),
                                     ),
                                   ],
                                 ),
@@ -450,15 +715,27 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                       // ── Cooperative Membership ────────────────────────────
                       _FormSection(
                         icon: Icons.badge_rounded,
-                        title: 'Cooperative Membership',
+                        title: l10n.addMemberSectionMembership,
                         cs: cs,
                         sagana: sagana,
                         children: [
-                          _FieldLabel(label: 'Member ID', cs: cs),
+                          _FieldLabel(label: l10n.addMemberMemberIdLabel, cs: cs),
                           TextFormField(
                             controller: _memberIdCtrl,
+                            readOnly: true,
+                            style: TextStyle(color: cs.onSurfaceVariant),
                             decoration: const InputDecoration(
                               hintText: 'SP3-2026-001',
+                              suffixIcon: Icon(Icons.lock_outline_rounded,
+                                  size: 16),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 4),
+                            child: Text(
+                              l10n.addMemberMemberIdHelp,
+                              style: GoogleFonts.inter(
+                                  fontSize: 11, color: cs.onSurfaceVariant),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -466,23 +743,18 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             children: [
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _FieldLabel(
-                                        label: 'Capital Shares', cs: cs),
+                                        label: l10n.addMemberShareValueLabel, cs: cs),
                                     TextFormField(
-                                      controller: _capitalSharesCtrl,
-                                      keyboardType:
-                                          TextInputType.number,
-                                      validator: (v) {
-                                        if (v != null &&
-                                            v.isNotEmpty &&
-                                            int.tryParse(v) == null) {
-                                          return 'Whole number';
-                                        }
-                                        return null;
-                                      },
+                                      key: const ValueKey('share-value-fixed'),
+                                      readOnly: true,
+                                      enabled: false,
+                                      initialValue: _kShareValuePerUnit
+                                          .toStringAsFixed(0),
+                                      style: TextStyle(
+                                          color: cs.onSurfaceVariant),
                                     ),
                                   ],
                                 ),
@@ -490,21 +762,27 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _FieldLabel(
-                                        label: 'Share Value (₱)', cs: cs),
+                                        label: l10n.addMemberInitialContributionLabel,
+                                        cs: cs),
                                     TextFormField(
-                                      controller: _shareValueCtrl,
+                                      controller: _initialContributionCtrl,
                                       keyboardType: const TextInputType
-                                          .numberWithOptions(
-                                              decimal: true),
+                                          .numberWithOptions(decimal: true),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(
+                                            RegExp(r'^\d*\.?\d*')),
+                                      ],
+                                      decoration: const InputDecoration(
+                                        hintText: '0',
+                                      ),
                                       validator: (v) {
                                         if (v != null &&
                                             v.isNotEmpty &&
                                             double.tryParse(v) == null) {
-                                          return 'Invalid number';
+                                          return l10n.addMemberInvalidNumber;
                                         }
                                         return null;
                                       },
@@ -514,6 +792,14 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                               ),
                             ],
                           ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, left: 4),
+                            child: Text(
+                              l10n.addMemberContributionHelp,
+                              style: GoogleFonts.inter(
+                                  fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -521,7 +807,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                       // ── Initial Crops ──────────────────────────────────────
                       _FormSection(
                         icon: Icons.eco_rounded,
-                        title: 'Initial Crops',
+                        title: l10n.addMemberSectionCrops,
                         cs: cs,
                         sagana: sagana,
                         trailing: GestureDetector(
@@ -541,7 +827,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                     size: 14, color: cs.primary),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Add Crop',
+                                  l10n.addMemberAddCrop,
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -569,7 +855,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             child: _selectedCrops.isEmpty
                                 ? Center(
                                     child: Text(
-                                      'No crops added yet',
+                                      l10n.addMemberNoCropsYet,
                                       style: GoogleFonts.inter(
                                           fontSize: 12, color: cs.outline),
                                     ),
@@ -647,6 +933,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
               onSave: _isSaving ? null : _save,
               cs: cs,
               sagana: sagana,
+              l10n: l10n,
             ),
           ),
 
@@ -673,10 +960,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
               ),
               child: PrimaryButton(
                 label: !_isOnline
-                    ? 'Offline — Cannot Create Account'
+                    ? l10n.addMemberOffline
                     : (_isSaving
-                        ? 'Creating Account...'
-                        : 'Create Farmer Account'),
+                        ? l10n.addMemberCreating
+                        : l10n.addMemberCreateButton),
                 isLoading: _isSaving,
                 onPressed: (!_isOnline || _isSaving) ? null : _save,
                 icon: Icons.person_add_alt_1_rounded,
@@ -698,12 +985,14 @@ class _TopAppBar extends StatelessWidget {
   final VoidCallback? onSave;
   final ColorScheme cs;
   final SaganaColors sagana;
+  final AppLocalizations l10n;
 
   const _TopAppBar({
     required this.onBack,
     required this.onSave,
     required this.cs,
     required this.sagana,
+    required this.l10n,
   });
 
   @override
@@ -726,7 +1015,7 @@ class _TopAppBar extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'Add New Member',
+                  l10n.addMemberTitle,
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -737,7 +1026,7 @@ class _TopAppBar extends StatelessWidget {
               TextButton(
                 onPressed: onSave,
                 child: Text(
-                  'Save',
+                  l10n.addMemberSave,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,

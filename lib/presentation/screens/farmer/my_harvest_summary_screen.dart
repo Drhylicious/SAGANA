@@ -491,6 +491,80 @@ class _CropCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
+                                // Pending/rejected catalog-approval status —
+                                // same badge + tap-for-reason pattern as
+                                // crop_listing_screen.dart's _CropCard, so
+                                // a crop awaiting approval doesn't look
+                                // identical to an approved crop with no
+                                // harvests logged yet.
+                                if (crop.cropMasterId == null) ...[
+                                  const SizedBox(height: 6),
+                                  GestureDetector(
+                                    onTap:
+                                        crop.isRejected &&
+                                            crop.requestNotes != null
+                                        ? () => showDialog(
+                                            context: context,
+                                            builder: (_) => AlertDialog(
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      AppConstants.radiusXl,
+                                                    ),
+                                              ),
+                                              title: Text(
+                                                'Request Declined',
+                                                style: GoogleFonts.poppins(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              content: Text(
+                                                crop.requestNotes!,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: const Text('Close'),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        : null,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: crop.isRejected
+                                            ? AppConstants.errorRed
+                                                  .withValues(alpha: 0.10)
+                                            : AppConstants.amber.withValues(
+                                                alpha: 0.12,
+                                              ),
+                                        borderRadius: BorderRadius.circular(
+                                          AppConstants.radiusFull,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        crop.isRejected
+                                            ? 'Request Declined · Tap for reason'
+                                            : 'Pending Approval',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: crop.isRejected
+                                              ? AppConstants.errorRed
+                                              : AppConstants.amber,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

@@ -232,9 +232,8 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                     helperText: 'Farmer-suggested — confirm or change before approving',
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'sp3_cooperative', child: Text('Cooperative Crop (SP3 Buying)')),
-                    DropdownMenuItem(value: 'da_amad_market', child: Text('DA-AMAD Reference Crop')),
-                    DropdownMenuItem(value: 'open_market', child: Text('Open Market Crop')),
+                    DropdownMenuItem(value: 'sp3_cooperative', child: Text('Cooperative Market')),
+                    DropdownMenuItem(value: 'open_market', child: Text('Public Market')),
                   ],
                   onChanged: (v) => setSheet(() => selectedCropType = v!),
                 ),

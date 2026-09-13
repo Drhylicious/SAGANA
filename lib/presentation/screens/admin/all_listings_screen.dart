@@ -8,7 +8,8 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/management_modal.dart'; // TODO: confirm this matches your actual widget path
+import '../../widgets/management_modal.dart';
+import '../../widgets/listing_filter_modal.dart';
 
 class AllListingsScreen extends StatefulWidget {
   const AllListingsScreen({super.key});
@@ -22,8 +23,8 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
   final _searchCtrl = TextEditingController();
 
   List<AdminListingModel> _allListings = [];
-  ListingSummaryStats _stats = ListingSummaryStats.empty;
   bool _isLoading = true;
+  bool _hasLoadedOnce = false;
   bool _isOnline = true;
 
   String _searchQuery = '';
@@ -49,38 +50,41 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     super.dispose();
   }
 
+  // Status is deliberately NOT passed here — it's filtered client-side in
+  // _filtered below, so switching status chips never re-hits the network
+  // (matching Order Management's already-smooth behavior). Crop/category
+  // still refetch, since picking those is a deliberate "Apply Filters"
+  // action from the modal, not a quick chip tap. See M-marketplace-8.
   Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _repo.fetchAllListings(
-        statusFilter: _statusFilter,
-        cropFilter: _cropFilter,
-        categoryFilter: _categoryFilter,
-      ),
-      _repo.fetchSummaryStats(),
-    ]);
+    if (!_hasLoadedOnce) setState(() => _isLoading = true);
+    final listings = await _repo.fetchAllListings(
+      cropFilter: _cropFilter,
+      categoryFilter: _categoryFilter,
+    );
     if (!mounted) return;
     setState(() {
-      _allListings = results[0] as List<AdminListingModel>;
-      _stats = results[1] as ListingSummaryStats;
+      _allListings = listings;
       _isLoading = false;
+      _hasLoadedOnce = true;
     });
   }
 
   List<AdminListingModel> get _filtered {
-    if (_searchQuery.isEmpty) return _allListings;
-    final q = _searchQuery.toLowerCase();
-    return _allListings
-        .where((l) =>
-            l.cropName.toLowerCase().contains(q) ||
-            l.farmerName.toLowerCase().contains(q) ||
-            (l.variety?.toLowerCase().contains(q) ?? false))
-        .toList();
+    var list = _statusFilter == null
+        ? _allListings
+        : _allListings.where((l) => l.status == _statusFilter);
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((l) =>
+          l.cropName.toLowerCase().contains(q) ||
+          l.farmerName.toLowerCase().contains(q) ||
+          (l.variety?.toLowerCase().contains(q) ?? false));
+    }
+    return list.toList();
   }
 
   void _onStatusFilterChanged(String? status) {
     setState(() => _statusFilter = status);
-    _loadAll();
   }
 
   bool get _hasActiveFilter => _categoryFilter != null || _cropFilter != null;
@@ -88,7 +92,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
   void _openFilterPanel() async {
     final result = await showManagementModal<(String?, String?)>(
       context: context,
-      builder: (_) => _ListingFilterModal(
+      builder: (_) => ListingFilterModal(
         repo: _repo,
         initialCategory: _categoryFilter,
         initialCrop: _cropFilter,
@@ -183,50 +187,48 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                             ),
                             const SizedBox(height: 14),
 
-                            // ── Status chips ──────────────────────────────────
+                            // ── Status chips — same plain-pill style as
+                            // Pending Approval / Offer to Cooperative now
+                            // (no count badge), instead of this screen's own
+                            // previous, visually different chip design.
                             SizedBox(
                               height: 34,
                               child: ListView(
                                 scrollDirection: Axis.horizontal,
                                 children: [
-                                  _FilterChip(
-                                    label: 'All', count: _stats.total, active: _statusFilter == null,
+                                  ListingStatusFilterChip(
+                                    label: 'All', active: _statusFilter == null,
                                     color: cs.primary, onTap: () => _onStatusFilterChanged(null), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
-                                  _FilterChip(
-                                    label: 'Pending', count: _stats.pending, active: _statusFilter == 'pending_review',
+                                  ListingStatusFilterChip(
+                                    label: 'Pending', active: _statusFilter == 'pending_review',
                                     color: cs.error, onTap: () => _onStatusFilterChanged('pending_review'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
-                                  _FilterChip(
-                                    label: 'Live', count: _stats.approved, active: _statusFilter == 'approved',
+                                  ListingStatusFilterChip(
+                                    label: 'Live', active: _statusFilter == 'approved',
                                     color: AppConstants.successGreen, onTap: () => _onStatusFilterChanged('approved'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
-                                  _FilterChip(
-                                    label: 'Changes', count: _stats.changesRequired, active: _statusFilter == 'changes_required',
+                                  ListingStatusFilterChip(
+                                    label: 'Changes', active: _statusFilter == 'changes_required',
                                     color: AppConstants.warningAmber, onTap: () => _onStatusFilterChanged('changes_required'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
-                                  _FilterChip(
-                                    label: 'Sold', count: _stats.sold, active: _statusFilter == 'sold',
+                                  ListingStatusFilterChip(
+                                    label: 'Sold', active: _statusFilter == 'sold',
                                     color: cs.onSurfaceVariant, onTap: () => _onStatusFilterChanged('sold'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
-                                  _FilterChip(
-                                    label: 'Rejected', count: _stats.rejected, active: _statusFilter == 'rejected',
+                                  ListingStatusFilterChip(
+                                    label: 'Rejected', active: _statusFilter == 'rejected',
                                     color: cs.error, onTap: () => _onStatusFilterChanged('rejected'), cs: cs,
                                   ),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 20),
-
-                            // Result-count line intentionally removed — the
-                            // filter chips above already show a live count
-                            // for every status, including "All". A second
-                            // count here was pure duplication.
 
                             if (visible.isEmpty)
                               _EmptyState(
@@ -243,8 +245,12 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                                     cs: cs,
                                     sagana: sagana,
                                     isOnline: _isOnline,
+                                    // All Listings is read-only — approve/
+                                    // reject/request-changes stays exclusive
+                                    // to Pending Review (see M-marketplace-2).
                                     onTap: () => context
-                                        .push(AppRoutes.listingReview, extra: listing.id)
+                                        .push(AppRoutes.listingReview,
+                                            extra: {'listingId': listing.id, 'readOnly': true})
                                         .then((_) => _loadAll()),
                                     onQuickApprove: listing.isPending && _isOnline
                                         ? () => _quickApprove(listing)
@@ -310,223 +316,7 @@ class _TopAppBar extends StatelessWidget {
   }
 }
 
-// ─── Status Filter Bar ────────────────────────────────────────────────────────
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final int count;
-  final bool active;
-  final Color color;
-  final VoidCallback onTap;
-  final ColorScheme cs;
 
-  const _FilterChip({
-    required this.label,
-    required this.count,
-    required this.active,
-    required this.color,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: active ? color : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label,
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: active ? Colors.white : cs.onSurface)),
-            const SizedBox(width: 5),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: active ? Colors.white.withValues(alpha: 0.30) : cs.outline.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-              ),
-              child: Text('$count',
-                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800,
-                      color: active ? Colors.white : cs.onSurfaceVariant)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Listing Filter Modal (category → scoped crop list, AND-combined) ─────
-// Opened via showManagementModal() as a centered dialog, matching the
-// Filter Members reference pattern (header + subtitle, sectioned body,
-// Reset All / Apply Filters footer) instead of the old bottom sheet.
-class _ListingFilterModal extends StatefulWidget {
-  final AdminListingRepository repo;
-  final String? initialCategory;
-  final String? initialCrop;
-
-  const _ListingFilterModal({
-    required this.repo,
-    this.initialCategory,
-    this.initialCrop,
-  });
-
-  @override
-  State<_ListingFilterModal> createState() => _ListingFilterModalState();
-}
-
-class _ListingFilterModalState extends State<_ListingFilterModal> {
-  String? _category;
-  String? _crop;
-  List<String> _crops = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _category = widget.initialCategory;
-    _crop = widget.initialCrop;
-    _loadCrops();
-  }
-
-  Future<void> _loadCrops() async {
-    setState(() => _isLoading = true);
-    final crops = await widget.repo.fetchCropsByCategory(category: _category);
-    if (!mounted) return;
-    setState(() {
-      _crops = crops;
-      // Category change narrows the crop list — drop the previously
-      // selected crop if it no longer belongs to the new category.
-      if (_crop != null && !_crops.contains(_crop)) _crop = null;
-      _isLoading = false;
-    });
-  }
-
-  void _onCategorySelected(String? category) {
-    setState(() => _category = category);
-    _loadCrops();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return ManagementModalShell(
-      title: 'Filter Listings',
-      subtitle: 'Refine the list by crop category or crop',
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('CROP CATEGORY',
-              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6, color: cs.outline)),
-          const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            ...AdminListingRepository.cropCategories.map((c) =>
-                _Chip(label: c, active: _category == c,
-                    onTap: () => _onCategorySelected(_category == c ? null : c), cs: cs)),
-          ]),
-          const SizedBox(height: 20),
-          Text('CROPS',
-              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6, color: cs.outline)),
-          const SizedBox(height: 10),
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else if (_crops.isEmpty)
-            Text('No crops in this category',
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant))
-          else
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              ..._crops.map((c) =>
-                  _Chip(label: c, active: _crop == c,
-                      onTap: () => setState(() => _crop = _crop == c ? null : c), cs: cs)),
-            ]),
-        ],
-      ),
-      footer: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: BorderSide(color: cs.outline.withValues(alpha: 0.30)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-              ),
-              onPressed: () => Navigator.pop(context, (null, null)),
-              child: Text(
-                'Reset All',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context, (_category, _crop)),
-              child: Text(
-                'Apply Filters',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-
-  const _Chip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            color: active ? Colors.white : cs.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ─── All Listing Card ─────────────────────────────────────────────────────────
 class _AllListingCard extends StatelessWidget {
@@ -548,7 +338,7 @@ class _AllListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(listing.status, cs);
+    final statusColor = _statusColor(listing.status, cs, context);
     final statusLabel = listing.statusLabel;
 
     return GestureDetector(
@@ -564,18 +354,24 @@ class _AllListingCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (listing.isPending)
-              Container(
-                width: 3,
-                margin: const EdgeInsets.only(right: 10),
-                decoration: BoxDecoration(
-                  color: cs.error,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(AppConstants.radiusLg),
-                    bottomLeft: Radius.circular(AppConstants.radiusLg),
-                  ),
+            // Always reserved, not just `if (listing.isPending)` — that
+            // conditional was shifting every other element in this Row
+            // (starting with the image) ~13px right only for pending
+            // cards, since non-pending cards never allocated this space
+            // at all. Same width for every card now; only the color
+            // changes, so the image lines up identically across every
+            // status.
+            Container(
+              width: 3,
+              margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                color: listing.isPending ? cs.error : Colors.transparent,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppConstants.radiusLg),
+                  bottomLeft: Radius.circular(AppConstants.radiusLg),
                 ),
               ),
+            ),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               child: SizedBox(
@@ -615,12 +411,24 @@ class _AllListingCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Text('₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
-                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
-                      Text('  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
-                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-                      const Spacer(),
-                      if (listing.hasStockWarning)
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(
+                              text: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary),
+                            ),
+                            TextSpan(
+                              text: '  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
+                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                          ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (listing.hasStockWarning) ...[
+                        const SizedBox(width: 6),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -630,6 +438,7 @@ class _AllListingCard extends StatelessWidget {
                                 style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: cs.error)),
                           ],
                         ),
+                      ],
                     ],
                   ),
                 ],
@@ -656,14 +465,10 @@ class _AllListingCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor(String status, ColorScheme cs) {
+  Color _statusColor(String status, ColorScheme cs, BuildContext context) {
     switch (status) {
       case 'pending_review': return cs.error;
-      case 'approved': return AppConstants.successGreen;
-      case 'changes_required': return AppConstants.warningAmber;
-      case 'sold': return cs.onSurfaceVariant;
-      case 'rejected': return cs.error;
-      default: return cs.outline;
+      default: return ListingStatusDisplay.color(context, status);
     }
   }
 }

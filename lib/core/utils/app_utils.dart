@@ -83,8 +83,12 @@ class AppUtils {
     return '${kg.toStringAsFixed(1)} kg';
   }
 
-  static String formatDate(DateTime date) {
-    return DateFormat('MMM d, yyyy').format(date);
+  // localeName is optional and defaults to null (system/default locale),
+  // preserving exact prior behavior for every existing caller. Passing it
+  // is opt-in — added for screens that need the date to follow the app's
+  // selected language rather than the device's.
+  static String formatDate(DateTime date, [String? localeName]) {
+    return DateFormat('MMM d, yyyy', localeName).format(date);
   }
 
   static String formatDateShort(DateTime date) {
@@ -135,6 +139,12 @@ class AppUtils {
         backgroundColor: isError ? const Color(0xFFD32F2F) : const Color(0xFF2E7D32),
         duration: duration,
       ),
+    );
+  }
+
+  static void showComingSoonSnack(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature coming soon.')),
     );
   }
 

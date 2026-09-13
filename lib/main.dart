@@ -25,7 +25,9 @@ Future<void> main() async {
 
   await HiveService.init();
   await SupabaseOptions.initialize();
-  await AppSettingsService.instance.init();
+  // Resolves the already-logged-in user's ID (if any) so a restarted app
+  // loads that specific user's preferences, not just the device default.
+  await AppSettingsService.instance.init(userId: AuthService.currentUser?.id);
   await ConnectivityService.instance.init();
 
   if (AuthService.isLoggedIn) {

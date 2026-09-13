@@ -6,9 +6,11 @@ import 'app_dialog.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ManagementModal
-// Centered, card-style overlay for Admin management-module interactions —
-// replaces showModalBottomSheet() across Inventory, Crop Management,
-// Program Management, Loan Item Management, and Price Management.
+// Centered, card-style overlay for management-style interactions across
+// roles — replaces showModalBottomSheet() across Admin's Inventory, Crop
+// Management, Program Management, Loan Item Management, and Price
+// Management, and Buyer's Settings screen (language/theme pickers). The
+// original comment predated Buyer's usage and undersold what this covers.
 //
 // Built on AppDialog.show(), so it inherits the existing fade + spring-scale
 // entrance instead of introducing a new animation system. Three shapes share
@@ -160,20 +162,23 @@ class ManagementModalShell extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  header,
-                  divider,
-                  bodyArea,
-                  if (footer != null) ...[
+              child: Material(
+                color: Colors.transparent,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    header,
                     divider,
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-                      child: footer!,
-                    ),
+                    bodyArea,
+                    if (footer != null) ...[
+                      divider,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                        child: footer!,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,10 +5,12 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/services/app_event_service.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/crop_catalog_sheet.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/web_safe_blur_container.dart';
 
 class CropListingScreen extends StatefulWidget {
   const CropListingScreen({super.key});
@@ -24,6 +25,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
   List<FarmerCropModel> _crops = [];
   bool _isLoading = true;
   bool _isDeleting = false;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -35,6 +37,10 @@ class _CropListingScreenState extends State<CropListingScreen> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadCrops();
   }
 
@@ -101,6 +107,20 @@ class _CropListingScreenState extends State<CropListingScreen> {
   }
 
   Future<void> _confirmDelete(FarmerCropModel crop) async {
+    // Guarded before the impact-check call, not just before deleteCrop()
+    // itself — fetchCropDeleteImpact() is also a live read, so it would
+    // otherwise fail silently offline before the farmer even sees a dialog.
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This action requires an internet connection. Please try again once you\'re back online.',
+          ),
+          backgroundColor: AppConstants.warningAmber,
+        ),
+      );
+      return;
+    }
     // Check what a cascade delete would actually wipe before asking —
     // harvest_records, inventory_batches, and crop_requests all reference
     // farmer_crops with ON DELETE CASCADE, so this is a real risk, not a
@@ -311,57 +331,66 @@ class _CropListingScreenState extends State<CropListingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          // Content
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadCrops,
-                  child: _isLoading
-                      ? _LoadingBody()
-                      : _crops.isEmpty
-                      ? _EmptyState(onAddCrop: _openCropCatalog)
-                      : _CropList(
-                          crops: _crops,
-                          onCropTap: _onCropTap,
-                          onMenuTap: (crop) => _showCropMenu(context, crop),
-                        ),
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — adding or removing crops requires an internet connection."),
+          Expanded(
+            child: Stack(
+              children: [
+                // Content
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadCrops,
+                        child: _isLoading
+                            ? _LoadingBody()
+                            : _crops.isEmpty
+                            ? _EmptyState(onAddCrop: _openCropCatalog)
+                            : _CropList(
+                                crops: _crops,
+                                onCropTap: _onCropTap,
+                                onMenuTap: (crop) =>
+                                    _showCropMenu(context, crop),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
 
-          // Top app bar
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: 'My Crops',
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
-            ),
-          ),
-
-          // Deleting overlay
-          if (_isDeleting)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Colors.black12,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
+                // Top app bar
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: 'My Crops',
+                    onBack: () => Navigator.of(context).pop(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
                   ),
                 ),
-              ),
+
+                // Deleting overlay
+                if (_isDeleting)
+                  const Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.black12,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
 
@@ -442,8 +471,8 @@ class _CropCard extends StatelessWidget {
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: WebSafeBlurContainer(
+          blurSigma: 20,
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(

@@ -14,6 +14,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../widgets/animated_pressable.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 
 /// Record Payment — BOD Meeting Mode.
@@ -123,6 +124,31 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     }
   }
 
+  /// The active-member roster, plus any farmer who no longer qualifies as
+  /// active but still has a real, outstanding loan on record (Admin-Loan
+  /// Issue 1.3). fetchFarmerRoster() only returns active members, which is
+  /// correct for who a NEW loan can be issued to — but an existing debt
+  /// must stay collectible even if the borrower's status changed after
+  /// issuance, so anyone appearing in _allActiveLoans is always searchable
+  /// here regardless of their current membership status. This also keeps a
+  /// rejected/draft/suspended non-member (who was never issued a loan) out
+  /// of the payment-recording directory entirely, instead of merely
+  /// greyed-out the way the full unfiltered roster used to leave them.
+  List<FarmerPickerResult> get _searchableFarmers {
+    final byId = {for (final f in _farmerRoster) f.id: f};
+    for (final loan in _allActiveLoans) {
+      byId.putIfAbsent(
+        loan.farmerId,
+        () => FarmerPickerResult(
+          id: loan.farmerId,
+          fullName: loan.farmerName,
+          memberId: loan.memberId,
+        ),
+      );
+    }
+    return byId.values.toList();
+  }
+
   double _defaultAmountFor(AdminLoanSummary loan) =>
       loan.monthlyPayment > loan.remainingBalance
           ? loan.remainingBalance
@@ -167,6 +193,40 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       _selectedLoan = loan;
       _amountController.text = _defaultAmountFor(loan).toStringAsFixed(0);
     });
+  }
+
+  // ─── Back navigation ────────────────────────────────────────────────────
+  //
+  // Admin-Loan Issue 1.4/1.5: the screen used to only ever exit outright
+  // (context.pop()) from the top-bar back button, with a separate "Switch
+  // Farmer" button as the only way back to search — and no way at all back
+  // to the loan list once a specific loan was selected. This makes the
+  // back button step back one level within the flow instead, so a single
+  // control handles all "go back" cases:
+  //   payment form (reached via a multi-loan selector) -> loan selector
+  //   payment form (farmer had exactly one loan, no selector shown),
+  //   loan selector, or the empty-loans state                -> search
+  //   search, or direct-loan mode (opened for one specific loan) -> exit
+
+  /// Whether the back button (top bar or system back gesture) should just
+  /// exit the screen — true only when there is no internal step left to
+  /// unwind.
+  bool get _backExitsScreen => _directLoanMode || _selectedFarmer == null;
+
+  void _handleBack() {
+    if (_backExitsScreen) {
+      context.pop();
+      return;
+    }
+    if (_selectedLoan != null && _farmerLoans.length > 1) {
+      // A real loan-selector step was shown for this farmer — step back to
+      // it rather than all the way to search.
+      setState(() => _selectedLoan = null);
+      return;
+    }
+    // Loan selector, empty-loans state, or a payment form reached with no
+    // selector step (the farmer only had one loan) — one level up is search.
+    _resetForNextFarmer();
   }
 
   void _resetForNextFarmer() {
@@ -214,6 +274,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       return;
     }
 
+    // Payments never record more than what's actually owed — the excess is
+    // change the admin hands back at the BOD meeting, not additional debt
+    // reduction. Confirming the dialog acknowledges the overpayment; it does
+    // not change what gets written to farmer_loans.amount_paid.
+    var recordedAmount = amount;
     if (amount > loan.remainingBalance) {
       final confirmed = await AppDialog.show<bool>(
         context: context,
@@ -224,6 +289,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         ),
       );
       if (confirmed != true) return;
+      recordedAmount = loan.remainingBalance;
     }
 
     setState(() => _isSubmitting = true);
@@ -231,21 +297,27 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
     try {
       if (_isOnline) {
-        await _repo.recordPayment(
+        final result = await _repo.recordPayment(
           loanId: loan.id,
-          amount: amount,
+          amount: recordedAmount,
           paymentDate: _paymentDate,
           notes: notes,
         );
-        _onPaymentRecorded(farmer, amount, loan, synced: true);
+        _onPaymentRecorded(
+          farmer,
+          recordedAmount,
+          loan,
+          synced: true,
+          confirmedFullyPaid: result.isFullyPaid,
+        );
       } else {
         await HiveService.savePendingLoanPayment({
           'loanId': loan.id,
-          'amount': amount,
+          'amount': recordedAmount,
           'paymentDate': _paymentDate.toIso8601String(),
           'notes': notes,
         });
-        _onPaymentRecorded(farmer, amount, loan, synced: false);
+        _onPaymentRecorded(farmer, recordedAmount, loan, synced: false);
       }
     } catch (_) {
       if (!mounted) return;
@@ -259,10 +331,16 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     double amount,
     AdminLoanSummary loan, {
     required bool synced,
+    bool? confirmedFullyPaid,
   }) {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
-    final fullyPaid = amount >= loan.remainingBalance;
+    // Online payments get the RPC's authoritative is_fully_paid. Offline-
+    // queued payments have no server round-trip yet at this point, so
+    // this stays an estimate against the last-known cached balance until
+    // sync confirms it — same limitation as before, now scoped to only
+    // the offline case instead of both.
+    final fullyPaid = confirmedFullyPaid ?? (amount >= loan.remainingBalance);
 
     setState(() {
       _isSubmitting = false;
@@ -304,20 +382,27 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Column(
-        children: [
-          _buildTopBar(context, l10n, cs),
-          if (!_isOnline) const OfflineBanner(),
-          Expanded(
-            child: _isLoadingData
-                ? const Center(child: CircularProgressIndicator())
-                : _selectedFarmer == null
-                    ? _buildSearchStep(context, l10n, cs, sagana)
-                    : _buildPaymentStep(context, l10n, cs, sagana),
-          ),
-        ],
+    return PopScope(
+      canPop: _backExitsScreen,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Column(
+          children: [
+            _buildTopBar(context, l10n, cs),
+            if (!_isOnline) const OfflineBanner(),
+            Expanded(
+              child: _isLoadingData
+                  ? const Center(child: CircularProgressIndicator())
+                  : _selectedFarmer == null
+                      ? _buildSearchStep(context, l10n, cs, sagana)
+                      : _buildPaymentStep(context, l10n, cs, sagana),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -338,22 +423,17 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             children: [
               IconButton(
                 icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
+                onPressed: _handleBack,
               ),
               Expanded(
                 child: Text(
-                  l10n.paymentTitle,
+                  _selectedFarmer != null
+                      ? l10n.paymentContextualTitle(_selectedFarmer!.fullName)
+                      : l10n.paymentTitle,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
                 ),
               ),
-              if (_selectedFarmer != null && !_directLoanMode)
-                TextButton(
-                  onPressed: _resetForNextFarmer,
-                  child: Text(
-                    l10n.paymentSwitchFarmer,
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
-                  ),
-                ),
             ],
           ),
         ),
@@ -369,9 +449,10 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
+    final roster = _searchableFarmers;
     final filtered = _searchQuery.isEmpty
-        ? _farmerRoster
-        : _farmerRoster
+        ? roster
+        : roster
             .where((f) =>
                 f.fullName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
                 f.memberId.toLowerCase().contains(_searchQuery.toLowerCase()))
@@ -388,25 +469,16 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             AppConstants.spacingSafeH,
             AppConstants.spacingSm,
           ),
-          child: TextField(
-            controller: _searchController,
-            autofocus: true,
-            onChanged: (v) => setState(() => _searchQuery = v),
-            decoration: InputDecoration(
-              hintText: l10n.paymentSearchHint,
-              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                    )
-                  : null,
-            ),
-            style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.issueLoanSelectFarmer,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+              ),
+              const SizedBox(height: AppConstants.spacingSm),
+              _buildSearchField(context, l10n, cs),
+            ],
           ),
         ),
         if (_sessionPayments.isNotEmpty) _buildSessionSummary(context, l10n, cs, sagana),
@@ -437,20 +509,16 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                         color: sagana.cardBackground,
                         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
                       ),
                       child: Opacity(
                         opacity: hasActiveLoans ? 1.0 : 0.55,
                         child: Row(
                           children: [
-                            CircleAvatar(
+                            ProfileAvatar(
+                              photoUrl: farmer.profilePhotoUrl,
+                              displayName: farmer.fullName,
                               radius: 18,
-                              backgroundColor: hasActiveLoans
-                                  ? AppConstants.primaryContainer
-                                  : cs.outline.withValues(alpha: 0.3),
-                              child: Text(
-                                farmer.fullName.isNotEmpty ? farmer.fullName[0].toUpperCase() : '?',
-                                style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700),
-                              ),
                             ),
                             const SizedBox(width: AppConstants.spacingMd),
                             Expanded(
@@ -492,6 +560,29 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchField(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+    return TextField(
+      controller: _searchController,
+      autofocus: true,
+      onChanged: (v) => setState(() => _searchQuery = v),
+      decoration: InputDecoration(
+        hintText: l10n.paymentSearchHint,
+        hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+        prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
+        suffixIcon: _searchQuery.isNotEmpty
+            ? IconButton(
+                icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+              )
+            : null,
+      ),
+      style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
     );
   }
 
@@ -563,7 +654,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         AppConstants.spacingSafeH,
         AppConstants.spacingGutter,
         AppConstants.spacingSafeH,
-        32,
+        AppConstants.spacingSafeH,
       ),
       children: [
         _buildFarmerCard(context, l10n, cs, sagana),
@@ -591,16 +682,14 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          ProfileAvatar(
+            photoUrl: farmer.profilePhotoUrl,
+            displayName: farmer.fullName,
             radius: 22,
-            backgroundColor: AppConstants.primaryContainer,
-            child: Text(
-              farmer.fullName.isNotEmpty ? farmer.fullName[0].toUpperCase() : '?',
-              style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-            ),
           ),
           const SizedBox(width: AppConstants.spacingMd),
           Expanded(
@@ -640,16 +729,6 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
           ),
-          const SizedBox(height: AppConstants.spacingMd),
-          TextButton.icon(
-            onPressed: _resetForNextFarmer,
-            icon: const Icon(Icons.arrow_back_rounded, size: 16),
-            label: Text(
-              l10n.paymentSwitchFarmer,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            style: TextButton.styleFrom(foregroundColor: AppConstants.primaryGreen),
-          ),
         ],
       ),
     );
@@ -682,6 +761,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     border: Border.all(
                       color: loan.isOverdue ? AppConstants.errorRed.withValues(alpha: 0.4) : cs.outline.withValues(alpha: 0.10),
                     ),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
                   ),
                   child: Row(
                     children: [
@@ -769,58 +849,77 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           ),
         ),
         const SizedBox(height: AppConstants.spacingSectionV),
-        Text(l10n.paymentAmountReceived, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _amountController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-          onChanged: (_) => setState(() {}),
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: cs.onSurface),
-          decoration: const InputDecoration(prefixText: '₱ '),
-        ),
-        if (isOverpayment) ...[
-          const SizedBox(height: AppConstants.spacingSm),
-          Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, size: 16, color: AppConstants.warningAmber),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  l10n.paymentOverpaymentNotice,
-                  style: GoogleFonts.inter(fontSize: 11, color: AppConstants.warningAmber),
-                ),
-              ),
-            ],
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppConstants.spacingGutter),
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
           ),
-        ],
-        const SizedBox(height: AppConstants.spacingMd),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(l10n.paymentRemainingAfter, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
-            Text(
-              currency.format(remainingAfter),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppConstants.spacingSectionV),
-        GestureDetector(
-          onTap: _pickPaymentDate,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(l10n.paymentDate, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+              Text(
+                l10n.paymentDetailsSectionTitle,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+              ),
+              const SizedBox(height: AppConstants.spacingMd),
+              Text(l10n.paymentAmountReceived, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                onChanged: (_) => setState(() {}),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: cs.onSurface),
+                decoration: const InputDecoration(prefixText: '₱ '),
+              ),
+              if (isOverpayment) ...[
+                const SizedBox(height: AppConstants.spacingSm),
+                Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, size: 16, color: AppConstants.warningAmber),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        l10n.paymentOverpaymentNotice,
+                        style: GoogleFonts.inter(fontSize: 11, color: AppConstants.warningAmber),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: AppConstants.spacingMd),
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Text(l10n.paymentRemainingAfter, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
                   Text(
-                    DateFormat('MMMM d, yyyy').format(_paymentDate),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                    currency.format(remainingAfter),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
                   ),
-                  const SizedBox(width: 6),
-                  Icon(Icons.calendar_today_rounded, size: 14, color: cs.onSurfaceVariant),
                 ],
+              ),
+              Divider(height: AppConstants.spacingSectionV * 1.5, color: cs.outline.withValues(alpha: 0.10)),
+              GestureDetector(
+                onTap: _pickPaymentDate,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(l10n.paymentDate, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                    Row(
+                      children: [
+                        Text(
+                          DateFormat('MMMM d, yyyy').format(_paymentDate),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.calendar_today_rounded, size: 14, color: cs.onSurfaceVariant),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -71,7 +71,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
           context.push(AppRoutes.farmerDetails, extra: item.referenceId);
         }
       case AdminActivityType.order:
-        context.go(AppRoutes.pendingApprovals);
+        context.push(AppRoutes.pendingApprovals);
       case AdminActivityType.price:
         context.push(AppRoutes.priceManagement);
       case AdminActivityType.inventory:

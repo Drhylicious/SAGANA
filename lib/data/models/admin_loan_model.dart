@@ -71,6 +71,10 @@ class AdminLoanSummary {
   final List<String> itemNames;
   final String? notes;
   final DateTime? nextPaymentDate;
+  // Set only when this loan came from converting a failed program
+  // distribution (Phase 8 / Issue 3's Loan/ROI workflow) — null for every
+  // ordinary admin-issued loan.
+  final String? sourceProgramName;
 
   const AdminLoanSummary({
     required this.id,
@@ -86,6 +90,7 @@ class AdminLoanSummary {
     required this.itemNames,
     this.notes,
     this.nextPaymentDate,
+    this.sourceProgramName,
   });
 
   double get remainingBalance =>
@@ -97,6 +102,7 @@ class AdminLoanSummary {
   bool get isOverdue => status == 'overdue';
   bool get isActive => status == 'active';
   bool get isPaid => status == 'paid';
+  bool get isFromProgramDistribution => sourceProgramName != null;
 
   factory AdminLoanSummary.fromRow(
     Map<String, dynamic> row, {
@@ -104,6 +110,7 @@ class AdminLoanSummary {
     required String memberId,
     required List<String> itemNames,
   }) {
+    final program = row['cooperative_programs'] as Map<String, dynamic>?;
     return AdminLoanSummary(
       id: row['id'] as String,
       farmerId: row['farmer_id'] as String,
@@ -120,6 +127,7 @@ class AdminLoanSummary {
       nextPaymentDate: row['next_payment_date'] != null
           ? DateTime.tryParse(row['next_payment_date'] as String)
           : null,
+      sourceProgramName: program?['program_name'] as String?,
     );
   }
 
@@ -140,6 +148,7 @@ class AdminLoanSummary {
       nextPaymentDate: map['nextPaymentDate'] != null
           ? DateTime.tryParse(map['nextPaymentDate'] as String)
           : null,
+      sourceProgramName: map['sourceProgramName'] as String?,
     );
   }
 
@@ -157,6 +166,7 @@ class AdminLoanSummary {
         'itemNames': itemNames,
         'notes': notes,
         'nextPaymentDate': nextPaymentDate?.toIso8601String(),
+        'sourceProgramName': sourceProgramName,
       };
 }
 
@@ -164,11 +174,13 @@ class FarmerPickerResult {
   final String id;
   final String fullName;
   final String memberId;
+  final String? profilePhotoUrl;
 
   const FarmerPickerResult({
     required this.id,
     required this.fullName,
     required this.memberId,
+    this.profilePhotoUrl,
   });
 
   factory FarmerPickerResult.fromMap(Map<String, dynamic> map) {
@@ -176,6 +188,7 @@ class FarmerPickerResult {
       id: map['id'] as String,
       fullName: map['fullName'] as String,
       memberId: map['memberId'] as String,
+      profilePhotoUrl: map['profilePhotoUrl'] as String?,
     );
   }
 
@@ -183,6 +196,7 @@ class FarmerPickerResult {
         'id': id,
         'fullName': fullName,
         'memberId': memberId,
+        'profilePhotoUrl': profilePhotoUrl,
       };
 }
 
@@ -190,10 +204,27 @@ class FarmerLoanStanding {
   final double outstandingBalance;
   final bool hasOverdueLoan;
 
+  /// Farmer's current capital contribution total (member_capital_shares
+  /// .total_contribution) and the policy minimum required to borrow.
+  /// [meetsCapitalEligibility] is the UI gate; issue_loan() enforces the
+  /// same rule server-side.
+  final double capitalContribution;
+  final double minimumCapitalRequired;
+
   const FarmerLoanStanding({
     required this.outstandingBalance,
     required this.hasOverdueLoan,
+    this.capitalContribution = 0,
+    this.minimumCapitalRequired = 0,
   });
+
+  bool get meetsCapitalEligibility =>
+      capitalContribution >= minimumCapitalRequired;
+
+  double get capitalShortfall =>
+      (minimumCapitalRequired - capitalContribution)
+          .clamp(0, double.infinity)
+          .toDouble();
 }
 
 class AdminLoanDetail {
@@ -256,5 +287,15 @@ class IssuedLoanResult {
   const IssuedLoanResult({
     required this.loanId,
     required this.referenceNo,
+  });
+}
+
+class LoanPaymentResult {
+  final bool isFullyPaid;
+  final double runningBalance;
+
+  const LoanPaymentResult({
+    required this.isFullyPaid,
+    required this.runningBalance,
   });
 }

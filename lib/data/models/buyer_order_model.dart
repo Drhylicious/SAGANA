@@ -37,8 +37,12 @@ class BuyerOrderModel {
     this.category,
   });
 
-  String get displayName =>
-      variety != null && variety!.isNotEmpty ? '$cropName ($variety)' : cropName;
+  String get displayName {
+    final v = variety?.trim();
+    if (v == null || v.isEmpty) return cropName;
+    if (cropName.toLowerCase().contains(v.toLowerCase())) return cropName;
+    return '$cropName ($v)';
+  }
 
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';

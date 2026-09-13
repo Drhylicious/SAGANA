@@ -7,9 +7,12 @@ import '../../../data/repositories/listing_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/connectivity_service.dart';
 
 class ListingSuccessScreen extends StatefulWidget {
-  const ListingSuccessScreen({super.key});
+  final Object? initialArg;
+
+  const ListingSuccessScreen({super.key, this.initialArg});
 
   @override
   State<ListingSuccessScreen> createState() => _ListingSuccessScreenState();
@@ -20,7 +23,6 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   final _repo = ListingRepository();
 
   MarketplaceListingModel? _listing;
-  bool _argsRead = false;
   bool _isWithdrawing = false;
 
   late final AnimationController _animController;
@@ -28,6 +30,7 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   late final Animation<double> _cardAnim;
   late final Animation<double> _bannerAnim;
   late final Animation<double> _footerAnim;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -36,6 +39,15 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
     ));
+
+    // Read via the constructor — GoRouter's extra is delivered here, not
+    // through ModalRoute.settings.arguments (that mechanism requires raw
+    // Navigator.push(..., settings: RouteSettings(...)), which is not how
+    // this screen is reached now that create_listing_screen.dart navigates
+    // here via context.pushReplacementRoute).
+    if (widget.initialArg is MarketplaceListingModel) {
+      _listing = widget.initialArg as MarketplaceListingModel;
+    }
 
     _animController = AnimationController(
       vsync: this,
@@ -60,18 +72,10 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     );
 
     _animController.forward();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_argsRead) {
-      _argsRead = true;
-      final arg = ModalRoute.of(context)?.settings.arguments;
-      if (arg is MarketplaceListingModel) {
-        setState(() => _listing = arg);
-      }
-    }
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
   }
 
   @override
@@ -84,18 +88,27 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
       (_listing?.volumeKg ?? 0) * (_listing?.pricePerKg ?? 0);
 
   void _viewMyListings() {
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.myListings,
-      (route) => route.settings.name == AppRoutes.farmerDashboard || route.isFirst,
-    );
+    // Use GoRouter helper to navigate (replaces Navigator.named usage).
+    context.goTab(AppRoutes.myListings);
   }
 
   void _createAnother() {
-    Navigator.of(context).pushReplacementNamed(AppRoutes.createListing);
+    context.pushReplacementRoute(AppRoutes.createListing);
   }
 
   void _confirmWithdraw() {
     if (_listing == null) return;
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "You're offline — withdrawing this listing requires an internet connection.",
+          ),
+          backgroundColor: AppConstants.warningAmber,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -150,6 +163,8 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
           Column(
             children: [
               const SizedBox(height: 64),
+              if (!_isOnline)
+                const OfflineBanner(message: "You're offline — withdrawing or other listing actions require an internet connection."),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 220),
@@ -262,7 +277,7 @@ class _SummaryCard extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 16)],
+        boxShadow: [BoxShadow(color: AppConstants.infoBlueFg.withValues(alpha: 0.05), blurRadius: 16)],
       ),
       child: Column(
         children: [
@@ -304,7 +319,7 @@ class _SummaryCard extends StatelessWidget {
             child: Container(
               width: double.infinity,
               height: 160,
-              color: const Color(0xFFDBF1FE),
+              color: AppConstants.infoBlueBg,
               child: listing.photoUrl != null
                   ? Image.network(
                       listing.photoUrl!,

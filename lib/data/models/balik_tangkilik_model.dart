@@ -16,6 +16,10 @@ class MemberDistributionRow {
   final double? actualInterest;
   final String status; // pending | paid | not_yet_computed
   final DateTime? actualPayoutDate;
+  final double palaySalesKg;
+  final double palaySalesAmount;
+  final double peanutSalesKg;
+  final double peanutSalesAmount;
 
   const MemberDistributionRow({
     required this.farmerId,
@@ -31,6 +35,10 @@ class MemberDistributionRow {
     this.actualInterest,
     required this.status,
     this.actualPayoutDate,
+    this.palaySalesKg = 0,
+    this.palaySalesAmount = 0,
+    this.peanutSalesKg = 0,
+    this.peanutSalesAmount = 0,
   });
 
   double get estimatedTotal => estimatedBalikTangkilik + estimatedInterest;
@@ -41,6 +49,7 @@ class MemberDistributionRow {
 class BalikTangkilikYearSummary {
   final int year;
   final double totalCoopSales;
+  final double liveTotalCoopSales;
   final double distributableSurplus;
   final double interestRatePercent;
   final bool afsFinalized;
@@ -50,6 +59,7 @@ class BalikTangkilikYearSummary {
   const BalikTangkilikYearSummary({
     required this.year,
     required this.totalCoopSales,
+    required this.liveTotalCoopSales,
     required this.distributableSurplus,
     required this.interestRatePercent,
     required this.afsFinalized,
@@ -65,9 +75,28 @@ class BalikTangkilikYearSummary {
 
   int get contributingMemberCount => rows.where((r) => r.totalSalesAmount > 0).length;
 
+  /// Percent difference between the admin-entered totalCoopSales and the
+  /// live sum of individual member sales transactions. Null when there's
+  /// no live sales data yet to compare against — avoids a misleading
+  /// ±100% reading against a zero baseline (same reasoning as
+  /// ReportDeltaBadge's zero-previous guard elsewhere in Reports).
+  double? get salesDivergencePercent {
+    if (liveTotalCoopSales == 0) return null;
+    return ((totalCoopSales - liveTotalCoopSales) / liveTotalCoopSales) * 100;
+  }
+
+  /// True when the entered total diverges from the live sales sum by
+  /// more than 5%. A threshold, not an error — an audited figure is
+  /// expected to differ somewhat from a raw transaction sum — but a gap
+  /// this large is worth a visible check before real money is
+  /// distributed on it.
+  bool get hasSignificantSalesDivergence =>
+      salesDivergencePercent != null && salesDivergencePercent!.abs() > 5;
+
   factory BalikTangkilikYearSummary.empty(int year) => BalikTangkilikYearSummary(
         year: year,
         totalCoopSales: 0,
+        liveTotalCoopSales: 0,
         distributableSurplus: 0,
         interestRatePercent: 7,
         afsFinalized: false,

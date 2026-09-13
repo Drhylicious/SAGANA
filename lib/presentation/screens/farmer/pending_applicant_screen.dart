@@ -4,14 +4,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
+import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_dropdown_field.dart';
+import '../../widgets/shared_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PendingApplicantScreen — Shell with 4 tabs
@@ -30,12 +34,21 @@ class PendingApplicantScreen extends StatefulWidget {
 class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
   late int _currentTab;
   final _client = Supabase.instance.client;
+  final _profileRepo = FarmerProfileRepository();
   RealtimeChannel? _statusChannel;
 
-  // Basic profile data loaded once
+  // Applicant profile + lifecycle state
   String  _fullName  = '';
   String  _username  = '';
   bool    _isOnline  = true;
+  bool    _isLoading = true;
+  bool    _isBusy    = false;
+
+  // 'draft' | 'pending' | 'rejected' | 'active'
+  String  _status               = 'draft';
+  bool    _pendingAcknowledgement = false;
+  int     _applicationAttempts   = 0;
+  String? _rejectionReason;
 
   @override
   void initState() {
@@ -46,8 +59,8 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
-    _loadBasicProfile();
-    _subscribeToApproval();
+    _loadState();
+    _subscribeToStatus();
   }
 
   @override
@@ -56,28 +69,44 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
     super.dispose();
   }
 
-  Future<void> _loadBasicProfile() async {
+  Future<void> _loadState() async {
     try {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return;
-      final row = await _client
+      final info = await _client
           .from('user_information')
           .select('full_name, username')
           .eq('user_id', userId)
           .maybeSingle();
+      final role = await _client
+          .from('user_roles')
+          .select('status, pending_acknowledgement, application_attempts, '
+              'rejection_reason')
+          .eq('user_id', userId)
+          .maybeSingle();
       if (!mounted) return;
       setState(() {
-        _fullName = row?['full_name'] as String? ?? 'Applicant';
-        _username = row?['username'] as String? ?? '';
+        _fullName = info?['full_name'] as String? ?? 'Applicant';
+        _username = info?['username'] as String? ?? '';
+        _status = role?['status'] as String? ?? 'draft';
+        _pendingAcknowledgement =
+            role?['pending_acknowledgement'] as bool? ?? false;
+        _applicationAttempts =
+            (role?['application_attempts'] as num?)?.toInt() ?? 0;
+        _rejectionReason = role?['rejection_reason'] as String?;
+        _isLoading = false;
       });
-    } catch (_) {}
+      await HiveService.saveMemberStatus(_status);
+      await HiveService.savePendingAcknowledgement(_pendingAcknowledgement);
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  // Realtime subscription — fires the moment admin approves the account
-  void _subscribeToApproval() {
+  // Realtime — reload state whenever the admin changes anything on the row.
+  void _subscribeToStatus() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
-
     _statusChannel = _client
         .channel('pending_status_$userId')
         .onPostgresChanges(
@@ -89,85 +118,61 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
             column: 'user_id',
             value: userId,
           ),
-          callback: (payload) async {
-            final newStatus = payload.newRecord['status'] as String?;
-            if (newStatus == 'active' && mounted) {
-              // Update Hive cache so the router guard lifts
-              await HiveService.saveMemberStatus('active');
-              if (!mounted) return;
-              _showApprovalCelebration();
-            }
+          callback: (_) {
+            if (mounted) _loadState();
           },
         )
         .subscribe();
   }
 
-  Future<void> _showApprovalCelebration() async {
-    await showDialog(
+  Future<void> _submitApplication() async {
+    setState(() => _isBusy = true);
+    try {
+      final attempt = await AuthService.submitApplication();
+      if (!mounted) return;
+      _toast(AppLocalizations.of(context).pendingSubmittedToast(attempt),
+          ok: true);
+      await _loadState();
+    } catch (e) {
+      if (!mounted) return;
+      _toast(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _acknowledge() async {
+    setState(() => _isBusy = true);
+    try {
+      await AuthService.acknowledgeMembership();
+      if (!mounted) return;
+      context.go(AppRoutes.farmerDashboard);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isBusy = false);
+      _toast(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _editDetails() async {
+    final saved = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        final cs = Theme.of(context).colorScheme;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 80, height: 80,
-                decoration: BoxDecoration(
-                  color: AppConstants.successGreen.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.celebration_rounded,
-                  size: 44,
-                  color: AppConstants.successGreen,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'You\'re In! 🌾',
-                style: GoogleFonts.poppins(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Congratulations, $_fullName!\n\n'
-                'Your membership with the SP3 Agriculture '
-                'Cooperative has been officially approved. '
-                'You now have full access to all farmer features.',
-                style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: cs.onSurfaceVariant,
-                    height: 1.6),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // Navigate directly to farmer dashboard — no re-login needed
-                    context.go(AppRoutes.farmerDashboard);
-                  },
-                  child: Text('Go to My Dashboard',
-                      style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) => _ApplicantDetailsSheet(repo: _profileRepo),
     );
+    if (saved == true) {
+      if (!mounted) return;
+      _toast(AppLocalizations.of(context).pendingDetailsUpdatedToast, ok: true);
+      _loadState();
+    }
+  }
+
+  void _toast(String msg, {bool ok = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
+      backgroundColor: ok ? AppConstants.successGreen : AppConstants.charcoal,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   void _onTabTap(int index) {
@@ -188,8 +193,18 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
 
     final screens = [
       _PendingHomeTab(
-          fullName: _fullName, username: _username,
-          isOnline: _isOnline),
+        fullName: _fullName,
+        username: _username,
+        isOnline: _isOnline,
+        status: _status,
+        pendingAcknowledgement: _pendingAcknowledgement,
+        applicationAttempts: _applicationAttempts,
+        rejectionReason: _rejectionReason,
+        isBusy: _isBusy,
+        onSubmit: _submitApplication,
+        onAcknowledge: _acknowledge,
+        onEditDetails: _editDetails,
+      ),
       const _PendingNotificationsTab(),
       const _PendingHelpTab(),
       _PendingProfileTab(fullName: _fullName, username: _username),
@@ -197,7 +212,11 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: screens[_currentTab],
+      body: _isLoading && _currentTab == 0
+          ? const Center(
+              child: CircularProgressIndicator(
+                  color: AppConstants.primaryGreen, strokeWidth: 2))
+          : screens[_currentTab],
       bottomNavigationBar: _PendingBottomNav(
         currentIndex: _currentTab,
         onTap: _onTabTap,
@@ -225,11 +244,12 @@ class _PendingBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_rounded,         Icons.home_outlined,           'Home'),
-      (Icons.notifications_rounded,Icons.notifications_outlined,  'Updates'),
-      (Icons.help_rounded,         Icons.help_outline_rounded,    'Help'),
-      (Icons.person_rounded,       Icons.person_outlined,         'Profile'),
+    final l10n = AppLocalizations.of(context);
+    final items = [
+      (Icons.home_rounded,         Icons.home_outlined,           l10n.pendingNavHome),
+      (Icons.notifications_rounded,Icons.notifications_outlined,  l10n.pendingNavUpdates),
+      (Icons.help_rounded,         Icons.help_outline_rounded,    l10n.pendingNavHelp),
+      (Icons.person_rounded,       Icons.person_outlined,         l10n.pendingNavProfile),
     ];
 
     return ClipRect(
@@ -312,17 +332,39 @@ class _PendingHomeTab extends StatelessWidget {
   final String fullName;
   final String username;
   final bool isOnline;
+  final String status; // draft | pending | rejected | active
+  final bool pendingAcknowledgement;
+  final int applicationAttempts;
+  final String? rejectionReason;
+  final bool isBusy;
+  final Future<void> Function() onSubmit;
+  final Future<void> Function() onAcknowledge;
+  final Future<void> Function() onEditDetails;
 
   const _PendingHomeTab({
     required this.fullName,
     required this.username,
     required this.isOnline,
+    required this.status,
+    required this.pendingAcknowledgement,
+    required this.applicationAttempts,
+    required this.rejectionReason,
+    required this.isBusy,
+    required this.onSubmit,
+    required this.onAcknowledge,
+    required this.onEditDetails,
   });
+
+  bool get _isApproved => status == 'active' && pendingAcknowledgement;
+  bool get _isRejected => status == 'rejected';
+  bool get _isDraft => status == 'draft';
+  int  get _attemptsLeft => (3 - applicationAttempts).clamp(0, 3);
 
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs     = Theme.of(context).colorScheme;
+    final l10n   = AppLocalizations.of(context);
 
     return CustomScrollView(
       slivers: [
@@ -330,7 +372,7 @@ class _PendingHomeTab extends StatelessWidget {
         SliverPersistentHeader(
           pinned: true,
           delegate: _SimpleTopBar(
-            title: 'SP3 Cooperative',
+            title: l10n.pendingHomeTitle,
             sagana: sagana,
             cs: cs,
           ),
@@ -382,12 +424,12 @@ class _PendingHomeTab extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Welcome, ${fullName.split(' ').first}!',
+                            Text(l10n.pendingWelcome(fullName.split(' ').first),
                                 style: GoogleFonts.poppins(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white)),
-                            Text('SP3 Agriculture Cooperative',
+                            Text(l10n.cooperativeName,
                                 style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: Colors.white
@@ -398,10 +440,13 @@ class _PendingHomeTab extends StatelessWidget {
                     ]),
                     const SizedBox(height: 16),
                     Text(
-                      'Your application has been received and is '
-                      'currently being reviewed by the cooperative '
-                      'administration. You\'ll be notified here '
-                      'once a decision has been made.',
+                      _isApproved
+                          ? l10n.pendingBannerApproved
+                          : _isRejected
+                              ? l10n.pendingBannerRejected
+                              : _isDraft
+                                  ? l10n.pendingBannerDraft
+                                  : l10n.pendingBannerPending,
                       style: GoogleFonts.inter(
                           fontSize: 13,
                           color: Colors.white.withValues(alpha: 0.90),
@@ -412,147 +457,14 @@ class _PendingHomeTab extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Application status card
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: sagana.cardBackground,
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusLg),
-                  border: Border.all(
-                      color: cs.outline.withValues(alpha: 0.10)),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Application Status',
-                            style: GoogleFonts.poppins(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: cs.onSurface)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppConstants.warningAmber
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(
-                                AppConstants.radiusFull),
-                          ),
-                          child: Text(
-                            'PENDING REVIEW',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: AppConstants.warningAmber,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (username.isNotEmpty) ...[
-                      Text(
-                        'Your username: ${username.toUpperCase()}',
-                        style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: cs.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-                    // Progress steps
-                    _ProgressStep(
-                      icon: Icons.check_circle_rounded,
-                      label: 'Account Created',
-                      sublabel: 'Your account is set up',
-                      isComplete: true,
-                      isActive: false,
-                      cs: cs,
-                    ),
-                    _ProgressConnector(isComplete: true, cs: cs),
-                    _ProgressStep(
-                      icon: Icons.hourglass_top_rounded,
-                      label: 'Under Review',
-                      sublabel: 'SP3 Admin is reviewing your application',
-                      isComplete: false,
-                      isActive: true,
-                      cs: cs,
-                    ),
-                    _ProgressConnector(isComplete: false, cs: cs),
-                    _ProgressStep(
-                      icon: Icons.verified_rounded,
-                      label: 'Membership Approved',
-                      sublabel: 'You become an official SP3 member',
-                      isComplete: false,
-                      isActive: false,
-                      cs: cs,
-                    ),
-                    _ProgressConnector(isComplete: false, cs: cs),
-                    _ProgressStep(
-                      icon: Icons.agriculture_rounded,
-                      label: 'Farmer Access Activated',
-                      sublabel: 'Full access to cooperative features',
-                      isComplete: false,
-                      isActive: false,
-                      cs: cs,
-                    ),
-                  ],
-                ),
-              ),
+              // Status-driven action card (Issue 5)
+              _statusCard(context, cs, sagana),
               const SizedBox(height: 20),
 
-              // Online/realtime notice
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.06),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(
-                      color: cs.primary.withValues(alpha: 0.15)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      isOnline
-                          ? Icons.wifi_rounded
-                          : Icons.wifi_off_rounded,
-                      size: 18,
-                      color: isOnline
-                          ? AppConstants.successGreen
-                          : AppConstants.warningAmber,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        isOnline
-                            ? 'You\'re connected. This screen will '
-                              'automatically update the moment your '
-                              'membership is approved — no need to '
-                              'refresh or re-login.'
-                            : 'You\'re offline. Connect to the internet '
-                              'to receive your approval notification '
-                              'in real time.',
-                        style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: cs.onSurface,
-                            height: 1.5),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+              if (!isOnline) ...[
+                OfflineBanner(message: l10n.pendingOfflineBanner),
+                const SizedBox(height: 20),
+              ],
 
               // Cooperative contact info
               _ContactCard(cs: cs, sagana: sagana),
@@ -560,6 +472,242 @@ class _PendingHomeTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  // ── Status-driven action card ──────────────────────────────────────────────
+
+  Widget _statusCard(BuildContext context, ColorScheme cs, SaganaColors sagana) {
+    final l10n = AppLocalizations.of(context);
+    final Color accent;
+    final String badge;
+    if (_isApproved) {
+      accent = AppConstants.successGreen;
+      badge = l10n.pendingBadgeApproved;
+    } else if (_isRejected) {
+      accent = AppConstants.errorRed;
+      badge = l10n.pendingBadgeRejected;
+    } else if (_isDraft) {
+      accent = AppConstants.buyerBlue;
+      badge = l10n.pendingBadgeDraft;
+    } else {
+      accent = AppConstants.warningAmber;
+      badge = l10n.pendingBadgePending;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(l10n.pendingApplicationStatusTitle,
+                  style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface)),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius:
+                      BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                child: Text(badge,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                      letterSpacing: 0.5,
+                    )),
+              ),
+            ],
+          ),
+          if (username.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(l10n.pendingYourUsername(username.toUpperCase()),
+                style: GoogleFonts.inter(
+                    fontSize: 12, color: cs.onSurfaceVariant)),
+          ],
+          const SizedBox(height: 14),
+
+          if (_isApproved) ...[
+            Text(
+              l10n.pendingApprovedMessage(fullName.split(' ').first),
+              style: GoogleFonts.inter(
+                  fontSize: 13, color: cs.onSurfaceVariant, height: 1.6),
+            ),
+            const SizedBox(height: 16),
+            _fullButton(
+              label: l10n.pendingContinueButton,
+              icon: Icons.arrow_forward_rounded,
+              color: AppConstants.successGreen,
+              busy: isBusy,
+              onTap: onAcknowledge,
+            ),
+          ] else if (_isRejected) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppConstants.errorRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                border: Border.all(
+                    color: AppConstants.errorRed.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.pendingRejectedReasonTitle,
+                      style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: AppConstants.errorRed)),
+                  const SizedBox(height: 4),
+                  Text(
+                    rejectionReason?.trim().isNotEmpty == true
+                        ? rejectionReason!.trim()
+                        : l10n.pendingNoReasonProvided,
+                    style: GoogleFonts.inter(
+                        fontSize: 13, color: cs.onSurface, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _attemptsLeft > 0
+                  ? l10n.pendingAttemptsRemaining(_attemptsLeft)
+                  : l10n.pendingAttemptsExhausted,
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: cs.onSurfaceVariant, height: 1.5),
+            ),
+            const SizedBox(height: 14),
+            _outlineButton(
+              label: l10n.pendingReviewEditButton,
+              icon: Icons.edit_outlined,
+              onTap: onEditDetails,
+            ),
+            const SizedBox(height: 10),
+            _fullButton(
+              label: l10n.pendingResubmitButton,
+              icon: Icons.send_rounded,
+              color: AppConstants.primaryGreen,
+              busy: isBusy,
+              onTap: _attemptsLeft > 0 ? onSubmit : null,
+            ),
+          ] else if (_isDraft) ...[
+            Text(
+              l10n.pendingDraftMessage,
+              style: GoogleFonts.inter(
+                  fontSize: 13, color: cs.onSurfaceVariant, height: 1.6),
+            ),
+            const SizedBox(height: 16),
+            _outlineButton(
+              label: l10n.pendingReviewEditButton,
+              icon: Icons.edit_outlined,
+              onTap: onEditDetails,
+            ),
+            const SizedBox(height: 10),
+            _fullButton(
+              label: l10n.pendingSubmitButton,
+              icon: Icons.send_rounded,
+              color: AppConstants.primaryGreen,
+              busy: isBusy,
+              onTap: onSubmit,
+            ),
+          ] else ...[
+            // pending — progress tracker
+            _ProgressStep(
+              icon: Icons.check_circle_rounded,
+              label: l10n.pendingStepSubmitted,
+              sublabel: l10n.pendingStepSubmittedSub,
+              isComplete: true,
+              isActive: false,
+              cs: cs,
+            ),
+            _ProgressConnector(isComplete: true, cs: cs),
+            _ProgressStep(
+              icon: Icons.hourglass_top_rounded,
+              label: l10n.pendingStepReview,
+              sublabel: l10n.pendingStepReviewSub,
+              isComplete: false,
+              isActive: true,
+              cs: cs,
+            ),
+            _ProgressConnector(isComplete: false, cs: cs),
+            _ProgressStep(
+              icon: Icons.verified_rounded,
+              label: l10n.pendingStepDecision,
+              sublabel: l10n.pendingStepDecisionSub,
+              isComplete: false,
+              isActive: false,
+              cs: cs,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _fullButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool busy,
+    required Future<void> Function()? onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton.icon(
+        onPressed: (busy || onTap == null) ? null : () => onTap(),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+        ),
+        icon: busy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              )
+            : Icon(icon, size: 18),
+        label: Text(label,
+            style: GoogleFonts.poppins(
+                fontSize: 14, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+
+  Widget _outlineButton({
+    required String label,
+    required IconData icon,
+    required Future<void> Function() onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: () => onTap(),
+        icon: Icon(icon, size: 18),
+        label: Text(label,
+            style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w600)),
+      ),
     );
   }
 }
@@ -653,6 +801,7 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -663,7 +812,7 @@ class _ContactCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('SP3 Agriculture Cooperative',
+          Text(l10n.cooperativeName,
               style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -671,17 +820,17 @@ class _ContactCard extends StatelessWidget {
           const SizedBox(height: 10),
           _ContactRow(
               icon: Icons.location_on_outlined,
-              text: 'Barangay Payanas, Torrijos, Marinduque',
+              text: l10n.pendingContactAddress,
               cs: cs),
           const SizedBox(height: 6),
           _ContactRow(
               icon: Icons.calendar_month_outlined,
-              text: 'BOD Meetings: Every 1st Saturday of the month',
+              text: l10n.pendingContactBod,
               cs: cs),
           const SizedBox(height: 6),
           _ContactRow(
               icon: Icons.people_alt_outlined,
-              text: '52 registered cooperative members',
+              text: l10n.pendingContactMembers,
               cs: cs),
         ],
       ),
@@ -755,11 +904,13 @@ class _PendingNotificationsTabState
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs     = Theme.of(context).colorScheme;
+    final l10n   = AppLocalizations.of(context);
 
     return Column(
       children: [
         // Top bar
-        _SimpleTopBarWidget(title: 'Notifications', sagana: sagana, cs: cs),
+        _SimpleTopBarWidget(
+            title: l10n.pendingNotificationsTitle, sagana: sagana, cs: cs),
 
         Expanded(
           child: _isLoading
@@ -779,14 +930,13 @@ class _PendingNotificationsTabState
                                 Icon(Icons.notifications_none_rounded,
                                     size: 48, color: cs.onSurfaceVariant),
                                 const SizedBox(height: 12),
-                                Text('No notifications yet',
+                                Text(l10n.pendingNoNotifications,
                                     style: GoogleFonts.inter(
                                         fontSize: 14,
                                         color: cs.onSurfaceVariant)),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'You\'ll be notified here when your\n'
-                                  'membership application is updated.',
+                                  l10n.pendingNoNotificationsSub,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.inter(
                                       fontSize: 12,
@@ -864,58 +1014,24 @@ class _PendingNotificationsTabState
 class _PendingHelpTab extends StatelessWidget {
   const _PendingHelpTab();
 
-  static const _faqs = [
-    (
-      'Why can\'t I access Harvest, Loans, or Marketplace?',
-      'These features are exclusive to official SP3 cooperative members. '
-      'They will become available automatically once an Administrator '
-      'approves your membership application.',
-    ),
-    (
-      'How long does the approval process take?',
-      'The cooperative administrator reviews applications at their '
-      'earliest convenience, usually during or after BOD meetings '
-      'held on the first Saturday of every month. If your application '
-      'has been pending for more than one month, please contact the '
-      'cooperative office directly.',
-    ),
-    (
-      'Will I be notified when my application is approved?',
-      'Yes. You will receive an in-app notification the moment your '
-      'application is approved. This screen will also automatically '
-      'transition you to the full Farmer Dashboard — no need to log '
-      'out and log back in.',
-    ),
-    (
-      'What is the SP3 Agriculture Cooperative?',
-      'SP3 (Samahan ng mga Produktibong Pamilyang Pilipino sa Payanas) '
-      'is a CDA-registered agricultural cooperative located in Barangay '
-      'Payanas, Torrijos, Marinduque. It was established on February 1, '
-      '2017 and currently serves 52 member-farmers.',
-    ),
-    (
-      'What is my SAGANA username for?',
-      'Your SAGANA username is your permanent login identifier for this '
-      'application. Keep it safe and do not share it. If you were '
-      'recognized as an official SP3 member during registration, your '
-      'username follows the format SP3-XXXX.',
-    ),
-    (
-      'How do I contact the cooperative?',
-      'Visit the SP3 Cooperative office at Barangay Payanas, Torrijos, '
-      'Marinduque. BOD meetings are held every first Saturday of the month '
-      'and are open to applicants.',
-    ),
-  ];
+  List<(String, String)> _faqs(AppLocalizations l10n) => [
+        (l10n.pendingFaq1Q, l10n.pendingFaq1A),
+        (l10n.pendingFaq2Q, l10n.pendingFaq2A),
+        (l10n.pendingFaq3Q, l10n.pendingFaq3A),
+        (l10n.pendingFaq4Q, l10n.pendingFaq4A),
+        (l10n.pendingFaq5Q, l10n.pendingFaq5A),
+        (l10n.pendingFaq6Q, l10n.pendingFaq6A),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs     = Theme.of(context).colorScheme;
+    final l10n   = AppLocalizations.of(context);
 
     return Column(
       children: [
-        _SimpleTopBarWidget(title: 'Help & FAQ', sagana: sagana, cs: cs),
+        _SimpleTopBarWidget(title: l10n.pendingHelpTitle, sagana: sagana, cs: cs),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
@@ -936,9 +1052,7 @@ class _PendingHelpTab extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Your application is under review. '
-                        'Here are answers to common questions '
-                        'while you wait.',
+                        l10n.pendingHelpIntro,
                         style: GoogleFonts.inter(
                             fontSize: 12,
                             color: cs.onSurface,
@@ -949,7 +1063,7 @@ class _PendingHelpTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              ..._faqs.map((faq) => _FaqItem(
+              ..._faqs(l10n).map((faq) => _FaqItem(
                     question: faq.$1,
                     answer: faq.$2,
                     cs: cs,
@@ -1059,7 +1173,7 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
 
   String? _profilePhotoUrl;
   String? _phone;
-  String? _sitio;
+  String? _purok;
   bool    _isLoading = true;
 
   @override
@@ -1074,14 +1188,14 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
       if (userId == null) return;
       final row = await _client
           .from('user_information')
-          .select('full_name, phone_number, sitio, profile_photo_url')
+          .select('full_name, phone_number, purok, profile_photo_url')
           .eq('user_id', userId)
           .maybeSingle();
       if (!mounted) return;
       setState(() {
         _profilePhotoUrl = row?['profile_photo_url'] as String?;
         _phone           = row?['phone_number'] as String?;
-        _sitio           = row?['sitio'] as String?;
+        _purok           = row?['purok'] as String?;
         _isLoading       = false;
       });
     } catch (_) {
@@ -1091,21 +1205,22 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
   }
 
   Future<void> _signOut() async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Sign Out',
+        title: Text(l10n.pendingSignOut,
             style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-        content: Text('Are you sure you want to sign out?',
+        content: Text(l10n.pendingSignOutConfirm,
             style: GoogleFonts.inter(fontSize: 13)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.pendingCancel)),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sign Out',
-                  style: TextStyle(color: AppConstants.errorRed))),
+              child: Text(l10n.pendingSignOut,
+                  style: const TextStyle(color: AppConstants.errorRed))),
         ],
       ),
     );
@@ -1120,10 +1235,11 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs     = Theme.of(context).colorScheme;
+    final l10n   = AppLocalizations.of(context);
 
     return Column(
       children: [
-        _SimpleTopBarWidget(title: 'My Profile', sagana: sagana, cs: cs),
+        _SimpleTopBarWidget(title: l10n.pendingProfileTitle, sagana: sagana, cs: cs),
         Expanded(
           child: _isLoading
               ? const Center(
@@ -1198,7 +1314,7 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
                                     AppConstants.radiusFull),
                               ),
                               child: Text(
-                                'PENDING VERIFICATION',
+                                l10n.pendingVerificationBadge,
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
@@ -1214,15 +1330,15 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
 
                       // Basic info (read-only)
                       _InfoSection(
-                        title: 'Account Information',
+                        title: l10n.pendingAccountInfoTitle,
                         rows: [
                           _InfoRow(
-                              label: 'Phone',
-                              value: _phone ?? 'Not set',
+                              label: l10n.pendingPhoneLabel,
+                              value: _phone ?? l10n.pendingNotSet,
                               icon: Icons.phone_outlined),
                           _InfoRow(
-                              label: 'Sitio',
-                              value: _sitio ?? 'Not set',
+                              label: l10n.pendingPurokLabel,
+                              value: _purok ?? l10n.pendingNotSet,
                               icon: Icons.location_on_outlined),
                         ],
                         cs: cs,
@@ -1247,10 +1363,7 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Farm Details, Input Loans, Harvest Summary, '
-                                'Expenses, and Cooperative Contributions '
-                                'will be available after your membership '
-                                'is approved.',
+                                l10n.pendingLockedFeatures,
                                 style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: cs.onSurfaceVariant,
@@ -1269,7 +1382,7 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
                         child: OutlinedButton.icon(
                           onPressed: _signOut,
                           icon: const Icon(Icons.logout_rounded, size: 18),
-                          label: Text('Sign Out',
+                          label: Text(l10n.pendingSignOut,
                               style: GoogleFonts.poppins(
                                   fontWeight: FontWeight.w600)),
                         ),
@@ -1449,6 +1562,211 @@ class _SimpleTopBar extends SliverPersistentHeaderDelegate {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Applicant details edit sheet — used from Home (draft / rejected)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ApplicantDetailsSheet extends StatefulWidget {
+  final FarmerProfileRepository repo;
+  const _ApplicantDetailsSheet({required this.repo});
+
+  @override
+  State<_ApplicantDetailsSheet> createState() => _ApplicantDetailsSheetState();
+}
+
+class _ApplicantDetailsSheetState extends State<_ApplicantDetailsSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  String? _purok;
+  DateTime? _dob;
+  String? _gender;
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  // Gender labels are shared with the Register screen's translations.
+  Map<String, String> _genders(AppLocalizations l10n) => {
+        'male': l10n.registerGenderMale,
+        'female': l10n.registerGenderFemale,
+        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+      };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final p = await widget.repo.fetchProfile();
+    if (!mounted) return;
+    setState(() {
+      _nameCtrl.text = p?.fullName ?? '';
+      _phoneCtrl.text = p?.phoneNumber ?? '';
+      _emailCtrl.text = p?.contactEmail ?? '';
+      _purok = AppConstants.payanasPuroks.contains(p?.purok) ? p?.purok : null;
+      _dob = p?.dateOfBirth;
+      _gender = p?.gender;
+      _loading = false;
+    });
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_dob != null) {
+      final now = DateTime.now();
+      if (DateTime(_dob!.year + 18, _dob!.month, _dob!.day).isAfter(now)) {
+        setState(() => _error = AppLocalizations.of(context).pendingAgeError);
+        return;
+      }
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await widget.repo.updateApplicantDetails(
+        fullName: _nameCtrl.text.trim(),
+        phoneNumber: _phoneCtrl.text.trim(),
+        contactEmail: _emailCtrl.text.trim(),
+        purok: _purok,
+        dateOfBirth: _dob,
+        gender: _gender,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.pendingDetailsTitle,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+      content: _loading
+          ? const SizedBox(
+              height: 80,
+              child: Center(child: CircularProgressIndicator()))
+          : SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: _nameCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(labelText: l10n.pendingFullNameLabel),
+                      validator: (v) => (v == null || v.trim().length < 2)
+                          ? l10n.pendingFullNameRequired
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                          labelText: l10n.pendingPhoneOptionalLabel),
+                      validator: (v) {
+                        final t = v?.trim() ?? '';
+                        if (t.isEmpty) return null;
+                        return RegExp(r'^09\d{9}$').hasMatch(t)
+                            ? null
+                            : l10n.pendingPhoneInvalid;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration:
+                          InputDecoration(labelText: l10n.pendingEmailOptionalLabel),
+                    ),
+                    const SizedBox(height: 10),
+                    AppDropdownField<String>(
+                      value: _purok,
+                      hintText: l10n.pendingSelectHint,
+                      labelText: l10n.pendingPurokOptionalLabel,
+                      items: AppConstants.payanasPuroks,
+                      itemLabel: (s) => s,
+                      onChanged: (v) => setState(() => _purok = v),
+                    ),
+                    const SizedBox(height: 10),
+                    InkWell(
+                      onTap: () async {
+                        final now = DateTime.now();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _dob ?? DateTime(now.year - 25),
+                          firstDate: DateTime(1930),
+                          lastDate:
+                              DateTime(now.year - 18, now.month, now.day),
+                        );
+                        if (picked != null) setState(() => _dob = picked);
+                      },
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                            labelText: l10n.pendingDobLabel),
+                        child: Text(
+                          _dob == null
+                              ? l10n.pendingSelectHint
+                              : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    AppDropdownField<String>(
+                      value: _gender,
+                      hintText: l10n.pendingSelectHint,
+                      labelText: l10n.pendingGenderOptionalLabel,
+                      items: _genders(l10n).keys.toList(),
+                      itemLabel: (key) => _genders(l10n)[key]!,
+                      onChanged: (v) => setState(() => _gender = v),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 10),
+                      Text(_error!,
+                          style: GoogleFonts.inter(
+                              fontSize: 12, color: AppConstants.errorRed)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text(l10n.pendingCancel),
+        ),
+        ElevatedButton(
+          onPressed: (_loading || _saving) ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : Text(l10n.pendingSave),
+        ),
+      ],
     );
   }
 }

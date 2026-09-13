@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/notification_model.dart';
 
 class NotificationRepository {
@@ -16,7 +17,8 @@ class NotificationRepository {
           .order('created_at', ascending: false);
 
       return rows.map((r) => NotificationModel.fromMap(r)).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('NotificationRepository.fetchNotifications failed: $e');
       return [];
     }
   }
@@ -31,7 +33,8 @@ class NotificationRepository {
           .eq('user_id', _userId)
           .eq('is_read', false);
       return rows.length;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('NotificationRepository.fetchUnreadCount failed: $e');
       return 0;
     }
   }
@@ -45,7 +48,9 @@ class NotificationRepository {
           .update({'is_read': true})
           .eq('id', notificationId)
           .eq('user_id', _userId);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationRepository.markAsRead failed: $e');
+    }
   }
 
   // ─── Mark all notifications as read ──────────────────────────────────────
@@ -57,7 +62,9 @@ class NotificationRepository {
           .update({'is_read': true})
           .eq('user_id', _userId)
           .eq('is_read', false);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationRepository.markAllAsRead failed: $e');
+    }
   }
 
   // ─── Delete single notification ───────────────────────────────────────────
@@ -69,7 +76,9 @@ class NotificationRepository {
           .delete()
           .eq('id', notificationId)
           .eq('user_id', _userId);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationRepository.deleteNotification failed: $e');
+    }
   }
 
   // ─── Delete all notifications for current user ────────────────────────────
@@ -80,6 +89,8 @@ class NotificationRepository {
           .from('notifications')
           .delete()
           .eq('user_id', _userId);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationRepository.deleteAllNotifications failed: $e');
+    }
   }
 }

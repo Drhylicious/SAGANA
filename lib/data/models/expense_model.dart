@@ -89,6 +89,7 @@ class ExpenseModel {
   final bool isSubsidy;
   final String? notes;
   final DateTime createdAt;
+  final bool isSynced; // NEW — Phase 2 / U2, mirrors HarvestModel.isSynced
 
   const ExpenseModel({
     required this.id,
@@ -100,6 +101,7 @@ class ExpenseModel {
     required this.isSubsidy,
     this.notes,
     required this.createdAt,
+    this.isSynced = true,
   });
 
   IconData get icon => categoryIcon(category);

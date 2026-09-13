@@ -1,4 +1,12 @@
 -- ============================================================
+-- ⚠️ PARTIALLY SUPERSEDED — reject_listing here is from an
+-- earlier era (releases volume_kg, not remaining_kg). The
+-- canonical reject_listing is now in
+-- supabase_schema_marketplace_order_reservation_fix.sql. The
+-- _release_batch_reservation helper defined below is still
+-- canonical and is not redefined anywhere else. See
+-- supabase_schema_RESERVATION_MODEL_NOTES.md.
+-- ============================================================
 -- SAGANA — Listing Rejection Inventory Release
 -- rejectListing() previously only updated status — the batch
 -- reservation from create_listing_with_reservation() was never

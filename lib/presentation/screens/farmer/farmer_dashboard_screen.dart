@@ -95,7 +95,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       final results = await Future.wait([
         _dashRepo.fetchSummary(),
         _marketRatesRepo.fetchMarketRates(limit: 10),
-        _dashRepo.fetchRecentActivity(),
+        _dashRepo.fetchActivity(limit: 5),
         _loanRepo.fetchLoans(),
         _listingRepo.fetchListings(),
         _notifRepo.fetchNotifications(),
@@ -237,12 +237,16 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              if (!_isOnline) const OfflineBanner(),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — some information on this screen may not be up to date."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
@@ -283,8 +287,11 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                         ),
                       ),
 
-                      // KPI cards — unchanged, deliberately left open pending
-                      // Harvest/Marketplace workflow analysis.
+                      // KPI cards. Total Earnings aggregates Marketplace
+                      // (orders) + Confirmed Cooperative Sales
+                      // (member_sales_transactions) + Informal Sales
+                      // (informal_sales) — see DashboardRepository.fetchSummary().
+                      // Earnings Goal remains a flat ₱60,000 constant.
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -328,7 +335,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                       // Recent activity — loan-due entries excluded (now in Priority)
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                           child: _RecentActivitySection(
                             items: _activity,
                             isLoading: _isLoading,
@@ -357,6 +364,9 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -1223,6 +1233,26 @@ class _ActivityIcon extends StatelessWidget {
           bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
               .withValues(alpha: 0.10);
           fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
+          break;
+        case ActivityType.cropAdded:
+          icon = Icons.grass_rounded;
+          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+          fg = AppConstants.primaryGreen;
+          break;
+        case ActivityType.informalSale:
+          icon = Icons.sell_outlined;
+          bg = AppConstants.successGreen.withValues(alpha: 0.10);
+          fg = AppConstants.successGreen;
+          break;
+        case ActivityType.cooperativeSale:
+          icon = Icons.groups_outlined;
+          bg = AppConstants.successGreen.withValues(alpha: 0.10);
+          fg = AppConstants.successGreen;
+          break;
+        case ActivityType.profile:
+          icon = Icons.person_outline_rounded;
+          bg = AppConstants.outline.withValues(alpha: 0.10);
+          fg = AppConstants.outline;
           break;
       }
     }

@@ -91,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen>
         case AppConstants.roleAdmin:
           route = AppRoutes.adminDashboard;
           break;
-        case 'staff':
+        case 'officer':
           route = AppRoutes.adminDashboard;
           break;
         case AppConstants.roleFarmer:
@@ -114,13 +114,15 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _showForgotPassword() {
-    // Admins log in with a real email; farmers/staff/buyers log in with a
-    // SAGANA username (see AuthService.toAuthEmail — same heuristic used
-    // there). Only a real email can receive an automated reset link, so
-    // that's the only case that gets one.
+  Future<void> _showForgotPassword() async {
+    // Admins, and any Farmer/Buyer who has promoted a real contact email,
+    // are eligible for the automated OTP reset; everyone else (including
+    // Officer, always) is routed to Admin-assisted reset. See
+    // can_use_otp_reset() — unifies this without special-casing by role.
     final identifier = _identifierController.text.trim();
-    if (identifier.contains('@')) {
+    final canUseOtp = await AuthService.canUseOtpReset(identifier);
+    if (!mounted) return;
+    if (canUseOtp) {
       _showAdminResetSheet(prefill: identifier);
     } else {
       _showContactAdminSheet();
@@ -138,21 +140,10 @@ class _LoginScreenState extends State<LoginScreen>
           await _authRepository.sendPasswordReset(email);
           if (!context.mounted) return;
           context.popRoute();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Password reset link sent to $email',
-                  style: GoogleFonts.inter(fontSize: 13),
-                ),
-                backgroundColor: AppConstants.successGreen,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-              ),
-            );
-          }
+          if (!mounted) return;
+          context.pushRoute(
+            '${AppRoutes.resetPasswordCallback}?email=${Uri.encodeComponent(email)}',
+          );
         },
       ),
     );
@@ -161,7 +152,9 @@ class _LoginScreenState extends State<LoginScreen>
   void _showContactAdminSheet() {
     AppBottomSheet.show(
       context: context,
-      builder: (context) => const _ContactAdminSheet(),
+      builder: (context) => _ContactAdminSheet(
+        username: _identifierController.text.trim(),
+      ),
     );
   }
 
@@ -391,7 +384,7 @@ class _AuthCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Identifier field
-                const _InputLabel('Username'),
+                const _InputLabel('Username / Email'),
                 const SizedBox(height: 6),
                 _EmailField(
                   controller: identifierController,
@@ -518,7 +511,7 @@ class _EmailField extends StatelessWidget {
       autocorrect: false,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       decoration: _fieldDecoration(
-        hint: isUsername ? 'SP3-0001 or STF-0001' : 'admin@sp3.coop',
+        hint: isUsername ? 'SP3-0001 or OFF-0001' : 'admin@sp3.coop',
         icon: isUsername ? Icons.badge_outlined : Icons.mail_outline_rounded,
       ),
       validator: (v) {
@@ -938,8 +931,19 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
 // address, so there's no inbox an automated reset link could reach.
 // Password assistance has to go through the SP3 office instead.
 
-class _ContactAdminSheet extends StatelessWidget {
-  const _ContactAdminSheet();
+class _ContactAdminSheet extends StatefulWidget {
+  final String username;
+  const _ContactAdminSheet({required this.username});
+
+  @override
+  State<_ContactAdminSheet> createState() => _ContactAdminSheetState();
+}
+
+class _ContactAdminSheetState extends State<_ContactAdminSheet> {
+  bool _isSubmitting = false;
+  bool _requestSent = false;
+
+  bool get _hasUsername => widget.username.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -947,18 +951,19 @@ class _ContactAdminSheet extends StatelessWidget {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppConstants.radiusXl),
+      child: SingleChildScrollView(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppConstants.radiusXl),
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Handle
             Center(
               child: Container(
@@ -1000,7 +1005,7 @@ class _ContactAdminSheet extends StatelessWidget {
             const SizedBox(height: 8),
 
             Text(
-              'Farmer, Staff, and Buyer accounts sign in with a SAGANA '
+              'Farmer, Officer, and Buyer accounts sign in with a SAGANA '
               'username instead of an email address, so we can\'t send an '
               'automatic reset link. Please contact the '
               '${AppConstants.cooperativeName} office for password '
@@ -1047,32 +1052,127 @@ class _ContactAdminSheet extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () => context.popRoute(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryGreen,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
+            Text(
+              'Option 1 — Contact SP3 Office',
+              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.phone_outlined, color: AppConstants.primaryGreen, size: 16),
+                const SizedBox(width: 8),
+                Text('#0000000', style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface)),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            Text(
+              'Option 2 — Request Password Assistance',
+              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'If you cannot remember your password, you may send a '
+              'temporary-password assistance request to the SP3 Admin.',
+              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.4),
+            ),
+
+            if (_requestSent) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppConstants.successGreen.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Text(
-                  'Got It',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  'Request sent. An SP3 Admin will assist you.',
+                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.successGreen, fontWeight: FontWeight.w600),
                 ),
               ),
+            ],
+
+            if (!_hasUsername) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 16, color: AppConstants.errorRed),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Please enter your username on the login screen first.',
+                      style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.popRoute(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                    ),
+                    child: Text('Cancel', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: (_isSubmitting || _requestSent || !_hasUsername) ? null : _handleRequest,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConstants.primaryGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                          )
+                        : Text(
+                            _requestSent ? 'Request Sent' : 'Request Temporary Password',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-    );
+    ),
+  );
+  }
+
+  Future<void> _handleRequest() async {
+    if (widget.username.isEmpty) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await AuthService.requestPasswordAssistance(widget.username);
+    } catch (_) {
+      // Deliberately no error surfaced here either — see the RPC's
+      // enumeration-safety note. Whether it's a network hiccup or the
+      // username not existing, the person sees the same outcome.
+    }
+    if (!mounted) return;
+    setState(() {
+      _isSubmitting = false;
+      _requestSent = true;
+    });
   }
 }

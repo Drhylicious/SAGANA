@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_profile_model.dart';
+import '../models/farmer_member_model.dart';
 import '../models/loan_model.dart';
 import '../models/contribution_model.dart';
 import '../models/analytics_model.dart';
@@ -37,12 +38,35 @@ class FarmerDetailsRepository {
         crops = cropRows.map((r) => r['crop_name'] as String).toList();
       } catch (_) {}
 
+      // Real account status, not farmer_profiles.is_verified (a different
+      // concept — verified-as-official-member vs. suspended/active).
+      // Also pulls rejection_reason/suspension_reason so the detail screen
+      // can show why a Rejected/Suspended member is in that state, and to
+      // drive the same 5-status derivation the Members list uses.
+      String accountStatus = 'active';
+      String? rejectionReason;
+      String? suspensionReason;
+      try {
+        final roleRow = await _client
+            .from('user_roles')
+            .select('status, rejection_reason, suspension_reason')
+            .eq('user_id', farmerId)
+            .eq('role', 'farmer')
+            .maybeSingle();
+        accountStatus = roleRow?['status'] as String? ?? 'active';
+        rejectionReason = roleRow?['rejection_reason'] as String?;
+        suspensionReason = roleRow?['suspension_reason'] as String?;
+      } catch (_) {}
+
       if (userInfo == null) return null;
 
       return FarmerProfileModel.fromMap({
-        ...userInfo,
+        ...userInfo, // includes last_active_at (user_information.*)
         ...(farmerProfile ?? {}),
         'primary_crops': crops,
+        'account_status': accountStatus,
+        'rejection_reason': rejectionReason,
+        'suspension_reason': suspensionReason,
       });
     } catch (_) {
       return null;
@@ -84,16 +108,41 @@ class FarmerDetailsRepository {
         byCrop[crop] = (byCrop[crop] ?? 0) + qty;
       }
 
+      // Total revenue — same three-channel definition as
+      // AnalyticsRepository.fetchFarmPerformance() and
+      // DashboardRepository.fetchSummary(): completed marketplace orders,
+      // confirmed cooperative sales, and informal sales. This method has
+      // no period parameter (all-time, same as totalYield/totalExpenses
+      // above), so unlike the other two, there's no date lower bound here.
       double totalRevenue = 0;
       try {
-        final listingRows = await _client
-            .from('marketplace_listings')
-            .select('price_per_kg, volume_kg')
+        final orderRows = await _client
+            .from('orders')
+            .select('total_price')
             .eq('farmer_id', farmerId)
-            .eq('status', 'approved');
-        for (final row in listingRows) {
-          totalRevenue += (row['price_per_kg'] as num).toDouble() *
-              (row['volume_kg'] as num).toDouble();
+            .eq('status', 'completed');
+        for (final row in orderRows) {
+          totalRevenue += (row['total_price'] as num).toDouble();
+        }
+      } catch (_) {}
+
+      try {
+        final coopRows = await _client
+            .from('member_sales_transactions')
+            .select('amount')
+            .eq('farmer_id', farmerId);
+        for (final row in coopRows) {
+          totalRevenue += (row['amount'] as num).toDouble();
+        }
+      } catch (_) {}
+
+      try {
+        final informalRows = await _client
+            .from('informal_sales')
+            .select('amount')
+            .eq('farmer_id', farmerId);
+        for (final row in informalRows) {
+          totalRevenue += ((row['amount'] as num?)?.toDouble() ?? 0);
         }
       } catch (_) {}
 
@@ -258,12 +307,37 @@ class FarmerDetailsRepository {
 
   // ─── Admin actions ─────────────────────────────────────────────────────────
 
+  /// Suspend (reason required) or reactivate a member. Routes through the
+  /// Phase C RPCs so the reason, audit row (member_status_events) and the
+  /// farmer notification are always written together.
   Future<void> setFarmerStatus({
     required String farmerId,
     required String status, // 'active' | 'suspended'
+    String? reason,
   }) async {
-    await _client
-        .from('user_roles')
-        .update({'status': status}).eq('user_id', farmerId);
+    if (status == 'suspended') {
+      await _client.rpc('suspend_member', params: {
+        'p_user_id': farmerId,
+        'p_reason': (reason == null || reason.trim().isEmpty)
+            ? 'Suspended by administrator'
+            : reason.trim(),
+      });
+    } else {
+      await _client.rpc('reactivate_member', params: {'p_user_id': farmerId});
+    }
+  }
+
+  Future<List<MemberStatusEvent>> fetchStatusHistory(String farmerId) async {
+    try {
+      final rows = await _client
+          .from('member_status_events')
+          .select('from_status, to_status, reason, created_at')
+          .eq('member_id', farmerId)
+          .order('created_at', ascending: false)
+          .limit(20);
+      return rows.map((r) => MemberStatusEvent.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 }

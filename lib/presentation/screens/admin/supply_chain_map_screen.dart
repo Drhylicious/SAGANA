@@ -14,6 +14,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/material_list_tile.dart';
 
 const _payanasCenterLat = 13.5767;
 const _payanasCenterLng = 122.0862;
@@ -62,7 +63,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
   List<SupplyChainFarmerModel> _farmers = [];
   Map<String, Color> _cropColors = {};
   SupplyChainSummary? _summary;
-  SupplyChainOperationsSnapshot? _opsSnapshot;
+  SupplyChainCoverage? _coverage;
   bool _isLoading = true;
   bool _isOnline  = true;
 
@@ -85,14 +86,14 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
     final results = await Future.wait([
       _repo.fetchMappedFarmers(),
       _repo.fetchSummary(),
-      _repo.fetchOperationsSnapshot(),
+      _repo.fetchCoverage(),
     ]);
     if (!mounted) return;
     setState(() {
       _farmers      = results[0] as List<SupplyChainFarmerModel>;
       _cropColors   = _buildCropColorMap(_farmers);
       _summary      = results[1] as SupplyChainSummary;
-      _opsSnapshot  = results[2] as SupplyChainOperationsSnapshot;
+      _coverage     = results[2] as SupplyChainCoverage;
       _isLoading    = false;
     });
   }
@@ -146,7 +147,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                       Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
                   itemBuilder: (_, i) {
                     final m = members[i];
-                    return ListTile(
+                    return MaterialListTile(
                       tileColor: Colors.transparent,
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
@@ -159,8 +160,8 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                       ),
                       title: Text(m.fullName,
                           style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: cs.onSurface)),
-                      subtitle: m.sitio != null
-                          ? Text(m.sitio!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant))
+                      subtitle: m.purok != null
+                          ? Text(m.purok!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant))
                           : null,
                       trailing: GestureDetector(
                         onTap: () {
@@ -177,109 +178,51 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
     );
   }
 
-  void _showUnsubmittedList() async {
-    final harvests = await _repo.fetchUnsubmittedHarvests();
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return ManagementModalShell(
-          title: 'Harvests Not Yet Submitted',
-          subtitle: '${harvests.length} record${harvests.length == 1 ? '' : 's'}',
-          bodyIsScrollable: true,
-          body: harvests.isEmpty
-              ? Center(child: Text(l10n.supplyChainAllSubmitted,
-                  style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)))
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                  itemCount: harvests.length,
-                  separatorBuilder: (_, __) =>
-                      Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
-                  itemBuilder: (_, i) {
-                    final h = harvests[i];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(h.farmerName,
-                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: cs.onSurface)),
-                              Text('${h.cropName} · ${h.quantityKg.toStringAsFixed(1)} kg',
-                                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                        Text(_formatDate(h.harvestDate),
-                            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-                      ]),
-                    );
-                  },
-                ),
-        );
-      },
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n      = AppLocalizations.of(context);
     final sagana    = context.saganaColors;
     final cs        = Theme.of(context).colorScheme;
     final mapHeight = MediaQuery.of(context).size.height * 0.42;
-    final snapshot  = _opsSnapshot ?? SupplyChainOperationsSnapshot.empty;
+    final coverage  = _coverage ?? SupplyChainCoverage.empty;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
       body: Stack(
         children: [
           SafeArea(
-            child: RefreshIndicator(
-              color: AppConstants.primaryGreen,
-              onRefresh: _loadAll,
-              child: _isLoading && _summary == null
-                  ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-                      children: [
-                        Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () => context.pop(),
-                              child: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Text(
-                                l10n.supplyChainTitle,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 20, fontWeight: FontWeight.w700, color: cs.onSurface),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: _loadAll,
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: cs.surfaceContainerHighest,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(Icons.refresh_rounded, size: 20, color: cs.onSurfaceVariant),
-                              ),
-                            ),
-                          ],
+            child: Column(
+              children: [
+                Container(
+                  height: 64,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+                        onPressed: () => context.pop(),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          l10n.supplyChainTitle,
+                          style: GoogleFonts.poppins(
+                              fontSize: 20, fontWeight: FontWeight.w700, color: cs.onSurface),
                         ),
-                        const SizedBox(height: 20),
-
-                        if (!_isOnline)
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: AppConstants.primaryGreen,
+                    onRefresh: _loadAll,
+                    child: _isLoading && _summary == null
+                        ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                        : ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                            children: [
+                              if (!_isOnline)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Container(
@@ -300,19 +243,18 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                             ),
                           ),
 
-                        _SectionLabel(text: l10n.supplyChainOpsSummary, cs: cs),
-                        const SizedBox(height: 10),
-                        _OperationsSummaryGrid(snapshot: snapshot, cs: cs, sagana: sagana),
-                        const SizedBox(height: 24),
-
-                        _SectionLabel(text: l10n.supplyChainInsights, cs: cs),
-                        const SizedBox(height: 10),
-                        _ActionableInsights(
-                          snapshot: snapshot,
+                        // Coverage: the one supply-chain-scoped figure that
+                        // belonged in the old Operations Summary/Actionable
+                        // Insights sections — everything else there (loan
+                        // status, marketplace approvals, inventory stock,
+                        // harvest submission status) was account/module
+                        // status unrelated to supply chain visibility, and
+                        // has been removed rather than reworked.
+                        _CoverageBanner(
+                          coverage: coverage,
                           cs: cs,
                           sagana: sagana,
                           onViewUnmapped: _showUnmappedList,
-                          onViewUnsubmitted: _showUnsubmittedList,
                         ),
                         const SizedBox(height: 24),
 
@@ -429,6 +371,9 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -679,238 +624,79 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ─── Operations Summary — tappable stat cards ─────────────────────────────────
+// ─── Coverage banner — mapped vs. unmapped members ─────────────────────────
+// Replaces the old Operations Summary grid + Actionable Insights list, which
+// mixed farm-location coverage in with loan status, marketplace approvals,
+// low-stock inventory, and harvest submission status — none of which are
+// supply chain concerns. Coverage (can this member even be shown on the
+// map) is the one figure that belonged here, so it's now a single compact
+// banner instead of two sections built to hold unrelated alerts.
 
-class _OperationsSummaryGrid extends StatelessWidget {
-  final SupplyChainOperationsSnapshot snapshot;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _OperationsSummaryGrid({required this.snapshot, required this.cs, required this.sagana});
-
-  @override
-  Widget build(BuildContext context) {
-    final tiles = [
-      _SummaryTile(
-        icon: Icons.place_rounded,
-        label: 'Mapped',
-        value: '${snapshot.mappedMembers}/${snapshot.totalMembers}',
-        color: AppConstants.primaryGreen,
-        onTap: () => context.goTab(AppRoutes.farmerManagement),
-      ),
-      _SummaryTile(
-        icon: Icons.account_balance_wallet_rounded,
-        label: 'Active Loans',
-        value: '${snapshot.activeLoanCount}',
-        color: AppConstants.buyerBlue,
-        onTap: () => context.goTab(AppRoutes.loanDashboard),
-      ),
-      _SummaryTile(
-        icon: Icons.storefront_rounded,
-        label: 'Awaiting Approval',
-        value: '${snapshot.awaitingApprovalListings}',
-        color: AppConstants.amber,
-        onTap: () => context.pushRoute(AppRoutes.pendingApprovals),
-      ),
-      _SummaryTile(
-        icon: Icons.inventory_2_rounded,
-        label: 'Low Stock',
-        value: '${snapshot.lowStockBatches}',
-        color: AppConstants.errorRed,
-        onTap: () => context.pushRoute(AppRoutes.adminInventory),
-      ),
-    ];
-
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 2.2,
-      children: tiles,
-    );
-  }
-}
-
-class _SummaryTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _SummaryTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final sagana = context.saganaColors;
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-              child: Icon(icon, size: 18, color: color),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(value,
-                      style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: cs.onSurface)),
-                  Text(label,
-                      style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Actionable Insights ───────────────────────────────────────────────────────
-
-class _ActionableInsights extends StatelessWidget {
-  final SupplyChainOperationsSnapshot snapshot;
+class _CoverageBanner extends StatelessWidget {
+  final SupplyChainCoverage coverage;
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onViewUnmapped;
-  final VoidCallback onViewUnsubmitted;
 
-  const _ActionableInsights({
-    required this.snapshot,
+  const _CoverageBanner({
+    required this.coverage,
     required this.cs,
     required this.sagana,
     required this.onViewUnmapped,
-    required this.onViewUnsubmitted,
   });
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[];
-
-    if (snapshot.overdueLoanCount > 0) {
-      items.add(_InsightRow(
-        icon: Icons.warning_amber_rounded,
-        color: AppConstants.errorRed,
-        text: '${snapshot.overdueLoanCount} member${snapshot.overdueLoanCount == 1 ? '' : 's'} overdue on loans',
-        actionLabel: 'Loan Dashboard',
-        onTap: () => context.goTab(AppRoutes.loanDashboard),
-        cs: cs,
-      ));
-    }
-    if (snapshot.unmappedMembers > 0) {
-      items.add(_InsightRow(
-        icon: Icons.location_off_rounded,
-        color: AppConstants.amber,
-        text: '${snapshot.unmappedMembers} member${snapshot.unmappedMembers == 1 ? '' : 's'} with no farm location',
-        actionLabel: 'View List',
-        onTap: onViewUnmapped,
-        cs: cs,
-      ));
-    }
-    if (snapshot.unsubmittedHarvests > 0) {
-      items.add(_InsightRow(
-        icon: Icons.inventory_rounded,
-        color: AppConstants.buyerBlue,
-        text: '${snapshot.unsubmittedHarvests} harvest${snapshot.unsubmittedHarvests == 1 ? '' : 's'} not yet submitted to coop',
-        actionLabel: 'View List',
-        onTap: onViewUnsubmitted,
-        cs: cs,
-      ));
-    }
-
-    if (items.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        ),
-        child: Row(children: [
-          Icon(Icons.check_circle_rounded, color: AppConstants.successGreen, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text('No issues need your attention right now.',
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
-          ),
-        ]),
-      );
-    }
-
+    final unmapped = coverage.unmappedMembers;
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
       ),
-      child: Column(
+      child: Row(
         children: [
-          for (int i = 0; i < items.length; i++) ...[
-            items[i],
-            if (i != items.length - 1)
-              Divider(height: 1, indent: 14, endIndent: 14, color: cs.outline.withValues(alpha: 0.08)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _InsightRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
-  final String actionLabel;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-
-  const _InsightRow({
-    required this.icon, required this.color, required this.text,
-    required this.actionLabel, required this.onTap, required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: cs.onSurface)),
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.place_rounded, size: 18, color: AppConstants.primaryGreen),
           ),
-          Text(actionLabel,
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: cs.primary)),
-          Icon(Icons.chevron_right_rounded, size: 16, color: cs.primary),
-        ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${coverage.mappedMembers} of ${coverage.totalMembers} members mapped',
+                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
+                ),
+                Text(
+                  unmapped > 0
+                      ? '$unmapped without a farm location on file'
+                      : 'Every active member has a farm location on file',
+                  style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          if (unmapped > 0)
+            GestureDetector(
+              onTap: onViewUnmapped,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('View List',
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: cs.primary)),
+                  Icon(Icons.chevron_right_rounded, size: 16, color: cs.primary),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1431,17 +1217,8 @@ class _FarmerDetailDrawer extends StatelessWidget {
     );
   }
 
-  String _dateLabel(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final lastHarvest = farmer.lastHarvestDate != null
-        ? _dateLabel(farmer.lastHarvestDate!) : 'No records';
-
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
@@ -1487,7 +1264,7 @@ class _FarmerDetailDrawer extends StatelessWidget {
                         fontWeight: FontWeight.w700, color: cs.primary)),
                 Text(
                   '${farmer.memberId != null ? 'ID: ${farmer.memberId}' : 'Pending ID'}'
-                  '${farmer.sitio != null ? ' • ${farmer.sitio}' : ''}',
+                  '${farmer.purok != null ? ' • ${farmer.purok}' : ''}',
                   style: GoogleFonts.inter(fontSize: 11,
                       color: cs.onSurfaceVariant)),
               ],
@@ -1499,63 +1276,23 @@ class _FarmerDetailDrawer extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 14),
+          // Strictly farm location + currently planted crops — this drawer
+          // deliberately carries nothing else (see SupplyChainFarmerModel's
+          // header comment for why loan/harvest status were removed).
           Row(children: [
             Expanded(child: _InfoTile(
-                label: 'Primary Crops',
+                label: 'Currently Planted',
                 value: farmer.primaryCrops.isEmpty
                     ? 'Not recorded'
                     : farmer.primaryCrops.take(3).join(', '),
                 cs: cs)),
             const SizedBox(width: 10),
             Expanded(child: _InfoTile(
-                label: 'Last Harvest', value: lastHarvest, cs: cs)),
+                label: 'Farm Coordinates',
+                value: '${farmer.farmLatitude.toStringAsFixed(5)}, '
+                    '${farmer.farmLongitude.toStringAsFixed(5)}',
+                cs: cs)),
           ]),
-          const SizedBox(height: 10),
-          farmer.hasOutstandingLoan
-              ? Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                    border: Border.all(color: cs.error.withValues(alpha: 0.20)),
-                  ),
-                  child: Row(children: [
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('LOAN BALANCE', style: GoogleFonts.inter(
-                            fontSize: 9, fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                            color: cs.error.withValues(alpha: 0.70))),
-                        const SizedBox(height: 2),
-                        Text('₱${farmer.outstandingLoanBalance.toStringAsFixed(2)}'
-                            '${farmer.isOverdue ? ' (Overdue)' : ''}',
-                            style: GoogleFonts.poppins(fontSize: 14,
-                                fontWeight: FontWeight.w700, color: cs.error)),
-                      ],
-                    )),
-                    Icon(Icons.warning_amber_rounded, color: cs.error, size: 22),
-                  ]),
-                )
-              : Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppConstants.successGreen.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                    border: Border.all(
-                        color: AppConstants.successGreen.withValues(alpha: 0.20)),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.check_circle_outline_rounded,
-                        color: AppConstants.successGreen, size: 18),
-                    const SizedBox(width: 8),
-                    Text('No outstanding loans',
-                        style: GoogleFonts.inter(fontSize: 13,
-                            color: AppConstants.successGreen)),
-                  ]),
-                ),
           const SizedBox(height: 14),
           Row(children: [
             Expanded(child: ElevatedButton(

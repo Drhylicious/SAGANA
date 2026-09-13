@@ -6,6 +6,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/shared_widgets.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
@@ -31,11 +32,11 @@ class _MarketplaceDashboardScreenState
   final _marketLinkingRepo = MarketLinkingRepository();
 
   ListingSummaryStats _stats     = ListingSummaryStats.empty;
-  List<AdminListingModel> _recent   = [];
   OrderSummaryStats _orderStats = OrderSummaryStats.empty;
   int _pendingOffersCount = 0;
   int _buyerCount = 0;
   int _marketLinkingCount = 0;
+  int _marketLinkingSubmittedCount = 0;
   bool _isLoading = true;
   bool _isOnline  = true;
 
@@ -59,20 +60,24 @@ class _MarketplaceDashboardScreenState
     setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchSummaryStats(),
-      _repo.fetchRecentListings(limit: 3),
       _orderRepo.fetchSummaryStats(),
       _offerRepo.fetchPendingOffers(),
       _buyerRepo.fetchBuyerCount(),
-      _marketLinkingRepo.fetchAll(),
+      _marketLinkingRepo.fetchSummaryStats(),
     ]);
     if (!mounted) return;
     setState(() {
       _stats   = results[0] as ListingSummaryStats;
-      _recent  = results[1] as List<AdminListingModel>;
-      _orderStats = results[2] as OrderSummaryStats;
-      _pendingOffersCount = (results[3] as List).length;
-      _buyerCount = results[4] as int;
-      _marketLinkingCount = (results[5] as List).length;
+      _orderStats = results[1] as OrderSummaryStats;
+      _pendingOffersCount = (results[2] as List).length;
+      _buyerCount = results[3] as int;
+      final marketLinkingStats = results[4] as MarketLinkingSummaryStats;
+      // Enrolled farmers (unique), not total rows/rounds — the "Market
+      // Linking" KPI tile is labeled around farmers, and a farmer with a
+      // second round (Start New Round) must not double-count here, same
+      // fix already applied to the Market Linking screen's own KPI strip.
+      _marketLinkingCount = marketLinkingStats.enrolledFarmers;
+      _marketLinkingSubmittedCount = marketLinkingStats.submitted;
       _isLoading = false;
     });
   }
@@ -91,21 +96,7 @@ class _MarketplaceDashboardScreenState
         child: CustomScrollView(
           slivers: [
             if (!_isOnline)
-              SliverToBoxAdapter(
-                child: Container(
-                  color: AppConstants.warningAmber,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.cloud_off_rounded, size: 14, color: AppConstants.charcoal),
-                      const SizedBox(width: 6),
-                      Text('Offline — data may be outdated',
-                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.charcoal)),
-                    ],
-                  ),
-                ),
-              ),
+              const SliverToBoxAdapter(child: OfflineBanner()),
 
             // Top bar unchanged — same shared AdminTopBarDelegate as before.
             SliverPersistentHeader(
@@ -119,7 +110,7 @@ class _MarketplaceDashboardScreenState
             ),
 
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
 
@@ -129,7 +120,17 @@ class _MarketplaceDashboardScreenState
                   if (_isLoading)
                     const _ShimmerBlock(height: 108)
                   else
-                    _MarketplaceOverviewCard(stats: _stats, orderStats: _orderStats, cs: cs, sagana: sagana),
+                    _MarketplaceOverviewCard(
+                      stats: _stats,
+                      orderStats: _orderStats,
+                      pendingOffersCount: _pendingOffersCount,
+                      marketLinkingSubmittedCount: _marketLinkingSubmittedCount,
+                      cs: cs, sagana: sagana,
+                      onPendingListingsTap: () => context.push(AppRoutes.pendingApprovals).then((_) => _loadAll()),
+                      onPendingOrdersTap: () => context.push(AppRoutes.adminOrders).then((_) => _loadAll()),
+                      onPendingOffersTap: () => context.push(AppRoutes.offerToCooperative).then((_) => _loadAll()),
+                      onMarketLinkingTap: () => context.push(AppRoutes.marketLinking).then((_) => _loadAll()),
+                    ),
                   const SizedBox(height: 20),
 
                   // ── KPI grid (non-clickable) ────────────────────────────
@@ -162,57 +163,6 @@ class _MarketplaceDashboardScreenState
                     onOrders: () => context.push(AppRoutes.adminOrders),
                     onOfferToCooperative: () => context.push(AppRoutes.offerToCooperative).then((_) => _loadAll()),
                   ),
-                  const SizedBox(height: 20),
-
-                  // ── Recent Listings ─────────────────────────────────────
-                  Text('Recent Listings',
-                      style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
-                  const SizedBox(height: 10),
-
-                  if (_isLoading)
-                    const _ShimmerBlock(height: 130)
-                  else if (_recent.isEmpty)
-                    _EmptySection(
-                      icon: Icons.storefront_outlined,
-                      message: 'No listings yet',
-                      cs: cs, sagana: sagana,
-                    )
-                  else
-                    SizedBox(
-                      height: 130,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _recent.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (_, i) => _RecentListingPreviewCard(
-                          listing: _recent[i],
-                          onTap: () => context.push(AppRoutes.listingReview, extra: _recent[i].id).then((_) => _loadAll()),
-                          cs: cs, sagana: sagana,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () => context.push(AppRoutes.allListings).then((_) => _loadAll()),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                        border: Border.all(color: cs.primary, width: 1.5),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.list_alt_rounded, size: 18, color: cs.primary),
-                          const SizedBox(width: 8),
-                          Text('View All Listings',
-                              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.primary)),
-                        ],
-                      ),
-                    ),
-                  ),
                 ]),
               ),
             ),
@@ -232,37 +182,72 @@ class _MarketplaceDashboardScreenState
 class _MarketplaceOverviewCard extends StatelessWidget {
   final ListingSummaryStats stats;
   final OrderSummaryStats orderStats;
+  final int pendingOffersCount;
+  final int marketLinkingSubmittedCount;
   final ColorScheme cs;
   final SaganaColors sagana;
+  final VoidCallback onPendingListingsTap;
+  final VoidCallback onPendingOrdersTap;
+  final VoidCallback onPendingOffersTap;
+  final VoidCallback onMarketLinkingTap;
+
   const _MarketplaceOverviewCard({
     required this.stats,
     required this.orderStats,
+    required this.pendingOffersCount,
+    required this.marketLinkingSubmittedCount,
     required this.cs,
     required this.sagana,
+    required this.onPendingListingsTap,
+    required this.onPendingOrdersTap,
+    required this.onPendingOffersTap,
+    required this.onMarketLinkingTap,
   });
 
-  String get _insight {
-    final needsListingReview = stats.pending > 0;
-    final needsOrderAction   = orderStats.pending > 0;
-
-    if (!needsListingReview && !needsOrderAction) {
-      return "Everything's running smoothly — no listings or orders need attention right now.";
+  List<_PriorityItem> get _priorities {
+    final items = <_PriorityItem>[];
+    if (stats.pending > 0) {
+      items.add(_PriorityItem(
+        icon: Icons.pending_actions_rounded,
+        color: AppConstants.warningAmber,
+        title: '${stats.pending} Listing${stats.pending == 1 ? '' : 's'} Awaiting Review',
+        subtitle: 'Farmer submissions need approval',
+        onTap: onPendingListingsTap,
+      ));
     }
-    if (needsListingReview && needsOrderAction) {
-      return '${stats.pending} listing${stats.pending == 1 ? '' : 's'} need${stats.pending == 1 ? 's' : ''} review '
-          'and ${orderStats.pending} order${orderStats.pending == 1 ? '' : 's'} '
-          '${orderStats.pending == 1 ? 'is' : 'are'} awaiting fulfillment.';
+    if (orderStats.pending > 0) {
+      items.add(_PriorityItem(
+        icon: Icons.shopping_bag_outlined,
+        color: AppConstants.programPurple,
+        title: '${orderStats.pending} Order${orderStats.pending == 1 ? '' : 's'} Awaiting Fulfillment',
+        subtitle: 'Buyer orders need action',
+        onTap: onPendingOrdersTap,
+      ));
     }
-    if (needsListingReview) {
-      return '${stats.pending} listing${stats.pending == 1 ? '' : 's'} '
-          '${stats.pending == 1 ? 'is' : 'are'} waiting for your review.';
+    if (pendingOffersCount > 0) {
+      items.add(_PriorityItem(
+        icon: Icons.handshake_outlined,
+        color: AppConstants.successGreen,
+        title: '$pendingOffersCount Cooperative Offer${pendingOffersCount == 1 ? '' : 's'} Awaiting Review',
+        subtitle: 'Farmers offered crops for purchase',
+        onTap: onPendingOffersTap,
+      ));
     }
-    return '${orderStats.pending} order${orderStats.pending == 1 ? '' : 's'} '
-        '${orderStats.pending == 1 ? 'is' : 'are'} awaiting fulfillment.';
+    if (marketLinkingSubmittedCount > 0) {
+      items.add(_PriorityItem(
+        icon: Icons.eco_outlined,
+        color: AppConstants.midGreen,
+        title: '$marketLinkingSubmittedCount Farmer${marketLinkingSubmittedCount == 1 ? '' : 's'} in DA-AMAD Pipeline',
+        subtitle: 'Market Linking enrollments in progress',
+        onTap: onMarketLinkingTap,
+      ));
+    }
+    return items;
   }
 
   @override
   Widget build(BuildContext context) {
+    final items = _priorities;
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
       decoration: BoxDecoration(
@@ -271,31 +256,81 @@ class _MarketplaceOverviewCard extends StatelessWidget {
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10)],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 4,
-            height: 56,
-            decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(4)),
+          Row(
+            children: [
+              Container(width: 4, height: 20, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 10),
+              Text('Marketplace Overview', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
+              const Spacer(),
+              if (items.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: AppConstants.warningAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
+                  child: Text('${items.length} item${items.length == 1 ? '' : 's'}',
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.warningAmber)),
+                ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Marketplace Overview',
-                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
-                const SizedBox(height: 2),
-                Text('Real-time governance dashboard',
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-                const SizedBox(height: 10),
-                Text(_insight,
-                    style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface, height: 1.4)),
-              ],
-            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 14, top: 2),
+            child: Text('Real-time governance dashboard',
+                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
           ),
+          const SizedBox(height: 12),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 14),
+              child: Text("Everything's running smoothly — nothing needs attention right now.",
+                  style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface, height: 1.4)),
+            )
+          else
+            ...items.map((item) => _PriorityRow(item: item, cs: cs)),
         ],
+      ),
+    );
+  }
+}
+
+class _PriorityItem {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _PriorityItem({required this.icon, required this.color, required this.title, required this.subtitle, required this.onTap});
+}
+
+class _PriorityRow extends StatelessWidget {
+  final _PriorityItem item;
+  final ColorScheme cs;
+  const _PriorityRow({required this.item, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: item.onTap,
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Icon(item.icon, size: 18, color: item.color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.title, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                  Text(item.subtitle, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: cs.outline),
+          ],
+        ),
       ),
     );
   }
@@ -339,7 +374,7 @@ class _KpiStrip extends StatelessWidget {
     ];
 
     return SizedBox(
-      height: 88,
+      height: 98,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: tiles.length,
@@ -347,7 +382,7 @@ class _KpiStrip extends StatelessWidget {
         itemBuilder: (_, i) {
           final t = tiles[i];
           return Container(
-            width: 100,
+            width: 112,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: sagana.cardBackground,
@@ -359,15 +394,19 @@ class _KpiStrip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(children: [
-                  Icon(t.icon, size: 13, color: t.color),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(t.label,
-                        style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                ]),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(t.icon, size: 13, color: t.color),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(t.label,
+                          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant, height: 1.2),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
                 Text(t.value,
                     style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: t.color)),
               ],
@@ -482,7 +521,7 @@ class _QuickActionsGrid extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Flexible(
+                Expanded(
                   child: Text(
                     a.label,
                     maxLines: 2,
@@ -509,93 +548,6 @@ class _ActionItem {
   const _ActionItem({required this.icon, required this.label, required this.badge, required this.hasBadge, required this.color, required this.onTap});
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Recent Listing Preview Card — unchanged
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RecentListingPreviewCard extends StatelessWidget {
-  final AdminListingModel listing;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-  const _RecentListingPreviewCard({required this.listing, required this.onTap, required this.cs, required this.sagana});
-
-  Color get _statusColor {
-    switch (listing.status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending_review': return AppConstants.warningAmber;
-      case 'changes_required': return AppConstants.warningAmber;
-      case 'sold': return cs.onSurfaceVariant;
-      case 'rejected': return cs.error;
-      case 'withdrawn': return cs.outline;
-      default: return cs.outline;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 150,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-              child: Text(listing.statusLabel.toUpperCase(),
-                  style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: _statusColor)),
-            ),
-            const SizedBox(height: 8),
-            Text(listing.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface)),
-            Text(listing.farmerName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-            const Spacer(),
-            Text('₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
-                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared widgets — unchanged
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _EmptySection extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _EmptySection({required this.icon, required this.message, required this.cs, required this.sagana});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      decoration: BoxDecoration(color: sagana.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg), border: Border.all(color: cs.outline.withValues(alpha: 0.10))),
-      child: Column(
-        children: [
-          Icon(icon, size: 36, color: cs.onSurfaceVariant.withValues(alpha: 0.50)),
-          const SizedBox(height: 8),
-          Text(message, style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
-        ],
-      ),
-    );
-  }
-}
 
 class _ShimmerBlock extends StatelessWidget {
   final double height;

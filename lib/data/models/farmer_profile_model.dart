@@ -1,15 +1,17 @@
+import 'farmer_member_model.dart' show MemberStatus, MemberStatusExt;
+
 class FarmerProfileModel {
   final String userId;
   final String fullName;
-  final String? email;
+  final String? email; // synthetic auth address (username@sagana.local)
+  final String? contactEmail; // optional real email, entered by the farmer
   final String? phoneNumber;
   final String? profilePhotoUrl;
-  final String? sitio;
+  final String? purok;
   final String? memberId;
 
   // Farm basics
   final String? farmName;
-  final String? farmLocation;   // legacy text label
   final String? farmAddress;    // human-readable address
   final double? landAreaHectares;
   final int? yearsFarming;
@@ -24,20 +26,26 @@ class FarmerProfileModel {
   final String? waterSource;       // rain_fed | irrigated | well | river | mixed
 
   final double capitalShares;
+  final DateTime? dateOfBirth; // farmer personal info (Phase B), nullable
+  final String? gender;        // male | female | prefer_not_to_say
   final DateTime? memberSince;
   final bool isVerified;
+  final String accountStatus; // raw user_roles.status — 'active'|'suspended'|'pending'|'rejected'|'draft'
+  final DateTime? lastActiveAt; // for the derived Inactive indicator (Issue 5)
+  final String? rejectionReason;
+  final String? suspensionReason;
   final List<String> primaryCrops;
 
   const FarmerProfileModel({
     required this.userId,
     required this.fullName,
     this.email,
+    this.contactEmail,
     this.phoneNumber,
     this.profilePhotoUrl,
-    this.sitio,
+    this.purok,
     this.memberId,
     this.farmName,
-    this.farmLocation,
     this.farmAddress,
     this.landAreaHectares,
     this.yearsFarming,
@@ -47,10 +55,23 @@ class FarmerProfileModel {
     this.soilType,
     this.waterSource,
     required this.capitalShares,
+    this.dateOfBirth,
+    this.gender,
     this.memberSince,
     required this.isVerified,
+    this.accountStatus = 'active',
+    this.lastActiveAt,
+    this.rejectionReason,
+    this.suspensionReason,
     required this.primaryCrops,
   });
+
+  bool get isActive => accountStatus == 'active';
+
+  /// Derived 6-value status (Active/Inactive/Suspended/Pending/Rejected/
+  /// Draft) — same derivation the Members list uses (Issue 5 / Phase C).
+  MemberStatus get memberStatus =>
+      MemberStatusExt.derive(accountStatus, lastActiveAt);
 
   // ─── Computed helpers ────────────────────────────────────────────────────────
 
@@ -81,8 +102,8 @@ class FarmerProfileModel {
     if (phoneNumber != null && phoneNumber!.isNotEmpty) count++;
     if (farmName != null && farmName!.isNotEmpty) count++;
     if (farmAddress != null && farmAddress!.isNotEmpty) count++;
-    if (landAreaHectares != null && landAreaHectares! > 0) count++;
-    if (yearsFarming != null && yearsFarming! > 0) count++;
+    if (landAreaHectares != null) count++;
+    if (yearsFarming != null) count++;
     if (primaryCrops.isNotEmpty) count++;
     return count;
   }
@@ -131,12 +152,12 @@ class FarmerProfileModel {
       userId:             map['user_id'] as String,
       fullName:           map['full_name'] as String? ?? 'Farmer',
       email:              map['email'] as String? ?? map['user_email'] as String?,
+      contactEmail:       map['contact_email'] as String?,
       phoneNumber:        map['phone_number'] as String?,
       profilePhotoUrl:    map['profile_photo_url'] as String?,
-      sitio:              map['sitio'] as String?,
+      purok:              map['purok'] as String?,
       memberId:           map['member_id'] as String?,
       farmName:           map['farm_name'] as String?,
-      farmLocation:       map['farm_location'] as String?,
       farmAddress:        map['farm_address'] as String?,
       landAreaHectares:   map['land_area_hectares'] != null
           ? (map['land_area_hectares'] as num).toDouble()
@@ -152,10 +173,20 @@ class FarmerProfileModel {
       soilType:           map['soil_type'] as String?,
       waterSource:        map['water_source'] as String?,
       capitalShares:      (map['capital_shares'] as num? ?? 0).toDouble(),
+      dateOfBirth:        map['date_of_birth'] != null
+          ? DateTime.tryParse(map['date_of_birth'] as String)
+          : null,
+      gender:             map['gender'] as String?,
       memberSince:        map['member_since'] != null
           ? DateTime.parse(map['member_since'] as String)
           : null,
       isVerified:         map['is_verified'] as bool? ?? false,
+      accountStatus:      map['account_status'] as String? ?? 'active',
+      lastActiveAt:       map['last_active_at'] != null
+          ? DateTime.tryParse(map['last_active_at'] as String)
+          : null,
+      rejectionReason:    map['rejection_reason'] as String?,
+      suspensionReason:   map['suspension_reason'] as String?,
       primaryCrops:       (map['primary_crops'] as List?)
               ?.map((e) => e.toString())
               .toList() ??

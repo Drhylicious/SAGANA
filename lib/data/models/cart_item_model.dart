@@ -25,8 +25,12 @@ class CartItemModel {
     required this.quantityKg,
   });
 
-  String get displayName =>
-      variety != null && variety!.isNotEmpty ? '$cropName ($variety)' : cropName;
+  String get displayName {
+    final v = variety?.trim();
+    if (v == null || v.isEmpty) return cropName;
+    if (cropName.toLowerCase().contains(v.toLowerCase())) return cropName;
+    return '$cropName ($v)';
+  }
 
   double get subtotal => quantityKg * pricePerKg;
 

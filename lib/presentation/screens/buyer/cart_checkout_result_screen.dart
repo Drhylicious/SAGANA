@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cart_item_model.dart';
 import '../../../routes/app_routes.dart';
@@ -15,6 +16,7 @@ class CartCheckoutResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final allSucceeded = failed.isEmpty;
 
@@ -33,38 +35,38 @@ class CartCheckoutResultScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                allSucceeded ? 'Order Placed!' : '${succeeded.length} of ${succeeded.length + failed.length} Items Ordered',
+                allSucceeded ? l10n.buyerOrderSuccessTitle : l10n.buyerCheckoutResultPartialTitle(succeeded.length, succeeded.length + failed.length),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen),
               ),
               const SizedBox(height: 8),
               Text(
                 allSucceeded
-                    ? '${AppConstants.cooperativeName} will review your order shortly.'
-                    : 'Some items couldn\'t be ordered — see details below.',
+                    ? l10n.buyerOrderSuccessSubtitle
+                    : l10n.buyerCheckoutResultPartialBody,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
               if (succeeded.isNotEmpty) ...[
                 Align(alignment: Alignment.centerLeft,
-                    child: Text('ORDERED', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.successGreen, letterSpacing: 0.5))),
+                    child: Text(l10n.buyerCheckoutResultOrderedLabel, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.successGreen, letterSpacing: 0.5))),
                 const SizedBox(height: 6),
                 ...succeeded.map((item) => _resultRow(item.displayName, '${item.quantityKg.toStringAsFixed(0)} kg', AppConstants.successGreen, Icons.check_circle_outline_rounded)),
               ],
               if (failed.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 Align(alignment: Alignment.centerLeft,
-                    child: Text('COULDN\'T BE ORDERED', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.errorRed, letterSpacing: 0.5))),
+                    child: Text(l10n.buyerCheckoutResultFailedLabel, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.errorRed, letterSpacing: 0.5))),
                 const SizedBox(height: 6),
                 ...failed.map((f) => _resultRow(f.$1.displayName, f.$2, AppConstants.errorRed, Icons.error_outline_rounded)),
               ],
               const Spacer(),
-              SizedBox(width: double.infinity, child: PrimaryButton(label: 'View My Orders', onPressed: () => context.go(AppRoutes.myOrders))),
+              SizedBox(width: double.infinity, child: PrimaryButton(label: l10n.buyerOrderSuccessViewOrders, onPressed: () => context.go(AppRoutes.myOrders))),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () => context.go(AppRoutes.marketplaceBrowse),
-                child: Text('Continue Shopping', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+                child: Text(l10n.buyerOrderSuccessContinueShopping, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
               ),
               const SizedBox(height: 20),
             ],

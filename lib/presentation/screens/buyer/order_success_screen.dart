@@ -2,11 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+
+// Same bypass as my_orders_screen.dart / order_detail_screen.dart.
+// Note: originally this screen displayed order.statusLabel without
+// uppercasing (Title Case); this now shows the same ALL-CAPS badge style
+// used consistently in My Orders and Order Detail, a deliberate small
+// visual harmonization across all three status-badge locations.
+String _orderStatusBadge(String status, AppLocalizations l10n) {
+  switch (status) {
+    case 'pending':   return l10n.buyerOrdersStatusPending;
+    case 'approved':  return l10n.buyerOrdersStatusApproved;
+    case 'completed': return l10n.buyerOrdersStatusCompleted;
+    case 'cancelled': return l10n.buyerOrdersStatusCancelled;
+    default:          return status.toUpperCase();
+  }
+}
 
 class OrderSuccessScreen extends StatefulWidget {
   final String orderId;
@@ -38,6 +54,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
 
     return Scaffold(
@@ -54,7 +71,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     _buildCheckmark(),
                     const SizedBox(height: 24),
                     Text(
-                      'Order Placed!',
+                      l10n.buyerOrderSuccessTitle,
                       style: GoogleFonts.poppins(
                         fontSize: 24, fontWeight: FontWeight.w800,
                         color: AppConstants.primaryGreen,
@@ -62,22 +79,22 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'SP3 Agriculture Cooperative will review your order shortly.',
+                      l10n.buyerOrderSuccessSubtitle,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
                     ),
                     const SizedBox(height: 28),
-                    if (_order != null) _buildSummaryCard(_order!),
+                    if (_order != null) _buildSummaryCard(_order!, l10n),
                     const Spacer(),
                     PrimaryButton(
-                      label: 'View My Orders',
+                      label: l10n.buyerOrderSuccessViewOrders,
                       onPressed: () => context.go(AppRoutes.myOrders),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () => context.go(AppRoutes.marketplaceBrowse),
                       child: Text(
-                        'Continue Shopping',
+                        l10n.buyerOrderSuccessContinueShopping,
                         style: GoogleFonts.poppins(
                           fontSize: 13, fontWeight: FontWeight.w600,
                           color: AppConstants.primaryGreen,
@@ -109,7 +126,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     );
   }
 
-  Widget _buildSummaryCard(BuyerOrderModel order) {
+  Widget _buildSummaryCard(BuyerOrderModel order, AppLocalizations l10n) {
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,7 +142,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                   color: AppConstants.warningAmber.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Text(order.statusLabel,
+                child: Text(_orderStatusBadge(order.status, l10n),
                     style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.warningAmber)),
               ),
             ],

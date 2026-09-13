@@ -13,6 +13,7 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 /// Loan Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/loans
@@ -60,7 +61,11 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     final results = await Future.wait([
       _repo.fetchAllTimeLoanSummary(),
       _repo.fetchMonthlyCollectionTrend(),
-      _repo.fetchAllLoans(statusFilter: _statusFilter, issuedAfter: _period.startDate),
+      _repo.fetchAllLoans(
+        statusFilter: _statusFilter,
+        issuedAfter: _period.startDate,
+        issuedBefore: _period.range().endDate,
+      ),
     ]);
     if (!mounted) return;
     setState(() {
@@ -79,6 +84,19 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
   void _setStatus(String? status) {
     setState(() => _statusFilter = status);
     _load();
+  }
+
+  /// Month abbreviations for fetchMonthlyCollectionTrend()'s trailing
+  /// window — safe to compute client-side, since that method always
+  /// returns a fixed "last N months ending at the current month" window,
+  /// independent of the on-screen period filter.
+  List<String> _trailingMonthLabels(int count) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final offset = count - 1 - i;
+      final date = DateTime(now.year, now.month - offset, 1);
+      return DateFormat('MMM').format(date);
+    });
   }
 
   Map<String, int> get _statusDistribution {
@@ -108,7 +126,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                   AppConstants.spacingSafeH,
                   AppConstants.spacingGutter,
                   AppConstants.spacingSafeH,
-                  32,
+                  AppConstants.spacingSafeH,
                 ),
                 children: [
                   _buildAllTimeHealthCard(context, l10n, cs),
@@ -130,7 +148,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (_loans.applySearch(_searchQuery).isEmpty)
-                    _buildEmptyState(l10n.reportsNoSearchResultsOrLoans, cs)
+                    ReportEmptyState(message: l10n.reportsNoSearchResultsOrLoans)
                   else
                     ..._loans.applySearch(_searchQuery).map((loan) => _buildLoanRow(context, loan, cs, sagana)),
                 ],
@@ -190,8 +208,23 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
 
   Widget _buildAllTimeHealthCard(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
-    final healthColor = _allTimeSummary.isHealthy ? AppConstants.successGreen : AppConstants.warningAmber;
-    final healthLabel = _allTimeSummary.isHealthy ? l10n.loanHistoryHealthy : l10n.loanHistoryNeedsAttention;
+    // A cooperative that has never issued a loan and one that has fully
+    // collected on every loan it issued both reach isHealthy == true (see
+    // AdminLoanRepository.fetchAllTimeLoanSummary — outstandingCount == 0
+    // in both cases). Only the second is actually "Healthy"; the first has
+    // no collection activity to evaluate at all, so it needs its own
+    // neutral state rather than borrowing the green "Healthy" label.
+    final hasLoanActivity = _allTimeSummary.totalLoanCount > 0;
+    final healthColor = !hasLoanActivity
+        ? cs.outline
+        : _allTimeSummary.isHealthy
+            ? AppConstants.successGreen
+            : AppConstants.warningAmber;
+    final healthLabel = !hasLoanActivity
+        ? l10n.loanHistoryNoActivity
+        : _allTimeSummary.isHealthy
+            ? l10n.loanHistoryHealthy
+            : l10n.loanHistoryNeedsAttention;
 
     return Container(
       width: double.infinity,
@@ -274,6 +307,8 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                       values: _collectionTrend,
                       lineColor: cs.primary,
                       gradientColor: cs.primary,
+                      xLabels: _trailingMonthLabels(_collectionTrend.length),
+                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
                     ),
                   ),
           ),
@@ -287,7 +322,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
+        children: reportPeriodChipOrder.map((p) {
           final active = _period == p;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -385,22 +420,6 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
             : null,
       ),
       style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-      ),
     );
   }
 

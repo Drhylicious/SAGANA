@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Shared profile-photo upload logic for both Admin and Farmer profiles —
+/// Shared profile-photo upload logic for Admin, Farmer, and Buyer profiles —
+/// the underlying storage.buckets RLS policy (auth.uid() IS NOT NULL) is
+/// role-agnostic, and BuyerEditProfileScreen already calls this — the
+/// original comment predated that usage and undersold what this covers.
 /// a standalone, role-agnostic function rather than duplicated inside
 /// either role's repository, since the underlying operation (upload to
 /// the profile_photos bucket, return the public URL) is identical

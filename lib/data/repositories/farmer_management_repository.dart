@@ -9,11 +9,16 @@ class FarmerManagementRepository {
 
   Future<List<FarmerMemberModel>> fetchFarmers() async {
     try {
-      // 1. All farmer user IDs with role status
+      // 1. All farmer user IDs with role status.
+      // 'draft' applicants (account created, application not yet submitted)
+      // are deliberately excluded — they stay off the Members list until
+      // they tap Submit Application (Issue 5 / Decision D5).
       final roleRows = await _client
           .from('user_roles')
-          .select('user_id, status, created_at')
-          .eq('role', 'farmer');
+          .select('user_id, status, created_at, application_attempts, '
+              'rejection_reason, suspension_reason')
+          .eq('role', 'farmer')
+          .neq('status', 'draft');
 
       if (roleRows.isEmpty) return [];
 
@@ -23,15 +28,18 @@ class FarmerManagementRepository {
       final roleMap = {
         for (final r in roleRows)
           r['user_id'] as String: {
-            'status':     r['status'] as String? ?? 'pending',
-            'created_at': r['created_at'] as String?,
+            'status':               r['status'] as String? ?? 'pending',
+            'created_at':           r['created_at'] as String?,
+            'application_attempts': r['application_attempts'],
+            'rejection_reason':     r['rejection_reason'] as String?,
+            'suspension_reason':    r['suspension_reason'] as String?,
           }
       };
 
       // 2. user_information
       final infoRows = await _client
           .from('user_information')
-          .select('user_id, full_name, sitio, profile_photo_url')
+          .select('user_id, full_name, purok, profile_photo_url, last_active_at')
           .inFilter('user_id', userIds);
 
       final infoMap = {
@@ -107,9 +115,13 @@ class FarmerManagementRepository {
           'user_id':            uid,
           'full_name':          info['full_name'] as String? ?? 'Farmer',
           'member_id':          profile['member_id'] as String?,
-          'sitio':              info['sitio'] as String?,
+          'purok':              info['purok'] as String?,
           'profile_photo_url':  info['profile_photo_url'] as String?,
           'member_status':      role['status'],
+          'last_active_at':     info['last_active_at'],
+          'application_attempts': role['application_attempts'],
+          'rejection_reason':   role['rejection_reason'],
+          'suspension_reason':  role['suspension_reason'],
           'is_verified':        profile['is_verified'] as bool? ?? false,
           'crops':              cropsMap[uid] ?? [],
           'outstanding_balance': loan?['balance'] ?? 0.0,
@@ -153,15 +165,18 @@ class FarmerManagementRepository {
           if (r['is_verified'] == true) r['user_id'] as String
       };
 
-      int active  = 0;
-      int pending = 0;
+      int active   = 0;
+      int pending  = 0;
+      int rejected = 0;
+      int draft    = 0;
       for (final r in roleRows) {
         final uid    = r['user_id'] as String;
         final status = r['status'] as String? ?? 'pending';
         // Active = status active AND is_verified true
         if (status == 'active' && verifiedSet.contains(uid)) active++;
-        // Pending = everything else that isn't inactive/rejected
-        if (status == 'pending') pending++;
+        if (status == 'pending')  pending++;
+        if (status == 'rejected') rejected++;
+        if (status == 'draft')    draft++;
       }
 
       int withActive  = 0;
@@ -188,9 +203,11 @@ class FarmerManagementRepository {
       }
 
       return MemberSummaryStats(
-        totalMembers:    roleRows.length,
+        // Draft applicants are not listed, so don't count them here either.
+        totalMembers:    roleRows.length - draft,
         activeMembers:   active,
         pendingMembers:  pending,
+        rejectedMembers: rejected,
         withActiveLoans: withActive,
         withOverdueLoans: withOverdue,
       );
@@ -199,166 +216,89 @@ class FarmerManagementRepository {
     }
   }
 
-  // ─── Verify a pending farmer (legacy — prefer approveMember) ──────────────
+  // ─── Approve a pending member (Issue 5) ──────────────────────────────────
   //
-  // Kept for backward compatibility with any existing call sites, but this
-  // only sets member_id + is_verified. It does NOT activate user_roles.status,
-  // assign a proper SP3 username, register in sp3_member_registry, or notify
-  // the farmer. New approval actions should call approveMember() instead.
-
-  Future<void> verifyFarmer({
-    required String userId,
-    required String memberId,
-  }) async {
-    await _client.from('user_roles').update({
-      'status': 'active',
-    }).eq('user_id', userId);
-
-    await _client.from('farmer_profiles').update({
-      'member_id':   memberId,
-      'is_verified': true,
-    }).eq('user_id', userId);
-  }
-
-  // ─── Approve a pending member (full workflow) ─────────────────────────────
-  //
-  // 1. Generates a member ID (SP3-<year>-<sequence>)
-  // 2. Assigns a proper SP3-XXXX username if the farmer doesn't have one yet
-  //    (self-registered farmers may have a placeholder/custom username)
-  // 3. Activates user_roles.status
-  // 4. Marks farmer_profiles.is_verified + sets member_id
-  // 5. Adds/updates the sp3_member_registry entry
-  // 6. Sends an in-app notification to the farmer
+  // One atomic RPC (approve_member): pending -> active with the
+  // acknowledgement gate ON, Member ID minted via the shared generator if
+  // missing, is_verified set, registry linked, 'member_approved'
+  // notification sent, and a member_status_events audit row written. The
+  // login username is NEVER changed by approval.
 
   Future<ApproveMemberResult> approveMember({
     required String userId,
     required String fullName,
   }) async {
     try {
-      // 1. Generate member ID
-      final year = DateTime.now().year;
-      final existingRows = await _client
-          .from('farmer_profiles')
-          .select('member_id')
-          .not('member_id', 'is', null);
-      final count = existingRows.length + 1;
-      final memberId = 'SP3-$year-${count.toString().padLeft(3, '0')}';
+      final memberId =
+          await _client.rpc('approve_member', params: {'p_user_id': userId});
 
-      // 2. Generate username (SP3-XXXX) if not yet assigned
       final infoRow = await _client
           .from('user_information')
           .select('username')
           .eq('user_id', userId)
           .maybeSingle();
-      final existingUsername = infoRow?['username'] as String?;
-
-      String username = existingUsername ?? '';
-      if (username.isEmpty || !username.startsWith('sp3-')) {
-        // Assign proper SP3 username
-        final usernameResult = await _client.rpc(
-            'suggest_next_username', params: {'p_prefix': 'SP3'});
-        username = usernameResult as String;
-
-        // Update user_information username
-        await _client.from('user_information').update({
-          'username': username,
-        }).eq('user_id', userId);
-
-        // Update auth.users email to match
-        // Note: this requires the migration SQL function
-        await _client.rpc('update_user_email_to_username', params: {
-          'p_user_id': userId,
-          'p_username': username,
-        });
-      }
-
-      // 3. Activate user_roles
-      await _client.from('user_roles').update({
-        'status': 'active',
-      }).eq('user_id', userId);
-
-      // 4. Update farmer_profiles
-      await _client.from('farmer_profiles').update({
-        'member_id':   memberId,
-        'is_verified': true,
-      }).eq('user_id', userId);
-
-      // 5. Add to sp3_member_registry if not already there
-      final registryRow = await _client
-          .from('sp3_member_registry')
-          .select('id')
-          .eq('registered_user_id', userId)
-          .maybeSingle();
-
-      if (registryRow == null) {
-        await _client.from('sp3_member_registry').upsert({
-          'full_name':            fullName,
-          'is_registered':        true,
-          'registered_user_id':   userId,
-        }, onConflict: 'registered_user_id');
-      } else {
-        await _client.from('sp3_member_registry').update({
-          'is_registered':      true,
-          'registered_user_id': userId,
-        }).eq('id', registryRow['id'] as String);
-      }
-
-      // 6. Send in-app notification to farmer
-      await _client.from('notifications').insert({
-        'user_id': userId,
-        'type':    'member_approved',
-        'title':   'Membership Approved!',
-        'body':    'Congratulations! Your SP3 cooperative membership has been '
-                   'approved. You now have full access to all farmer features. '
-                   'Your Member ID is $memberId.',
-        'is_read': false,
-      });
 
       return ApproveMemberResult(
         success:  true,
-        memberId: memberId,
-        username: username,
+        memberId: memberId as String?,
+        username: infoRow?['username'] as String? ?? '',
       );
     } catch (e) {
       return ApproveMemberResult(
         success:  false,
-        error:    e.toString(),
+        error:    e.toString().replaceFirst('Exception: ', ''),
       );
     }
   }
 
-  // ─── Reject a pending member ───────────────────────────────────────────────
+  // ─── Reject a pending application (Issue 5) ───────────────────────────────
   //
-  // Sets status to 'suspended' — account exists but cannot log in to
-  // features. Admin can re-evaluate later; we don't delete accounts.
+  // reject_member: pending -> 'rejected' (a distinct status — the account
+  // stays listed but gains NO farmer access, unlike the old behaviour
+  // which set 'suspended' and accidentally let them in). Reason is
+  // required; it is shown to the applicant and recorded in the audit trail.
+  // The applicant can review their details and resubmit (up to 3 total).
 
-  Future<void> rejectMember({required String userId}) async {
-    await _client.from('user_roles').update({
-      'status': 'suspended',
-    }).eq('user_id', userId);
-
-    // Notify farmer
-    try {
-      await _client.from('notifications').insert({
-        'user_id': userId,
-        'type':    'member_rejected',
-        'title':   'Membership Status Update',
-        'body':    'Your SP3 cooperative membership application was not approved '
-                   'at this time. Please contact the SP3 office for more information.',
-        'is_read': false,
-      });
-    } catch (_) {}
+  Future<void> rejectMember({
+    required String userId,
+    required String reason,
+  }) async {
+    await _client.rpc('reject_member', params: {
+      'p_user_id': userId,
+      'p_reason':  reason.trim(),
+    });
   }
 
-  // ─── Set farmer status ────────────────────────────────────────────────────
+  // ─── Suspend / reactivate (Issue 5, Decision D17) ────────────────────────
 
-  Future<void> setFarmerStatus({
+  Future<void> suspendMember({
     required String userId,
-    required String status, // 'active' | 'suspended'
+    required String reason,
   }) async {
-    await _client.from('user_roles').update({
-      'status': status,
-    }).eq('user_id', userId);
+    await _client.rpc('suspend_member', params: {
+      'p_user_id': userId,
+      'p_reason':  reason.trim(),
+    });
+  }
+
+  Future<void> reactivateMember({required String userId}) async {
+    await _client.rpc('reactivate_member', params: {'p_user_id': userId});
+  }
+
+  // ─── Status history (audit trail for the member record) ──────────────────
+
+  Future<List<MemberStatusEvent>> fetchStatusHistory(String userId) async {
+    try {
+      final rows = await _client
+          .from('member_status_events')
+          .select('from_status, to_status, reason, created_at')
+          .eq('member_id', userId)
+          .order('created_at', ascending: false)
+          .limit(20);
+      return rows.map((r) => MemberStatusEvent.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   // ─── Known crop names for filter chips ───────────────────────────────────
@@ -411,7 +351,7 @@ extension FarmerListFilter on List<FarmerMemberModel> {
           .where((f) =>
               f.fullName.toLowerCase().contains(q) ||
               (f.memberId?.toLowerCase().contains(q) ?? false) ||
-              (f.sitio?.toLowerCase().contains(q) ?? false))
+              (f.purok?.toLowerCase().contains(q) ?? false))
           .toList();
     }
 
@@ -436,30 +376,34 @@ extension FarmerListFilter on List<FarmerMemberModel> {
       list = list.where((f) => f.loanStatus == filter.loanFilter).toList();
     }
 
-    // Sort
-    switch (filter.sortBy) {
-      case FarmerSortOption.nameAZ:
-        list.sort((a, b) => a.fullName.compareTo(b.fullName));
-        break;
-      case FarmerSortOption.recentHarvest:
-        list.sort((a, b) {
+    // Sort — the chosen option is the tiebreaker; Rejected applicants
+    // always sink to the bottom of the list regardless of sort option
+    // (verification bugfix: a rejected record is archived-for-reference,
+    // not a normal member row competing for name/loan/etc. ranking).
+    int byOption(FarmerMemberModel a, FarmerMemberModel b) {
+      switch (filter.sortBy) {
+        case FarmerSortOption.nameAZ:
+          return a.fullName.compareTo(b.fullName);
+        case FarmerSortOption.recentHarvest:
           if (a.lastHarvestDate == null && b.lastHarvestDate == null) {
             return 0;
           }
           if (a.lastHarvestDate == null) return 1;
           if (b.lastHarvestDate == null) return -1;
           return b.lastHarvestDate!.compareTo(a.lastHarvestDate!);
-        });
-        break;
-      case FarmerSortOption.memberId:
-        list.sort((a, b) =>
-            (a.memberId ?? '').compareTo(b.memberId ?? ''));
-        break;
-      case FarmerSortOption.loanBalance:
-        list.sort((a, b) => b.outstandingLoanBalance
-            .compareTo(a.outstandingLoanBalance));
-        break;
+        case FarmerSortOption.memberId:
+          return (a.memberId ?? '').compareTo(b.memberId ?? '');
+        case FarmerSortOption.loanBalance:
+          return b.outstandingLoanBalance.compareTo(a.outstandingLoanBalance);
+      }
     }
+
+    list.sort((a, b) {
+      final aRejected = a.memberStatus == MemberStatus.rejected;
+      final bRejected = b.memberStatus == MemberStatus.rejected;
+      if (aRejected != bRejected) return aRejected ? 1 : -1;
+      return byOption(a, b);
+    });
 
     return list;
   }

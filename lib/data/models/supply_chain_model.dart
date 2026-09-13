@@ -1,38 +1,33 @@
 // ─── Supply Chain Farmer (map marker data) ───────────────────────────────────
 
+// Deliberately carries only farm-location and currently-planted-crop data
+// — the two things the Supply Chain map is meant to show. Loan balance/
+// status and harvest history were removed (they belong to the Loan and
+// Harvest modules respectively, not supply chain visibility) per the
+// explicit review finding that this screen had drifted into showing
+// account-status information unrelated to supply chain operations.
 class SupplyChainFarmerModel {
   final String userId;
   final String fullName;
   final String? memberId;
-  final String? sitio;
+  final String? purok;
   final String? profilePhotoUrl;
   final double farmLatitude;
   final double farmLongitude;
   final List<String> primaryCrops;
-  final double outstandingLoanBalance;
-  final String loanStatus; // 'none' | 'active' | 'overdue'
-  final DateTime? lastHarvestDate;
   final bool isVerified;
 
   const SupplyChainFarmerModel({
     required this.userId,
     required this.fullName,
     this.memberId,
-    this.sitio,
+    this.purok,
     this.profilePhotoUrl,
     required this.farmLatitude,
     required this.farmLongitude,
     required this.primaryCrops,
-    required this.outstandingLoanBalance,
-    required this.loanStatus,
-    this.lastHarvestDate,
     required this.isVerified,
   });
-
-  bool get hasOutstandingLoan =>
-      outstandingLoanBalance > 0 || loanStatus == 'overdue';
-
-  bool get isOverdue => loanStatus == 'overdue';
 
   /// Primary crop for pin color coding
   String get primaryCrop =>
@@ -48,7 +43,7 @@ class SupplyChainFarmerModel {
       userId:       map['user_id'] as String,
       fullName:     map['full_name'] as String? ?? 'Farmer',
       memberId:     map['member_id'] as String?,
-      sitio:        map['sitio'] as String?,
+      purok:        map['purok'] as String?,
       profilePhotoUrl: map['profile_photo_url'] as String?,
       farmLatitude: (map['farm_latitude'] as num).toDouble(),
       farmLongitude: (map['farm_longitude'] as num).toDouble(),
@@ -56,12 +51,6 @@ class SupplyChainFarmerModel {
               ?.map((c) => c.toString())
               .toList() ??
           [],
-      outstandingLoanBalance:
-          (map['outstanding_balance'] as num? ?? 0).toDouble(),
-      loanStatus: map['loan_status'] as String? ?? 'none',
-      lastHarvestDate: map['last_harvest_date'] != null
-          ? DateTime.tryParse(map['last_harvest_date'] as String)
-          : null,
       isVerified: map['is_verified'] as bool? ?? false,
     );
   }
@@ -119,70 +108,37 @@ extension MapCropFilterExt on MapCropFilter {
   }
 }
 
-enum MapStatusFilter { active, loans }
+// ─── Supply Chain Coverage (mapped vs. unmapped members) ─────────────────────
+// Replaces the old SupplyChainOperationsSnapshot, which bundled in loan and
+// marketplace-approval counts that don't describe supply chain coverage —
+// see the removed fields' history for context. Coverage (can this member's
+// farm be shown on the map at all) is the one genuinely supply-chain-scoped
+// figure that belonged here.
 
-// ─── Supply Chain Operations Snapshot (for Operations Summary + Insights) ────
-
-class SupplyChainOperationsSnapshot {
+class SupplyChainCoverage {
   final int totalMembers;
   final int mappedMembers;
-  final int activeLoanCount;
-  final int overdueLoanCount;
-  final int awaitingApprovalListings;
-  final int lowStockBatches;
-  final int unsubmittedHarvests;
 
-  const SupplyChainOperationsSnapshot({
+  const SupplyChainCoverage({
     required this.totalMembers,
     required this.mappedMembers,
-    required this.activeLoanCount,
-    required this.overdueLoanCount,
-    required this.awaitingApprovalListings,
-    required this.lowStockBatches,
-    required this.unsubmittedHarvests,
   });
 
   int get unmappedMembers => (totalMembers - mappedMembers).clamp(0, totalMembers);
 
-  static const empty = SupplyChainOperationsSnapshot(
-    totalMembers: 52,
-    mappedMembers: 0,
-    activeLoanCount: 0,
-    overdueLoanCount: 0,
-    awaitingApprovalListings: 0,
-    lowStockBatches: 0,
-    unsubmittedHarvests: 0,
-  );
+  static const empty = SupplyChainCoverage(totalMembers: 52, mappedMembers: 0);
 }
 
-// ─── Unmapped Member (for the "no farm location" insight list) ───────────────
+// ─── Unmapped Member (for the "no farm location" coverage list) ─────────────
 
 class UnmappedMemberEntry {
   final String userId;
   final String fullName;
-  final String? sitio;
+  final String? purok;
 
   const UnmappedMemberEntry({
     required this.userId,
     required this.fullName,
-    this.sitio,
-  });
-}
-
-// ─── Unsubmitted Harvest (for the "not yet submitted to coop" insight list) ──
-
-class UnsubmittedHarvestEntry {
-  final String id;
-  final String farmerName;
-  final String cropName;
-  final double quantityKg;
-  final DateTime harvestDate;
-
-  const UnsubmittedHarvestEntry({
-    required this.id,
-    required this.farmerName,
-    required this.cropName,
-    required this.quantityKg,
-    required this.harvestDate,
+    this.purok,
   });
 }

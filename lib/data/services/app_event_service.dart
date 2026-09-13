@@ -43,4 +43,9 @@ class AppEventService {
   /// Named alias — called after a farmer submits a new crop request.
   /// Triggers dashboard and other screens to refresh their data.
   void notifyCropRequestSubmitted() => notify();
+
+  /// Named alias — called after a buyer successfully places an order.
+  /// Triggers My Orders (and any other listening Buyer screens) to
+  /// refresh their data.
+  void notifyOrderPlaced() => notify();
 }

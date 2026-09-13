@@ -104,23 +104,76 @@ class MemberContribution {
 
 class CapitalSharesModel {
   final String farmerId;
+
+  /// Completed whole shares — trigger-maintained as
+  /// floor(totalContribution / shareValuePerUnit). Only fully-paid
+  /// ₱2,000 increments count (Decision D1f).
   final int totalShares;
+
+  /// Fixed by the BOD. ₱2,000 per share as of Phase B.
   final double shareValuePerUnit;
+
+  /// Authoritative running ₱ total of all recorded capital
+  /// contributions (from capital_contribution_events). Loan eligibility
+  /// is checked against this, not [totalShares].
+  final double totalContribution;
 
   const CapitalSharesModel({
     required this.farmerId,
     required this.totalShares,
     required this.shareValuePerUnit,
+    this.totalContribution = 0,
   });
 
+  /// Value of the completed whole shares only (interest-on-capital base).
   double get investmentValue => totalShares * shareValuePerUnit;
+
+  /// ₱ still needed to complete the next whole share.
+  double get amountToNextShare {
+    if (shareValuePerUnit <= 0) return 0;
+    final remainder = totalContribution % shareValuePerUnit;
+    return remainder == 0 ? 0 : shareValuePerUnit - remainder;
+  }
 
   factory CapitalSharesModel.fromMap(Map<String, dynamic> map) {
     return CapitalSharesModel(
       farmerId: map['farmer_id'] as String,
       totalShares: map['total_shares'] as int? ?? 0,
       shareValuePerUnit:
-          (map['share_value_per_unit'] as num? ?? 100).toDouble(),
+          (map['share_value_per_unit'] as num? ?? 2000).toDouble(),
+      totalContribution:
+          (map['total_contribution'] as num? ?? 0).toDouble(),
+    );
+  }
+}
+
+/// One row of the capital-contribution ledger
+/// (capital_contribution_events).
+class CapitalContributionEvent {
+  final String id;
+  final String farmerId;
+  final double amount;
+  final String source; // member_payment | patronage_capital | manual_adjustment | opening_balance
+  final String? note;
+  final DateTime createdAt;
+
+  const CapitalContributionEvent({
+    required this.id,
+    required this.farmerId,
+    required this.amount,
+    required this.source,
+    required this.createdAt,
+    this.note,
+  });
+
+  factory CapitalContributionEvent.fromMap(Map<String, dynamic> map) {
+    return CapitalContributionEvent(
+      id: map['id'] as String,
+      farmerId: map['farmer_id'] as String,
+      amount: (map['amount'] as num).toDouble(),
+      source: map['source'] as String? ?? 'member_payment',
+      note: map['note'] as String?,
+      createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
 }

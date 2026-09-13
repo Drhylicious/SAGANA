@@ -42,8 +42,8 @@ class BuyerBottomNav extends StatelessWidget {
         label: l10n.buyerNavOrders,
       ),
       _NavItem(
-        icon: Icons.trending_up_rounded,
-        activeIcon: Icons.trending_up_rounded,
+        icon: Icons.show_chart_outlined,
+        activeIcon: Icons.show_chart_rounded,
         label: l10n.buyerNavPrices,
       ),
       _NavItem(

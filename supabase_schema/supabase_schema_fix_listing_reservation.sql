@@ -1,4 +1,11 @@
 -- ============================================================
+-- ⚠️ SUPERSEDED — this file's create_listing_with_reservation was
+-- an earlier fix attempt, itself superseded by
+-- supabase_schema_create_listing_reservation_corrected.sql, which
+-- is the canonical version. See
+-- supabase_schema_RESERVATION_MODEL_NOTES.md. Kept for history
+-- only.
+-- ============================================================
 -- SAGANA — Fix create_listing_with_reservation column/status mismatch
 -- The original function (supabase_schema_inventory_disposal_paths.sql)
 -- inserts into marketplace_listings using 'quantity_kg' (real column is

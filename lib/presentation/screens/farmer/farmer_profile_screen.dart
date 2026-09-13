@@ -8,13 +8,17 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
+import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/hive_service.dart';
+import '../../../data/services/sync_service.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/profile_avatar.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
   const FarmerProfileScreen({super.key});
@@ -26,6 +30,7 @@ class FarmerProfileScreen extends StatefulWidget {
 class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   final _repo = FarmerProfileRepository();
   final _notifRepo = NotificationRepository();
+  final _marketLinkingRepo = MarketLinkingRepository();
   final _picker = ImagePicker();
 
   FarmerProfileModel? _profile;
@@ -35,9 +40,11 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   int _unsyncedCount = 0;
   int _unreadCount = 0;
   int _programCount = 0;
+  int _marketLinkingCount = 0;
   bool _isLoading = true;
   bool _farmDetailsExpanded = true;
   bool _isUploadingPhoto = false;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -49,6 +56,10 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadData();
   }
 
@@ -71,6 +82,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _repo.fetchHarvestRecordCount(),
       _notifRepo.fetchUnreadCount(),
       _repo.fetchMyProgramCount(),
+      _marketLinkingRepo.fetchMyEnrollmentCount(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -80,6 +92,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _harvestCount = results[3] as int;
       _unreadCount = results[4] as int;
       _programCount = results[5] as int;
+      _marketLinkingCount = results[6] as int;
       _unsyncedCount = HiveService.getUnsyncedCount();
       _isLoading = false;
     });
@@ -99,7 +112,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     setState(() => _isUploadingPhoto = true);
     final Uint8List bytes = await picked.readAsBytes();
     final ext = picked.name.split('.').last;
-    final url = await _repo.uploadProfilePhoto(
+    final url = await _repo.updatePhoto(
       imageBytes: bytes,
       fileExtension: ext,
     );
@@ -121,12 +134,17 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 64),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — some actions, like changing your photo, require an internet connection."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 64),
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
@@ -137,21 +155,43 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                           ),
                         )
                       : _profile == null
-                      ? _ProfileLoadError(onRetry: _loadData)
+                      ? _ProfileLoadError(onRetry: _loadData, isOnline: _isOnline)
                       : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 5),
                           children: [
                             _ProfileHeaderCard(
                               profile: _profile!,
                               unsyncedCount: _unsyncedCount,
                               isUploadingPhoto: _isUploadingPhoto,
                               onEditPhoto: _pickProfilePhoto,
-                              onSyncTap: () {
+                              onSyncTap: () async {
+                                final isOnline = await ConnectivityService
+                                    .instance
+                                    .checkConnectivity();
+                                if (!isOnline) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'No internet connection. Records will sync automatically once you\'re back online.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Syncing records...'),
                                   ),
                                 );
+                                // No explicit _loadData() call here anymore —
+                                // SyncService.syncPending() now broadcasts via
+                                // AppEventService.notify() on completion,
+                                // which this screen already listens for
+                                // (_onDataChanged). Calling both was a
+                                // redundant double-fetch (Final Verification,
+                                // item 2).
+                                await SyncService.syncPending();
                               },
                             ),
                             const SizedBox(height: 14),
@@ -162,31 +202,56 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                 () => _farmDetailsExpanded =
                                     !_farmDetailsExpanded,
                               ),
-                              // Use pushRoute so Settings is pushed onto the
-                              // navigator stack — allowing a subsequent pop.
-                              onEdit: () =>
-                                  context.pushRoute(AppRoutes.farmerSettings),
+                              onEdit: () async {
+                                await context.pushRoute(
+                                  AppRoutes.editFarmDetails,
+                                );
+                                if (mounted) _loadData();
+                              },
                             ),
                             const SizedBox(height: 20),
-                            _FinancialRecordsSection(
+                            _FarmRecordsSection(
                               outstandingLoans: _outstandingLoans,
                               monthExpenses: _monthExpenses,
                               harvestCount: _harvestCount,
-                              programCount: _programCount,
                               onLoansTap: () =>
-                                  context.goTab(AppRoutes.myLoans),
+                                  context.pushRoute(AppRoutes.myLoans),
                               onExpensesTap: () =>
-                                  context.goTab(AppRoutes.myExpenses),
+                                  context.pushRoute(AppRoutes.myExpenses),
                               onHarvestSummaryTap: () =>
-                                  context.goTab(AppRoutes.myHarvestSummary),
-                              onProgramsTap: () =>
-                                  context.goTab(AppRoutes.myPrograms),
+                                  context.pushRoute(AppRoutes.myHarvestSummary),
                             ),
-                            const SizedBox(height: 16),
-                            _BalikTangkilikCard(
-                              capitalShares: _profile!.capitalShares,
+                            const SizedBox(height: 20),
+                            const _CooperativeBenefitsHeader(),
+                            _RecordRow(
+                              icon: Icons.volunteer_activism_rounded,
+                              iconColor: AppConstants.programPurple,
+                              title: 'Programs',
+                              subtitle:
+                                  '$_programCount active program${_programCount == 1 ? '' : 's'}',
                               onTap: () =>
-                                  context.goTab(AppRoutes.myContribution),
+                                  context.pushRoute(AppRoutes.myPrograms),
+                            ),
+                            if (_marketLinkingCount > 0) ...[
+                              const SizedBox(height: 8),
+                              _RecordRow(
+                                icon: Icons.eco_rounded,
+                                iconColor: AppConstants.primaryGreen,
+                                title: 'DA-AMAD Market Linking',
+                                subtitle: 'View your enrollment status',
+                                onTap: () => context
+                                    .pushRoute(AppRoutes.myMarketLinking),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            _RecordRow(
+                              icon: Icons.groups_outlined,
+                              iconColor: AppConstants.primaryGreen,
+                              title: 'Balik-Tangkilik & Capital Share',
+                              subtitle:
+                                  'Capital Shares: ₱${_profile!.capitalShares.toStringAsFixed(2)}',
+                              onTap: () =>
+                                  context.pushRoute(AppRoutes.myContribution),
                             ),
                             const SizedBox(height: 20),
                           ],
@@ -211,6 +276,9 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                 await context.pushRoute(AppRoutes.farmerSettings);
                 if (mounted) _loadData();
               },
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -263,31 +331,38 @@ class _ProfileHeaderCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(40),
-                        child: Container(
-                          width: 76,
-                          height: 76,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppConstants.primaryGreen,
-                              width: 2,
-                            ),
-                          ),
-                          child: profile.hasPhoto
-                              ? Image.network(
-                                  profile.profilePhotoUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _PhotoPlaceholder(),
-                                )
-                              : _PhotoPlaceholder(),
+                  ProfileAvatar(
+                    photoUrl: profile.profilePhotoUrl,
+                    displayName: profile.fullName,
+                    radius: 40,
+                    onTap: isUploadingPhoto ? null : onEditPhoto,
+                    badge: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppConstants.primaryGreen,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
                         ),
                       ),
-                    ],
+                      alignment: Alignment.center,
+                      child: isUploadingPhoto
+                          ? const SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.camera_alt_rounded,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -307,6 +382,35 @@ class _ProfileHeaderCard extends StatelessWidget {
                                 color: AppConstants.onSurface,
                               ),
                             ),
+                            if (profile.accountStatus == 'suspended')
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppConstants.errorRed.withValues(
+                                    alpha: 0.10,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusFull,
+                                  ),
+                                  border: Border.all(
+                                    color: AppConstants.errorRed.withValues(
+                                      alpha: 0.20,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  'ACCOUNT SUSPENDED',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppConstants.errorRed,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
                             if (profile.isVerified)
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -377,7 +481,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                             color: AppConstants.onSurfaceVariant,
                           ),
                         ),
-                        if (profile.sitio != null) ...[
+                        if (profile.purok != null) ...[
                           const SizedBox(height: 4),
                           Row(
                             children: [
@@ -389,7 +493,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                               const SizedBox(width: 3),
                               Expanded(
                                 child: Text(
-                                  profile.sitio!,
+                                  profile.purok!,
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: AppConstants.onSurfaceVariant,
@@ -496,20 +600,6 @@ class _ProfileHeaderCard extends StatelessWidget {
   }
 }
 
-class _PhotoPlaceholder extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppConstants.limeGreen,
-      child: const Icon(
-        Icons.person_rounded,
-        color: AppConstants.primaryGreen,
-        size: 36,
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Farm Details Section
 // ─────────────────────────────────────────────────────────────────────────────
@@ -607,20 +697,16 @@ class _FarmDetailsSection extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
+                    // farm_location (legacy duplicate of farm_address) has
+                    // been dropped from the schema — farmAddress is now
+                    // the sole source for this field (Phase 4 cleanup).
                     _DetailField(
                       label: 'Farm Location',
-                      value: profile.farmLocation ?? 'Not set',
+                      value: (profile.farmAddress?.isNotEmpty ?? false)
+                          ? profile.farmAddress!
+                          : 'Not set',
                       icon: Icons.pin_drop_outlined,
                     ),
-                    if (profile.farmAddress != null &&
-                        profile.farmAddress!.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      _DetailField(
-                        label: 'Address',
-                        value: profile.farmAddress!,
-                        icon: Icons.location_city_outlined,
-                      ),
-                    ],
                     if (profile.hasCoordinates) ...[
                       const SizedBox(height: 14),
                       Text(
@@ -844,28 +930,24 @@ class _DetailField extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Financial Records Section
+// Farm Records Section
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FinancialRecordsSection extends StatelessWidget {
+class _FarmRecordsSection extends StatelessWidget {
   final double outstandingLoans;
   final double monthExpenses;
   final int harvestCount;
-  final int programCount;
   final VoidCallback onLoansTap;
   final VoidCallback onExpensesTap;
   final VoidCallback onHarvestSummaryTap;
-  final VoidCallback onProgramsTap;
 
-  const _FinancialRecordsSection({
+  const _FarmRecordsSection({
     required this.outstandingLoans,
     required this.monthExpenses,
     required this.harvestCount,
-    required this.programCount,
     required this.onLoansTap,
     required this.onExpensesTap,
     required this.onHarvestSummaryTap,
-    required this.onProgramsTap,
   });
 
   @override
@@ -876,7 +958,7 @@ class _FinancialRecordsSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 10),
           child: Text(
-            'Financial Records',
+            'Farm Records',
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -887,7 +969,7 @@ class _FinancialRecordsSection extends StatelessWidget {
         _RecordRow(
           icon: Icons.eco_outlined,
           iconColor: AppConstants.tertiaryContainer,
-          title: 'My Input Loans',
+          title: 'Input Loans',
           subtitle: outstandingLoans > 0
               ? '₱${outstandingLoans.toStringAsFixed(2)} outstanding'
               : 'No outstanding loans',
@@ -897,7 +979,7 @@ class _FinancialRecordsSection extends StatelessWidget {
         _RecordRow(
           icon: Icons.receipt_outlined,
           iconColor: AppConstants.amber,
-          title: 'My Expenses',
+          title: 'Expenses',
           subtitle: '₱${monthExpenses.toStringAsFixed(2)} this month',
           onTap: onExpensesTap,
         ),
@@ -905,20 +987,35 @@ class _FinancialRecordsSection extends StatelessWidget {
         _RecordRow(
           icon: Icons.grass_rounded,
           iconColor: AppConstants.primaryGreen,
-          title: 'My Harvest Summary',
+          title: 'Harvest Summary',
           subtitle:
               '$harvestCount harvest record${harvestCount == 1 ? '' : 's'}',
           onTap: onHarvestSummaryTap,
         ),
-        const SizedBox(height: 8),
-        _RecordRow(
-          icon: Icons.volunteer_activism_rounded,
-          iconColor: AppConstants.programPurple,
-          title: 'My Programs',
-          subtitle: '$programCount active program${programCount == 1 ? '' : 's'}',
-          onTap: onProgramsTap,
-        ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cooperative Benefits Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CooperativeBenefitsHeader extends StatelessWidget {
+  const _CooperativeBenefitsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 10),
+      child: Text(
+        'Cooperative Benefits',
+        style: GoogleFonts.poppins(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppConstants.onSurface,
+        ),
+      ),
     );
   }
 }
@@ -1007,100 +1104,9 @@ class _RecordRow extends StatelessWidget {
 // Balik-Tangkilik Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BalikTangkilikCard extends StatelessWidget {
-  final double capitalShares;
-  final VoidCallback onTap;
-
-  const _BalikTangkilikCard({required this.capitalShares, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppConstants.primaryGreen, AppConstants.primaryContainer],
-          ),
-          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -20,
-              right: -20,
-              child: Icon(
-                Icons.savings_rounded,
-                size: 120,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Balik-Tangkilik & Capital Share',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your annual distribution rewards based on cooperative participation and stock investment.',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.80),
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Capital Shares: ₱${capitalShares.toStringAsFixed(2)}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ElevatedButton.icon(
-                  onPressed: onTap,
-                  icon: const Icon(Icons.trending_up_rounded, size: 16),
-                  label: Text(
-                    'View My Contribution',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppConstants.secondaryContainer,
-                    foregroundColor: AppConstants.charcoal,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Market Linking Entry Card
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings Shortcut Row  (replaces the old Support & Info / Sign Out block)
@@ -1112,7 +1118,13 @@ class _BalikTangkilikCard extends StatelessWidget {
 
 class _ProfileLoadError extends StatelessWidget {
   final VoidCallback onRetry;
-  const _ProfileLoadError({required this.onRetry});
+  // Distinguishes "you're offline" from a genuine load failure — same
+  // underlying _profile == null result either way (fetchProfile() collapses
+  // both cases), but the message/icon shown now reflects which one it
+  // actually is, using connectivity state at render time. No caching of a
+  // last-known profile added here — that's a separate, larger decision.
+  final bool isOnline;
+  const _ProfileLoadError({required this.onRetry, required this.isOnline});
 
   @override
   Widget build(BuildContext context) {
@@ -1123,19 +1135,32 @@ class _ProfileLoadError extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline_rounded,
+              isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
               size: 40,
               color: AppConstants.outline.withValues(alpha: 0.60),
             ),
             const SizedBox(height: 12),
             Text(
-              'Could not load your profile',
+              isOnline
+                  ? 'Could not load your profile'
+                  : 'You\'re offline',
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppConstants.charcoal,
               ),
             ),
+            if (!isOnline) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Your profile will load once you\'re back online.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             TextButton(
               onPressed: onRetry,

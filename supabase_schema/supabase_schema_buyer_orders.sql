@@ -1,4 +1,10 @@
 -- ============================================================
+-- ⚠️ SUPERSEDED — place_order here is from the batch-centric
+-- reservation era. The canonical place_order is now in
+-- supabase_schema_marketplace_order_reservation_fix.sql. See
+-- supabase_schema_RESERVATION_MODEL_NOTES.md for the full picture
+-- and the safe replay order. Kept for history only.
+-- ============================================================
 -- SAGANA — Buyer Order Placement
 -- Adds the place_order RPC: atomically reserves stock and
 -- creates an order row in a single transaction, closing the

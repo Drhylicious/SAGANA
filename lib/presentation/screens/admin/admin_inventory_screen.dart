@@ -8,8 +8,11 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/input_validation_utils.dart';
+import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/management_modal.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
@@ -135,28 +138,22 @@ class _CoopInventoryRepository {
 
   Future<bool> itemExists({
     required String name,
-    required String category,
-    required String unit,
   }) async {
     try {
       final rows = await _client
           .from('cooperative_inventory')
-          .select('id, item_name, category, unit')
+          .select('id, item_name')
           .order('item_name');
       final normalizedName = name.trim().toLowerCase();
+      // Name alone is the identity of an inventory item — category and unit
+      // are attributes of that item, not part of what distinguishes it from
+      // another item. Matching on all three let "Peanut Seeds" (Seeds, kg)
+      // and "Peanut seeds" (Seeds, bag) coexist as two unlinked rows.
       return rows.any((row) {
         final existingName = (row['item_name'] as String? ?? '')
             .trim()
             .toLowerCase();
-        final existingCategory = (row['category'] as String? ?? '')
-            .trim()
-            .toLowerCase();
-        final existingUnit = (row['unit'] as String? ?? '')
-            .trim()
-            .toLowerCase();
-        return existingName == normalizedName &&
-            existingCategory == category.trim().toLowerCase() &&
-            existingUnit == unit.trim().toLowerCase();
+        return existingName == normalizedName;
       });
     } catch (_) {
       return false;
@@ -188,11 +185,7 @@ class _CoopInventoryRepository {
     String? notes,
   }) async {
     try {
-      final duplicate = await itemExists(
-        name: name,
-        category: category,
-        unit: unit,
-      );
+      final duplicate = await itemExists(name: name);
       if (duplicate) return false;
       await _client.from('cooperative_inventory').insert({
         'item_name': name.trim(),
@@ -216,32 +209,16 @@ class _CoopInventoryRepository {
     String? notes,
   }) async {
     try {
-      // Insert transaction log
-      await _client.from('inventory_transactions').insert({
-        'inventory_id': inventoryId,
-        'transaction_type': transactionType,
-        'quantity': quantity,
-        'notes': notes?.trim(),
-        'recorded_by': _client.auth.currentUser?.id,
+      // Atomic, row-locked via adjust_inventory_stock() RPC — see
+      // supabase_schema_inventory_stock_adjustment_rpc.sql. Replaces the
+      // previous unlocked read-then-write (Phase 2, item 2.6).
+      await _client.rpc('adjust_inventory_stock', params: {
+        'p_inventory_id': inventoryId,
+        'p_quantity': quantity,
+        'p_transaction_type': transactionType,
+        'p_notes': notes?.trim(),
+        'p_recorded_by': _client.auth.currentUser?.id,
       });
-
-      // Update on-hand quantity
-      final current = await _client
-          .from('cooperative_inventory')
-          .select('quantity_on_hand')
-          .eq('id', inventoryId)
-          .single();
-      final currentQty = (current['quantity_on_hand'] as num).toDouble();
-      final newQty = (currentQty + quantity).clamp(0.0, double.infinity);
-
-      await _client
-          .from('cooperative_inventory')
-          .update({
-            'quantity_on_hand': newQty,
-            if (quantity > 0)
-              'last_restocked_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', inventoryId);
       return true;
     } catch (_) {
       return false;
@@ -272,21 +249,13 @@ class AdminInventoryScreen extends StatefulWidget {
 
 class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   final _repo = _CoopInventoryRepository();
+  final _categoryRepo = CategoryRepository();
 
   List<InventoryItem> _items = [];
+  List<String> _categories = [];
   bool _isLoading = true;
   bool _isOnline = true;
   String? _categoryFilter;
-
-  static const _categories = [
-    'Fertilizer',
-    'Seeds',
-    'Animal Feeds',
-    'Pesticide',
-    'Tools & Equipment',
-    'Agricultural Supplies',
-    'Harvest Stock',
-  ];
 
   static const _units = [
     'bag',
@@ -313,10 +282,14 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final result = await _repo.fetchAll();
+    final results = await Future.wait([
+      _repo.fetchAll(),
+      _categoryRepo.fetchInventoryCategories(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _items = result;
+      _items = results[0] as List<InventoryItem>;
+      _categories = results[1] as List<String>;
       _isLoading = false;
     });
   }
@@ -336,9 +309,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final costCtrl = TextEditingController();
     final reorderCtrl = TextEditingController(text: '0');
     final notesCtrl = TextEditingController();
-    String selectedCategory = 'Agricultural Supplies';
-    String selectedUnit = 'kg';
+    String? selectedCategory;
+    String? selectedUnit;
     bool isSaving = false;
+    // Local copy so the sheet's own dropdown updates immediately when a
+    // category is added inline, without waiting for the screen behind it
+    // to rebuild (it isn't listening to this already-open dialog route).
+    var categoryOptions = List<String>.of(_categories);
 
     showManagementModal(
       context: context,
@@ -350,8 +327,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               setSheet(() => isSaving = true);
               final ok = await _repo.addItem(
                 name: nameCtrl.text,
-                category: selectedCategory,
-                unit: selectedUnit,
+                category: selectedCategory!,
+                unit: selectedUnit!,
                 unitCost: costCtrl.text.trim().isEmpty
                     ? null
                     : double.tryParse(costCtrl.text.trim()),
@@ -386,6 +363,36 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    AppDropdownField<String>(
+                      value: selectedCategory,
+                      hintText: 'Select a category',
+                      labelText: 'Category *',
+                      items: categoryOptions,
+                      itemLabel: (c) => c,
+                      onChanged: (v) => setSheet(() => selectedCategory = v),
+                      validator: (v) => v == null ? 'Category is required' : null,
+                      addNewLabel: 'Add new category',
+                      onAddNew: () async {
+                        final name = await promptForNewOptionName(
+                          ctx,
+                          title: 'Add Inventory Category',
+                          hintText: 'e.g. Dairy',
+                        );
+                        if (name == null) return null;
+                        final added = await _categoryRepo.addInventoryCategory(name);
+                        if (added == null) return null;
+                        setSheet(() {
+                          if (!categoryOptions.contains(added)) {
+                            categoryOptions = [...categoryOptions, added];
+                          }
+                        });
+                        if (mounted && !_categories.contains(added)) {
+                          setState(() => _categories = [..._categories, added]);
+                        }
+                        return added;
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: nameCtrl,
                       decoration: const InputDecoration(
@@ -400,60 +407,80 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Category *',
-                      ),
-                      items: _categories
-                          .map(
-                            (c) => DropdownMenuItem(value: c, child: Text(c)),
-                          )
-                          .toList(),
-                      onChanged: (v) => setSheet(() => selectedCategory = v!),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: selectedUnit,
-                            decoration: const InputDecoration(
-                              labelText: 'Unit *',
-                            ),
-                            items: _units
-                                .map(
-                                  (u) => DropdownMenuItem(
-                                    value: u,
-                                    child: Text(u),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) => setSheet(() => selectedUnit = v!),
+                          flex: 3,
+                          child: AppDropdownField<String>(
+                            value: selectedUnit,
+                            hintText: 'Select a unit',
+                            labelText: 'Unit *',
+                            items: _units,
+                            itemLabel: (u) => u,
+                            onChanged: (v) => setSheet(() => selectedUnit = v),
+                            validator: (v) => v == null ? 'Unit is required' : null,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextFormField(
-                            controller: costCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Unit Cost (₱)',
-                              prefixText: '₱ ',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d*'),
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Unit Cost (₱)',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                controller: costCtrl,
+                                style: GoogleFonts.inter(fontSize: 14),
+                                decoration: InputDecoration(
+                                  hintText: '0.00',
+                                  prefixText: '₱ ',
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 14),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Theme.of(ctx)
+                                          .colorScheme
+                                          .outline
+                                          .withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Theme.of(ctx).colorScheme.primary,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d*'),
+                                  ),
+                                ],
+                                validator: (value) {
+                                  if ((value ?? '').trim().isEmpty) return null;
+                                  if (!isValidCurrencyValue(value))
+                                    return 'Enter a valid amount';
+                                  return null;
+                                },
                               ),
                             ],
-                            validator: (value) {
-                              if ((value ?? '').trim().isEmpty) return null;
-                              if (!isValidCurrencyValue(value))
-                                return 'Enter a valid amount';
-                              return null;
-                            },
                           ),
                         ),
                       ],
@@ -535,9 +562,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                           ? null
                           : notesCtrl.text.trim(),
                     )
-                  : await repo.updateLoanCatalogEntry(
+                  // Delegates to AdminLoanRepository — the loan-domain
+                  // repository — rather than duplicating this write here.
+                  // See loan_item_management_screen.dart for the other
+                  // caller of the same method.
+                  : await AdminLoanRepository().updateLoanCatalogRules(
                       loanItemId: existing['id'] as String,
-                      loanPrice: loanPrice,
+                      unitPrice: loanPrice,
                       isLoanEligible: true,
                       notes: notesCtrl.text.trim().isEmpty
                           ? null
@@ -888,7 +919,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ),
                     Expanded(
                       child: Text(
-                        'Cooperative Inventory',
+                        'Inventory Management',
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -1281,6 +1312,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                               ),
                                                         ),
                                                         child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
                                                           mainAxisAlignment:
                                                               MainAxisAlignment
                                                                   .center,
@@ -1294,15 +1327,20 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                             const SizedBox(
                                                               width: 6,
                                                             ),
-                                                            Text(
-                                                              'Adjust Stock',
-                                                              style: GoogleFonts.poppins(
-                                                                fontSize: 12,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                color:
-                                                                    cs.primary,
+                                                            Flexible(
+                                                              child: Text(
+                                                                'Adjust Stock',
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                                maxLines: 1,
+                                                                style: GoogleFonts.poppins(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color: cs.primary,
+                                                                ),
                                                               ),
                                                             ),
                                                           ],
@@ -1337,6 +1375,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                               ),
                                                         ),
                                                         child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
                                                           mainAxisAlignment:
                                                               MainAxisAlignment
                                                                   .center,
@@ -1351,15 +1391,21 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                             const SizedBox(
                                                               width: 6,
                                                             ),
-                                                            Text(
-                                                              'Publish',
-                                                              style: GoogleFonts.poppins(
-                                                                fontSize: 12,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                color: AppConstants
-                                                                    .primaryGreen,
+                                                            Flexible(
+                                                              child: Text(
+                                                                'Publish',
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                                maxLines: 1,
+                                                                style: GoogleFonts.poppins(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color: AppConstants
+                                                                      .primaryGreen,
+                                                                ),
                                                               ),
                                                             ),
                                                           ],
@@ -1389,6 +1435,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                             ),
                                                       ),
                                                       child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
                                                         children: [
                                                           Icon(
                                                             Icons
@@ -1400,15 +1447,21 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                           const SizedBox(
                                                             width: 6,
                                                           ),
-                                                          Text(
-                                                            'History',
-                                                            style: GoogleFonts.poppins(
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              color: cs
-                                                                  .onSurfaceVariant,
+                                                          Flexible(
+                                                            child: Text(
+                                                              'History',
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              maxLines: 1,
+                                                              style: GoogleFonts.poppins(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: cs
+                                                                    .onSurfaceVariant,
+                                                              ),
                                                             ),
                                                           ),
                                                         ],

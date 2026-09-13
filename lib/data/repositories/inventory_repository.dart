@@ -45,57 +45,29 @@ class InventoryRepository {
   }
 
   // ─── Update quantity ──────────────────────────────────────────────────────
+  // Routed through update_batch_available_quantity (see new SQL file) so
+  // this follows the same row-locked, validated pattern as every other
+  // batch-quantity mutation (_apply_batch_reservation and friends), instead
+  // of a client-side read-then-write with no lock and no bounds checking.
 
   Future<void> updateQuantity(String batchId, double newAvailableKg) async {
-    final batch = await _client
-        .from('inventory_batches')
-        .select('quantity_kg, reserved_kg, sold_kg')
-        .eq('id', batchId)
-        .single();
-
-    final qty = (batch['quantity_kg'] as num).toDouble();
-    final sold = (batch['sold_kg'] as num).toDouble();
-
-    String newStatus = 'available';
-    if (newAvailableKg <= 0) {
-      newStatus = sold >= qty ? 'sold_out' : 'reserved';
-    } else if (newAvailableKg < qty * 0.15) {
-      newStatus = 'low_stock';
-    }
-
-    await _client.from('inventory_batches').update({
-      'available_kg': newAvailableKg,
-      'status': newStatus,
-    }).eq('id', batchId);
-  }
-
-  // ─── Mark as sold ─────────────────────────────────────────────────────────
-
-  Future<void> markAsSold(String batchId) async {
-    final batch = await _client
-        .from('inventory_batches')
-        .select('available_kg, sold_kg')
-        .eq('id', batchId)
-        .single();
-
-    final available = (batch['available_kg'] as num).toDouble();
-    final sold = (batch['sold_kg'] as num).toDouble();
-
-    await _client.from('inventory_batches').update({
-      'available_kg': 0,
-      'sold_kg': sold + available,
-      'status': 'sold_out',
-    }).eq('id', batchId);
+    await _client.rpc('update_batch_available_quantity', params: {
+      'p_batch_id': batchId,
+      'p_new_available_kg': newAvailableKg,
+    });
   }
 
   // ─── Withdraw / Delete batch ──────────────────────────────────────────────
+  // Routed through delete_inventory_batch (see
+  // supabase_schema_delete_batch_listing_guard.sql) rather than a plain
+  // client delete — the RPC blocks deletion while an active listing still
+  // references this batch, instead of silently orphaning it via the FK's
+  // ON DELETE SET NULL.
 
   Future<void> deleteBatch(String batchId) async {
-    await _client
-        .from('inventory_batches')
-        .delete()
-        .eq('id', batchId)
-        .eq('farmer_id', _userId);
+    await _client.rpc('delete_inventory_batch', params: {
+      'p_batch_id': batchId,
+    });
   }
 
   // ─── Loan Catalog integration ─────────────────────────────────────────────
@@ -113,25 +85,6 @@ class InventoryRepository {
         'is_loan_eligible': true,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       });
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Updates an existing loan catalog entry's price, eligibility, and notes.
-  Future<bool> updateLoanCatalogEntry({
-    required String loanItemId,
-    required double loanPrice,
-    required bool isLoanEligible,
-    String? notes,
-  }) async {
-    try {
-      await _client.from('loan_items_master').update({
-        'unit_price': loanPrice,
-        'is_loan_eligible': isLoanEligible,
-        if (notes != null) 'notes': notes,
-      }).eq('id', loanItemId);
       return true;
     } catch (_) {
       return false;

@@ -46,3 +46,18 @@ Future<Map<String, MemberSalesTotals>> fetchMemberSalesTotals(
   }
   return totals;
 }
+
+/// A farmer's percent share of total cooperative sales for a year.
+/// Extracted here for the same reason fetchMemberSalesTotals() was —
+/// AdminReportsRepository's Member Contribution Report and
+/// ContributionRepository's farmer-facing equivalent both compute this,
+/// and must agree on the formula. Guards against a zero/negative
+/// coopTotalSales denominator (e.g. no year settings saved yet) rather
+/// than producing NaN or a divide-by-zero.
+double computeMemberSharePercent({
+  required double memberSales,
+  required double coopTotalSales,
+}) {
+  if (coopTotalSales <= 0) return 0;
+  return (memberSales / coopTotalSales) * 100;
+}

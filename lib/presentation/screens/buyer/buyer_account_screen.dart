@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_profile_model.dart';
+import '../../../data/models/buyer_activity_model.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
+import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+
+// Local bypass — BuyerProfileModel.memberSinceLabel hardcodes English
+// month abbreviations, and the model is shared with Admin's
+// fetchAllBuyers()/fetchAdminView() paths, so it isn't modified directly.
+String _memberSinceLabel(DateTime memberSince, AppLocalizations l10n) {
+  return l10n.buyerMemberSince(DateFormat('MMM y', l10n.localeName).format(memberSince));
+}
 
 class BuyerAccountScreen extends StatefulWidget {
   const BuyerAccountScreen({super.key});
@@ -22,15 +32,20 @@ class BuyerAccountScreen extends StatefulWidget {
 class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   final _repository = BuyerProfileRepository();
   final _notificationRepo = NotificationRepository();
+  final _buyerOrderRepo = BuyerOrderRepository();
 
   bool _isLoading = true;
   BuyerProfileModel? _profile;
   int _unreadCount = 0;
 
+  bool _isActivityLoading = true;
+  List<BuyerActivityItem> _recentActivity = [];
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadActivity();
   }
 
   Future<void> _load() async {
@@ -44,6 +59,30 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
       _profile = results[0] as BuyerProfileModel?;
       _unreadCount = results[1] as int;
       _isLoading = false;
+    });
+  }
+
+  // Added alongside the notification-staleness fix: a lightweight refresh
+  // for just the unread count, so returning from the notifications screen
+  // doesn't need to re-fetch the profile via the full _load().
+  Future<void> _loadUnreadCount() async {
+    final count = await _notificationRepo.fetchUnreadCount();
+    if (!mounted) return;
+    setState(() => _unreadCount = count);
+  }
+
+  Future<void> _loadActivity() async {
+    setState(() => _isActivityLoading = true);
+    final results = await Future.wait([
+      _buyerOrderRepo.fetchRecentOrderActivity(),
+      _repository.fetchRecentProfileActivity(),
+    ]);
+    if (!mounted) return;
+    final combined = [...results[0], ...results[1]]
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    setState(() {
+      _recentActivity = combined.take(5).toList();
+      _isActivityLoading = false;
     });
   }
 
@@ -74,6 +113,12 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                             const SizedBox(height: 20),
                             SectionLabel(label: l10n.purchaseSummary),
                             hasOrders ? _buildStatsRow(l10n) : _buildFirstOrderPrompt(context, l10n),
+                            const SizedBox(height: 20),
+                            _RecentActivitySection(
+                              items: _recentActivity,
+                              isLoading: _isActivityLoading,
+                              onViewAll: () => context.push(AppRoutes.buyerRecentActivity),
+                            ),
                           ],
                         ),
                       ),
@@ -85,7 +130,10 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             child: BuyerTopBar(
               title: l10n.account,
               unreadCount: _unreadCount,
-              onNotificationTap: () => context.push(AppRoutes.buyerNotifications),
+              onNotificationTap: () async {
+                await context.push(AppRoutes.buyerNotifications);
+                _loadUnreadCount();
+              },
               onSettingsTap: () => context.push(AppRoutes.buyerSettings),
             ),
           ),
@@ -116,7 +164,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                     style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
                 const SizedBox(height: 2),
                 if (profile != null)
-                  Text(profile.memberSinceLabel,
+                  Text(_memberSinceLabel(profile.memberSince, l10n),
                       style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
               ],
             ),
@@ -157,7 +205,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
     final tile = Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
       ),
@@ -195,3 +243,155 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   }
 }
 
+// Superseded — was a single tappable row to the full activity screen;
+// replaced with the inline preview section below (_RecentActivitySection),
+// which shows the most recent items directly on this screen instead of
+// requiring a tap-through to see anything.
+class _RecentActivitySection extends StatelessWidget {
+  final List<BuyerActivityItem> items;
+  final bool isLoading;
+  final VoidCallback onViewAll;
+
+  const _RecentActivitySection({
+    required this.items,
+    required this.isLoading,
+    required this.onViewAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            SectionLabel(label: l10n.buyerActivityTitle),
+            GestureDetector(
+              onTap: onViewAll,
+              child: Text(l10n.buyerActivityViewAll,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (isLoading)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (items.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+            child: Column(
+              children: [
+                Icon(Icons.history_rounded, size: 36, color: AppConstants.outline.withValues(alpha: 0.5)),
+                const SizedBox(height: 8),
+                Text(l10n.buyerActivityEmpty, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+              ],
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: context.saganaColors.cardBackground,
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+            ),
+            child: Column(
+              children: items.asMap().entries.map((e) {
+                return Column(
+                  children: [
+                    _RecentActivityTile(item: e.value),
+                    if (e.key < items.length - 1)
+                      Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.08)),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// Buyer-local bypasses for BuyerActivityItem's order-derived text —
+// mirrors the same pattern used throughout this project for shared/
+// cross-cutting models, applied here even though this model is
+// Buyer-exclusive, to move presentation logic out of the repository.
+// Duplicated in buyer_recent_activity_screen.dart's _ActivityCard.
+String _activityOrderTitle(String? status, AppLocalizations l10n) {
+  switch (status) {
+    case 'pending':   return l10n.buyerOrderDetailStepPlaced;
+    case 'approved':  return l10n.buyerActivityOrderApproved;
+    case 'completed': return l10n.buyerActivityOrderCompleted;
+    case 'cancelled': return l10n.buyerActivityOrderCancelled;
+    default:          return l10n.buyerActivityOrderUpdated;
+  }
+}
+
+String _activityStatusLabel(String? status, AppLocalizations l10n) {
+  switch (status) {
+    case 'pending':   return l10n.buyerOrderDetailPendingTimestamp;
+    case 'approved':  return l10n.buyerOrderDetailStepApproved;
+    case 'completed': return l10n.buyerOrderDetailStepCompleted;
+    case 'cancelled': return l10n.buyerActivityStatusCancelled;
+    default:          return status ?? '';
+  }
+}
+
+class _RecentActivityTile extends StatelessWidget {
+  final BuyerActivityItem item;
+  const _RecentActivityTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isOrder = item.type == BuyerActivityType.order;
+    final title = isOrder ? _activityOrderTitle(item.orderStatus, l10n) : item.title;
+    final subtitle = isOrder ? item.subtitle : l10n.buyerActivityFilterProfile;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: AppConstants.limeGreen,
+              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            ),
+            child: Icon(isOrder ? Icons.receipt_long_rounded : Icons.person_rounded,
+                size: 18, color: AppConstants.primaryGreen),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          if (item.valueLabel != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(item.valueLabel!,
+                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                if (isOrder && item.orderStatus != null)
+                  Text(_activityStatusLabel(item.orderStatus, l10n),
+                      style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.successGreen)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}

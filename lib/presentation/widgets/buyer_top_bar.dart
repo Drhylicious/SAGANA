@@ -91,7 +91,7 @@ class BuyerTopBar extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppConstants.errorRed,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
+                            border: Border.all(color: sagana.glassBackground, width: 1.5),
                           ),
                         ),
                       ),

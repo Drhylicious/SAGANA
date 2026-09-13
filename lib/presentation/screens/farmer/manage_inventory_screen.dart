@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/inventory_batch_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
@@ -175,6 +176,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
               autofocus: true,
               decoration: InputDecoration(
                 labelText: 'Available Quantity (kg)',
@@ -185,7 +189,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Total batch quantity: ${batch.quantityKg.toStringAsFixed(0)} kg',
+              'Total batch quantity: ${batch.quantityKg.toStringAsFixed(0)} kg  •  You can only decrease this value',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: AppConstants.outline,
@@ -204,12 +208,23 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           ElevatedButton(
             onPressed: () async {
               final newQty = double.tryParse(controller.text.trim());
-              if (newQty == null || newQty < 0 || newQty > batch.quantityKg) {
+              final maxAvailable = batch.availableKg;
+              if (newQty == null || newQty < 0 || newQty > maxAvailable) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Enter a value between 0 and ${batch.quantityKg.toStringAsFixed(0)} kg',
+                      'Enter a value between 0 and ${maxAvailable.toStringAsFixed(0)} kg. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.',
                     ),
+                  ),
+                );
+                return;
+              }
+              if (!_isOnline) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Updating quantity requires an internet connection. Please try again once you\'re back online.'),
+                    backgroundColor: AppConstants.warningAmber,
                   ),
                 );
                 return;
@@ -269,10 +284,13 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                 await _loadData();
               } catch (e) {
                 if (!mounted) return;
+                final message = e is PostgrestException && e.message.isNotEmpty
+                    ? e.message
+                    : 'Failed to delete batch #${batch.batchNumber}. Please try again.';
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Failed to delete batch #${batch.batchNumber}. Please try again.',
+                      message,
                       style: GoogleFonts.inter(fontSize: 13),
                     ),
                     backgroundColor: AppConstants.errorRed,
@@ -312,6 +330,20 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       } else {
         context.pushRoute(AppRoutes.harvestHistory, extra: batch.cropName);
       }
+      return;
+    }
+
+    // Marketplace/Cooperative/Informal all depend on live server state
+    // (available_kg at call time, market price, row locks) — unlike
+    // Harvest Entry, these are deliberately NOT queued for offline replay.
+    // Block with a clear message instead of letting the RPC fail silently.
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
+          backgroundColor: AppConstants.warningAmber,
+        ),
+      );
       return;
     }
 
@@ -368,13 +400,17 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              if (!_isOnline) const OfflineBanner(),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — some inventory actions require an internet connection."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
@@ -468,15 +504,14 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                 ),
               ),
             ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary Metrics
@@ -553,7 +588,7 @@ class _MetricCard extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                color: AppConstants.infoBlueFg.withValues(alpha: 0.05),
                 blurRadius: 12,
               ),
             ],
@@ -765,7 +800,7 @@ class _BatchCard extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                color: AppConstants.infoBlueFg.withValues(alpha: 0.05),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -1219,7 +1254,7 @@ class _InventoryEmptyState extends StatelessWidget {
               width: 96,
               height: 96,
               decoration: const BoxDecoration(
-                color: Color(0xFFDBF1FE),
+                color: AppConstants.infoBlueBg,
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -1324,7 +1359,7 @@ class _InventoryEmptyState extends StatelessWidget {
             width: 96,
             height: 96,
             decoration: const BoxDecoration(
-              color: Color(0xFFDBF1FE),
+              color: AppConstants.infoBlueBg,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1553,6 +1588,9 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
           TextField(
             controller: _qtyController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
             decoration: InputDecoration(
               labelText: 'Quantity to offer (kg)',
               errorText: _error,
@@ -1672,6 +1710,9 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
             TextField(
               controller: _qtyController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
               decoration: InputDecoration(labelText: 'Quantity sold (kg)', errorText: _error),
             ),
             const SizedBox(height: 12),
@@ -1683,6 +1724,9 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
             TextField(
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
               decoration: const InputDecoration(labelText: 'Amount received (optional)'),
             ),
             const SizedBox(height: 12),

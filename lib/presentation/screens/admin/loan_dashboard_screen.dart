@@ -10,9 +10,11 @@ import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/app_dialog.dart';
 
 /// Loan Management — Admin Dashboard.
 /// Shell tab (branch 3, adminLoansKey). No back button.
@@ -32,7 +34,8 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   LoanDashboardStats _stats = LoanDashboardStats.empty();
   List<AdminLoanSummary> _overdueLoans = [];
   List<AdminLoanSummary> _activeLoans = [];
-  (double, double) _collectionsTrend = (0.0, 0.0);
+  (int, int) _paidCountTrend = (0, 0);
+  List<Map<String, dynamic>> _syncIssues = [];
 
   /// Overdue first (most urgent), topped up with active loans to a max
   /// of 5 cards — replaces the old separate Overdue/Active sections.
@@ -60,14 +63,15 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       _repo.fetchDashboardStats(),
       _repo.fetchOverdueLoans(limit: 3),
       _repo.fetchActiveLoans(limit: 5),
-      _repo.fetchCollectionsThisVsLastMonth(),
+      _repo.fetchPaidCountThisVsLastMonth(),
     ]);
     if (!mounted) return;
     setState(() {
       _stats = results[0] as LoanDashboardStats;
       _overdueLoans = results[1] as List<AdminLoanSummary>;
       _activeLoans = results[2] as List<AdminLoanSummary>;
-      _collectionsTrend = results[3] as (double, double);
+      _paidCountTrend = results[3] as (int, int);
+      _syncIssues = HiveService.getLoanSyncIssues();
       _isLoading = false;
     });
   }
@@ -82,13 +86,13 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
+          if (!_isOnline) const OfflineBanner(),
           AdminTopBar(
             title: l10n.loanDashTitle,
             onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
             onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
           ),
-          if (!_isOnline) const OfflineBanner(),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadAll,
@@ -99,9 +103,21 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                         AppConstants.spacingSafeH,
                         AppConstants.spacingGutter,
                         AppConstants.spacingSafeH,
-                        32,
+                        AppConstants.spacingSafeH,
                       ),
                       children: [
+                        if (_syncIssues.isNotEmpty) ...[
+                          _SyncIssuesCard(
+                            issues: _syncIssues,
+                            cs: cs,
+                            sagana: sagana,
+                            onTap: (issue) => AppDialog.show<void>(
+                              context: context,
+                              child: _SyncIssueDetailDialog(issue: issue),
+                            ),
+                          ),
+                          const SizedBox(height: AppConstants.spacingMd),
+                        ],
                         _buildBodBanner(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingMd),
                         _buildQuickActions(context, l10n),
@@ -290,7 +306,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     SaganaColors sagana,
   ) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
-    final (thisMonth, lastMonth) = _collectionsTrend;
+    final (thisMonth, lastMonth) = _paidCountTrend;
     final hasDelta = lastMonth > 0;
     final deltaPercent = hasDelta ? ((thisMonth - lastMonth) / lastMonth * 100) : 0.0;
 
@@ -366,13 +382,21 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             ],
           ),
           const SizedBox(height: AppConstants.spacingSm),
-          Text(
-            value,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 20, color: cs.onSurface),
+          Flexible(
+            child: FittedBox(
+              alignment: Alignment.centerLeft,
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 20, color: cs.onSurface),
+              ),
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ],
@@ -437,16 +461,23 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   }
 
   Widget _buildQuickActions(BuildContext context, AppLocalizations l10n) {
+    // Officers can issue loans (Decision D21 resolves the deferred Staff
+    // gap). The backend RPC is the authority; this just keeps the button
+    // visible for everyone who reaches this screen.
+    const canIssueLoans = true;
+
     return Row(
       children: [
-        Expanded(
-          child: _quickActionButton(
-            icon: Icons.add_card_rounded,
-            label: l10n.loanDashActionIssue,
-            onTap: _goToIssueLoan,
+        if (canIssueLoans) ...[
+          Expanded(
+            child: _quickActionButton(
+              icon: Icons.add_card_rounded,
+              label: l10n.loanDashActionIssue,
+              onTap: _goToIssueLoan,
+            ),
           ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
+          const SizedBox(width: AppConstants.spacingSm),
+        ],
         Expanded(
           child: _quickActionButton(
             icon: Icons.payments_outlined,
@@ -525,14 +556,11 @@ class _AdminLoanCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: loan.isOverdue
-              ? Border(
-                  left: BorderSide(color: cs.error, width: 4),
-                  top: BorderSide(color: cs.outline.withValues(alpha: 0.10)),
-                  right: BorderSide(color: cs.outline.withValues(alpha: 0.10)),
-                  bottom: BorderSide(color: cs.outline.withValues(alpha: 0.10)),
-                )
-              : Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          border: Border.all(
+            color: loan.isOverdue
+                ? cs.error.withValues(alpha: 0.18)
+                : cs.outline.withValues(alpha: 0.10),
+          ),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
         ),
         child: Column(
@@ -586,6 +614,26 @@ class _AdminLoanCard extends StatelessWidget {
                           ),
                         ))
                     .toList(),
+              ),
+            ],
+            if (loan.isFromProgramDistribution) ...[
+              const SizedBox(height: AppConstants.spacingSm),
+              Row(
+                children: [
+                  Icon(Icons.eco_rounded, size: 13, color: AppConstants.programPurple),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'From Program Distribution: ${loan.sourceProgramName}',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.programPurple,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
             const SizedBox(height: AppConstants.spacingMd),
@@ -677,6 +725,164 @@ class _AdminLoanCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SyncIssuesCard extends StatelessWidget {
+  final List<Map<String, dynamic>> issues;
+  final void Function(Map<String, dynamic>) onTap;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _SyncIssuesCard({
+    required this.issues,
+    required this.onTap,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: AppConstants.warningAmber,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Sync Issues',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  ),
+                  child: Text(
+                    '${issues.length} item${issues.length == 1 ? '' : 's'}',
+                    style: GoogleFonts.inter(
+                        fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
+          ...issues.asMap().entries.map((entry) {
+            final i = entry.key;
+            final issue = entry.value;
+            final isIssuance = issue['type'] == 'issue';
+            final isLast = i == issues.length - 1;
+            return Column(
+              children: [
+                GestureDetector(
+                  onTap: () => onTap(issue),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.sync_problem_rounded,
+                            color: AppConstants.warningAmber, size: 18),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isIssuance
+                                    ? 'Loan Issuance Failed to Sync'
+                                    : 'Payment Failed to Sync',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
+                              ),
+                              Text(
+                                issue['error'] as String,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: AppConstants.warningAmber.withValues(alpha: 0.60), size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+                if (!isLast)
+                  Divider(height: 1, indent: 16, color: cs.outline.withValues(alpha: 0.08)),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncIssueDetailDialog extends StatelessWidget {
+  final Map<String, dynamic> issue;
+
+  const _SyncIssueDetailDialog({required this.issue});
+
+  @override
+  Widget build(BuildContext context) {
+    final isIssuance = issue['type'] == 'issue';
+    final failedAt = DateTime.tryParse(issue['failedAt'] as String? ?? '');
+
+    return AlertDialog(
+      title: Text(isIssuance ? 'Loan Issuance Failed to Sync' : 'Payment Failed to Sync'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(issue['error'] as String),
+          if (failedAt != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Last attempted ${DateFormat('MMM d, h:mm a').format(failedAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }

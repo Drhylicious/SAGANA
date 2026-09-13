@@ -1,4 +1,14 @@
 // ─── Period Filter ────────────────────────────────────────────────────────────
+//
+// Note on "season": AnalyticsPeriod.thisSeason is a 90-day rolling window
+// (see startDate below), independent of calendar boundaries. This is a
+// different definition from HarvestRepository's own "season" stat
+// (fetchStats()), which counts calendar-year-to-date despite its internal
+// variable being named startOfSeason. Both are intentionally correct for
+// what each screen shows — this isn't a bug — but a farmer could see two
+// different "season" totals on two different screens. Flagging here so
+// the collision is documented rather than silently repeated if either
+// definition is touched again.
 
 enum AnalyticsPeriod { thisMonth, thisSeason, thisYear, allTime }
 
@@ -85,12 +95,14 @@ class TransactionRecord {
 
 class CropPriceCard {
   final String cropName;
+  final String priceType; // 'sp3_cooperative' | 'open_market'
   final double currentPrice;
   final double? previousPrice;
   final double? costPerKg;
 
   const CropPriceCard({
     required this.cropName,
+    required this.priceType,
     required this.currentPrice,
     this.previousPrice,
     this.costPerKg,

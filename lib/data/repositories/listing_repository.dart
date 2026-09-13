@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/marketplace_listing_model.dart';
+import '../services/app_event_service.dart';
 
 class ListingRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -27,6 +28,7 @@ class ListingRepository {
     });
 
     final row = await _client.from('marketplace_listings').select().eq('id', listingId).single();
+    AppEventService.instance.notify();
     return MarketplaceListingModel.fromMap(row);
   }
 
@@ -79,16 +81,19 @@ class ListingRepository {
   // see supabase_schema_listing_withdraw_reservation.sql.
   Future<void> withdrawListing(String listingId) async {
     await _client.rpc('withdraw_listing', params: {'p_listing_id': listingId});
+    AppEventService.instance.notify();
   }
 
   // ─── Delete listing ────────────────────────────────────────────────────────
-
+  // Routed through delete_listing (see supabase_schema_rejected_listing_terminal.sql,
+  // the current canonical version — see RESERVATION_MODEL_NOTES.md's
+  // "Post-Marketplace-review updates" section) rather than a plain client
+  // delete — the RPC enforces that only an already-withdrawn or rejected
+  // listing (reservation already released either way) can be deleted, so
+  // this is safe regardless of which UI caller invokes it.
   Future<void> deleteListing(String listingId) async {
-    await _client
-        .from('marketplace_listings')
-        .delete()
-        .eq('id', listingId)
-        .eq('farmer_id', _userId);
+    await _client.rpc('delete_listing', params: {'p_listing_id': listingId});
+    AppEventService.instance.notify();
   }
 
   // ─── Resubmit listing (after changes required) ────────────────────────────
@@ -119,6 +124,7 @@ class ListingRepository {
         .eq('id', listingId)
         .eq('farmer_id', _userId)
         .single();
+    AppEventService.instance.notify();
     return MarketplaceListingModel.fromMap(row);
   }
 }

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +6,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
+import '../../widgets/web_safe_blur_container.dart';
 
 class OrderManagementScreen extends StatefulWidget {
   /// When set, the screen opens pre-filtered to one buyer's orders —
@@ -21,11 +22,15 @@ class OrderManagementScreen extends StatefulWidget {
   State<OrderManagementScreen> createState() => _OrderManagementScreenState();
 }
 
-class _OrderManagementScreenState extends State<OrderManagementScreen>
-    with SingleTickerProviderStateMixin {
+class _OrderManagementScreenState extends State<OrderManagementScreen> {
   final _repo = AdminOrderRepository();
   final _searchCtrl = TextEditingController();
-  late final TabController _tabController;
+
+  // null = "All". Replaces the previous TabBar — All Listings/Pending
+  // Review both use this same pill-chip filter style, so Order Management
+  // now matches instead of being the one screen with a different filter
+  // widget and different interaction model (see M-marketplace-3).
+  String? _statusFilter;
 
   List<AdminOrderModel> _allOrders = [];
   bool _isLoading = true;
@@ -36,7 +41,6 @@ class _OrderManagementScreenState extends State<OrderManagementScreen>
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    _tabController = TabController(length: 4, vsync: this);
     _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
     _load();
   }
@@ -44,7 +48,6 @@ class _OrderManagementScreenState extends State<OrderManagementScreen>
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -59,8 +62,8 @@ class _OrderManagementScreenState extends State<OrderManagementScreen>
     });
   }
 
-  List<AdminOrderModel> _byStatus(String status) {
-    var list = _allOrders.where((o) => o.status == status);
+  List<AdminOrderModel> _byStatus(String? status) {
+    var list = status == null ? _allOrders : _allOrders.where((o) => o.status == status);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((o) =>
@@ -71,13 +74,20 @@ class _OrderManagementScreenState extends State<OrderManagementScreen>
     return list.toList();
   }
 
+  String get _emptyMessage {
+    switch (_statusFilter) {
+      case 'pending': return 'No pending orders';
+      case 'approved': return 'No approved orders';
+      case 'completed': return 'No completed orders';
+      case 'cancelled': return 'No cancelled orders';
+      default: return 'No orders yet';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final pending = _byStatus('pending');
-    final approved = _byStatus('approved');
-    final completed = _byStatus('completed');
-    final cancelled = _byStatus('cancelled');
+    final visible = _byStatus(_statusFilter);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -97,32 +107,49 @@ class _OrderManagementScreenState extends State<OrderManagementScreen>
               ),
             ),
           ),
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            labelColor: cs.primary,
-            unselectedLabelColor: cs.onSurfaceVariant,
-            indicatorColor: cs.primary,
-            labelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
-            tabs: [
-              Tab(text: 'Pending (${pending.length})'),
-              Tab(text: 'Approved (${approved.length})'),
-              Tab(text: 'Completed (${completed.length})'),
-              Tab(text: 'Cancelled (${cancelled.length})'),
-            ],
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 34,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              scrollDirection: Axis.horizontal,
+              children: [
+                // Same plain-pill style as Pending Approval / Offer to
+                // Cooperative now (no count badge) — the instant, no-reload
+                // switching behavior this screen already had is unchanged,
+                // only the chip's own look changed.
+                ListingStatusFilterChip(
+                  label: 'All', active: _statusFilter == null,
+                  color: cs.primary, onTap: () => setState(() => _statusFilter = null), cs: cs,
+                ),
+                const SizedBox(width: 8),
+                ListingStatusFilterChip(
+                  label: 'Pending', active: _statusFilter == 'pending',
+                  color: AppConstants.warningAmber, onTap: () => setState(() => _statusFilter = 'pending'), cs: cs,
+                ),
+                const SizedBox(width: 8),
+                ListingStatusFilterChip(
+                  label: 'Approved', active: _statusFilter == 'approved',
+                  color: AppConstants.successGreen, onTap: () => setState(() => _statusFilter = 'approved'), cs: cs,
+                ),
+                const SizedBox(width: 8),
+                ListingStatusFilterChip(
+                  label: 'Completed', active: _statusFilter == 'completed',
+                  color: AppConstants.primaryGreen, onTap: () => setState(() => _statusFilter = 'completed'), cs: cs,
+                ),
+                const SizedBox(width: 8),
+                ListingStatusFilterChip(
+                  label: 'Cancelled', active: _statusFilter == 'cancelled',
+                  color: AppConstants.errorRed, onTap: () => setState(() => _statusFilter = 'cancelled'), cs: cs,
+                ),
+              ],
+            ),
           ),
+          const SizedBox(height: 8),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildList(pending, 'No pending orders'),
-                      _buildList(approved, 'No approved orders'),
-                      _buildList(completed, 'No completed orders'),
-                      _buildList(cancelled, 'No cancelled orders'),
-                    ],
-                  ),
+                : _buildList(visible, _emptyMessage),
           ),
         ],
       ),
@@ -160,6 +187,7 @@ class _OrderRow extends StatelessWidget {
       case 'approved': return AppConstants.successGreen;
       case 'pending': return AppConstants.warningAmber;
       case 'completed': return AppConstants.primaryGreen;
+      case 'cancelled': return AppConstants.errorRed;
       default: return AppConstants.outline;
     }
   }
@@ -212,8 +240,9 @@ class _OrderRow extends StatelessWidget {
 }
 
 // ─── Top App Bar ──────────────────────────────────────────────────────────────
-// Same pattern as BuyerManagementScreen's own _TopAppBar — copied rather
-// than shared, per instruction to keep this change scoped to this file.
+// Now delegates its blur to the shared WebSafeBlurContainer (same
+// consolidation already applied to GlassCard and crop_listing_screen.dart's
+// _CropCard) rather than keeping its own independent BackdropFilter copy.
 
 class _TopAppBar extends StatelessWidget {
   final String title;
@@ -229,29 +258,27 @@ class _TopAppBar extends StatelessWidget {
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(title,
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
+    return SizedBox(
+      height: 64,
+      child: WebSafeBlurContainer(
+        blurSigma: 20,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: sagana.glassBackground,
+          border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+              onPressed: onBack,
+            ),
+            Expanded(
+              child: Text(title,
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
         ),
       ),
     );

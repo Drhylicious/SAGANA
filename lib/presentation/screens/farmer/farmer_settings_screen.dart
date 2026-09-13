@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../data/models/admin_reports_model.dart';
 import '../../../data/repositories/settings_repository.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/farmer_export_service.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -27,6 +31,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   SettingsPrefs? _prefs;
   bool _isLoading = true;
   bool _isSigningOut = false;
+  bool _isOnline = true;
 
   @override
   void didChangeDependencies() {
@@ -37,6 +42,10 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadPrefs();
   }
 
@@ -143,7 +152,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   }
 
   Future<void> _loadPrefs() async {
-    final prefs = await _settingsRepo.loadPrefs();
+    final prefs = await _settingsRepo.loadPrefs(userId: AppSettingsService.instance.currentUserId);
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
@@ -157,7 +166,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await AppDialog.show<bool>(
       context: context,
-      child: _ConfirmDialog(
+      child: ConfirmDialog(
         title: l10n.clearCachedData,
         message: l10n.clearCachedDataDescription,
         confirmLabel: l10n.clearCachedData,
@@ -174,7 +183,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
   Future<void> _showSignOutDialog() async {
     final confirmed = await AppDialog.show<bool>(
       context: context,
-      child: const _ConfirmDialog(
+      child: const ConfirmDialog(
         title: 'Sign Out?',
         message: 'You will be signed out of SAGANA. '
             'Offline records will remain on this device.',
@@ -188,6 +197,66 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
         GoRouter.of(context).go(AppRoutes.login);
       }
     }
+  }
+
+  // ── Download My Records (Phase 7 — Farmer Download Records) ────────────────
+
+  void _showDownloadRecordsModal() {
+    ReportPeriod selectedPeriod = ReportPeriod.thisMonth;
+    bool isGenerating = false;
+
+    showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> download() async {
+            setModalState(() => isGenerating = true);
+            try {
+              final paths =
+                  await FarmerExportService().generateMyExports(selectedPeriod);
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (paths.isNotEmpty) {
+                await Share.shareXFiles(paths.map((p) => XFile(p)).toList());
+              }
+              _showSnack('Your records have been exported.');
+            } catch (_) {
+              setModalState(() => isGenerating = false);
+              if (!ctx.mounted) return;
+              _showSnack('Could not generate your records. Please try again.');
+            }
+          }
+
+          return ManagementModalShell(
+            title: 'Download My Records',
+            subtitle:
+                'Choose a period to export your Sales, Harvest, Expense, '
+                'Loan, and Contribution records as CSV files.',
+            onClose: () => Navigator.pop(ctx),
+            body: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ReportPeriod.values.map((p) {
+                final selected = p == selectedPeriod;
+                return ChoiceChip(
+                  label: Text(p.label, style: GoogleFonts.inter(fontSize: 13)),
+                  selected: selected,
+                  selectedColor: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                  onSelected: isGenerating
+                      ? null
+                      : (_) => setModalState(() => selectedPeriod = p),
+                );
+              }).toList(),
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: 'Download',
+              isLoading: isGenerating,
+              onPrimary: download,
+            ),
+          );
+        },
+      ),
+    );
   }
 
   // ── Info dialogs (Support & Info) ───────────────────────────────────────────
@@ -263,12 +332,17 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 64),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — changing your password requires an internet connection."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 64),
+                    Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 60),
                   children: [
@@ -319,16 +393,16 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    SectionLabel(label: l10n.sectionDataExport),
+                    SectionLabel(label: l10n.sectionStorage),
                     SettingsCard(
                       children: [
                         ToggleRow(
                           title: l10n.backgroundSync,
                           value: prefs.backgroundSync,
                           onChanged: (v) async {
-                            await _settingsRepo.savePref(
-                              AppConstants.hiveKeyBackgroundSync,
+                            await _settingsRepo.saveBackgroundSync(
                               v,
+                              userId: AppSettingsService.instance.currentUserId,
                             );
                             setState(
                               () => _prefs = prefs.copyWith(backgroundSync: v),
@@ -347,7 +421,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                     const SizedBox(height: 20),
 
                     // ── Data Export ───────────────────────────────────────
-                    const SectionLabel(label: 'Data Export'),
+                    SectionLabel(label: l10n.sectionDataExport),
                     SettingsCard(
                       children: [
                         SettingsRow(
@@ -356,16 +430,14 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                           title: 'Download My Records',
                           subtitle:
                               'Export your harvest, expense, and sales data',
-                          onTap: () => _showSnack(
-                            'Export feature coming soon. Contact SP3 Admin for records.',
-                          ),
+                          onTap: _showDownloadRecordsModal,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
 
                     // ── Support & Info ────────────────────────────────────
-                    const SectionLabel(label: 'Support & Info'),
+                    SectionLabel(label: l10n.sectionSupportInfo),
                     SettingsCard(
                       children: [
                         SettingsRow(
@@ -405,7 +477,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
                           onTap: () => _showInfoDialog(
                             'Privacy Policy',
                             'SAGANA collects personal information such as your name, contact number, farm details, and agricultural records solely for the purpose of managing cooperative operations within the SP3 Agriculture Cooperative.\n\n'
-                                'Your data is stored securely in Supabase (PostgreSQL) and is accessible only to authorized cooperative staff and your own account.\n\n'
+                                'Your data is stored securely in Supabase (PostgreSQL) and is accessible only to authorized cooperative officers and your own account.\n\n'
                                 'We do not share your personal data with third parties outside the cooperative without your consent.\n\n'
                                 'Offline data is stored locally on your device and synchronized to the cooperative database when internet connectivity is restored.\n\n'
                                 'For data-related concerns, contact SP3 cooperative management.',
@@ -469,6 +541,9 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               showNotificationButton: false,
             ),
           ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -512,60 +587,6 @@ class _PickerTile extends StatelessWidget {
                 ),
         ),
         onTap: onTap,
-      ),
-    );
-  }
-}
-
-/// Shared confirm/cancel pattern for Sign Out — same shape as
-/// AdminSettingsScreen's private _ConfirmDialog. Kept local to this file
-/// since it isn't reused elsewhere yet; worth promoting to a shared widget
-/// if Buyer's sign-out confirm ends up needing the same treatment.
-class _ConfirmDialog extends StatelessWidget {
-  final String title;
-  final String message;
-  final String confirmLabel;
-
-  const _ConfirmDialog({
-    required this.title,
-    required this.message,
-    required this.confirmLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 40),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(title, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: PrimaryButton(
-                    label: confirmLabel,
-                    height: 44,
-                    onPressed: () => Navigator.pop(context, true),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

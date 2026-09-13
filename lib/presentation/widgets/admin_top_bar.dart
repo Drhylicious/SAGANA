@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
@@ -93,7 +94,7 @@ class AdminTopBar extends StatelessWidget {
 
                   // Broadcast
                   GestureDetector(
-                    onTap: onBroadcastTap ?? () => Navigator.pushNamed(context, AppRoutes.announcementDashboard),
+                    onTap: onBroadcastTap ?? () => context.push(AppRoutes.announcementDashboard),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Icon(Icons.campaign_rounded, color: cs.primary, size: 26),
@@ -104,7 +105,7 @@ class AdminTopBar extends StatelessWidget {
 
                   // Notifications (with unread badge)
                   GestureDetector(
-                    onTap: onNotificationTap ?? () => Navigator.pushNamed(context, AppRoutes.adminNotifications),
+                    onTap: onNotificationTap ?? () => context.push(AppRoutes.adminNotifications),
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -141,7 +142,7 @@ class AdminTopBar extends StatelessWidget {
                       photoUrl: profilePhotoUrl,
                       displayName: displayName,
                       radius: 19,
-                      onTap: onProfileTap ?? () => Navigator.pushNamed(context, AppRoutes.adminProfile),
+                      onTap: onProfileTap ?? () => context.push(AppRoutes.adminProfile),
                     ),
                   ),
                 ],

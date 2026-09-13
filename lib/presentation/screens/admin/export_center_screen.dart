@@ -13,6 +13,7 @@ import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/services/csv_export_service.dart';
 import '../../../data/services/hive_service.dart';
+import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 
 /// Export Center — Admin.
@@ -97,7 +98,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       if (paths.isNotEmpty) {
         await Share.shareXFiles(paths.map((p) => XFile(p)).toList());
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[ExportCenter] generateExports failed: $e\n$st');
       if (!mounted) return;
       _showSnack(l10n.exportGenerateError, isError: true);
     } finally {
@@ -172,7 +174,11 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                   _buildYearChips(cs),
                 ],
                 const SizedBox(height: AppConstants.spacingSectionV),
-                _buildSummary(context, l10n, cs, sagana),
+                ReportEmptyState(
+                  message: _selectedModules.isEmpty
+                      ? l10n.exportSummaryEmpty
+                      : l10n.exportSummary(_selectedModules.length),
+                ),
                 const SizedBox(height: AppConstants.spacingGutter),
                 PrimaryButton(
                   label: l10n.exportGenerateButton,
@@ -183,7 +189,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 Text(l10n.exportRecentExports, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
                 const SizedBox(height: AppConstants.spacingSm),
                 if (_history.isEmpty)
-                  _buildEmptyHistory(l10n, cs)
+                  ReportEmptyState(message: l10n.exportNoHistoryYet)
                 else
                   ..._history.map((e) => _buildHistoryRow(e, l10n, cs, sagana)),
               ],
@@ -356,44 +362,6 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
             ),
           );
         }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildSummary(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        _selectedModules.isEmpty
-            ? l10n.exportSummaryEmpty
-            : l10n.exportSummary(_selectedModules.length),
-        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-      ),
-    );
-  }
-
-  Widget _buildEmptyHistory(AppLocalizations l10n, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        l10n.exportNoHistoryYet,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
       ),
     );
   }

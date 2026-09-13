@@ -13,6 +13,7 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 /// Expense Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/expenses
@@ -36,11 +37,19 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   ExpenseReportData _data = ExpenseReportData.empty();
+  List<double> _spendingTrend = [];
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadTrend();
+  }
+
+  Future<void> _loadTrend() async {
+    final trend = await _repo.fetchExpenseTrend();
+    if (!mounted) return;
+    setState(() => _spendingTrend = trend);
   }
 
   @override
@@ -62,6 +71,19 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   void _setPeriod(ReportPeriod period) {
     setState(() => _period = period);
     _load();
+  }
+
+  /// Month abbreviations for fetchExpenseTrend()'s trailing window — safe
+  /// to compute client-side, since that method always returns a fixed
+  /// "last N months ending at the current month" window, independent of
+  /// the on-screen period filter.
+  List<String> _trailingMonthLabels(int count) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final offset = count - 1 - i;
+      final date = DateTime(now.year, now.month - offset, 1);
+      return DateFormat('MMM').format(date);
+    });
   }
 
   List<ExpenseReportRow> get _filteredExpenses {
@@ -152,7 +174,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                icon: Icon(Icons.file_download_outlined, color: cs.primary),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: ExportCenterArgs(
@@ -174,7 +196,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
+        children: reportPeriodChipOrder.map((p) {
           final active = _period == p;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -200,32 +222,33 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
     return Row(
       children: [
-        Expanded(child: _statCard(l10n.reportsFarmerFundedTotal, currency.format(_data.totalFarmerFundedAmount), AppConstants.primaryGreen, cs, sagana)),
+        Expanded(
+          child: ReportAccentStatCard(
+            label: l10n.reportsFarmerFundedTotal,
+            value: currency.format(_data.totalFarmerFundedAmount),
+            accent: AppConstants.primaryGreen,
+            valueFontSize: 14,
+          ),
+        ),
         const SizedBox(width: AppConstants.spacingSm),
-        Expanded(child: _statCard(l10n.reportsSubsidizedItems, '${_data.subsidizedCount}', AppConstants.buyerBlue, cs, sagana)),
+        Expanded(
+          child: ReportAccentStatCard(
+            label: l10n.reportsSubsidizedItems,
+            value: '${_data.subsidizedCount}',
+            accent: AppConstants.buyerBlue,
+            valueFontSize: 14,
+          ),
+        ),
         const SizedBox(width: AppConstants.spacingSm),
-        Expanded(child: _statCard(l10n.reportsTotalEntries, '${_data.totalEntryCount}', AppConstants.amber, cs, sagana)),
+        Expanded(
+          child: ReportAccentStatCard(
+            label: l10n.reportsTotalEntries,
+            value: '${_data.totalEntryCount}',
+            accent: AppConstants.amber,
+            valueFontSize: 14,
+          ),
+        ),
       ],
-    );
-  }
-
-  Widget _statCard(String label, String value, Color accent, ColorScheme cs, SaganaColors sagana) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
-          const SizedBox(height: AppConstants.spacingSm),
-          Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
-          Text(label, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
-        ],
-      ),
     );
   }
 
@@ -317,7 +340,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           const SizedBox(height: AppConstants.spacingSm),
           SizedBox(
             height: 120,
-            child: _data.monthlyTrend.length < 2
+            child: _spendingTrend.length < 2
                 ? Center(
                     child: Text(
                       l10n.reportsNotEnoughTrendData,
@@ -327,9 +350,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                 : CustomPaint(
                     size: const Size(double.infinity, 120),
                     painter: TrendChartPainter(
-                      values: _data.monthlyTrend,
+                      values: _spendingTrend,
                       lineColor: cs.primary,
                       gradientColor: cs.primary,
+                      xLabels: _trailingMonthLabels(_spendingTrend.length),
+                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
                     ),
                   ),
           ),
@@ -365,28 +390,12 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_data.expenses.isEmpty)
-          _buildEmptyState(l10n.reportsNoExpensesRecorded, cs)
+          ReportEmptyState(message: l10n.reportsNoExpensesRecorded)
         else if (filtered.isEmpty)
-          _buildEmptyState(l10n.reportsNoSearchResults, cs)
+          ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
           ...filtered.map((e) => _buildExpenseRow(context, e, currency, l10n, cs, sagana)),
       ],
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-      ),
     );
   }
 

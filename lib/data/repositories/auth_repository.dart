@@ -20,7 +20,7 @@ class AuthRepository {
     required String fullName,
     required String phoneNumber,
     required String role,
-    String? sitio,
+    String? purok,
   }) async {
     return AuthService.register(
       username: email,
@@ -28,7 +28,7 @@ class AuthRepository {
       fullName: fullName,
       phoneNumber: phoneNumber,
       role: role,
-      sitio: sitio,
+      purok: purok,
     );
   }
 
@@ -42,6 +42,12 @@ class AuthRepository {
 
   Future<void> sendPasswordReset(String email) async {
     await AuthService.sendPasswordReset(email);
+  }
+
+  // ─── Request Password Assistance (pre-authentication) ───────────────────────
+
+  Future<void> requestPasswordAssistance(String username) async {
+    await AuthService.requestPasswordAssistance(username);
   }
 
   // ─── Cached User (Offline) ───────────────────────────────────────────────────

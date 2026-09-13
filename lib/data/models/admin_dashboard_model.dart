@@ -13,10 +13,9 @@ class AdminKpiSummary {
   final int activeInventoryItems;
   final int lowStockAlertCount;
   final int pendingListings;
-  final int pendingOrders;
   final double totalRevenueThisMonth;
-  final int activeLoans;
   final int overdueLoans;
+  final DateTime? loanDataAsOf;
 
   const AdminKpiSummary({
     required this.activeMembers,
@@ -26,10 +25,9 @@ class AdminKpiSummary {
     required this.activeInventoryItems,
     required this.lowStockAlertCount,
     required this.pendingListings,
-    required this.pendingOrders,
     required this.totalRevenueThisMonth,
-    required this.activeLoans,
     required this.overdueLoans,
+    this.loanDataAsOf,
   });
 
   static const empty = AdminKpiSummary(
@@ -40,9 +38,7 @@ class AdminKpiSummary {
     activeInventoryItems: 0,
     lowStockAlertCount: 0,
     pendingListings: 0,
-    pendingOrders: 0,
     totalRevenueThisMonth: 0,
-    activeLoans: 0,
     overdueLoans: 0,
   );
 }
@@ -74,26 +70,31 @@ class DashboardPriority {
 }
 
 // ─── Inventory Alert Item ─────────────────────────────────────────────────────
+// Sourced from cooperative_inventory (Inventory Management's own stock) —
+// see fetchInventoryAlerts() in admin_dashboard_repository.dart. Reworked
+// per Phase 2 to replace the earlier inventory_batches (farmer harvest
+// stock)-sourced version, which described a different table than the one
+// "Inventory Management" and its "View Inventory" link actually manage.
 
 enum InventoryAlertLevel { low, depleted }
 
 class InventoryAlertItem {
   final String id;
-  final String cropName;
-  final String batchNumber;
-  final double availableKg;
-  final double? minimumThresholdKg;
+  final String itemName;
+  final String category;
+  final double quantityOnHand;
+  final String unit;
+  final double reorderLevel;
   final InventoryAlertLevel alertLevel;
-  final String? lastMovementSource;
 
   const InventoryAlertItem({
     required this.id,
-    required this.cropName,
-    required this.batchNumber,
-    required this.availableKg,
-    this.minimumThresholdKg,
+    required this.itemName,
+    required this.category,
+    required this.quantityOnHand,
+    required this.unit,
+    required this.reorderLevel,
     required this.alertLevel,
-    this.lastMovementSource,
   });
 
   bool get isDepleted => alertLevel == InventoryAlertLevel.depleted;

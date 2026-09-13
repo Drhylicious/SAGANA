@@ -12,6 +12,7 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 /// Sales Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/sales
@@ -67,37 +68,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   void _setPeriod(ReportPeriod period) {
     setState(() => _period = period);
     _load();
-  }
-
-  Widget _deltaBadge(double current, double previous) {
-    if (_period == ReportPeriod.allTime || previous == 0) {
-      return const SizedBox.shrink();
-    }
-    final change = ((current - previous) / previous * 100);
-    final isUp = change >= 0;
-    final color = isUp ? AppConstants.successGreen : AppConstants.errorRed;
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-            size: 10,
-            color: color,
-          ),
-          const SizedBox(width: 2),
-          Text(
-            '${change.abs().toStringAsFixed(0)}%',
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   List<SalesTransactionRow> get _filteredTransactions {
@@ -198,7 +168,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               IconButton(
                 icon: Icon(
                   Icons.file_download_outlined,
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                  color: cs.primary,
                 ),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
@@ -221,7 +191,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
+        children: reportPeriodChipOrder.map((p) {
           final active = _period == p;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -256,21 +226,21 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         Row(
           children: [
             Expanded(
-              child: _statCard(
-                l10n.reportsTotalRevenue,
-                currency.format(_data.totalRevenue),
-                cs,
-                sagana,
-                delta: _deltaBadge(_data.totalRevenue, _previousData.totalRevenue),
+              child: ReportKpiTile(
+                label: l10n.reportsTotalRevenue,
+                value: currency.format(_data.totalRevenue),
+                delta: ReportDeltaBadge(
+                  current: _data.totalRevenue,
+                  previous: _previousData.totalRevenue,
+                  period: _period,
+                ),
               ),
             ),
             const SizedBox(width: AppConstants.spacingSm),
             Expanded(
-              child: _statCard(
-                l10n.reportsTotalVolume,
-                '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
-                cs,
-                sagana,
+              child: ReportKpiTile(
+                label: l10n.reportsTotalVolume,
+                value: '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
               ),
             ),
           ],
@@ -279,61 +249,32 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         Row(
           children: [
             Expanded(
-              child: _statCard(
-                l10n.reportsTransactions,
-                '${_data.transactionCount}',
-                cs,
-                sagana,
+              child: ReportKpiTile(
+                label: l10n.reportsTransactions,
+                value: '${_data.transactionCount}',
               ),
             ),
             const SizedBox(width: AppConstants.spacingSm),
             Expanded(
-              child: _statCard(
-                l10n.reportsAvgSale,
-                currency.format(_data.averageSaleAmount),
-                cs,
-                sagana,
+              child: ReportKpiTile(
+                label: l10n.reportsAvgSale,
+                value: currency.format(_data.averageSaleAmount),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingSm),
+        Row(
+          children: [
+            Expanded(
+              child: ReportKpiTile(
+                label: l10n.reportsMarketplaceRevenue,
+                value: currency.format(_data.marketplaceRevenue),
               ),
             ),
           ],
         ),
       ],
-    );
-  }
-
-  Widget _statCard(
-    String label,
-    String value,
-    ColorScheme cs,
-    SaganaColors sagana, {
-    Widget? delta,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: cs.onSurface,
-            ),
-          ),
-          if (delta != null) delta,
-        ],
-      ),
     );
   }
 
@@ -512,28 +453,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_data.transactions.isEmpty)
-          _buildEmptyState(l10n.reportsNoSalesRecorded, cs)
+          ReportEmptyState(message: l10n.reportsNoSalesRecorded)
         else if (filtered.isEmpty)
-          _buildEmptyState(l10n.reportsNoSearchResults, cs)
+          ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
           ...filtered.map((t) => _buildTransactionRow(t, currency, cs, sagana)),
       ],
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-      ),
     );
   }
 

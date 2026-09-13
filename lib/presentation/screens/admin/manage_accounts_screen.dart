@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/repositories/account_management_repository.dart';
+import '../../widgets/management_modal.dart';
+import '../../widgets/temp_password_dialog.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
   final String initialTab;
@@ -19,9 +21,10 @@ class ManageAccountsScreen extends StatefulWidget {
 }
 
 class _ManageAccountsScreenState extends State<ManageAccountsScreen> with TickerProviderStateMixin {
-  final _client = Supabase.instance.client;
-  List<_AccountEntry> _farmers = [];
-  List<_AccountEntry> _staff = [];
+  final _repo = AccountManagementRepository();
+  List<AccountEntry> _farmers = [];
+  List<AccountEntry> _officers = [];
+  List<PasswordResetRequest> _requests = [];
   bool _isLoading = true;
   late TabController _tabController;
 
@@ -29,8 +32,8 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    final initialIndex = widget.initialTab == 'admin' ? 1 : 0;
-    _tabController = TabController(length: 2, vsync: this, initialIndex: initialIndex);
+    final initialIndex = widget.initialTab == 'officer' ? 1 : 0;
+    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
     _loadAccounts();
   }
 
@@ -43,37 +46,98 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
   Future<void> _loadAccounts() async {
     setState(() => _isLoading = true);
     try {
-      final roles = await _client.from('user_roles').select('user_id, role, status').order('role');
-      final accountEntries = <_AccountEntry>[];
-      for (final row in roles) {
-        final role = row['role'] as String?;
-        final userId = row['user_id'] as String?;
-        if (userId == null || role == null) continue;
-        final userInfo = await _client
-            .from('user_information')
-            .select('full_name, username')
-            .eq('user_id', userId)
-            .maybeSingle();
-        final name = userInfo?['full_name'] as String? ?? 'Unknown';
-        final username = userInfo?['username'] as String? ?? '—';
-        accountEntries.add(_AccountEntry(
-          userId: userId,
-          name: name,
-          username: username,
-          role: role,
-          status: row['status'] as String? ?? 'active',
-        ));
-      }
-
+      final farmerResults = await _repo.fetchAccountsByRole('farmer');
+      final officerResults = await _repo.fetchAccountsByRole('officer');
+      final requests = await _repo.fetchPendingPasswordRequests();
       if (!mounted) return;
       setState(() {
-        _farmers = accountEntries.where((entry) => entry.role == 'farmer').toList();
-        _staff = accountEntries.where((entry) => entry.role == 'staff').toList();
+        _farmers = farmerResults;
+        _officers = officerResults;
+        _requests = requests;
         _isLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resolveRequest(PasswordResetRequest request) async {
+    try {
+      final tempPassword = await _repo.resetUserPassword(request.userId);
+      if (!mounted) return;
+      await showTempPasswordDialog(
+        context: context,
+        name: request.fullName,
+        tempPassword: tempPassword,
+      );
+      await _repo.resolvePasswordRequest(request.id);
+      if (!mounted) return;
+      _loadAccounts();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not resolve this request. Please try again.'),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+    }
+  }
+
+  void _showAccountActions(AccountEntry account) {
+    showManagementModal(
+      context: context,
+      builder: (_) => ManagementModalShell(
+        title: account.name,
+        subtitle: account.username,
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                _resetPassword(account);
+              },
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_reset_rounded, color: AppConstants.primaryGreen),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Reset Password',
+                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resetPassword(AccountEntry account) async {
+    try {
+      final tempPassword = await _repo.resetUserPassword(account.userId);
+      if (!mounted) return;
+      await showTempPasswordDialog(
+        context: context,
+        name: account.name,
+        tempPassword: tempPassword,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not reset password. Please try again.'),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
     }
   }
 
@@ -99,7 +163,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
           controller: _tabController,
           labelColor: cs.primary,
           unselectedLabelColor: cs.onSurfaceVariant,
-          tabs: const [Tab(text: 'Farmers'), Tab(text: 'Staff')],
+          tabs: [
+            const Tab(text: 'Farmers'),
+            const Tab(text: 'Officer'),
+            Tab(text: _requests.isEmpty ? 'Requests' : 'Requests (${_requests.length})'),
+          ],
         ),
       ),
       body: _isLoading
@@ -107,8 +175,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
           : TabBarView(
               controller: _tabController,
               children: [
-                _AccountList(accounts: _farmers, cs: cs, sagana: sagana),
-                _AccountList(accounts: _staff, cs: cs, sagana: sagana),
+                _AccountList(accounts: _farmers, cs: cs, sagana: sagana, onTap: _showAccountActions),
+                _AccountList(accounts: _officers, cs: cs, sagana: sagana, onTap: _showAccountActions),
+                _PasswordRequestsList(requests: _requests, cs: cs, sagana: sagana, onResolve: _resolveRequest),
               ],
             ),
     );
@@ -116,11 +185,17 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
 }
 
 class _AccountList extends StatelessWidget {
-  final List<_AccountEntry> accounts;
+  final List<AccountEntry> accounts;
   final ColorScheme cs;
   final SaganaColors sagana;
+  final void Function(AccountEntry) onTap;
 
-  const _AccountList({required this.accounts, required this.cs, required this.sagana});
+  const _AccountList({
+    required this.accounts,
+    required this.cs,
+    required this.sagana,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +217,10 @@ class _AccountList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final account = accounts[index];
-        return Container(
+        return InkWell(
+          onTap: () => onTap(account),
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: sagana.cardBackground,
@@ -186,24 +264,83 @@ class _AccountList extends StatelessWidget {
               ),
             ],
           ),
+          ),
         );
       },
     );
   }
 }
 
-class _AccountEntry {
-  final String userId;
-  final String name;
-  final String username;
-  final String role;
-  final String status;
+class _PasswordRequestsList extends StatelessWidget {
+  final List<PasswordResetRequest> requests;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+  final void Function(PasswordResetRequest) onResolve;
 
-  const _AccountEntry({
-    required this.userId,
-    required this.name,
-    required this.username,
-    required this.role,
-    required this.status,
+  const _PasswordRequestsList({
+    required this.requests,
+    required this.cs,
+    required this.sagana,
+    required this.onResolve,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    if (requests.isEmpty) {
+      return Center(
+        child: Text(
+          'No pending requests.',
+          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: requests.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final request = requests[index];
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: cs.primary.withValues(alpha: 0.12),
+                child: Icon(Icons.lock_reset_rounded, color: cs.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(request.fullName,
+                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                    const SizedBox(height: 2),
+                    Text(request.username,
+                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => onResolve(request),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                child: const Text('Resolve'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

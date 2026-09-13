@@ -2,75 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_constants.dart';
-
-// ─── Notification preference keys (all stored in hiveBoxSettings) ─────────────
-
-class NotifPrefKey {
-  NotifPrefKey._();
-  static const orders          = 'notif_orders';
-  static const listingApproved = 'notif_listing_approved';
-  static const listingChanges  = 'notif_listing_changes';
-  static const loanReminder    = 'notif_loan_reminder';
-  static const priceUpdates    = 'notif_price_updates';
-  static const syncCompleted   = 'notif_sync_completed';
-}
+import '../services/hive_service.dart';
 
 // ─── Settings Model (snapshot of all user preferences) ───────────────────────
 
 class SettingsPrefs {
-  final bool notifOrders;
-  final bool notifListingApproved;
-  final bool notifListingChanges;
-  final bool notifLoanReminder;
-  final bool notifPriceUpdates;
-  final bool notifSyncCompleted;
   final bool backgroundSync;
   final ThemeMode themeMode;
   final String localeCode;
 
   const SettingsPrefs({
-    required this.notifOrders,
-    required this.notifListingApproved,
-    required this.notifListingChanges,
-    required this.notifLoanReminder,
-    required this.notifPriceUpdates,
-    required this.notifSyncCompleted,
     required this.backgroundSync,
     required this.themeMode,
     required this.localeCode,
   });
 
   static const defaults = SettingsPrefs(
-    notifOrders: true,
-    notifListingApproved: true,
-    notifListingChanges: true,
-    notifLoanReminder: true,
-    notifPriceUpdates: true,
-    notifSyncCompleted: false,
     backgroundSync: true,
     themeMode: ThemeMode.light,
     localeCode: AppConstants.localeEnglish,
   );
 
   SettingsPrefs copyWith({
-    bool? notifOrders,
-    bool? notifListingApproved,
-    bool? notifListingChanges,
-    bool? notifLoanReminder,
-    bool? notifPriceUpdates,
-    bool? notifSyncCompleted,
     bool? backgroundSync,
     ThemeMode? themeMode,
     String? localeCode,
   }) {
     return SettingsPrefs(
-      notifOrders: notifOrders ?? this.notifOrders,
-      notifListingApproved:
-          notifListingApproved ?? this.notifListingApproved,
-      notifListingChanges: notifListingChanges ?? this.notifListingChanges,
-      notifLoanReminder: notifLoanReminder ?? this.notifLoanReminder,
-      notifPriceUpdates: notifPriceUpdates ?? this.notifPriceUpdates,
-      notifSyncCompleted: notifSyncCompleted ?? this.notifSyncCompleted,
       backgroundSync: backgroundSync ?? this.backgroundSync,
       themeMode: themeMode ?? this.themeMode,
       localeCode: localeCode ?? this.localeCode,
@@ -83,51 +41,51 @@ class SettingsPrefs {
 class SettingsRepository {
   SupabaseClient get _client => Supabase.instance.client;
 
+  // Theme and locale are account-specific preferences, not device-wide
+  // ones — each user gets their own composite key. userId is null only
+  // in the brief pre-login window (splash screen), where the unscoped
+  // key is the safe fallback, matching this method's prior behavior.
+  // backgroundSync intentionally NOT scoped here — see savePref() below.
+  String _scopedKey(String baseKey, String? userId) =>
+      userId != null ? '${userId}::$baseKey' : baseKey;
+
   // ─── Load preferences from Hive ──────────────────────────────────────────
 
-  Future<SettingsPrefs> loadPrefs() async {
+  Future<SettingsPrefs> loadPrefs({String? userId}) async {
     final box = await Hive.openBox(AppConstants.hiveBoxSettings);
-    final themeRaw =
-        box.get(AppConstants.hiveKeyThemeMode, defaultValue: AppConstants.themeLight)
-            as String;
+    final themeRaw = box.get(
+      _scopedKey(AppConstants.hiveKeyThemeMode, userId),
+      defaultValue: AppConstants.themeLight,
+    ) as String;
     return SettingsPrefs(
-      notifOrders:
-          box.get(NotifPrefKey.orders, defaultValue: true) as bool,
-      notifListingApproved:
-          box.get(NotifPrefKey.listingApproved, defaultValue: true) as bool,
-      notifListingChanges:
-          box.get(NotifPrefKey.listingChanges, defaultValue: true) as bool,
-      notifLoanReminder:
-          box.get(NotifPrefKey.loanReminder, defaultValue: true) as bool,
-      notifPriceUpdates:
-          box.get(NotifPrefKey.priceUpdates, defaultValue: true) as bool,
-      notifSyncCompleted:
-          box.get(NotifPrefKey.syncCompleted, defaultValue: false) as bool,
-      backgroundSync:
-          box.get(AppConstants.hiveKeyBackgroundSync, defaultValue: true)
-              as bool,
+      // Delegates to HiveService rather than re-reading the same box/key
+      // independently — HiveService.init() is guaranteed to have run
+      // before this is ever called (it's awaited first thing in main()),
+      // so this is safe and removes the duplicate accessor.
+      backgroundSync: HiveService.getBackgroundSync(userId: userId),
       themeMode: themeRaw == AppConstants.themeDark
           ? ThemeMode.dark
           : ThemeMode.light,
-      localeCode: box.get(AppConstants.hiveKeyLocale,
-              defaultValue: AppConstants.localeEnglish)
-          as String,
+      localeCode: box.get(
+        _scopedKey(AppConstants.hiveKeyLocale, userId),
+        defaultValue: AppConstants.localeEnglish,
+      ) as String,
     );
   }
 
-  Future<void> saveThemeMode(ThemeMode mode) async {
+  Future<void> saveThemeMode(ThemeMode mode, {String? userId}) async {
     final box = await Hive.openBox(AppConstants.hiveBoxSettings);
     await box.put(
-      AppConstants.hiveKeyThemeMode,
+      _scopedKey(AppConstants.hiveKeyThemeMode, userId),
       mode == ThemeMode.dark
           ? AppConstants.themeDark
           : AppConstants.themeLight,
     );
   }
 
-  Future<void> saveLocale(String languageCode) async {
+  Future<void> saveLocale(String languageCode, {String? userId}) async {
     final box = await Hive.openBox(AppConstants.hiveBoxSettings);
-    await box.put(AppConstants.hiveKeyLocale, languageCode);
+    await box.put(_scopedKey(AppConstants.hiveKeyLocale, userId), languageCode);
   }
 
   // ─── Save a single preference ─────────────────────────────────────────────
@@ -137,17 +95,37 @@ class SettingsRepository {
     await box.put(key, value);
   }
 
+  // Dedicated, per-user-scoped write for Background Sync specifically —
+  // kept separate from savePref() above rather than adding userId there,
+  // since savePref() is generic and this scoping is only meaningful for
+  // this one preference right now.
+  Future<void> saveBackgroundSync(bool value, {String? userId}) async {
+    await HiveService.setBackgroundSync(value, userId: userId);
+  }
+
   // ─── Clear cached price data ──────────────────────────────────────────────
 
-  Future<void> clearCachedData() async {
+  // Returns whether there was anything to actually clear. Lets the caller
+  // give an honest, state-accurate message instead of always claiming a
+  // clear occurred — the box is legitimately empty today because nothing
+  // in the codebase currently writes price data into it, but this stays
+  // correct automatically if that ever changes, with no further edits
+  // needed here.
+  Future<bool> clearCachedData() async {
     final box = await Hive.openBox(AppConstants.hiveBoxPrices);
+    final hadData = box.isNotEmpty;
     await box.clear();
+    return hadData;
   }
 
   // ─── Change password ──────────────────────────────────────────────────────
   // Re-authenticates with currentPassword first to verify identity,
   // then updates to newPassword via Supabase Auth.
 
+  // User-initiated change from Settings — re-authenticates with the
+  // current password before allowing the update. For the forced-reset
+  // flow (admin-issued temporary password, no prior password to verify),
+  // see AuthService.changePassword() instead.
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,

@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
-import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/farmer_market_rates_repository.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
@@ -27,6 +27,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
   List<FarmerMarketRateModel> _rates = [];
   List<Map<String, dynamic>> _cropCatalog = [];
   bool _isLoading = true;
+  bool _isOnline = true;
 
   // ─── Active filters ─────────────────────────────────────────────────────
   String? _marketType;   // price_type chip — independent of the panel below
@@ -36,6 +37,10 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _searchController.addListener(() => setState(() {}));
     _load();
   }
@@ -95,28 +100,36 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              _buildSearchRow(),
-              _buildMarketTypeChips(),
-              const SizedBox(height: 8),
-              Expanded(child: _buildResults()),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: 'Market Rates',
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — some information on this screen may not be up to date."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    _buildSearchRow(),
+                    _buildMarketTypeChips(),
+                    const SizedBox(height: 8),
+                    Expanded(child: _buildResults()),
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: 'Market Rates',
+                    onBack: () => Navigator.of(context).pop(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -180,7 +193,6 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
     const types = [
       null,
       'sp3_cooperative',
-      'da_amad_market',
       'open_market',
     ];
     return Padding(
@@ -294,20 +306,31 @@ class _MarketRateListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = MarketTypeDisplay.color(context, rate.priceType);
+    final imageUrl = rate.cropImageUrl;
     return GestureDetector(
       onTap: onTap,
       child: GlassCard(
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
+            // Same crop image Crop Management/Price Management show —
+            // referenced only, never uploaded from here. Falls back to the
+            // market-type-colored icon when the crop has none set.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                width: 44,
+                height: 44,
                 color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+                child: (imageUrl != null && imageUrl.isNotEmpty)
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Icon(Icons.storefront_outlined, color: color, size: 20),
+                      )
+                    : Icon(Icons.storefront_outlined, color: color, size: 20),
               ),
-              child: Icon(Icons.storefront_outlined, color: color, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -486,7 +509,9 @@ class _FilterPanelState extends State<_FilterPanel> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: FarmerCropModel.categories.map((cat) {
+            children: {for (final c in widget.cropCatalog) c['category'] as String}
+                .toList()
+                .map((cat) {
               final selected = _category == cat;
               return _Chip(
                 label: cat,

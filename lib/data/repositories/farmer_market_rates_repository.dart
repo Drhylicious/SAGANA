@@ -16,7 +16,7 @@ class FarmerMarketRatesRepository {
   /// read returns an empty list, same convention as every other Farmer
   /// repository.
   Future<List<FarmerMarketRateModel>> fetchMarketRates({
-    String? marketType,   // price_type: sp3_cooperative | da_amad_market | open_market
+    String? marketType,   // price_type: sp3_cooperative | open_market
     String? cropCategory, // crop_master.category
     String? cropId,       // exact crop selection
     String? searchQuery,  // client-side substring match on crop name
@@ -28,7 +28,7 @@ class FarmerMarketRatesRepository {
       // the way a left join embed would.
       var query = _client
           .from('price_records')
-          .select('*, crop_master!inner(category, description)');
+          .select('*, crop_master!inner(category, description, image_url)');
 
       if (marketType != null) {
         query = query.eq('price_type', marketType);

@@ -6,6 +6,7 @@ import '../../../data/models/farmer_crop_model.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/connectivity_service.dart';
 
 /// Read-only crop details — what tapping a crop card in My Crops opens.
 /// Actions (record harvest, view history, delete) stay in the three-dot
@@ -17,144 +18,148 @@ class CropDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppConstants.offWhite,
-      body: Stack(
-        children: [
-          Column(
+    return StreamBuilder<bool>(
+      stream: ConnectivityService.instance.onConnectivityChanged,
+      initialData: ConnectivityService.instance.isOnline,
+      builder: (context, snapshot) {
+        final isOnline = snapshot.data ?? true;
+        return Scaffold(
+          backgroundColor: AppConstants.offWhite,
+          body: Stack(
             children: [
-              const SizedBox(height: 72),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-                  children: [
-                    _HeaderCard(crop: crop),
-                    const SizedBox(height: 20),
-                    _InfoRow(
-                      label: 'Category',
-                      value: crop.category,
+              Column(
+                children: [
+                  const SizedBox(height: 72),
+                  if (!isOnline)
+                    const OfflineBanner(
+                      message:
+                          "You're offline — some features elsewhere in the app may be unavailable until you're reconnected.",
                     ),
-                    _InfoRow(
-                      label: 'Added on',
-                      value: DateFormat('MMMM d, yyyy').format(crop.createdAt),
-                    ),
-                    _InfoRow(
-                      label: 'Harvest entries',
-                      value: crop.hasHarvests
-                          ? '${crop.harvestCount}'
-                          : 'None yet',
-                    ),
-                    _InfoRow(
-                      label: 'Catalog status',
-                      value: crop.isPendingApproval
-                          ? (crop.isRejected ? 'Request declined' : 'Pending admin approval')
-                          : 'Approved',
-                    ),
-                    if (crop.isRejected && crop.requestNotes != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppConstants.errorRed.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                          border: Border.all(
-                              color: AppConstants.errorRed.withValues(alpha: 0.25)),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                      children: [
+                        _HeaderCard(crop: crop),
+                        const SizedBox(height: 20),
+                        _InfoRow(
+                          label: 'Category',
+                          value: crop.category,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Reason for decline',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppConstants.errorRed)),
-                            const SizedBox(height: 4),
-                            Text(crop.requestNotes!,
-                                style: GoogleFonts.inter(
-                                    fontSize: 13, color: AppConstants.errorRed)),
-                          ],
+                        _InfoRow(
+                          label: 'Added on',
+                          value: DateFormat('MMMM d, yyyy').format(crop.createdAt),
                         ),
-                      ),
-                    ],
-                    const SizedBox(height: 28),
-                    ElevatedButton.icon(
-                      onPressed: () => context.pushRoute(
-                          AppRoutes.harvestHistory,
-                          extra: crop.cropName),
-                      icon: const Icon(Icons.history_rounded, size: 18),
-                      label: const Text('View Harvest History'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppConstants.primaryGreen,
-                        elevation: 0,
-                        side: const BorderSide(color: AppConstants.primaryGreen),
-                        minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                        _InfoRow(
+                          label: 'Harvest entries',
+                          value: crop.hasHarvests ? '${crop.harvestCount}' : 'None yet',
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (crop.isPendingApproval)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppConstants.amber.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                          border: Border.all(color: AppConstants.amber.withValues(alpha: 0.25)),
+                        _InfoRow(
+                          label: 'Catalog status',
+                          value: crop.isPendingApproval
+                              ? (crop.isRejected ? 'Request declined' : 'Pending admin approval')
+                              : 'Approved',
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.hourglass_top_rounded, size: 18, color: AppConstants.amber),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'You can record a harvest once this crop is approved by the cooperative.',
-                                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.amber),
-                              ),
+                        if (crop.isRejected && crop.requestNotes != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppConstants.errorRed.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                              border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
                             ),
-                          ],
-                        ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        onPressed: () => context.pushRoute(
-                            AppRoutes.harvestEntryForm,
-                            extra: crop),
-                        icon: const Icon(Icons.eco_rounded, size: 18),
-                        label: const Text('Record Harvest for This Crop'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppConstants.primaryGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Reason for decline',
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppConstants.errorRed)),
+                                const SizedBox(height: 4),
+                                Text(crop.requestNotes!,
+                                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.errorRed)),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 28),
+                        ElevatedButton.icon(
+                          onPressed: () => context.pushRoute(AppRoutes.harvestHistory, extra: crop.cropName),
+                          icon: const Icon(Icons.history_rounded, size: 18),
+                          label: const Text('View Harvest History'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppConstants.primaryGreen,
+                            elevation: 0,
+                            side: const BorderSide(color: AppConstants.primaryGreen),
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                        const SizedBox(height: 12),
+                        if (crop.isPendingApproval)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppConstants.amber.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                              border: Border.all(color: AppConstants.amber.withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.hourglass_top_rounded, size: 18, color: AppConstants.amber),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'You can record a harvest once this crop is approved by the cooperative.',
+                                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.amber),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: () => context.pushRoute(AppRoutes.harvestEntryForm, extra: crop),
+                            icon: const Icon(Icons.eco_rounded, size: 18),
+                            label: const Text('Record Harvest for This Crop'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppConstants.primaryGreen,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              minimumSize: const Size.fromHeight(50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: FarmerTopBar(
+                  title: crop.cropName,
+                  onBack: () => Navigator.of(context).pop(),
+                  hideProfileAvatar: true,
+                  onProfileTap: () {},
+                  onNotificationTap: () {},
+                  showNotificationButton: false,
                 ),
               ),
             ],
           ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: crop.cropName,
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

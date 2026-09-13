@@ -31,7 +31,7 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
   }
 
   Future<void> _loadPrefs() async {
-    final prefs = await _settingsRepo.loadPrefs();
+    final prefs = await _settingsRepo.loadPrefs(userId: AppSettingsService.instance.currentUserId);
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
@@ -136,7 +136,7 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await AppDialog.show<bool>(
       context: context,
-      child: _ConfirmDialog(
+      child: ConfirmDialog(
         title: l10n.clearCachedData,
         message: l10n.clearCachedDataDescription,
         confirmLabel: l10n.clearCachedData,
@@ -217,13 +217,13 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
           ]),
           const SizedBox(height: 20),
 
-          SectionLabel(label: l10n.sectionDataExport),
+          SectionLabel(label: l10n.sectionStorage),
           SettingsCard(children: [
             ToggleRow(
               title: l10n.backgroundSync,
               value: _prefs!.backgroundSync,
               onChanged: (v) async {
-                await _settingsRepo.savePref(AppConstants.hiveKeyBackgroundSync, v);
+                await _settingsRepo.saveBackgroundSync(v, userId: AppSettingsService.instance.currentUserId);
                 setState(() => _prefs = _prefs!.copyWith(backgroundSync: v));
               },
             ),
@@ -286,10 +286,8 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
 // _SettingsCard, _SettingsRow, and _Divider moved to shared_widgets.dart
 // (SectionLabel/SettingsCard/SettingsRow/SettingsDivider) and _AppBrandingBlock
 // moved to shared_widgets.dart (AppBrandingBlock) — no longer duplicated here.
-//
-// NOTE: _ConfirmDialog below duplicates the identical widget now in
-// AdminSettingsScreen (and, per the shared plan, FarmerSettingsScreen too).
-// Flagged as an open item to consolidate into shared_widgets.dart.
+// _ConfirmDialog moved to shared_widgets.dart (ConfirmDialog) — no longer
+// duplicated here either.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PickerTile extends StatelessWidget {
@@ -314,40 +312,6 @@ class _PickerTile extends StatelessWidget {
   }
 }
 
-class _ConfirmDialog extends StatelessWidget {
-  final String title;
-  final String message;
-  final String confirmLabel;
-  const _ConfirmDialog({required this.title, required this.message, required this.confirmLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 40),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(title, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'))),
-                const SizedBox(width: 10),
-                Expanded(child: PrimaryButton(label: confirmLabel, height: 44, onPressed: () => Navigator.pop(context, true))),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _LogoutConfirmDialog extends StatelessWidget {
   const _LogoutConfirmDialog();
 
@@ -357,7 +321,7 @@ class _LogoutConfirmDialog extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 40),
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

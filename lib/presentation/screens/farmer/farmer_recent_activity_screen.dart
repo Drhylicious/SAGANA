@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -27,6 +29,7 @@ class _FarmerRecentActivityScreenState
   ActivityFilter _activeFilter = ActivityFilter.all;
   bool _isLoading = true;
   String _searchQuery = '';
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -37,6 +40,10 @@ class _FarmerRecentActivityScreenState
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadActivity();
     _searchController.addListener(_onSearchChanged);
   }
@@ -50,7 +57,7 @@ class _FarmerRecentActivityScreenState
   Future<void> _loadActivity() async {
     setState(() => _isLoading = true);
     try {
-      final items = await _repo.fetchAllActivity();
+      final items = await _repo.fetchActivity(limit: 50);
       if (!mounted) return;
       setState(() {
         _allItems = items;
@@ -121,106 +128,117 @@ class _FarmerRecentActivityScreenState
 
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          // ── Content ──────────────────────────────────────────────────────
-          Column(
-            children: [
-              const SizedBox(height: 72), // space for top bar
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadActivity,
-                  child: CustomScrollView(
-                    slivers: [
-                      // Header + search + chips
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 8),
-                              _SearchBar(controller: _searchController),
-                              const SizedBox(height: 16),
-                              _FilterChips(
-                                active: _activeFilter,
-                                onSelected: _setFilter,
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — your activity history may not be up to date."),
+          Expanded(
+            child: Stack(
+              children: [
+                // ── Content ──────────────────────────────────────────────
+                Column(
+                  children: [
+                    const SizedBox(height: 72), // space for top bar
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadActivity,
+                        child: CustomScrollView(
+                          slivers: [
+                            // Header + search + chips
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    _SearchBar(controller: _searchController),
+                                    const SizedBox(height: 16),
+                                    _FilterChips(
+                                      active: _activeFilter,
+                                      onSelected: _setFilter,
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                            ],
-                          ),
+                            ),
+
+                            // Empty state
+                            if (!_isLoading && _filtered.isEmpty)
+                              SliverFillRemaining(
+                                child: _EmptyState(
+                                  hasSearch:
+                                      _searchQuery.isNotEmpty ||
+                                      _activeFilter != ActivityFilter.all,
+                                ),
+                              )
+                            // Loading shimmer
+                            else if (_isLoading)
+                              SliverPadding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                                sliver: SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (_, __) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 12),
+                                      child: _ActivityShimmer(),
+                                    ),
+                                    childCount: 5,
+                                  ),
+                                ),
+                              )
+                            // Grouped timeline
+                            else
+                              SliverPadding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                                sliver: SliverList(
+                                  delegate: SliverChildBuilderDelegate((
+                                    context,
+                                    index,
+                                  ) {
+                                    final label = dateKeys[index];
+                                    final group = grouped[label]!;
+                                    return _DateGroup(
+                                      label: label,
+                                      items: group,
+                                      onLoanPayTap: () =>
+                                          context.pushRoute(AppRoutes.myLoans),
+                                    );
+                                  }, childCount: dateKeys.length),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+                    ),
+                  ],
+                ),
 
-                      // Empty state
-                      if (!_isLoading && _filtered.isEmpty)
-                        SliverFillRemaining(
-                          child: _EmptyState(
-                            hasSearch:
-                                _searchQuery.isNotEmpty ||
-                                _activeFilter != ActivityFilter.all,
-                          ),
-                        )
-                      // Loading shimmer
-                      else if (_isLoading)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (_, __) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ActivityShimmer(),
-                              ),
-                              childCount: 5,
-                            ),
-                          ),
-                        )
-                      // Grouped timeline
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final label = dateKeys[index];
-                              final group = grouped[label]!;
-                              return _DateGroup(
-                                label: label,
-                                items: group,
-                                onLoanPayTap: () => Navigator.of(
-                                  context,
-                                ).pushNamed(AppRoutes.myLoans),
-                              );
-                            }, childCount: dateKeys.length),
-                          ),
-                        ),
-                    ],
+                // ── Top App Bar ──────────────────────────────────────────
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: 'Recent Activity',
+                    onBack: () => Navigator.of(context).pop(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          // ── Top App Bar ───────────────────────────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: 'Recent Activity',
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
+              ],
             ),
           ),
         ],
       ),
-
     );
   }
 }
@@ -555,7 +573,6 @@ class _CardBottom extends StatelessWidget {
               item.statusLabel == 'Approved' ||
               item.statusLabel == 'Synced');
       final isWarning =
-          item.statusLabel == 'Pending Quality Check' ||
           item.statusLabel == 'Pending Sync' ||
           item.statusLabel == 'Pending Review';
 
@@ -647,6 +664,26 @@ class _CardIcon extends StatelessWidget {
           bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
               .withValues(alpha: 0.10);
           fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
+          break;
+        case ActivityType.cropAdded:
+          icon = Icons.grass_rounded;
+          bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+          fg = AppConstants.primaryGreen;
+          break;
+        case ActivityType.informalSale:
+          icon = Icons.sell_outlined;
+          bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+          fg = AppConstants.amber;
+          break;
+        case ActivityType.cooperativeSale:
+          icon = Icons.groups_outlined;
+          bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+          fg = AppConstants.amber;
+          break;
+        case ActivityType.profile:
+          icon = Icons.person_outline_rounded;
+          bg = AppConstants.outline.withValues(alpha: 0.10);
+          fg = AppConstants.outline;
           break;
       }
     }
@@ -792,4 +829,3 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
-

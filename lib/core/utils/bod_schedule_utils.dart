@@ -14,11 +14,11 @@ class BodSchedule {
   /// display purposes.
   static DateTime upcoming([DateTime? from]) {
     final reference = from ?? DateTime.now();
-    var candidate = _firstSaturdayOf(reference.year, reference.month);
+    var candidate = firstSaturdayOf(reference.year, reference.month);
     if (candidate.isBefore(DateTime(reference.year, reference.month, reference.day))) {
       final nextMonth = reference.month == 12 ? 1 : reference.month + 1;
       final nextYear = reference.month == 12 ? reference.year + 1 : reference.year;
-      candidate = _firstSaturdayOf(nextYear, nextMonth);
+      candidate = firstSaturdayOf(nextYear, nextMonth);
     }
     return candidate;
   }
@@ -27,16 +27,19 @@ class BodSchedule {
   /// is a BOD Saturday, rolls to next month. Use when scheduling the next
   /// payment cycle following an event that happened ON [from].
   static DateTime after(DateTime from) {
-    var candidate = _firstSaturdayOf(from.year, from.month);
+    var candidate = firstSaturdayOf(from.year, from.month);
     if (!candidate.isAfter(DateTime(from.year, from.month, from.day))) {
       final nextMonth = from.month == 12 ? 1 : from.month + 1;
       final nextYear = from.month == 12 ? from.year + 1 : from.year;
-      candidate = _firstSaturdayOf(nextYear, nextMonth);
+      candidate = firstSaturdayOf(nextYear, nextMonth);
     }
     return candidate;
   }
 
-  static DateTime _firstSaturdayOf(int year, int month) {
+  /// The first Saturday of a specific, given month — for callers building a
+  /// calendar view of an arbitrary (possibly non-current) month, as opposed
+  /// to [upcoming]/[after] which always resolve relative to a reference date.
+  static DateTime firstSaturdayOf(int year, int month) {
     var d = DateTime(year, month, 1);
     while (d.weekday != DateTime.saturday) {
       d = d.add(const Duration(days: 1));

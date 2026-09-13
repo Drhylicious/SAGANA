@@ -4,6 +4,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../widgets/farmer_top_bar.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/shared_widgets.dart';
 
 class MyProgramsScreen extends StatefulWidget {
   const MyProgramsScreen({super.key});
@@ -16,10 +18,15 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
   final _repo = FarmerProfileRepository();
   List<MyProgramEntry> _programs = [];
   bool _isLoading = true;
+  bool _isOnline = true;
 
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _load();
   }
 
@@ -56,6 +63,8 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              if (!_isOnline)
+                const OfflineBanner(message: "You're offline — your program enrollment details may not be up to date."),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,

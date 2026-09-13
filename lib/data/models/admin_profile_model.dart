@@ -1,15 +1,12 @@
 /// Combines user_information (shared profile fields) and admin_profiles
-/// (admin-specific organizational fields) into one display model — joined
-/// at the repository level, not the DB level, same pattern as
-/// AdminLoanSummary denormalizing farmer identity from two sibling tables
-/// via farmer_lookup.dart.
+/// (admin-specific organizational fields) into one display model.
 class AdminProfileModel {
   final String userId;
   final String email;
   final String fullName;
   final String? phoneNumber;
   final String? profilePhotoUrl;
-  final String? sitio;
+  final String? purok;
   final String? employeeId;
   final String? position;
   final String? department;
@@ -21,7 +18,7 @@ class AdminProfileModel {
     required this.fullName,
     this.phoneNumber,
     this.profilePhotoUrl,
-    this.sitio,
+    this.purok,
     this.employeeId,
     this.position,
     this.department,
@@ -32,7 +29,7 @@ class AdminProfileModel {
     String? fullName,
     String? phoneNumber,
     String? profilePhotoUrl,
-    String? sitio,
+    String? purok,
   }) {
     return AdminProfileModel(
       userId: userId,
@@ -40,7 +37,7 @@ class AdminProfileModel {
       fullName: fullName ?? this.fullName,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
-      sitio: sitio ?? this.sitio,
+      purok: purok ?? this.purok,
       employeeId: employeeId,
       position: position,
       department: department,

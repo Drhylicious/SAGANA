@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/repositories/crop_repository.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
@@ -14,8 +15,7 @@ import '../../widgets/shared_widgets.dart';
 /// Not used by "Record Harvest for This Crop" in My Crops' three-dot menu —
 /// that action already knows the crop and goes straight to the form.
 class SelectCropScreen extends StatefulWidget {
-  final FarmerCropModel? initialCrop;
-  const SelectCropScreen({super.key, this.initialCrop});
+  const SelectCropScreen({super.key});
 
   @override
   State<SelectCropScreen> createState() => _SelectCropScreenState();
@@ -25,10 +25,15 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
   final _cropRepo = CropRepository();
   List<FarmerCropModel> _crops = [];
   bool _isLoading = true;
+  bool _isOnline = true;
 
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _load();
   }
 
@@ -43,23 +48,28 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
   }
 
   Future<void> _onCropSelected(FarmerCropModel crop) async {
-    final result = await context.pushRoute(AppRoutes.harvestEntryForm, extra: crop);
-    if (!mounted) return;
-    // Cascade the success signal so the farmer lands back on the Hub /
-    // Manage Inventory screen they started from, instead of lingering here.
-    if (result == true) Navigator.of(context).pop(true);
+    await context.pushRoute(AppRoutes.harvestEntryForm, extra: crop);
+    // Stay on this screen after a successful submission — the farmer lands
+    // back on "Record New Harvest" (this picker), not the Hub/Manage
+    // Inventory screen underneath it, so they can immediately record
+    // another crop's harvest if needed.
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — your crop list may not be up to date."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
                 child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
@@ -111,6 +121,9 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,
+            ),
+          ),
+              ],
             ),
           ),
         ],

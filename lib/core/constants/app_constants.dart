@@ -6,6 +6,7 @@ class AppConstants {
   // ─── App Info ───────────────────────────────────────────────────────────────
   static const String appName = 'SAGANA';
   static const String appTagline = 'Empowering the farmers of Payanas';
+
   static const String appSubtitle = 'Streamlined Agricultural Gateway';
   static const String cooperativeName = 'SP3 Agriculture Cooperative';
   static const String cooperativeLocation = 'Barangay Payanas, Torrijos, Marinduque';
@@ -34,6 +35,8 @@ class AppConstants {
   static const Color successGreen = Color(0xFF43A047);
   static const Color warningAmber = Color(0xFFFFB300);
   static const Color errorRed = Color(0xFFD32F2F);
+  static const Color infoBlueBg = Color(0xFFDBF1FE);
+  static const Color infoBlueFg = Color(0xFF455A64);
   static const Color buyerBlue = Color(0xFF1E88E5);
   static const Color onTertiaryContainer = Color(0xFF7CDB7A);
   static const Color tertiaryContainer = Color(0xFF006017);
@@ -74,27 +77,15 @@ class AppConstants {
   static const Duration splashBarDuration = Duration(milliseconds: 1200);
   static const Duration splashNavDelay = Duration(milliseconds: 2800);
 
-  // ─── Sitios / Puroks of Barangay Payanas ─────────────────────────────────────
-  static const List<String> payanasSitios = [
-    'Sitio Abucay',
-    'Sitio Bulihan',
-    'Sitio Kapalaran',
-    'Sitio Pag-asa',
-    'Sitio Sampaguita',
-    'Sitio Kalayaan',
-    'Sitio Bagong Silang',
-    'Poblacion',
-  ];
-
-  // ─── Loan Module — Input Categories & Units ──────────────────────────────────
-  // NEW: used by Issue New Loan's "Add Input Item" bottom sheet.
-  // Categories are quick-fill shortcuts for the item_name text field only —
-  // there is no separate category column in farmer_loan_items.
-  static const List<String> loanInputCategories = [
-    'Fertilizer',
-    'Seeds',
-    'Animal Feeds',
-    'Pesticide',
+  // ─── Puroks of Barangay Payanas ───────────────────────────────────────────────
+  static const List<String> payanasPuroks = [
+    'Purok 1 — Centro 1',
+    'Purok 2 — Centro 2',
+    'Purok 3 — Centro 3',
+    'Purok 4 — Kailugan',
+    'Purok 5 — Binubungan',
+    'Purok 6 — Tigas',
+    'Purok 7 — Manggahan',
   ];
 
   static const List<String> loanItemUnits = [
@@ -116,6 +107,8 @@ class AppConstants {
   static const String hiveBoxSettings = 'settings_box';
   static const String hiveBoxLoanQueue = 'loan_queue_box'; // NEW — offline loan issuance queue
   static const String hiveBoxExportHistory = 'export_history_box'; // NEW — Export Center's Recent Exports
+  static const String hiveBoxHarvestQueue = 'harvest_queue_box'; // NEW — offline harvest submissions
+  static const String hiveBoxExpenseQueue = 'expense_queue_box'; // NEW — offline expense submissions (Phase 2 / U2)
   static const String hiveBoxCart = 'cart_box'; // NEW — local-only buyer cart, no Supabase table
 
   // ─── Hive Keys ───────────────────────────────────────────────────────────────

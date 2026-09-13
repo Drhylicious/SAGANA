@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'crop_lookup.dart';
 
 // ─── Admin Listing Model ──────────────────────────────────────────────────────
 // Extends the farmer-side MarketplaceListingModel with admin-only fields.
@@ -28,6 +29,12 @@ class AdminListingModel {
   final int farmerRejectedCount;
   final double farmerOutstandingLoan;
 
+  // Canonical crop_master.crop_name, resolved via crop_id — see
+  // AdminListingRepository's fetch methods. Falls back to cropName when
+  // the crop_id didn't resolve (e.g. a very old row predating the
+  // crop_id migration).
+  final String? canonicalCropName;
+
   const AdminListingModel({
     required this.id,
     required this.farmerId,
@@ -50,6 +57,7 @@ class AdminListingModel {
     this.farmerApprovedCount = 0,
     this.farmerRejectedCount = 0,
     this.farmerOutstandingLoan = 0,
+    this.canonicalCropName,
   });
 
   // ── Computed helpers ──────────────────────────────────────────────────────
@@ -61,9 +69,13 @@ class AdminListingModel {
   bool get isRejected => status == 'rejected';
 
   /// Matches MarketplaceListingModel.displayName — crop + variety when present.
-  String get displayName => variety != null && variety!.isNotEmpty
-      ? '$cropName ($variety)'
-      : cropName;
+  String get displayName {
+    final name = canonicalCropName ?? cropName;
+    final v = variety?.trim();
+    if (v == null || v.isEmpty) return name;
+    if (name.toLowerCase().contains(v.toLowerCase())) return name;
+    return '$name ($v)';
+  }
 
   /// The admin query orders by created_at (no submitted_at column in the
   /// select). Exposing this as submittedAt keeps the screen compatible with
@@ -161,6 +173,7 @@ class AdminListingModel {
       farmerRejectedCount: map['farmer_rejected_count'] as int? ?? 0,
       farmerOutstandingLoan: (map['farmer_outstanding_loan'] as num? ?? 0)
           .toDouble(),
+      canonicalCropName: map['canonical_crop_name'] as String?,
     );
   }
 }
@@ -237,10 +250,6 @@ class AdminListingRepository {
     );
   }
 
-  Future<List<AdminListingModel>> fetchRecentListings({int limit = 5}) async {
-    return _fetchListings(limit: limit);
-  }
-
   /// Pending Review now browses review *outcomes* (pending/approved/rejected),
   /// not just the open queue — a scoped fetch rather than reusing
   /// fetchAllListings, so this screen never accidentally shows
@@ -278,7 +287,7 @@ class AdminListingRepository {
       var query = _client
           .from('marketplace_listings')
           .select(
-            'id, farmer_id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
+            'id, farmer_id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, '
             'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at',
           );
 
@@ -287,9 +296,8 @@ class AdminListingRepository {
       } else {
         // Withdrawn is a farmer housekeeping action, not something admin
         // reviews or acts on — excluded whenever no specific status was
-        // asked for (the "All" chip, and the dashboard's recent-listings
-        // preview), so All = Pending + Live + Changes + Sold + Rejected
-        // always holds without a 7th chip nobody needs.
+        // asked for (the "All" chip), so All = Pending + Live + Changes +
+        // Sold + Rejected always holds without a 7th chip nobody needs.
         query = query.neq('status', 'withdrawn');
       }
       if (cropFilter != null) {
@@ -322,6 +330,12 @@ class AdminListingRepository {
           .map((r) => r['crop_name'] as String)
           .toSet()
           .toList();
+      final cropIds = rows
+          .map((r) => r['crop_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
 
       final infoRows = await _client
           .from('user_information')
@@ -399,6 +413,7 @@ class AdminListingRepository {
         final batchId = r['inventory_batch_id'] as String?;
         final history = historyMap[fid] ?? {};
         final cn = r['crop_name'] as String;
+        final cropId = r['crop_id'] as String?;
 
         return AdminListingModel.fromMap({
           ...r,
@@ -408,6 +423,7 @@ class AdminListingRepository {
           'batch_id': r['inventory_batch_id'],
           'batch_available_kg': batchId != null ? batchMap[batchId] : null,
           'market_ref_price': priceMap[cn],
+          'canonical_crop_name': cropId != null ? canonicalCropNames[cropId] : null,
           'farmer_total_submissions': history['total'] ?? 0,
           'farmer_approved_count': history['approved'] ?? 0,
           'farmer_rejected_count': history['rejected'] ?? 0,
@@ -487,14 +503,7 @@ class AdminListingRepository {
   }
 
   Future<void> approveListing(String listingId) async {
-    await _client
-        .from('marketplace_listings')
-        .update({
-          'status': 'approved',
-          'admin_notes': null,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', listingId);
+    await _client.rpc('approve_listing', params: {'p_listing_id': listingId});
   }
 
   /// "Changes Required" is not terminal — the listing stays alive and the
@@ -507,14 +516,10 @@ class AdminListingRepository {
     required String listingId,
     required String notes,
   }) async {
-    await _client
-        .from('marketplace_listings')
-        .update({
-          'status': 'changes_required',
-          'admin_notes': notes.trim(),
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', listingId);
+    await _client.rpc('request_listing_changes', params: {
+      'p_listing_id': listingId,
+      'p_notes': notes.trim(),
+    });
   }
 
   Future<AdminListingModel?> fetchListingById(String listingId) async {

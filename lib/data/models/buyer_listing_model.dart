@@ -16,14 +16,19 @@ class BuyerListingModel {
 
   // From the linked inventory_batches row (nullable — a listing can
   // exist without a linked batch).
-  final String? qualityGrade;
   final double? availableKg; // real-time stock, independent of listing status
-  final String? batchStatus; // available | low_stock | reserved | sold_out | withdrawn
   final String? batchNumber; // detail screen only
   final DateTime? harvestDate; // detail screen only
 
   // From price_records — used for the market-range comparison badge.
   final double? marketRefPricePerKg;
+
+  // From crop_master via crop_id (Phase D) — merges historical name
+  // variants (e.g. "Rice (Palay)" vs "Palay") under one display name for
+  // dedup/grouping contexts. Null when crop_id is missing or unresolved,
+  // in which case callers should fall back to cropName (see
+  // canonicalDisplayCropName below) rather than null-check everywhere.
+  final String? canonicalCropName;
 
   const BuyerListingModel({
     required this.id,
@@ -35,29 +40,31 @@ class BuyerListingModel {
     required this.pricePerKg,
     this.listingPhotoUrl,
     required this.createdAt,
-    this.qualityGrade,
     this.availableKg,
-    this.batchStatus,
     this.batchNumber,
     this.harvestDate,
     this.marketRefPricePerKg,
+    this.canonicalCropName,
   });
 
   // ─── Computed helpers ─────────────────────────────────────────────────────
 
-  String get displayName =>
-      variety != null && variety!.isNotEmpty ? '$cropName ($variety)' : cropName;
+  String get displayName {
+    final v = variety?.trim();
+    if (v == null || v.isEmpty) return cropName;
+    if (cropName.toLowerCase().contains(v.toLowerCase())) return cropName;
+    return '$cropName ($v)';
+  }
 
-  /// No linked batch at all — fall back to the listed volume as the
-  /// orderable quantity, no grade/stock badge to show.
-  bool get hasBatchInfo => batchStatus != null;
+  /// Canonical crop name for dedup/grouping contexts (e.g. the price
+  /// ticker), falling back to the listing's own cropName when no
+  /// canonical mapping was resolved.
+  String get canonicalDisplayCropName => canonicalCropName ?? cropName;
 
   /// remainingKg is the live per-listing balance that place_order() checks
   /// and decrements — it reflects real-time order activity in a way the
-  /// batch-level availableKg/batchStatus no longer do now that ordering
-  /// operates purely on the listing. Those batch fields stay on the model
-  /// for context (quality grade, a withdrawn/rejected batch) but are no
-  /// longer the source of truth for whether this listing can be ordered.
+  /// batch-level availableKg no longer does now that ordering
+  /// operates purely on the listing.
   bool get isOrderable => remainingKg > 0;
 
   bool get isSoldOut => remainingKg <= 0;
@@ -104,11 +111,9 @@ class BuyerListingModel {
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
       listingPhotoUrl: map['photo_url'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
-      qualityGrade: map['quality_grade'] as String?,
       availableKg: map['available_kg'] != null
           ? (map['available_kg'] as num).toDouble()
           : null,
-      batchStatus: map['batch_status'] as String?,
       batchNumber: map['batch_number'] as String?,
       harvestDate: map['harvest_date'] != null
           ? DateTime.parse(map['harvest_date'] as String)
@@ -116,6 +121,7 @@ class BuyerListingModel {
       marketRefPricePerKg: map['market_ref_price'] != null
           ? (map['market_ref_price'] as num).toDouble()
           : null,
+      canonicalCropName: map['canonical_crop_name'] as String?,
     );
   }
 }

@@ -43,6 +43,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   bool _isSuccess = false;
   String? _errorMessage;
   bool _isOnline = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -59,7 +60,23 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   }
 
   Future<void> _loadCrops() async {
-    final crops = await _cropRepo.fetchCrops(approvedOnly: true);
+    setState(() {
+      _isLoadingCrops = true;
+      _loadFailed = false;
+    });
+    List<FarmerCropModel> crops;
+    try {
+      crops = await _cropRepo
+          .fetchCrops(approvedOnly: true)
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCrops = false;
+        _loadFailed = true;
+      });
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _myCrops = crops;
@@ -162,8 +179,12 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final batchNumber = _generateBatchNumber(_selectedCrop!);
-      await _repo.submitHarvest(
+      // Reuse the number already shown in the form's read-only Batch
+      // Number field instead of regenerating — AppUtils.generateBatchNumber()
+      // embeds a millisecond-based random suffix, so a second call here
+      // produced a different value than what the farmer saw and confirmed.
+      final batchNumber = _previewBatchNumber!;
+      final harvest = await _repo.submitHarvest(
         cropId: _selectedCrop!.id,
         cropName: _selectedCrop!.cropName,
         cropCategory: _selectedCrop!.category,
@@ -189,7 +210,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       });
 
       await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) _showSuccessDialog(qty, batchNumber);
+      if (mounted) {
+        _showSuccessDialog(qty, batchNumber, wasQueuedOffline: !harvest.isSynced);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -200,7 +223,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     }
   }
 
-  void _showSuccessDialog(double qty, String batchNumber) {
+  void _showSuccessDialog(double qty, String batchNumber, {required bool wasQueuedOffline}) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -215,22 +238,32 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
             Container(
               width: 64, height: 64,
               decoration: BoxDecoration(
-                color: AppConstants.successGreen.withValues(alpha: 0.10),
+                color: (wasQueuedOffline ? AppConstants.amber : AppConstants.successGreen)
+                    .withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_rounded,
-                  color: AppConstants.successGreen, size: 36),
+              child: Icon(
+                wasQueuedOffline ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
+                color: wasQueuedOffline ? AppConstants.amber : AppConstants.successGreen,
+                size: 36,
+              ),
             ),
             const SizedBox(height: 16),
-            Text('Harvest Submitted!',
-                style: GoogleFonts.poppins(
-                    fontSize: 18, fontWeight: FontWeight.w700,
-                    color: AppConstants.charcoal)),
+            Text(
+              wasQueuedOffline ? 'Saved Offline' : 'Harvest Submitted!',
+              style: GoogleFonts.poppins(
+                  fontSize: 18, fontWeight: FontWeight.w700,
+                  color: AppConstants.charcoal),
+            ),
             const SizedBox(height: 8),
             Text(
-              '${qty.toStringAsFixed(0)} kg of ${_selectedCrop!.cropName} recorded '
-              '(Batch #$batchNumber).\n\nCheck Inventory to sell, offer it '
-              'to the cooperative, or record a sale.',
+              wasQueuedOffline
+                  ? '${qty.toStringAsFixed(0)} kg of ${_selectedCrop!.cropName} recorded '
+                    '(Batch #$batchNumber).\n\nNo connection right now — this will sync '
+                    'automatically once you\'re back online.'
+                  : '${qty.toStringAsFixed(0)} kg of ${_selectedCrop!.cropName} recorded '
+                    '(Batch #$batchNumber).\n\nCheck Inventory to sell, offer it '
+                    'to the cooperative, or record a sale.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                   fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5),
@@ -270,6 +303,10 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       );
     }
 
+    if (_loadFailed) {
+      return _CropsLoadError(onRetry: _loadCrops, isOnline: _isOnline);
+    }
+
     if (_myCrops.isEmpty) {
       if (_blockedCrop != null) {
         // The farmer's only crop is the one that was passed in, and it's
@@ -293,9 +330,14 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
           Column(
             children: [
               const SizedBox(height: 72),
+              if (!_isOnline)
+                const OfflineBanner(
+                  message:
+                      "You're offline — new harvest entries are saved on your device and will sync automatically once you're reconnected.",
+                ),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 160),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -361,6 +403,14 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
                         // ── Error ─────────────────────────────────────────
                         if (_errorMessage != null) _ErrorBanner(message: _errorMessage!),
+
+                        // ── Submit Button ─────────────────────────────────
+                        const SizedBox(height: 24),
+                        _SubmitButton(
+                          isLoading: _isLoading,
+                          isSuccess: _isSuccess,
+                          onPressed: _handleSubmit,
+                        ),
                       ],
                     ),
                   ),
@@ -379,29 +429,10 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
               onProfileTap: () {},
               onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications),
               onSettingsTap: null,
-              trailing: [
-                _OnlineBadge(isOnline: _isOnline),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => context.pushRoute(AppRoutes.farmerNotifications),
-                  child: const Icon(Icons.notifications_outlined, color: AppConstants.primaryGreen, size: 26),
-                ),
-              ],
+              // trailing badge removed; use the standardized OfflineBanner above
             ),
           ),
 
-          // ── Submit Button ─────────────────────────────────────────────
-          Positioned(
-            bottom: 72, left: 0, right: 0,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: _SubmitButton(
-                isLoading: _isLoading,
-                isSuccess: _isSuccess,
-                onPressed: _handleSubmit,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -409,76 +440,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 }
 
 
-class _OnlineBadge extends StatelessWidget {
-  final bool isOnline;
-  const _OnlineBadge({required this.isOnline});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isOnline ? AppConstants.successGreen : AppConstants.warningAmber;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-        border: Border.all(color: color.withValues(alpha: 0.20)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PulsingDot(color: color),
-          const SizedBox(width: 5),
-          Text(isOnline ? 'Online' : 'Offline',
-              style: GoogleFonts.poppins(
-                  fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _PulsingDot extends StatefulWidget {
-  final Color color;
-  const _PulsingDot({required this.color});
-
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1000))
-      ..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.4, end: 1.0).animate(_ctrl);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => Opacity(
-        opacity: _anim.value,
-        child: Container(
-          width: 7, height: 7,
-          decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
-        ),
-      ),
-    );
-  }
-}
+// _OnlineBadge and _PulsingDot removed — standardized OfflineBanner is used instead
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Crop Selector Field
@@ -571,6 +533,70 @@ class _CropSelectorField extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // No Crops Empty State
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Crops Load Error — shown when fetchCrops() fails or times out, instead of
+// falling through to _NoCropsEmptyState (which would misleadingly imply the
+// farmer has no crops at all). Message/icon distinguish "you're offline"
+// from a genuine load failure, matching _ProfileLoadError's pattern.
+// ───────────────────────────────────────────────────────────────────────────────
+
+class _CropsLoadError extends StatelessWidget {
+  final VoidCallback onRetry;
+  final bool isOnline;
+  const _CropsLoadError({required this.onRetry, required this.isOnline});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppConstants.offWhite,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
+                size: 40,
+                color: AppConstants.outline.withValues(alpha: 0.60),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isOnline ? 'Could not load your crops' : 'You\'re offline',
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.charcoal,
+                ),
+              ),
+              if (!isOnline) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Your crops will load once you\'re back online.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: onRetry,
+                child: Text(
+                  'Retry',
+                  style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _NoCropsEmptyState extends StatelessWidget {
   final VoidCallback onGoToMyCrops;

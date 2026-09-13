@@ -30,25 +30,34 @@ class AddMemberRepository {
     required String username,
     required String password,
     required String fullName,
-    required String phoneNumber,
-    required String sitio,
-    String? memberId,
-    required int capitalShares,
-    required double shareValuePerUnit,
-    required List<String> initialCrops,
+    String? phoneNumber,
+    String? purok,
+    DateTime? dateOfBirth,
+    String? gender, // male | female | prefer_not_to_say
+    double shareValuePerUnit = 2000,
+    double initialContribution = 0,
+    List<String> initialCrops = const [],
+    String? registryId,
   }) async {
-    // ── Attempt via RPC (requires supabase_schema_username_auth.sql) ──
+    // Member ID is now generated server-side inside create_farmer_account
+    // (one shared generator, advisory-locked — see
+    // supabase_schema_phase_b_member_id_capital_dob.sql).
     try {
       final response = await _client.rpc('create_farmer_account', params: {
         'p_username': username.trim(),
         'p_password': password,
         'p_full_name': fullName.trim(),
-        'p_phone_number': phoneNumber.trim(),
-        'p_sitio': sitio,
-        'p_member_id': memberId?.trim(),
-        'p_capital_shares': capitalShares,
+        'p_phone_number':
+            (phoneNumber != null && phoneNumber.trim().isNotEmpty)
+                ? phoneNumber.trim()
+                : null,
+        'p_purok': purok,
+        'p_date_of_birth': dateOfBirth?.toIso8601String().split('T').first,
+        'p_gender': gender,
         'p_share_value_per_unit': shareValuePerUnit,
+        'p_initial_contribution': initialContribution,
         'p_initial_crops': initialCrops,
+        'p_registry_id': registryId,
       });
 
       // RPC returns the new user_id on success
@@ -70,16 +79,18 @@ class AddMemberRepository {
     }
   }
 
-  /// Suggests the next sequential member ID in the format SP3-{year}-{seq}
+  /// Non-authoritative preview of the next Member ID (SP3-<year>-<seq>).
+  /// The real value is generated inside create_farmer_account's
+  /// transaction via the same generate_member_id() function, so this is
+  /// only for display in the (read-only) Member ID field.
   Future<String> suggestNextMemberId() async {
     final year = DateTime.now().year;
     try {
-      final rows = await _client
-          .from('farmer_profiles')
-          .select('member_id')
-          .ilike('member_id', 'SP3-$year-%');
-      final count = rows.length + 1;
-      return 'SP3-$year-${count.toString().padLeft(3, '0')}';
+      final result =
+          await _client.rpc('generate_member_id', params: {'p_year': year});
+      final value = result as String?;
+      if (value != null && value.isNotEmpty) return value;
+      return 'SP3-$year-001';
     } catch (_) {
       return 'SP3-$year-001';
     }
@@ -97,8 +108,16 @@ class AddMemberRepository {
 
   String _parseError(Object e) {
     final msg = e.toString().toLowerCase();
-    if (msg.contains('already registered') || msg.contains('already exists')) {
-      return 'This username is already registered.';
+    if (msg.contains('member named') || msg.contains('full name')) {
+      return 'A member with this full name already exists.';
+    }
+    if (msg.contains('at least 18 years')) {
+      return 'The member must be at least 18 years old.';
+    }
+    if (msg.contains('already registered') ||
+        msg.contains('already taken') ||
+        msg.contains('already exists')) {
+      return 'This username is already taken.';
     }
     if (msg.contains('function') && msg.contains('does not exist')) {
       return 'The admin account creation function is not yet deployed. '

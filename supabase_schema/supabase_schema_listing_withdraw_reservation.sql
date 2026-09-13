@@ -1,4 +1,10 @@
 -- ============================================================
+-- ⚠️ SUPERSEDED — withdraw_listing here releases volume_kg, not
+-- remaining_kg. The canonical version is now in
+-- supabase_schema_marketplace_order_reservation_fix.sql. See
+-- supabase_schema_RESERVATION_MODEL_NOTES.md. Kept for history
+-- only.
+-- ============================================================
 -- SAGANA — Withdraw Listing Inventory Release
 -- Same gap as reject_listing: withdrawing never released the
 -- batch reservation. Also adds a status guard — a listing that's

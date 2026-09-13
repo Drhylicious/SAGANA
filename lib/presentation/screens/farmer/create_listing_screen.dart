@@ -10,11 +10,17 @@ import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 
 class CreateListingScreen extends StatefulWidget {
-  const CreateListingScreen({super.key});
+  // Either an InventoryBatchModel (preselected from Manage Inventory's
+  // disposal sheet) or a MarketplaceListingModel (resubmitting a
+  // changes_required listing), or null (opened with no preselection).
+  final Object? initialArg;
+
+  const CreateListingScreen({super.key, this.initialArg});
 
   @override
   State<CreateListingScreen> createState() => _CreateListingScreenState();
@@ -39,7 +45,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   bool _isLoadingBatches = true;
   bool _isSubmitting = false;
   bool _isOnline = true;
-  bool _argsRead = false;
   bool _batchWasPreselected = false;
 
   @override
@@ -53,36 +58,33 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
-  }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_argsRead) {
-      _argsRead = true;
-      final arg = ModalRoute.of(context)?.settings.arguments;
-      if (arg is MarketplaceListingModel) {
-        _editingListing = arg;
-        _titleController.text = arg.displayName;
-        _quantityController.text = arg.volumeKg.toStringAsFixed(0);
-        _priceController.text = arg.pricePerKg.toStringAsFixed(2);
-        // Resubmit path: fetch the listing's *own* reserved batch directly,
-        // bypassing fetchAvailableBatches()'s status filter. That filter only
-        // returns 'available'/'low_stock' batches, but the batch behind a
-        // changes_required listing is almost always 'reserved' (fully
-        // committed to this pending listing) — so it would never appear
-        // there, and falling back to fetchAvailableBatches().first would
-        // silently validate "Max: X kg" and the market price against an
-        // unrelated batch.
-        if (arg.inventoryBatchId != null) {
-          _loadEditingBatch(arg.inventoryBatchId!);
-        } else {
-          setState(() => _isLoadingBatches = false);
-        }
+    // Read via the constructor now — GoRouter's `extra` is delivered here,
+    // not through ModalRoute.settings.arguments (that only ever gets
+    // populated by raw Navigator.push(..., settings: RouteSettings(...)),
+    // which is not how this screen is reached).
+    final arg = widget.initialArg;
+    if (arg is MarketplaceListingModel) {
+      _editingListing = arg;
+      _titleController.text = arg.displayName;
+      _quantityController.text = arg.volumeKg.toStringAsFixed(0);
+      _priceController.text = arg.pricePerKg.toStringAsFixed(2);
+      // Resubmit path: fetch the listing's *own* reserved batch directly,
+      // bypassing fetchAvailableBatches()'s status filter. That filter only
+      // returns 'available'/'low_stock' batches, but the batch behind a
+      // changes_required listing is almost always 'reserved' (fully
+      // committed to this pending listing) — so it would never appear
+      // there, and falling back to fetchAvailableBatches().first would
+      // silently validate "Max: X kg" and the market price against an
+      // unrelated batch.
+      if (arg.inventoryBatchId != null) {
+        _loadEditingBatch(arg.inventoryBatchId!);
       } else {
-        if (arg is InventoryBatchModel) _batchWasPreselected = true;
-        _loadBatches(preselect: arg is InventoryBatchModel ? arg : null);
+        _isLoadingBatches = false;
       }
+    } else {
+      if (arg is InventoryBatchModel) _batchWasPreselected = true;
+      _loadBatches(preselect: arg is InventoryBatchModel ? arg : null);
     }
   }
 
@@ -145,7 +147,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PhotoSourceSheet(),
+    );
+    if (source == null) return;
+    final picked = await _picker.pickImage(source: source, imageQuality: 80);
     if (picked != null && mounted) setState(() => _photo = picked);
   }
 
@@ -235,20 +243,22 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      Navigator.of(context).pushReplacementNamed(
-        AppRoutes.listingSuccess,
-        arguments: submittedListing,
-      );
+      context.pushReplacementRoute(AppRoutes.listingSuccess, extra: submittedListing);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       // resubmit_listing_with_reservation raises when an increased quantity
-      // exceeds real available stock — surface that specifically instead of
-      // a generic message, since it's an actionable, expected failure rather
-      // than a network/server error.
-      final message = e.toString().contains('Not enough available quantity')
+      // exceeds real available stock, and create_listing_with_reservation
+      // raises when the crop is Ginger (DA-AMAD-exclusive, sold only
+      // through Market Linking) — surface both specifically instead of a
+      // generic message, since they're actionable, expected failures
+      // rather than network/server errors.
+      final errorText = e.toString();
+      final message = errorText.contains('Not enough available quantity')
           ? 'Not enough available stock for that quantity. Please lower it and try again.'
-          : 'Failed to submit listing. Please try again.';
+          : errorText.contains('Ginger cannot be listed')
+              ? 'Ginger can only be sold through the Market Linking program, not the open Marketplace.'
+              : 'Failed to submit listing. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
@@ -266,12 +276,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
       resizeToAvoidBottomInset: true,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — you won't be able to submit a new listing until you're reconnected."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   child: Column(
@@ -289,7 +304,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                             ? const SizedBox(height: 110, child: Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen)))
                             : _batches.isEmpty
                                 ? _NoBatchesNotice(onGoToInventory: () =>
-                                    Navigator.of(context).pushReplacementNamed(AppRoutes.manageInventory))
+                                  context.pushReplacementRoute(AppRoutes.manageInventory))
                                 : _BatchSelector(
                                     batches: _batches,
                                     selected: _selectedBatch,
@@ -334,6 +349,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         marketPrice: _marketPrice,
                         photo: _photo,
                         existingPhotoUrl: _editingListing?.photoUrl,
+                        isResubmit: _editingListing != null,
                         onPickPhoto: _pickPhoto,
                         onRemovePhoto: _removePhoto,
                         onChanged: () => setState(() {}),
@@ -384,6 +400,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -580,18 +599,6 @@ class _BatchSelector extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_outlined, size: 12, color: AppConstants.outline),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(batch.qualityGrade,
-                                style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant),
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ],
@@ -645,18 +652,17 @@ class _AutoFilledGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 2.6,
+    return Row(
+      // Avoid stretching children vertically inside an unbounded
+      // SingleChildScrollView; use `start` so the row doesn't try to
+      // expand to infinite height (causes BoxConstraints error).
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _DetailChip(label: 'Crop Name', value: batch.cropName),
-        _DetailChip(label: 'Batch Number', value: batch.batchNumber),
-        _DetailChip(label: 'Quality', value: batch.qualityGrade),
-        _DetailChip(label: 'Available Stock', value: '${batch.availableKg.toStringAsFixed(0)} kg'),
+        Expanded(child: _DetailChip(label: 'Crop Name', value: batch.cropName)),
+        const SizedBox(width: 10),
+        Expanded(child: _DetailChip(label: 'Batch Number', value: batch.batchNumber)),
+        const SizedBox(width: 10),
+        Expanded(child: _DetailChip(label: 'Available Stock', value: '${batch.availableKg.toStringAsFixed(0)} kg')),
       ],
     );
   }
@@ -672,7 +678,7 @@ class _DetailChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFDBF1FE).withValues(alpha: 0.30),
+        color: AppConstants.infoBlueBg.withValues(alpha: 0.30),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
       ),
@@ -685,6 +691,7 @@ class _DetailChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(value,
               style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.onSurface),
+              maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
       ),
@@ -704,6 +711,7 @@ class _FormCard extends StatelessWidget {
   final double? marketPrice;
   final XFile? photo;
   final String? existingPhotoUrl;
+  final bool isResubmit;
   final VoidCallback onPickPhoto;
   final VoidCallback onRemovePhoto;
   final VoidCallback onChanged;
@@ -716,6 +724,7 @@ class _FormCard extends StatelessWidget {
     required this.marketPrice,
     required this.photo,
     required this.existingPhotoUrl,
+    required this.isResubmit,
     required this.onPickPhoto,
     required this.onRemovePhoto,
     required this.onChanged,
@@ -733,7 +742,7 @@ class _FormCard extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 16)],
+            boxShadow: [BoxShadow(color: AppConstants.infoBlueFg.withValues(alpha: 0.05), blurRadius: 16)],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,8 +772,16 @@ class _FormCard extends StatelessWidget {
                           controller: quantityController,
                           onChanged: (_) => onChanged(),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                          ],
                           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
                           decoration: _inputDecoration(hint: '0.00', suffix: 'kg'),
+                        ),
+                        if (isResubmit) Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 2),
+                          child: Text('You can adjust this amount before resubmitting.',
+                              style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
                         ),
                         if (maxQty != null) Padding(
                           padding: const EdgeInsets.only(top: 4, left: 2),
@@ -785,6 +802,9 @@ class _FormCard extends StatelessWidget {
                           controller: priceController,
                           onChanged: (_) => onChanged(),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                          ],
                           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
                           decoration: _inputDecoration(hint: '0.00', prefix: '₱', suffix: '/kg'),
                         ),
@@ -873,6 +893,48 @@ class _FieldLabel extends StatelessWidget {
 // Photo Upload
 // ─────────────────────────────────────────────────────────────────────────────
 
+// SAGANA is mobile-first — farmers get a choice between photographing the
+// crop directly and picking an existing photo, rather than only gallery
+// access (the previous behavior).
+class _PhotoSourceSheet extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: AppConstants.outline.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded, color: AppConstants.primaryGreen),
+              title: Text('Take Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: AppConstants.primaryGreen),
+              title: Text('Choose from Gallery', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PhotoUpload extends StatelessWidget {
   final XFile? photo;
   final String? existingPhotoUrl;
@@ -901,7 +963,7 @@ class _PhotoUpload extends StatelessWidget {
               child: photo != null
                   ? Image.network(photo!.path, fit: BoxFit.cover)
                   : Image.network(existingPhotoUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFFDBF1FE))),
+                      errorBuilder: (_, __, ___) => Container(color: AppConstants.infoBlueBg)),
             ),
             Positioned(
               top: 8, right: 8,
@@ -1001,7 +1063,7 @@ class _LivePreviewCard extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.70),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
             border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 16)],
+            boxShadow: [BoxShadow(color: AppConstants.infoBlueFg.withValues(alpha: 0.05), blurRadius: 16)],
           ),
           child: Column(
             children: [
@@ -1091,7 +1153,7 @@ class _LivePreviewCard extends StatelessWidget {
   }
 
   Widget _placeholder() => Container(
-        color: const Color(0xFFDBF1FE),
+        color: AppConstants.infoBlueBg,
         child: const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 30),
       );
 }

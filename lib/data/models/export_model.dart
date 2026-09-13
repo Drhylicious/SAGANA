@@ -29,7 +29,7 @@ extension ReportModuleTypeExt on ReportModuleType {
       case ReportModuleType.loan:
         return 'Loan Report';
       case ReportModuleType.memberContribution:
-        return 'Member Contribution Report';
+        return 'Member Patronage Report';
       case ReportModuleType.coopStock:
         return 'Cooperative Stock Report';
     }

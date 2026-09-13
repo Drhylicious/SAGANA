@@ -37,16 +37,6 @@ class FarmerCropModel {
   /// True when an admin has explicitly declined the crop request.
   bool get isRejected => requestStatus == 'rejected';
 
-  static const List<String> categories = [
-    'Grain',
-    'Legume',
-    'Root & Spice Crop',
-    'Fruit',
-    'Tree Crop',
-    'Vegetable',
-    'Other',
-  ];
-
   /// Shared category → icon mapping. Previously duplicated privately
   /// inside select_crop_screen.dart's _SelectableCropCard — pulled out
   /// here so any screen needing a category glyph (Market Rate Details,

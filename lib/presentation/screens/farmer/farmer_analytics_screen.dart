@@ -14,6 +14,7 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/planting_forecast_card.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/top_harvested_crops_chart.dart';
+import '../../widgets/trend_chart_painter.dart';
 
 class FarmerAnalyticsScreen extends StatefulWidget {
   const FarmerAnalyticsScreen({super.key});
@@ -35,7 +36,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   List<TopSellingCrop> _topSelling = [];
   int _unreadCount = 0;
 
-  String? _selectedPriceCrop;
+  CropPriceCard? _selectedPriceCard;
   bool _isLoading = true;
   bool _isOnline = true;
 
@@ -79,9 +80,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     if (!mounted) return;
 
     final priceCards = results[2] as List<CropPriceCard>;
-    final initialCrop = priceCards.isNotEmpty
-        ? priceCards.first.cropName
-        : null;
+    final initialCard = priceCards.isNotEmpty ? priceCards.first : null;
 
     setState(() {
       _performance = results[0] as FarmPerformanceSummary;
@@ -90,18 +89,22 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       _forecasts = results[3] as List<PlantingForecast>;
       _topSelling = results[4] as List<TopSellingCrop>;
       _unreadCount = results[5] as int;
-      _selectedPriceCrop = initialCrop;
+      _selectedPriceCard = initialCard;
       _isLoading = false;
     });
 
-    if (initialCrop != null) _loadPriceHistory(initialCrop);
+    if (initialCard != null) _loadPriceHistory(initialCard);
   }
 
-  Future<void> _loadPriceHistory(String cropName) async {
-    final history = await _repo.fetchPriceHistory(cropName, startDate: _period.startDate);
+  Future<void> _loadPriceHistory(CropPriceCard card) async {
+    final history = await _repo.fetchPriceHistory(
+      card.cropName,
+      priceType: card.priceType,
+      startDate: _period.startDate,
+    );
     if (!mounted) return;
     setState(() {
-      _selectedPriceCrop = cropName;
+      _selectedPriceCard = card;
       _priceHistory = history;
     });
   }
@@ -114,13 +117,17 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       // previously this chart never responded to the period selector at
       // all, contradicting the screen's own "Applies to Farm Performance
       // and Price History" caption.
-      if (_selectedPriceCrop != null)
-        _repo.fetchPriceHistory(_selectedPriceCrop!, startDate: p.startDate),
+      if (_selectedPriceCard != null)
+        _repo.fetchPriceHistory(
+          _selectedPriceCard!.cropName,
+          priceType: _selectedPriceCard!.priceType,
+          startDate: p.startDate,
+        ),
     ]);
     if (!mounted) return;
     setState(() {
       _performance = results[0] as FarmPerformanceSummary;
-      if (_selectedPriceCrop != null) {
+      if (_selectedPriceCard != null) {
         _priceHistory = results[1] as List<PriceHistoryPoint>;
       }
     });
@@ -130,13 +137,17 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              if (!_isOnline) const _OfflineBanner(),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — price and performance data may not be up to date."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadAll,
@@ -184,13 +195,13 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                             )
                           : _PriceCardsRow(
                               cards: _priceCards,
-                              selected: _selectedPriceCrop,
+                              selected: _selectedPriceCard,
                               onSelected: _loadPriceHistory,
                             ),
                       const SizedBox(height: 14),
-                      if (!_isLoading && _selectedPriceCrop != null)
+                      if (!_isLoading && _selectedPriceCard != null)
                         _PriceHistoryChart(
-                          cropName: _selectedPriceCrop!,
+                          cropName: _selectedPriceCard!.cropName,
                           points: _priceHistory,
                           periodLabel: _period.label,
                         ),
@@ -248,39 +259,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                   context.pushRoute(AppRoutes.farmerNotifications),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      color: const Color(0xFFC7DDE9),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            size: 16,
-            color: AppConstants.onSurface,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Offline — showing last synced prices',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              color: AppConstants.onSurface,
+              ],
             ),
           ),
         ],
@@ -721,8 +700,8 @@ class _TransactionsCard extends StatelessWidget {
 
 class _PriceCardsRow extends StatelessWidget {
   final List<CropPriceCard> cards;
-  final String? selected;
-  final ValueChanged<String> onSelected;
+  final CropPriceCard? selected;
+  final ValueChanged<CropPriceCard> onSelected;
 
   const _PriceCardsRow({
     required this.cards,
@@ -740,9 +719,9 @@ class _PriceCardsRow extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
           final c = cards[i];
-          final isActive = c.cropName == selected;
+          final isActive = c.cropName == selected?.cropName && c.priceType == selected?.priceType;
           return GestureDetector(
-            onTap: () => onSelected(c.cropName),
+            onTap: () => onSelected(c),
             child: Container(
               width: 170,
               padding: const EdgeInsets.all(14),
@@ -945,9 +924,50 @@ class _PriceHistoryChart extends StatelessWidget {
                           ),
                         ),
                       )
-                    : CustomPaint(
-                        size: const Size(double.infinity, 130),
-                        painter: _PriceLinePainter(points: points),
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final values = points.map((p) => p.price).toList();
+                          return Stack(
+                            children: [
+                              CustomPaint(
+                                size: Size(constraints.maxWidth, 130),
+                                painter: TrendChartPainter(
+                                  values: values,
+                                  lineColor: AppConstants.primaryGreen,
+                                  gradientColor: AppConstants.primaryGreen,
+                                ),
+                              ),
+                              // Endpoint dot — TrendChartPainter (shared,
+                              // generalized) doesn't draw one itself,
+                              // unlike the private painter this replaces.
+                              // Position computed with the same padding
+                              // math TrendChartPainter uses internally, so
+                              // it lands exactly on the curve's last point.
+                              Builder(builder: (context) {
+                                final minV = values.reduce((a, b) => a < b ? a : b);
+                                final maxV = values.reduce((a, b) => a > b ? a : b);
+                                final rawRange = (maxV - minV).abs();
+                                final effRange = rawRange < 1 ? 1.0 : rawRange;
+                                final padding = effRange * 0.15;
+                                final lo = minV - padding;
+                                final range = (maxV + padding) - lo;
+                                final lastY = 130 * (1 - (values.last - lo) / range);
+                                return Positioned(
+                                  left: constraints.maxWidth - 4,
+                                  top: lastY - 4,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppConstants.primaryGreen,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          );
+                        },
                       ),
               ),
               if (points.length >= 2) ...[
@@ -988,83 +1008,6 @@ class _PriceHistoryChart extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PriceLinePainter extends CustomPainter {
-  final List<PriceHistoryPoint> points;
-  _PriceLinePainter({required this.points});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
-
-    final prices = points.map((p) => p.price).toList();
-    final minP = prices.reduce((a, b) => a < b ? a : b);
-    final maxP = prices.reduce((a, b) => a > b ? a : b);
-    final range = (maxP - minP).abs() < 0.01 ? 1.0 : (maxP - minP);
-
-    final path = Path();
-    final fillPath = Path();
-
-    for (int i = 0; i < points.length; i++) {
-      final x = size.width * (i / (points.length - 1));
-      final normalized = (points[i].price - minP) / range;
-      final y =
-          size.height -
-          (normalized * size.height * 0.85) -
-          (size.height * 0.05);
-
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
-
-      if (i == points.length - 1) {
-        fillPath.lineTo(x, size.height);
-        fillPath.close();
-      }
-    }
-
-    final linePaint = Paint()
-      ..color = AppConstants.primaryGreen
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          AppConstants.primaryGreen.withValues(alpha: 0.15),
-          AppConstants.primaryGreen.withValues(alpha: 0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, linePaint);
-
-    // End point dot
-    final lastX = size.width;
-    final lastNormalized = (points.last.price - minP) / range;
-    final lastY =
-        size.height -
-        (lastNormalized * size.height * 0.85) -
-        (size.height * 0.05);
-    canvas.drawCircle(
-      Offset(lastX, lastY),
-      4,
-      Paint()..color = AppConstants.primaryGreen,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PriceLinePainter oldDelegate) =>
-      oldDelegate.points != points;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

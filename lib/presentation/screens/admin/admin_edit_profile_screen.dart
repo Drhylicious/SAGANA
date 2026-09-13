@@ -9,11 +9,12 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_profile_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/change_password_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 
-/// Admin Edit Profile — name, phone, sitio, photo, and Change Password.
+/// Admin Edit Profile — name, phone, purok, photo, and Change Password.
 /// Route: /admin/profile/edit. Same shape as BuyerEditProfileScreen:
 /// dedicated screen with a Save action, avatar tap-to-change, and a
 /// Security section linking out to the shared ChangePasswordDialog.
@@ -34,7 +35,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   bool _isUploadingPhoto = false;
   String? _photoUrl;
   String _email = '';
-  String? _selectedSitio;
+  String? _selectedPurok;
 
   @override
   void initState() {
@@ -57,32 +58,42 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
       _email = profile?.email ?? '';
-      _selectedSitio = profile?.sitio;
+      _selectedPurok = profile?.purok;
       _isLoading = false;
     });
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 800, imageQuality: 85);
-    if (picked == null) return;
+    try {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 800, imageQuality: 85);
+      if (picked == null) return;
 
-    setState(() => _isUploadingPhoto = true);
-    final bytes = await picked.readAsBytes();
-    final extension = picked.name.split('.').last;
-    final url = await _repo.updatePhoto(imageBytes: bytes, fileExtension: extension);
-    if (!mounted) return;
-    setState(() {
-      _isUploadingPhoto = false;
-      if (url != null) _photoUrl = url;
-    });
-    if (url != null) {
-      AdminProfileStateService.instance.refresh();
-    } else if (mounted) {
-      final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.adminProfilePhotoError), backgroundColor: AppConstants.errorRed),
-      );
+      setState(() => _isUploadingPhoto = true);
+      final bytes = await picked.readAsBytes();
+      final extension = picked.name.split('.').last;
+      final url = await _repo.updatePhoto(imageBytes: bytes, fileExtension: extension);
+      if (!mounted) return;
+
+      if (url != null) {
+        setState(() => _photoUrl = url);
+        AdminProfileStateService.instance.refresh();
+      } else {
+        _showPhotoError();
+      }
+    } catch (_) {
+      if (mounted) _showPhotoError();
+    } finally {
+      if (mounted && _isUploadingPhoto) {
+        setState(() => _isUploadingPhoto = false);
+      }
     }
+  }
+
+  void _showPhotoError() {
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.adminProfilePhotoError), backgroundColor: AppConstants.errorRed),
+    );
   }
 
   Future<void> _save() async {
@@ -99,7 +110,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       await _repo.updateBasicInfo(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
-        sitio: _selectedSitio,
+        purok: _selectedPurok,
       );
       AdminProfileStateService.instance.refresh();
       if (!mounted) return;
@@ -199,14 +210,13 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                   keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: AppConstants.payanasSitios.contains(_selectedSitio) ? _selectedSitio : null,
-                  decoration: InputDecoration(
-                    labelText: l10n.adminProfileSitio,
-                    prefixIcon: const Icon(Icons.location_on_outlined, size: 20, color: AppConstants.outline),
-                  ),
-                  items: AppConstants.payanasSitios.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                  onChanged: (v) => setState(() => _selectedSitio = v),
+                AppDropdownField<String>(
+                  value: AppConstants.payanasPuroks.contains(_selectedPurok) ? _selectedPurok : null,
+                  hintText: 'Select a purok',
+                  labelText: l10n.adminProfilePurok,
+                  items: AppConstants.payanasPuroks,
+                  itemLabel: (s) => s,
+                  onChanged: (v) => setState(() => _selectedPurok = v),
                 ),
                 const SizedBox(height: 16),
                 AppTextField(

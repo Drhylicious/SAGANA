@@ -21,11 +21,6 @@ import 'farmer_lookup.dart';
 ///   farmer_loan_payments: id, loan_id, payment_date, amount_paid,
 ///                         running_balance, notes, recorded_by, created_at
 ///
-/// IMPORTANT: farmer_loans.loan_reference (added by supabase_schema_fixes.sql)
-/// is NOT used anywhere in this repository. It is a duplicate/orphaned column —
-/// the actual reference field in use everywhere else (LoanModel, farmer-side
-/// screens) is reference_no. Do not read or write loan_reference.
-///
 /// WRITE METHODS DELIBERATELY DO NOT SWALLOW ERRORS.
 /// Every other repository in this project catches internally and returns
 /// null/empty on failure, which is correct for reads. For issueLoan() and
@@ -134,6 +129,42 @@ class AdminLoanRepository {
     }
   }
 
+  /// This-month vs. last-month count of loans that reached 'paid' status,
+  /// anchored to real calendar boundaries — mirrors fetchDashboardStats()'s
+  /// paidThisMonthCount derivation (farmer_loans.updated_at) so the KPI
+  /// card and its delta describe the same underlying quantity. Deliberately
+  /// separate from fetchCollectionsThisVsLastMonth(), which measures ₱
+  /// collected, not loans paid off — the two are different metrics that
+  /// happened to be conflated on the "Paid This Month" card before this fix.
+  Future<(int, int)> fetchPaidCountThisVsLastMonth() async {
+    try {
+      final now = DateTime.now();
+      final startOfThisMonth = DateTime(now.year, now.month, 1);
+      final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+
+      final rows = await _client
+          .from('farmer_loans')
+          .select('updated_at')
+          .eq('status', 'paid')
+          .gte('updated_at', _dateOnly(startOfLastMonth));
+
+      int thisMonth = 0;
+      int lastMonth = 0;
+      for (final row in rows) {
+        final date = DateTime.tryParse(row['updated_at'] as String? ?? '');
+        if (date == null) continue;
+        if (!date.isBefore(startOfThisMonth)) {
+          thisMonth++;
+        } else if (!date.isBefore(startOfLastMonth)) {
+          lastMonth++;
+        }
+      }
+      return (thisMonth, lastMonth);
+    } catch (_) {
+      return (0, 0);
+    }
+  }
+
   // ─── Overdue / Active loan previews (Dashboard sections) ──────────────
 
   Future<List<AdminLoanSummary>> fetchOverdueLoans({int limit = 3}) =>
@@ -155,7 +186,7 @@ class AdminLoanRepository {
     try {
       var query = _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(item_name)')
+          .select('*, farmer_loan_items(item_name), cooperative_programs(program_name)')
           .inFilter('status', statuses)
           .order('next_payment_date', ascending: true);
 
@@ -195,16 +226,20 @@ class AdminLoanRepository {
   Future<List<AdminLoanSummary>> fetchAllLoans({
     String? statusFilter,
     DateTime? issuedAfter,
+    DateTime? issuedBefore,
   }) async {
     try {
       var query = _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(item_name)');
+          .select('*, farmer_loan_items(item_name), cooperative_programs(program_name)');
       if (statusFilter != null) {
         query = query.eq('status', statusFilter);
       }
       if (issuedAfter != null) {
         query = query.gte('issued_date', _dateOnly(issuedAfter));
+      }
+      if (issuedBefore != null) {
+        query = query.lte('issued_date', _dateOnly(issuedBefore));
       }
 
       final rows = await query.order('issued_date', ascending: false);
@@ -270,8 +305,14 @@ class AdminLoanRepository {
       final repaymentRate = totalIssued > 0
           ? (totalCollected / totalIssued * 100)
           : 0.0;
-      final isHealthy =
-          outstandingCount == 0 || (overdueCount / outstandingCount) <= 0.2;
+      final bool isHealthy;
+      if (rows.isEmpty) {
+        isHealthy = true;
+      } else if (outstandingCount == 0 || (overdueCount / outstandingCount) <= 0.2) {
+        isHealthy = true;
+      } else {
+        isHealthy = false;
+      }
 
       return AllTimeLoanSummary(
         totalLoanCount: rows.length,
@@ -343,28 +384,52 @@ class AdminLoanRepository {
 
   // ─── Farmer roster (Issue-Loan + Record-Payment pickers; Hive-cached) ──
 
-  /// Fetches the full farmer roster (id, name, member ID) — deliberately
-  /// unfiltered by search, since the cooperative only has ~52 farmers and
-  /// pickers filter client-side. Farmer-scoped via farmer_profiles
-  /// (not user_information directly), since user_information also holds
-  /// admin/buyer rows.
+  /// Fetches the roster of currently-active farmer members (id, name,
+  /// member ID, photo) — deliberately unfiltered by search, since the
+  /// cooperative only has ~52 farmers and pickers filter client-side.
+  ///
+  /// Restricted to user_roles.status = 'active' (Admin-Loan Issue 1.3):
+  /// this roster backs both Issue New Loan's and Record Payment's farmer
+  /// pickers, and a draft/pending/rejected/suspended account is not a
+  /// cooperative member in good standing — they must not be selectable to
+  /// receive a new loan, nor show up mixed into the member directory search.
+  /// A farmer who already has an existing loan but is no longer active is
+  /// NOT lost by this filter: record_payment_screen.dart separately merges
+  /// in anyone appearing in fetchAllActiveAndOverdueLoans() so an existing
+  /// debt always remains collectible regardless of the farmer's current
+  /// status. issue_loan() itself does not need a matching client-only
+  /// filter to be authoritative — see the accompanying RPC hardening
+  /// migration for the server-side enforcement.
   Future<List<FarmerPickerResult>> fetchFarmerRoster() async {
     try {
+      final activeRoleRows = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'farmer')
+          .eq('status', 'active');
+      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      if (activeIds.isEmpty) return [];
+
       final profileRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id');
+          .select('user_id, member_id')
+          .inFilter('user_id', activeIds);
 
       if (profileRows.isEmpty) return [];
 
       final ids = profileRows.map((r) => r['user_id'] as String).toList();
       final infoRows = await _client
           .from('user_information')
-          .select('user_id, full_name')
+          .select('user_id, full_name, profile_photo_url')
           .inFilter('user_id', ids);
 
       final names = {
         for (final r in infoRows)
           r['user_id'] as String: r['full_name'] as String? ?? 'Unknown Farmer',
+      };
+      final photos = {
+        for (final r in infoRows)
+          r['user_id'] as String: r['profile_photo_url'] as String?,
       };
 
       final roster = profileRows
@@ -373,6 +438,7 @@ class AdminLoanRepository {
               id: r['user_id'] as String,
               fullName: names[r['user_id']] ?? 'Unknown Farmer',
               memberId: r['member_id'] as String? ?? '—',
+              profilePhotoUrl: photos[r['user_id']],
             ),
           )
           .toList();
@@ -402,9 +468,38 @@ class AdminLoanRepository {
         outstanding += (totalValue - amountPaid).clamp(0, double.infinity);
         if (row['status'] == 'overdue') hasOverdue = true;
       }
+
+      // Capital-share loan eligibility (Issue 4d). issue_loan() enforces
+      // this hard server-side; here it powers the warning banner + the
+      // disabled Issue button.
+      double capital = 0;
+      double minimumCapital = 0;
+      try {
+        final capRow = await _client
+            .from('member_capital_shares')
+            .select('total_contribution')
+            .eq('farmer_id', farmerId)
+            .maybeSingle();
+        capital = (capRow?['total_contribution'] as num? ?? 0).toDouble();
+
+        final policyRow = await _client
+            .from('loan_policy_settings')
+            .select('minimum_capital_contribution')
+            .eq('id', 1)
+            .maybeSingle();
+        minimumCapital =
+            (policyRow?['minimum_capital_contribution'] as num? ?? 0).toDouble();
+      } catch (_) {
+        // Leave the capital fields at 0/0 — meetsCapitalEligibility stays
+        // true so the UI does not falsely block; the RPC remains the
+        // authority.
+      }
+
       return FarmerLoanStanding(
         outstandingBalance: outstanding,
         hasOverdueLoan: hasOverdue,
+        capitalContribution: capital,
+        minimumCapitalRequired: minimumCapital,
       );
     } catch (_) {
       return const FarmerLoanStanding(
@@ -465,15 +560,6 @@ class AdminLoanRepository {
     }
   }
 
-  Future<bool> removeFromLoanCatalog(String loanItemId) async {
-    try {
-      await _client.from('loan_items_master').delete().eq('id', loanItemId);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   // ─── Issue a new loan ───────────────────────────────────────────────────
 
   /// Inserts one farmer_loans row, then its farmer_loan_items rows.
@@ -485,6 +571,17 @@ class AdminLoanRepository {
   ///
   /// Throws on failure — see class doc comment for why this method does
   /// not swallow errors like the read methods above.
+  /// Atomic via issue_loan() — see supabase_schema_loan_atomic_operations
+  /// .sql. Rejects the entire loan if any item lacks sufficient
+  /// cooperative_inventory stock; the resulting exception's .message
+  /// carries the specific item/quantity that failed, if you want to
+  /// surface it beyond the current generic error snackbar in
+  /// issue_new_loan_screen.dart.
+  /// [idempotencyKey] should be non-null only for calls replayed from
+  /// SyncService's offline queue (pass the queue entry's own key) — it
+  /// lets issue_loan() detect and short-circuit a duplicate replay
+  /// instead of issuing the same loan twice. Direct online calls should
+  /// leave it null; there's no queue entry to replay there.
   Future<IssuedLoanResult> issueLoan({
     required String farmerId,
     required List<Map<String, dynamic>> items,
@@ -492,72 +589,32 @@ class AdminLoanRepository {
     required double monthlyPayment,
     required DateTime nextPaymentDate,
     String? notes,
+    String? idempotencyKey,
   }) async {
-    final referenceNo = await _generateLoanReference();
-    final totalValue = items.fold<double>(
-      0,
-      (sum, i) => sum + (i['lineTotal'] as num).toDouble(),
-    );
+    final rows = await _client.rpc('issue_loan', params: {
+      'p_farmer_id': farmerId,
+      'p_items': items
+          .map((i) => {
+                'itemName': i['itemName'],
+                'inventoryItemId': i['inventoryItemId'],
+                'quantity': i['quantity'],
+                'unit': i['unit'],
+                'unitPrice': i['unitPrice'],
+                'lineTotal': i['lineTotal'],
+              })
+          .toList(),
+      'p_issued_date': _dateOnly(issuedDate),
+      'p_monthly_payment': monthlyPayment,
+      'p_next_payment_date': _dateOnly(nextPaymentDate),
+      'p_notes': notes,
+      'p_recorded_by': _client.auth.currentUser?.id,
+      'p_idempotency_key': idempotencyKey,
+    }) as List;
 
-    final loanRow = await _client
-        .from('farmer_loans')
-        .insert({
-          'farmer_id': farmerId,
-          'reference_no': referenceNo,
-          'issued_date': _dateOnly(issuedDate),
-          'total_value': totalValue,
-          'amount_paid': 0,
-          'status': 'active',
-          'notes': notes,
-          'monthly_payment': monthlyPayment,
-          'next_payment_date': _dateOnly(nextPaymentDate),
-        })
-        .select('id, reference_no')
-        .single();
-
-    final loanId = loanRow['id'] as String;
-
-    if (items.isNotEmpty) {
-      await _client
-          .from('farmer_loan_items')
-          .insert(
-            items
-                .map(
-                  (i) => {
-                    'loan_id': loanId,
-                    'item_name': i['itemName'],
-                    'quantity': i['quantity'],
-                    'unit': i['unit'],
-                    'unit_price': i['unitPrice'],
-                    'line_total': i['lineTotal'],
-                  },
-                )
-                .toList(),
-          );
-
-      final adminId = _client.auth.currentUser?.id;
-      for (final item in items) {
-        final invId = item['inventoryItemId'] as String?;
-        if (invId == null) continue;
-        final qty = (item['quantity'] as num).toDouble();
-        await _client.from('inventory_transactions').insert({
-          'inventory_id': invId,
-          'transaction_type': 'loan_issued',
-          'quantity': -qty,
-          'reference_id': loanId,
-          'reference_type': 'loan',
-          if (adminId != null) 'recorded_by': adminId,
-        });
-        await _client.rpc('decrement_inventory_stock', params: {
-          'p_inventory_id': invId,
-          'p_quantity': qty,
-        });
-      }
-    }
-
+    final row = rows.first as Map<String, dynamic>;
     return IssuedLoanResult(
-      loanId: loanId,
-      referenceNo: loanRow['reference_no'] as String,
+      loanId: row['loan_id'] as String,
+      referenceNo: row['reference_no'] as String,
     );
   }
 
@@ -577,79 +634,39 @@ class AdminLoanRepository {
   /// after the payment date.
   ///
   /// Throws on failure — see class doc comment.
-  Future<void> recordPayment({
+  /// Atomic via record_loan_payment() — see supabase_schema_loan_atomic_
+  /// operations.sql. next_payment_date's BOD-cadence math stays in Dart
+  /// (BodSchedule.after()) rather than being duplicated in SQL; the RPC
+  /// only decides whether to apply it, based on its own live balance read.
+  /// [idempotencyKey] — same contract as issueLoan()'s: non-null only
+  /// when replayed from SyncService's offline queue.
+  Future<LoanPaymentResult> recordPayment({
     required String loanId,
     required double amount,
     required DateTime paymentDate,
     String? notes,
+    String? idempotencyKey,
   }) async {
-    final loanRow = await _client
-        .from('farmer_loans')
-        .select('total_value, amount_paid')
-        .eq('id', loanId)
-        .single();
+    final candidateNextPaymentDate = BodSchedule.after(paymentDate);
 
-    final totalValue = (loanRow['total_value'] as num).toDouble();
-    final currentPaid = (loanRow['amount_paid'] as num? ?? 0).toDouble();
-    final newPaid = currentPaid + amount;
-    final runningBalance = (totalValue - newPaid).clamp(0, double.infinity);
-    final isFullyPaid = newPaid >= totalValue;
+    final rows = await _client.rpc('record_loan_payment', params: {
+      'p_loan_id': loanId,
+      'p_amount': amount,
+      'p_payment_date': _dateOnly(paymentDate),
+      'p_next_payment_date_if_active': _dateOnly(candidateNextPaymentDate),
+      'p_notes': notes,
+      'p_recorded_by': _client.auth.currentUser?.id,
+      'p_idempotency_key': idempotencyKey,
+    }) as List;
 
-    await _client.from('farmer_loan_payments').insert({
-      'loan_id': loanId,
-      'payment_date': _dateOnly(paymentDate),
-      'amount_paid': amount,
-      'running_balance': runningBalance,
-      'notes': notes,
-      'recorded_by': _client.auth.currentUser?.id,
-    });
-
-    final updates = <String, dynamic>{
-      'amount_paid': newPaid,
-      'status': isFullyPaid ? 'paid' : 'active',
-      'notified_overdue_at': null,
-    };
-    if (!isFullyPaid) {
-      updates['next_payment_date'] = _dateOnly(
-        BodSchedule.after(paymentDate),
-      );
-    }
-
-    await _client.from('farmer_loans').update(updates).eq('id', loanId);
+    final row = rows.first as Map<String, dynamic>;
+    return LoanPaymentResult(
+      isFullyPaid: row['is_fully_paid'] as bool,
+      runningBalance: (row['running_balance'] as num).toDouble(),
+    );
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;
-
-  /// Generates the next sequential reference in the form LN-{year}-{seq}.
-  /// Requires connectivity (queries existing references for the year) —
-  /// only ever called from issueLoan(), which is only ever called while
-  /// online (directly, or from SyncService once connectivity returns).
-  Future<String> _generateLoanReference() async {
-    final year = DateTime.now().year;
-    try {
-      final rows = await _client
-          .from('farmer_loans')
-          .select('reference_no')
-          .like('reference_no', 'LN-$year-%');
-
-      int maxSeq = 0;
-      for (final row in rows) {
-        final ref = row['reference_no'] as String? ?? '';
-        final parts = ref.split('-');
-        if (parts.length == 3) {
-          final seq = int.tryParse(parts[2]) ?? 0;
-          if (seq > maxSeq) maxSeq = seq;
-        }
-      }
-      final next = (maxSeq + 1).toString().padLeft(3, '0');
-      return 'LN-$year-$next';
-    } catch (_) {
-      // Fallback avoids a hard failure on the reference lookup alone;
-      // extremely unlikely to collide given loan issuance volume.
-      final fallbackSeq = DateTime.now().millisecondsSinceEpoch % 1000;
-      return 'LN-$year-${fallbackSeq.toString().padLeft(3, '0')}';
-    }
-  }
 
   // ─── Loan Details ───────────────────────────────────────────────────────
 
@@ -662,7 +679,7 @@ class AdminLoanRepository {
     try {
       final row = await _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(*), farmer_loan_payments(*)')
+          .select('*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)')
           .eq('id', loanId)
           .maybeSingle();
       if (row == null) return null;

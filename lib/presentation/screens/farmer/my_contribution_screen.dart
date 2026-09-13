@@ -93,7 +93,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                     children: [
                       // Offline banner
                       if (!_isOnline) ...[
-                        _OfflineBanner(),
+                        const OfflineBanner(message: "You're offline — your contribution data may not be up to date."),
                         const SizedBox(height: 16),
                       ],
 
@@ -171,45 +171,6 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppConstants.secondaryContainer.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.amber.withValues(alpha: 0.20)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            color: AppConstants.amber,
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Offline — showing last synced contribution data',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF694300),
-              ),
             ),
           ),
         ],
@@ -1157,25 +1118,27 @@ class _CapitalSharesCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$totalShares',
-                    style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$totalShares',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.primaryGreen,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Total Shares',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.outline,
+                    Text(
+                      'Total Shares',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: AppConstants.outline,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1185,32 +1148,36 @@ class _CapitalSharesCard extends StatelessWidget {
                   color: AppConstants.outline.withValues(alpha: 0.20),
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '₱${NumberFormat('#,##0').format(investmentValue)}',
-                    style:
-                        GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.primaryGreen,
-                        ).copyWith(
-                          fontFamilyFallback: const [
-                            'Roboto',
-                            'Arial',
-                            'sans-serif',
-                          ],
-                        ),
-                  ),
-                  Text(
-                    'Investment Value',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.outline,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '₱${NumberFormat('#,##0').format(investmentValue)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppConstants.primaryGreen,
+                          ).copyWith(
+                            fontFamilyFallback: const [
+                              'Roboto',
+                              'Arial',
+                              'sans-serif',
+                            ],
+                          ),
                     ),
-                  ),
-                ],
+                    Text(
+                      'Investment Value',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: AppConstants.outline,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1229,29 +1196,34 @@ class _CapitalSharesCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Share Value',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppConstants.onSurface,
+                    Expanded(
+                      child: Text(
+                        'Share Value',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppConstants.onSurface,
+                        ),
                       ),
                     ),
-                    Text(
-                      '₱${perShare.toStringAsFixed(2)} / share',
-                      style:
-                          GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ).copyWith(
-                            fontFamilyFallback: const [
-                              'Roboto',
-                              'Arial',
-                              'sans-serif',
-                            ],
-                          ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '₱${perShare.toStringAsFixed(2)} / share',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ).copyWith(
+                          fontFamilyFallback: const [
+                            'Roboto',
+                            'Arial',
+                            'sans-serif',
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_reports_model.dart';
+import 'crop_lookup.dart';
 import 'farmer_lookup.dart';
 import '../models/expense_model.dart';
 import 'member_sales_aggregation.dart';
@@ -112,7 +113,7 @@ class AdminReportsRepository {
         query = query.gte('created_at', _dateOnly(startDate));
       }
       if (endDate != null) {
-        query = query.lte('created_at', _dateOnly(endDate));
+        query = query.lt('created_at', _exclusiveUpperBound(endDate));
       }
       final rows = await query;
       return rows.fold<double>(
@@ -153,11 +154,19 @@ class AdminReportsRepository {
       final rows = await query;
       if (rows.isEmpty) return QuickInsights.empty();
 
+      final cropIds = rows
+          .map((r) => r['crop_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final cropNames = await fetchCropNameMap(_client, cropIds);
+
       final cropTotals = <String, double>{};
       final farmerTotals = <String, double>{};
       for (final row in rows) {
         final amount = (row['amount'] as num).toDouble();
-        final crop = row['crop_name'] as String;
+        final cropId = row['crop_id'] as String?;
+        final crop = (cropId != null ? cropNames[cropId] : null) ?? row['crop_name'] as String;
         final farmerId = row['farmer_id'] as String;
         cropTotals[crop] = (cropTotals[crop] ?? 0) + amount;
         farmerTotals[farmerId] = (farmerTotals[farmerId] ?? 0) + amount;
@@ -261,7 +270,7 @@ class AdminReportsRepository {
         listingQuery = listingQuery.gte('submitted_at', startDate.toIso8601String());
       }
       if (endDate != null) {
-        listingQuery = listingQuery.lte('submitted_at', endDate.toIso8601String());
+        listingQuery = listingQuery.lt('submitted_at', _exclusiveUpperBound(endDate));
       }
       final listingRows = await listingQuery;
       activeIds.addAll(listingRows.map((r) => r['farmer_id'] as String));
@@ -303,9 +312,16 @@ class AdminReportsRepository {
       if (endDate != null) {
         query = query.lte('sale_date', _dateOnly(endDate));
       }
-      final rows = await query.order('sale_date', ascending: false);
+      final results = await Future.wait<dynamic>([
+        query.order('sale_date', ascending: false),
+        _fetchMarketplaceRevenue(startDate: startDate, endDate: endDate),
+      ]);
+      final rows = results[0] as List<Map<String, dynamic>>;
+      final marketplaceRevenue = results[1] as double;
 
-      if (rows.isEmpty) return SalesReportData.empty();
+      if (rows.isEmpty) {
+        return SalesReportData.empty().copyWithMarketplaceRevenue(marketplaceRevenue);
+      }
 
       final farmerIds = rows
           .map((r) => r['farmer_id'] as String)
@@ -362,6 +378,7 @@ class AdminReportsRepository {
 
       return SalesReportData(
         totalRevenue: totalRevenue,
+        marketplaceRevenue: marketplaceRevenue,
         totalQuantityKg: totalQtyKg,
         transactionCount: rows.length,
         palayAmount: palayAmount,
@@ -393,6 +410,16 @@ class AdminReportsRepository {
           .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
+      final farmerCropIds = rows
+          .map((r) => r['crop_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final farmerCropToCropMaster =
+          await fetchFarmerCropToCropMasterMap(_client, farmerCropIds);
+      final cropMasterIds = farmerCropToCropMaster.values.toSet().toList();
+      final cropNames = await fetchCropNameMap(_client, cropMasterIds);
+
       double totalAvailable = 0;
       double totalReserved = 0;
       double totalSold = 0;
@@ -405,7 +432,11 @@ class AdminReportsRepository {
         final reserved = (row['reserved_kg'] as num? ?? 0).toDouble();
         final sold = (row['sold_kg'] as num? ?? 0).toDouble();
         final status = row['status'] as String? ?? 'available';
-        final cropName = row['crop_name'] as String;
+        final farmerCropId = row['crop_id'] as String?;
+        final cropMasterId =
+            farmerCropId != null ? farmerCropToCropMaster[farmerCropId] : null;
+        final cropName = (cropMasterId != null ? cropNames[cropMasterId] : null) ??
+            row['crop_name'] as String;
 
         totalAvailable += available;
         totalReserved += reserved;
@@ -422,7 +453,6 @@ class AdminReportsRepository {
             memberId: info?.memberId ?? '—',
             cropName: cropName,
             batchNumber: row['batch_number'] as String,
-            qualityGrade: row['quality_grade'] as String? ?? 'Grade A',
             quantityKg: (row['quantity_kg'] as num).toDouble(),
             availableKg: available,
             reservedKg: reserved,
@@ -474,8 +504,28 @@ class AdminReportsRepository {
           .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
+      final cropIds = rows
+          .map((r) => r['crop_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      // harvest_records.crop_id references farmer_crops(id), NOT
+      // crop_master(id) directly — confirmed by production data (see
+      // supabase_schema history / conversation log for the query that
+      // caught this). Same collision already handled correctly in
+      // fetchInventoryReport(); this table was missed in the first pass
+      // because member_sales_transactions.crop_id — despite the identical
+      // column name — DOES reference crop_master(id) directly, which is
+      // what fetchQuickInsights() correctly relies on. Two tables named
+      // crop_id pointing at two different targets — do not assume they
+      // match without checking, if a fourth crop_id-bearing table shows
+      // up later.
+      final farmerCropToCropMaster =
+          await fetchFarmerCropToCropMasterMap(_client, cropIds);
+      final cropMasterIds = farmerCropToCropMaster.values.toSet().toList();
+      final cropNames = await fetchCropNameMap(_client, cropMasterIds);
+
       double totalYield = 0;
-      int gradeACount = 0;
       int unsyncedCount = 0;
       final cropTotals = <String, double>{};
       final monthlyBuckets = <String, double>{};
@@ -483,13 +533,15 @@ class AdminReportsRepository {
 
       for (final row in rows) {
         final qty = (row['quantity_kg'] as num).toDouble();
-        final grade = row['quality_grade'] as String? ?? 'Grade A';
-        final cropName = row['crop_name'] as String;
+        final farmerCropId = row['crop_id'] as String?;
+        final cropMasterId =
+            farmerCropId != null ? farmerCropToCropMaster[farmerCropId] : null;
+        final cropName = (cropMasterId != null ? cropNames[cropMasterId] : null) ??
+            row['crop_name'] as String;
         final harvestDate = DateTime.parse(row['harvest_date'] as String);
         final isSynced = row['is_synced'] as bool? ?? true;
 
         totalYield += qty;
-        if (grade == 'Grade A') gradeACount++;
         if (!isSynced) unsyncedCount++;
         cropTotals[cropName] = (cropTotals[cropName] ?? 0) + qty;
 
@@ -505,7 +557,6 @@ class AdminReportsRepository {
             farmerName: info?.fullName ?? 'Unknown Farmer',
             memberId: info?.memberId ?? '—',
             cropName: cropName,
-            qualityGrade: grade,
             quantityKg: qty,
             harvestDate: harvestDate,
             submittedToCooperative:
@@ -531,7 +582,6 @@ class AdminReportsRepository {
       return HarvestReportData(
         totalYieldKg: totalYield,
         harvestCount: rows.length,
-        gradeAPercent: rows.isNotEmpty ? (gradeACount / rows.length * 100) : 0,
         unsyncedCount: unsyncedCount,
         monthlyTrend: trend,
         cropBreakdown: cropBreakdown,
@@ -539,6 +589,38 @@ class AdminReportsRepository {
       );
     } catch (_) {
       return HarvestReportData.empty();
+    }
+  }
+
+  /// Yield Trend's dedicated data source — deliberately independent of the
+  /// on-screen period filter, mirroring AdminLoanRepository's
+  /// fetchMonthlyCollectionTrend() exactly. fetchHarvestReport(period)'s own
+  /// monthlyTrend is filtered to the SAME period selected by the chips
+  /// before bucketing by month — meaning it could never show more than one
+  /// point while "This Month" was selected, regardless of real harvest
+  /// history. This method always looks at a fixed trailing window instead,
+  /// so the trend can render correctly no matter which period chip is
+  /// currently selected on screen.
+  Future<List<double>> fetchYieldTrend({int months = 6}) async {
+    try {
+      final cutoff = DateTime.now().subtract(Duration(days: months * 31));
+      final rows = await _client
+          .from('harvest_records')
+          .select('quantity_kg, harvest_date')
+          .gte('harvest_date', _dateOnly(cutoff));
+
+      final buckets = <String, double>{};
+      for (final row in rows) {
+        final date = DateTime.parse(row['harvest_date'] as String);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        buckets[key] = (buckets[key] ?? 0) + (row['quantity_kg'] as num).toDouble();
+      }
+
+      final sortedKeys = buckets.keys.toList()..sort();
+      final trend = sortedKeys.map((k) => buckets[k]!).toList();
+      return trend.length > months ? trend.sublist(trend.length - months) : trend;
+    } catch (_) {
+      return [];
     }
   }
 
@@ -622,6 +704,40 @@ class AdminReportsRepository {
     }
   }
 
+  /// Spending Trend's dedicated data source — deliberately independent of
+  /// the on-screen period filter, mirroring fetchYieldTrend() and
+  /// AdminLoanRepository.fetchMonthlyCollectionTrend() exactly.
+  /// fetchExpenseReport(period)'s own monthlyTrend is filtered to the SAME
+  /// period selected by the chips before bucketing by month — meaning it
+  /// could never show more than one point while "This Month" was
+  /// selected, regardless of real expense history. This method always
+  /// looks at a fixed trailing window instead. Excludes subsidized
+  /// entries, matching fetchExpenseReport()'s own totalFarmerFundedAmount
+  /// convention (subsidized entries carry no peso total by design).
+  Future<List<double>> fetchExpenseTrend({int months = 6}) async {
+    try {
+      final cutoff = DateTime.now().subtract(Duration(days: months * 31));
+      final rows = await _client
+          .from('farmer_expenses')
+          .select('amount, expense_date, is_subsidy')
+          .gte('expense_date', _dateOnly(cutoff));
+
+      final buckets = <String, double>{};
+      for (final row in rows) {
+        if (row['is_subsidy'] as bool? ?? false) continue;
+        final date = DateTime.parse(row['expense_date'] as String);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        buckets[key] = (buckets[key] ?? 0) + (row['amount'] as num).toDouble();
+      }
+
+      final sortedKeys = buckets.keys.toList()..sort();
+      final trend = sortedKeys.map((k) => buckets[k]!).toList();
+      return trend.length > months ? trend.sublist(trend.length - months) : trend;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Mirrors ExpenseRepository.buildBreakdown()'s exact algorithm, admin-
   /// scoped across all farmers. See class doc comment for why this is
   /// re-implemented here rather than calling that farmer-scoped method.
@@ -680,9 +796,10 @@ class AdminReportsRepository {
         final info = farmerInfo[farmerId];
         final MemberSalesTotals totals =
             salesTotals[farmerId] ?? MemberSalesTotals();
-        final sharePercent = totalCoopSales > 0
-            ? (totals.totalAmount / totalCoopSales * 100)
-            : 0.0;
+        final sharePercent = computeMemberSharePercent(
+          memberSales: totals.totalAmount,
+          coopTotalSales: totalCoopSales,
+        );
         return MemberContributionRow(
           farmerId: farmerId,
           farmerName: info?.fullName ?? 'Unknown Farmer',
@@ -765,6 +882,13 @@ class AdminReportsRepository {
     final data = await fetchCoopStockReport();
     return data.lowStockCount;
   }
+
+  /// For TIMESTAMPTZ columns only (orders.created_at, marketplace_listings
+  /// .submitted_at). _dateOnly() truncates to midnight, so an .lte() upper
+  /// bound against it silently excludes same-day activity after 00:00:00.
+  /// Use as: query.lt(column, _exclusiveUpperBound(endDate))
+  String _exclusiveUpperBound(DateTime d) =>
+      _dateOnly(d.add(const Duration(days: 1)));
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;
 }

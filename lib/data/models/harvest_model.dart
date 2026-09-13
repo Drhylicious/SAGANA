@@ -6,7 +6,6 @@ class HarvestModel {
   final String cropCategory;
   final double quantityKg;
   final String? variety;
-  final String? qualityGrade;
   final String? batchNumber;
   final String? storageLocation;
   final String? notes;
@@ -23,7 +22,6 @@ class HarvestModel {
     required this.cropCategory,
     required this.quantityKg,
     this.variety,
-    this.qualityGrade,
     this.batchNumber,
     this.storageLocation,
     this.notes,
@@ -53,7 +51,6 @@ class HarvestModel {
       cropCategory: map['crop_category'] as String? ?? 'Other',
       quantityKg: (map['quantity_kg'] as num).toDouble(),
       variety: map['variety'] as String?,
-      qualityGrade: map['quality_grade'] as String?,
       batchNumber: map['batch_number'] as String?,
       storageLocation: map['storage_location'] as String?,
       notes: map['notes'] as String?,
@@ -74,7 +71,6 @@ class HarvestModel {
       'crop_category': cropCategory,
       'quantity_kg': quantityKg,
       'variety': variety,
-      'quality_grade': qualityGrade,
       'batch_number': batchNumber,
       'storage_location': storageLocation,
       'notes': notes,

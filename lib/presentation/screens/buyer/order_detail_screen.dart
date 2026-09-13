@@ -2,11 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+
+// Local bypasses, duplicated from my_orders_screen.dart's 3a addendum
+// pattern — BuyerOrderModel.statusLabel/.harvestedLabel hardcode English.
+// Same ARB keys reused across both files for consistency.
+String _orderStatusBadge(String status, AppLocalizations l10n) {
+  switch (status) {
+    case 'pending':   return l10n.buyerOrdersStatusPending;
+    case 'approved':  return l10n.buyerOrdersStatusApproved;
+    case 'completed': return l10n.buyerOrdersStatusCompleted;
+    case 'cancelled': return l10n.buyerOrdersStatusCancelled;
+    default:          return status.toUpperCase();
+  }
+}
+
+String _orderHarvestedLabel(DateTime? harvestDate, AppLocalizations l10n) {
+  if (harvestDate == null) return '';
+  final diff = DateTime.now().difference(harvestDate);
+  if (diff.inDays <= 0) return l10n.buyerHarvestedToday;
+  if (diff.inDays == 1) return l10n.buyerHarvestedYesterday;
+  return l10n.buyerHarvestedDaysAgo(diff.inDays);
+}
 
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -47,6 +70,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
 
     if (_isLoading) {
@@ -55,7 +79,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (_order == null) {
       return Scaffold(
         appBar: AppBar(leading: BackButton(onPressed: () => context.pop())),
-        body: const Center(child: Text('Order not found.')),
+        body: Center(child: Text(l10n.buyerOrderDetailNotFound)),
       );
     }
 
@@ -67,44 +91,44 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         backgroundColor: sagana.scaffoldBackground,
         elevation: 0,
         leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text('Order #${order.orderReference}',
+        title: Text(l10n.buyerOrderDetailTitle(order.orderReference),
             style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 32),
         children: [
-          _buildStatusSection(order),
+          _buildStatusSection(order, l10n),
           const SizedBox(height: 16),
           if (!order.isCancelled) ...[
-            _buildTimeline(order),
+            _buildTimeline(order, l10n),
             const SizedBox(height: 16),
           ],
-          _buildProductSection(order),
+          _buildProductSection(order, l10n),
           const SizedBox(height: 16),
-          _buildOrderSummary(order),
+          _buildOrderSummary(order, l10n),
           const SizedBox(height: 16),
-          _buildPaymentInfo(),
+          _buildPaymentInfo(l10n),
           const SizedBox(height: 16),
-          _buildPickupSection(),
+          _buildPickupSection(l10n),
           const SizedBox(height: 20),
-          _buildSupportSection(context),
+          _buildSupportSection(context, l10n),
         ],
       ),
     );
   }
 
-  Widget _buildStatusSection(BuyerOrderModel order) {
+  Widget _buildStatusSection(BuyerOrderModel order, AppLocalizations l10n) {
     final subtitle = switch (order.status) {
-      'approved' => 'Ready for Pickup',
-      'pending' => 'Awaiting cooperative review',
-      'completed' => 'Picked up',
-      _ => 'Order cancelled',
+      'approved' => l10n.buyerOrderDetailReadyPickup,
+      'pending' => l10n.buyerOrdersAwaitingReview,
+      'completed' => l10n.buyerOrderDetailPickedUp,
+      _ => l10n.buyerOrderDetailCancelledStatus,
     };
     final message = switch (order.status) {
-      'approved' => 'Your order has been approved by ${AppConstants.cooperativeName}. Please contact SP3 to arrange your pickup schedule.',
-      'pending' => 'Your order is awaiting review by ${AppConstants.cooperativeName}. You\'ll be notified once it\'s approved.',
-      'completed' => 'This order has been picked up. Thank you for supporting SP3 farmers!',
-      _ => 'This order was cancelled and is no longer active.',
+      'approved' => l10n.buyerOrderDetailMsgApproved(AppConstants.cooperativeName),
+      'pending' => l10n.buyerOrderDetailMsgPending(AppConstants.cooperativeName),
+      'completed' => l10n.buyerOrderDetailMsgCompleted,
+      _ => l10n.buyerOrderDetailMsgCancelled,
     };
 
     return GlassCard(
@@ -116,7 +140,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                child: Text(order.statusLabel.toUpperCase(),
+                child: Text(_orderStatusBadge(order.status, l10n),
                     style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w800, color: _statusColor)),
               ),
               const SizedBox(width: 8),
@@ -130,9 +154,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             SizedBox(
               width: double.infinity,
               child: PrimaryButton(
-                label: 'Contact SP3 Cooperative',
+                label: l10n.buyerOrderDetailContactCoop,
                 onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('SP3 contact number coming soon.')),
+                  SnackBar(content: Text(l10n.buyerOrderDetailComingSoon)),
                 ),
               ),
             ),
@@ -142,11 +166,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildTimeline(BuyerOrderModel order) {
+  Widget _buildTimeline(BuyerOrderModel order, AppLocalizations l10n) {
     // Honest simplification: only "Order Placed" (created_at) and the
     // current status (updated_at) have real timestamps. Everything in
     // between is complete-but-untimestamped; everything after is upcoming.
-    const steps = ['Order Placed', 'Pending Review', 'Approved', 'Completed'];
+    final steps = [
+      l10n.buyerOrderDetailStepPlaced,
+      l10n.buyerOrderDetailStepPendingReview,
+      l10n.buyerOrderDetailStepApproved,
+      l10n.buyerOrderDetailStepCompleted,
+    ];
     final currentIndex = switch (order.status) {
       'pending' => 1,
       'approved' => 2,
@@ -158,7 +187,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Order Journey', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Text(l10n.buyerOrderDetailJourney, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           for (int i = 0; i < steps.length; i++)
             _timelineStep(
@@ -167,10 +196,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               isCurrent: i == currentIndex,
               isLast: i == steps.length - 1,
               timestamp: i == 0
-                  ? _formatDateTime(order.createdAt)
+                  ? _formatDateTime(order.createdAt, l10n)
                   : i == currentIndex
-                      ? _formatDateTime(order.updatedAt)
-                      : (i < currentIndex ? null : 'Pending'),
+                      ? _formatDateTime(order.updatedAt, l10n)
+                      : (i < currentIndex ? null : l10n.buyerOrderDetailPendingTimestamp),
             ),
         ],
       ),
@@ -228,7 +257,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildProductSection(BuyerOrderModel order) {
+  Widget _buildProductSection(BuyerOrderModel order, AppLocalizations l10n) {
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -270,9 +299,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             child: Row(
               children: [
                 if (order.batchNumber != null)
-                  Expanded(child: _miniField('Batch Reference', '#${order.batchNumber}')),
+                  Expanded(child: _miniField(l10n.buyerOrderDetailBatchRef, '#${order.batchNumber}')),
                 if (order.harvestDate != null)
-                  Expanded(child: _miniField('Freshness', order.harvestedLabel, alignEnd: true)),
+                  Expanded(child: _miniField(l10n.buyerOrderDetailFreshness, _orderHarvestedLabel(order.harvestDate, l10n), alignEnd: true)),
               ],
             ),
           ),
@@ -282,9 +311,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: Row(
                 children: [
                   if (order.harvestDate != null)
-                    Expanded(child: _miniField('Harvest Date', _formatDate(order.harvestDate!))),
+                    Expanded(child: _miniField(l10n.buyerListingHarvestDate, AppUtils.formatDate(order.harvestDate!, l10n.localeName))),
                   if (order.category != null)
-                    Expanded(child: _miniField('Category', order.category!, alignEnd: true)),
+                    Expanded(child: _miniField(l10n.buyerListingCategory, order.category!, alignEnd: true)),
                 ],
               ),
             ),
@@ -303,17 +332,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildOrderSummary(BuyerOrderModel order) {
+  Widget _buildOrderSummary(BuyerOrderModel order, AppLocalizations l10n) {
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Order Summary', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Text(l10n.buyerOrderDetailSummary, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
-          _summaryRow('Quantity', '${order.quantityKg.toStringAsFixed(0)} kg'),
-          _summaryRow('Price per kg', '₱${order.pricePerKg.toStringAsFixed(2)}'),
+          _summaryRow(l10n.buyerOrdersQuantityLabel, '${order.quantityKg.toStringAsFixed(0)} kg'),
+          _summaryRow(l10n.buyerPricePerKg, '₱${order.pricePerKg.toStringAsFixed(2)}'),
           const Divider(height: 20),
-          _summaryRow('Total Amount', '₱${order.totalPrice.toStringAsFixed(2)}', bold: true),
+          _summaryRow(l10n.buyerOrdersTotalLabel, '₱${order.totalPrice.toStringAsFixed(2)}', bold: true),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 10),
@@ -323,15 +352,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('REFERENCE', style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: AppConstants.onSurfaceVariant)),
+                  Text(l10n.buyerOrderDetailReferenceLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: AppConstants.onSurfaceVariant)),
                   Text(order.orderReference, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('ORDER DATE', style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: AppConstants.onSurfaceVariant)),
-                  Text(_formatDate(order.createdAt), style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(l10n.buyerOrderDetailDateLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: AppConstants.onSurfaceVariant)),
+                  Text(AppUtils.formatDate(order.createdAt, l10n.localeName), style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
                 ],
               ),
             ],
@@ -354,7 +383,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildPaymentInfo() {
+  Widget _buildPaymentInfo(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -371,10 +400,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('PAYMENT INFORMATION', style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                Text(l10n.buyerOrderDetailPaymentInfo, style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                 const SizedBox(height: 4),
                 Text(
-                  'Payment for this order is collected at the time of pickup at the cooperative. SP3 accepts cash payment upon collection.',
+                  l10n.buyerOrderDetailPaymentBody,
                   style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.4),
                 ),
               ],
@@ -385,12 +414,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildPickupSection() {
+  Widget _buildPickupSection(AppLocalizations l10n) {
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Pickup Location', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Text(l10n.buyerOrderDetailPickupLocationTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Text('${AppConstants.cooperativeName}, ${AppConstants.cooperativeLocation}',
               style: GoogleFonts.inter(fontSize: 13)),
@@ -398,7 +427,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppConstants.offWhite,
+              color: context.saganaColors.scaffoldBackground,
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
             child: Row(
@@ -410,9 +439,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('BOD Meeting Schedule', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                      Text(l10n.buyerOrderDetailBodSchedule, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
                       const SizedBox(height: 2),
-                      Text('Every 1st Saturday of the month — payments and pickups can be coordinated during this meeting.',
+                      Text(l10n.buyerOrderDetailBodBody,
                           style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
                     ],
                   ),
@@ -425,43 +454,38 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildSupportSection(BuildContext context) {
+  Widget _buildSupportSection(BuildContext context, AppLocalizations l10n) {
     return Column(
       children: [
-        Text('Need help with this order?', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+        Text(l10n.buyerOrderDetailNeedHelp, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
-        Text('Contact SP3 Agriculture Cooperative directly for assistance.',
+        Text(l10n.buyerOrderDetailSupportBody,
             style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
         const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             icon: const Icon(Icons.call_rounded, size: 18),
-            label: const Text('Call SP3 Cooperative'),
+            label: Text(l10n.buyerOrderDetailCallCoop),
             onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('SP3 contact number coming soon.')),
+              SnackBar(content: Text(l10n.buyerOrderDetailComingSoon)),
             ),
           ),
         ),
         const SizedBox(height: 8),
         TextButton.icon(
           icon: const Icon(Icons.shopping_basket_outlined, size: 18),
-          label: const Text('Browse More Products'),
+          label: Text(l10n.buyerOrderDetailBrowseMore),
           onPressed: () => context.go(AppRoutes.marketplaceBrowse),
         ),
       ],
     );
   }
 
-  String _formatDate(DateTime d) {
-    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${m[d.month - 1]} ${d.day}, ${d.year}';
-  }
-
-  String _formatDateTime(DateTime d) {
+  String _formatDateTime(DateTime d, AppLocalizations l10n) {
     final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;
     final ampm = d.hour >= 12 ? 'PM' : 'AM';
     final minute = d.minute.toString().padLeft(2, '0');
-    return '${_formatDate(d)}, $hour:$minute $ampm';
+    return '${AppUtils.formatDate(d, l10n.localeName)}, $hour:$minute $ampm';
   }
-} 
+}

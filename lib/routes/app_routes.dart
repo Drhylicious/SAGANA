@@ -6,10 +6,10 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String resetPasswordCallback = '/reset-password';
+  static const String forcePasswordChange = '/force-password-change';
 
   // ─── Farmer ──────────────────────────────────────────────────────────────────
   static const String farmerDashboard = '/farmer/dashboard';
-  static const String pendingApproval = '/farmer/pending';
   static const String pendingHome          = '/farmer/pending/home';
   static const String pendingNotifications = '/farmer/pending/notifications';
   static const String pendingHelp          = '/farmer/pending/help';
@@ -18,9 +18,9 @@ class AppRoutes {
   static const String farmerNotifications = '/farmer/notifications';
   static const String harvestHub = '/farmer/harvest';
   static const String cropListing = '/farmer/harvest/crops';
-  static const String selectCropForHarvest = '/select-crop';
-  static const String cropDetails = '/crop-details';
-  static const String harvestEntryForm = '/entry-form';
+  static const String selectCropForHarvest = '/farmer/harvest/select-crop';
+  static const String cropDetails = '/farmer/harvest/crop-details';
+  static const String harvestEntryForm = '/farmer/harvest/entry-form';
   static const String harvestHistory = '/farmer/harvest/history';
   static const String manageInventory = '/farmer/harvest/inventory';
   static const String myListings = '/farmer/marketplace';
@@ -34,6 +34,7 @@ class AppRoutes {
   static const String myExpenses = '/farmer/profile/expenses';
   static const String myHarvestSummary = '/farmer/profile/harvest-summary';
   static const String myPrograms = '/farmer/profile/programs';
+  static const String myMarketLinking = '/farmer/profile/market-linking';
   static const String farmerSettings = '/farmer/settings';
   static const String farmerEditProfile = '/farmer/profile/edit';
   static const String viewMarket = '/farmer/market-rates';
@@ -55,6 +56,7 @@ class AppRoutes {
   static const String listingReview = '/admin/listings/review';
   static const String buyerManagement = '/admin/buyers';
   static const String buyerDetails    = '/admin/buyers/details';
+  static const String buyerOrderHistory = '/admin/buyers/order-history';
   static const String loanDashboard = '/admin/loans';
   static const String issueNewLoan = '/admin/loans/issue';
   static const String recordPayment = '/admin/loans/payment';
@@ -74,8 +76,8 @@ class AppRoutes {
   static const String adminEditProfile = '/admin/profile/edit';
   static const String adminNotifications = '/admin/notifications';
   static const String adminActivityLog = '/admin/activity';
-  static const String createStaffAccount   = '/admin/members/add-staff';
-  static const String manageStaffAccounts  = '/admin/members/staff-accounts';
+  static const String createOfficerAccount  = '/admin/members/add-officer';
+  static const String manageOfficerAccounts = '/admin/members/officer-accounts';
   static const String memberExpenseHistory = '/admin/members/expense-history';
 
   // ─── Admin — Report Routes ───────────────────────────────────────────────────
@@ -83,6 +85,7 @@ class AppRoutes {
 
   // ─── Buyer ───────────────────────────────────────────────────────────────────
   static const String marketplaceBrowse = '/buyer/browse';
+  static const String buyerBrowse = marketplaceBrowse;
   static const String listingDetails = '/buyer/browse/details';
   static const String orderSuccess = '/buyer/browse/order-success';
   static const String myOrders = '/buyer/orders';
@@ -91,6 +94,7 @@ class AppRoutes {
   static const String buyerAccount = '/buyer/account';
   static const String buyerEditProfile = '/buyer/account/edit';
   static const String buyerSettings = '/buyer/account/settings';
+  static const String buyerRecentActivity = '/buyer/account/activity';
   static const String buyerNotifications = '/buyer/notifications';
   static const String buyerCart = '/buyer/browse/cart';
   static const String cartCheckoutResult = '/buyer/browse/cart/result';

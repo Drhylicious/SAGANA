@@ -12,6 +12,7 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 enum _BatchStatusFilter { all, available, reserved, lowStock, soldOut }
 
@@ -47,25 +48,25 @@ extension on _BatchStatusFilter {
   }
 }
 
-/// Harvest Management — Admin.
+/// Harvest Report — Admin.
 /// Pushed above the shell via rootNavigatorKey. Route: /admin/reports/harvest
 ///
-/// Replaces the separate Harvest Report and Inventory Report screens/routes.
+/// Replaces the separate Harvest Report and Inventory Report screens.
 /// Two internal tabs over two DELIBERATELY SEPARATE data sources:
 ///   - Activity & Trends  → harvest_records (period-scoped event log)
 ///   - Batches & Stock    → inventory_batches (unfiltered live snapshot)
 /// fetchHarvestReport() and fetchInventoryReport() remain independent
 /// repository calls — this screen only adds navigation/traceability
 /// between their results via the batch_number they share.
-class HarvestManagementScreen extends StatefulWidget {
-  const HarvestManagementScreen({super.key});
+class HarvestReportScreen extends StatefulWidget {
+  final int initialTabIndex;
+  const HarvestReportScreen({super.key, this.initialTabIndex = 0});
 
   @override
-  State<HarvestManagementScreen> createState() =>
-      _HarvestManagementScreenState();
+  State<HarvestReportScreen> createState() => _HarvestReportScreenState();
 }
 
-class _HarvestManagementScreenState extends State<HarvestManagementScreen>
+class _HarvestReportScreenState extends State<HarvestReportScreen>
     with SingleTickerProviderStateMixin {
   final _repo = AdminReportsRepository();
   late TabController _tabController;
@@ -81,11 +82,16 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
   bool _isLoading = true;
   HarvestReportData _harvestData = HarvestReportData.empty();
   InventoryReportData _inventoryData = InventoryReportData.empty();
+  List<double> _yieldTrend = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
     _loadAll();
   }
 
@@ -102,22 +108,35 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     final results = await Future.wait([
       _repo.fetchHarvestReport(_period),
       _repo.fetchInventoryReport(),
+      _repo.fetchYieldTrend(),
     ]);
     if (!mounted) return;
     setState(() {
       _harvestData = results[0] as HarvestReportData;
       _inventoryData = results[1] as InventoryReportData;
+      _yieldTrend = results[2] as List<double>;
       _isLoading = false;
     });
   }
 
-  /// Inventory is an unfiltered snapshot, so only the harvest half needs
-  /// to refetch when the period chip changes.
   Future<void> _setPeriod(ReportPeriod period) async {
     setState(() => _period = period);
     final data = await _repo.fetchHarvestReport(period);
     if (!mounted) return;
     setState(() => _harvestData = data);
+  }
+
+  /// Month abbreviations for fetchYieldTrend()'s trailing window — safe to
+  /// compute client-side without touching the repository, since that
+  /// method always returns a fixed "last [count] months ending at the
+  /// current month" window by construction (see its own doc comment).
+  List<String> _trailingMonthLabels(int count) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final offset = count - 1 - i;
+      final date = DateTime(now.year, now.month - offset, 1);
+      return DateFormat('MMM').format(date);
+    });
   }
 
   List<HarvestReportRow> get _filteredHarvests {
@@ -158,10 +177,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     ));
   }
 
-  /// Harvest → Batch. Auto-created at harvest time, but the insert is
-  /// best-effort on the farmer side (see HarvestEntryRepository.submitHarvest
-  /// — a failed batch insert never blocks the harvest submission), so a
-  /// harvest with no matching batch is a real, if rare, possibility.
   void _viewBatch(HarvestReportRow harvest) {
     final match = _inventoryData.batches
         .where((b) => b.batchNumber == harvest.batchNumber);
@@ -178,11 +193,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     _tabController.animateTo(1);
   }
 
-  /// Batch → Harvest. The FK (harvest_record_id, NOT NULL) guarantees the
-  /// source harvest always exists, but it may sit outside the currently
-  /// selected period filter — inventory has no period filter, so a batch
-  /// can be visible while its harvest is temporarily hidden. Widen to All
-  /// Time automatically rather than surfacing a dead end.
   Future<void> _viewHarvest(InventoryReportRow batch) async {
     var match = _harvestData.harvests
         .where((h) => h.batchNumber == batch.batchNumber);
@@ -241,8 +251,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     );
   }
 
-  // ─── Top bar ──────────────────────────────────────────────────────────
-
   Widget _buildTopBar(
     BuildContext context,
     AppLocalizations l10n,
@@ -276,8 +284,7 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.file_download_outlined,
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                icon: Icon(Icons.file_download_outlined, color: cs.primary),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: ExportCenterArgs(
@@ -295,8 +302,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
       ),
     );
   }
-
-  // ─── Executive header (combines both datasets) ─────────────────────────
 
   Widget _buildExecutiveHeader(
     BuildContext context,
@@ -359,8 +364,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     );
   }
 
-  // ─── Tab bar ────────────────────────────────────────────────────────────
-
   Widget _buildTabBar(
       BuildContext context, AppLocalizations l10n, ColorScheme cs) {
     return Container(
@@ -382,8 +385,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
       ),
     );
   }
-
-  // ─── Tab 1: Activity & Trends ───────────────────────────────────────────
 
   Widget _buildActivityTab(
     BuildContext context,
@@ -420,7 +421,7 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
+        children: reportPeriodChipOrder.map((p) {
           final active = _period == p;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -446,54 +447,21 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     return Row(
       children: [
         Expanded(
-          child: _statCard(l10n.reportsTotalYield,
-              '${_harvestData.totalYieldKg.toStringAsFixed(0)} kg',
-              AppConstants.primaryGreen, cs, sagana),
+          child: ReportAccentStatCard(
+            label: l10n.reportsTotalYield,
+            value: '${_harvestData.totalYieldKg.toStringAsFixed(0)} kg',
+            accent: AppConstants.primaryGreen,
+          ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: _statCard(l10n.reportsGradeAShare,
-              '${_harvestData.gradeAPercent.toStringAsFixed(0)}%',
-              AppConstants.successGreen, cs, sagana),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: _statCard(l10n.reportsUnsyncedEntries,
-              '${_harvestData.unsyncedCount}', AppConstants.warningAmber, cs,
-              sagana),
+          child: ReportAccentStatCard(
+            label: l10n.reportsUnsyncedEntries,
+            value: '${_harvestData.unsyncedCount}',
+            accent: AppConstants.warningAmber,
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _statCard(String label, String value, Color accent, ColorScheme cs,
-      SaganaColors sagana) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-              width: 8,
-              height: 8,
-              decoration:
-                  BoxDecoration(color: accent, shape: BoxShape.circle)),
-          const SizedBox(height: AppConstants.spacingSm),
-          Text(value,
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: cs.onSurface)),
-          Text(label,
-              style:
-                  GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
-        ],
-      ),
     );
   }
 
@@ -588,7 +556,7 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
           const SizedBox(height: AppConstants.spacingSm),
           SizedBox(
             height: 120,
-            child: _harvestData.monthlyTrend.length < 2
+            child: _yieldTrend.length < 2
                 ? Center(
                     child: Text(l10n.reportsNotEnoughTrendData,
                         style:
@@ -597,9 +565,11 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
                 : CustomPaint(
                     size: const Size(double.infinity, 120),
                     painter: TrendChartPainter(
-                      values: _harvestData.monthlyTrend,
+                      values: _yieldTrend,
                       lineColor: cs.primary,
                       gradientColor: cs.primary,
+                      xLabels: _trailingMonthLabels(_yieldTrend.length),
+                      yValueFormatter: (v) => '${v.toStringAsFixed(0)}kg',
                     ),
                   ),
           ),
@@ -647,9 +617,9 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
           ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_harvestData.harvests.isEmpty)
-          _buildEmptyState(l10n.reportsNoHarvestsRecorded, cs)
+          ReportEmptyState(message: l10n.reportsNoHarvestsRecorded)
         else if (filtered.isEmpty)
-          _buildEmptyState(l10n.reportsNoSearchResults, cs)
+          ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
           ...filtered.map((h) => _buildHarvestRow(context, h, l10n, cs, sagana)),
       ],
@@ -678,7 +648,7 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
             children: [
               Expanded(
                 child: Text(
-                  '${harvest.cropName} • ${harvest.qualityGrade}',
+                  harvest.cropName,
                   style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
@@ -769,8 +739,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     );
   }
 
-  // ─── Tab 2: Batches & Stock ─────────────────────────────────────────────
-
   Widget _buildBatchesTab(
     BuildContext context,
     AppLocalizations l10n,
@@ -810,21 +778,27 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
     return Row(
       children: [
         Expanded(
-          child: _statCard(l10n.reportsAvailable,
-              '${_inventoryData.totalAvailableKg.toStringAsFixed(0)} kg',
-              AppConstants.successGreen, cs, sagana),
+          child: ReportAccentStatCard(
+            label: l10n.reportsAvailable,
+            value: '${_inventoryData.totalAvailableKg.toStringAsFixed(0)} kg',
+            accent: AppConstants.successGreen,
+          ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: _statCard(l10n.reportsReserved,
-              '${_inventoryData.totalReservedKg.toStringAsFixed(0)} kg',
-              AppConstants.buyerBlue, cs, sagana),
+          child: ReportAccentStatCard(
+            label: l10n.reportsReserved,
+            value: '${_inventoryData.totalReservedKg.toStringAsFixed(0)} kg',
+            accent: AppConstants.buyerBlue,
+          ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: _statCard(l10n.reportsSold,
-              '${_inventoryData.totalSoldKg.toStringAsFixed(0)} kg',
-              AppConstants.amber, cs, sagana),
+          child: ReportAccentStatCard(
+            label: l10n.reportsSold,
+            value: '${_inventoryData.totalSoldKg.toStringAsFixed(0)} kg',
+            accent: AppConstants.amber,
+          ),
         ),
       ],
     );
@@ -983,9 +957,9 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
           ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_inventoryData.batches.isEmpty)
-          _buildEmptyState(l10n.reportsNoInventoryYet, cs)
+          ReportEmptyState(message: l10n.reportsNoInventoryYet)
         else if (filtered.isEmpty)
-          _buildEmptyState(l10n.reportsNoSearchResults, cs)
+          ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
           ...filtered.map((b) => _buildBatchRow(context, b, l10n, cs, sagana)),
       ],
@@ -1041,33 +1015,11 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: batch.qualityGrade == 'Grade Pending'
-                      ? cs.surfaceContainerHighest.withValues(alpha: 0.4)
-                      : AppConstants.primaryGreen.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                ),
-                child: Text(
-                  batch.qualityGrade,
-                  style: GoogleFonts.poppins(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: batch.qualityGrade == 'Grade Pending'
-                        ? cs.onSurfaceVariant
-                        : AppConstants.primaryGreen,
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: AppConstants.spacingMd),
           Row(
             children: [
-              // Original harvested quantity, alongside the live remainder —
-              // both already exist on InventoryReportRow (quantityKg vs
-              // availableKg); this just makes the depletion visible.
               _batchStat(l10n.reportsHarvestedQty,
                   '${batch.quantityKg.toStringAsFixed(0)} kg', cs),
               _batchStat(l10n.reportsAvailable,
@@ -1117,20 +1069,6 @@ class _HarvestManagementScreenState extends State<HarvestManagementScreen>
                   fontWeight: FontWeight.w600, fontSize: 11, color: cs.onSurface)),
         ],
       ),
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(message,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
     );
   }
 }

@@ -11,20 +11,19 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/price_record_model.dart';
 import '../../../data/repositories/price_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/management_modal.dart';
 
 // ─── Price type constants ─────────────────────────────────────────────────────
 
 class _PriceTypes {
   static const sp3      = 'sp3_cooperative';
-  static const daAmad   = 'da_amad_market';
   static const market   = 'open_market';
 
   static String label(String type) {
     switch (type) {
-      case sp3:    return 'SP3 Buying';
-      case daAmad: return 'DA-AMAD';
-      case market: return 'Market Avg';
+      case sp3:    return 'Cooperative Market';
+      case market: return 'Public Market';
       default:     return type;
     }
   }
@@ -46,6 +45,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
   List<PriceRecordModel> _latestPrices          = [];
   List<PriceRecordModel> _history               = [];
   List<Map<String, dynamic>> _availableCrops    = [];
+  List<Map<String, dynamic>> _liveListings      = [];
   bool _isLoading  = true;
   bool _isOnline   = true;
   DateTime? _lastRefreshed;
@@ -77,15 +77,18 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
       _repo.fetchLatestPricePerCrop(),
       _repo.fetchPriceHistory(),
       _repo.fetchAvailableCrops(),
+      _repo.fetchLiveListings(),
     ]);
     if (!mounted) return;
-    final prices  = results[0] as List<PriceRecordModel>;
-    final history = results[1] as List<PriceRecordModel>;
-    final crops   = results[2] as List<Map<String, dynamic>>;
+    final prices   = results[0] as List<PriceRecordModel>;
+    final history  = results[1] as List<PriceRecordModel>;
+    final crops    = results[2] as List<Map<String, dynamic>>;
+    final listings = results[3] as List<Map<String, dynamic>>;
     setState(() {
       _latestPrices    = prices;
       _history         = history;
       _availableCrops  = crops;
+      _liveListings    = listings;
       _lastRefreshed   = DateTime.now();
       _isLoading       = false;
       // Auto-select first crop for chart
@@ -146,6 +149,69 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
     );
   }
 
+  // ── Edit a live Cooperative Market listing's price ───────────────────────
+
+  void _openEditListingPriceSheet(Map<String, dynamic> listing) {
+    if (!_isOnline) {
+      _showSnack(AppLocalizations.of(context).priceOfflineWarning);
+      return;
+    }
+    final priceCtrl = TextEditingController(
+        text: (listing['price_per_kg'] as num).toStringAsFixed(2));
+    bool isSaving = false;
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> submit() async {
+            final price = double.tryParse(priceCtrl.text.trim());
+            if (price == null || price <= 0) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Please enter a valid price.')),
+              );
+              return;
+            }
+            setSheet(() => isSaving = true);
+            final ok = await _repo.updateListingPrice(
+              listingId: listing['id'] as String,
+              newPrice: price,
+            );
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (ok) _loadAll();
+            _showSnack(ok ? 'Listing price updated' : 'Failed. Try again.');
+          }
+
+          return ManagementModalShell(
+            title: 'Edit Listing Price',
+            subtitle: listing['crop_name'] as String,
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _FieldLabel(label: 'Price (₱/kg)', cs: Theme.of(ctx).colorScheme),
+                TextFormField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                  ],
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
+                  decoration: const InputDecoration(prefixText: '₱ ', hintText: '0.00'),
+                ),
+              ],
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving ? 'Saving…' : 'Save Price',
+              isLoading: isSaving,
+              onPrimary: submit,
+            ),
+          );
+        });
+      },
+    );
+  }
+
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -191,7 +257,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                           ),
                         )
                       : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                           children: [
 
                             // ── Offline warning ──────────────────────────
@@ -207,7 +273,8 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // ── Live Market Rates ─────────────────────────
+                            // ── Live Market Rates (2 sections: Public /
+                            // Cooperative reference prices) ────────────────
                             Row(
                               mainAxisAlignment:
                                   MainAxisAlignment.spaceBetween,
@@ -232,14 +299,76 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                             const SizedBox(height: 12),
                             if (_latestPrices.isEmpty)
                               _EmptyPrices(cs: cs)
-                            else
+                            else ...[
+                              _SectionLabel(
+                                  text: 'Public Market — Reference Prices',
+                                  cs: cs),
+                              const SizedBox(height: 8),
                               _PriceGrid(
-                                prices: _latestPrices,
+                                prices: _latestPrices
+                                    .where((p) => p.priceType == _PriceTypes.market)
+                                    .toList(),
                                 isOnline: _isOnline,
                                 onTap: _openUpdateSheet,
                                 cs: cs,
                                 sagana: sagana,
                               ),
+                              const SizedBox(height: 16),
+                              _SectionLabel(
+                                  text: 'Cooperative Market — Reference Prices',
+                                  cs: cs),
+                              const SizedBox(height: 8),
+                              _PriceGrid(
+                                prices: _latestPrices
+                                    .where((p) => p.priceType == _PriceTypes.sp3)
+                                    .toList(),
+                                isOnline: _isOnline,
+                                onTap: _openUpdateSheet,
+                                cs: cs,
+                                sagana: sagana,
+                              ),
+                            ],
+                            const SizedBox(height: 24),
+
+                            // ── Live Listings (2 sections: Public /
+                            // Cooperative — only Cooperative is editable) ───
+                            _SectionLabel(
+                                text: 'Live Listings — Public Market',
+                                cs: cs),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Farmer-set prices. Not editable — this market lets farmers set their own price.',
+                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                            const SizedBox(height: 8),
+                            _ListingGrid(
+                              listings: _liveListings
+                                  .where((l) => l['crop_type'] != _PriceTypes.sp3)
+                                  .toList(),
+                              editable: false,
+                              onEdit: null,
+                              cs: cs,
+                              sagana: sagana,
+                            ),
+                            const SizedBox(height: 20),
+                            _SectionLabel(
+                                text: 'Live Listings — Cooperative Market',
+                                cs: cs),
+                            const SizedBox(height: 4),
+                            Text(
+                              'You can correct the price on these — the farmer keeps their listing otherwise unchanged.',
+                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                            const SizedBox(height: 8),
+                            _ListingGrid(
+                              listings: _liveListings
+                                  .where((l) => l['crop_type'] == _PriceTypes.sp3)
+                                  .toList(),
+                              editable: true,
+                              onEdit: _openEditListingPriceSheet,
+                              cs: cs,
+                              sagana: sagana,
+                            ),
                             const SizedBox(height: 24),
 
                             // ── Market Trends ─────────────────────────────
@@ -263,6 +392,12 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                               sagana: sagana,
                               l10n: l10n,
                             ),
+                            // Reserves room for the floating Add Price
+                            // Entry button (Positioned bottom: 24, its own
+                            // ~56px height) so scrolling to the end never
+                            // leaves it sitting on top of Market Trends —
+                            // without changing the declared list padding.
+                            const SizedBox(height: 96),
                           ],
                         ),
                 ),
@@ -499,7 +634,7 @@ class _InfoBanner extends StatelessWidget {
                             ),
                             const TextSpan(
                                 text:
-                                    '. SP3 Buying Prices are premium rates exclusive to member-only transactions.'),
+                                    '. Cooperative Market prices are premium rates exclusive to member-only transactions.'),
                           ],
                         ),
                       ),
@@ -536,19 +671,259 @@ class _PriceGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: prices
-          .map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _PriceCard(
-                  price: p,
-                  isOnline: isOnline,
-                  onTap: () => onTap(p),
-                  cs: cs,
-                  sagana: sagana,
+    if (prices.isEmpty) return _EmptyPrices(cs: cs);
+    // Two-column card grid — deliberately echoes Crop Management's grid
+    // rhythm (see _CropCard in crop_management_screen.dart) so the two
+    // screens read as one system, without reusing the same widget: a
+    // price card's headline datum is the price, not a category label, so
+    // the text block underneath the image is shaped differently.
+    return GridView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: prices.length,
+      itemBuilder: (_, i) {
+        final p = prices[i];
+        return _PriceCard(
+          price: p,
+          isOnline: isOnline,
+          onTap: () => onTap(p),
+          cs: cs,
+          sagana: sagana,
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section label (Phase 6b — the 4-section Price Management layout)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  final ColorScheme cs;
+
+  const _SectionLabel({required this.text, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: GoogleFonts.poppins(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: cs.onSurface,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Live listing cards — Phase 6b
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ListingGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> listings;
+  final bool editable;
+  final ValueChanged<Map<String, dynamic>>? onEdit;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _ListingGrid({
+    required this.listings,
+    required this.editable,
+    required this.onEdit,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (listings.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: sagana.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        ),
+        alignment: Alignment.center,
+        child: Text('No live listings in this market right now.',
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+      );
+    }
+    // Same 2-column, image-forward grid as the Reference Prices sections
+    // (_PriceGrid/_PriceCard) — Public and Cooperative both render through
+    // this one component; only `editable` (and therefore whether the edit
+    // overlay appears) differs between the two call sites.
+    return GridView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: listings.length,
+      itemBuilder: (_, i) {
+        final l = listings[i];
+        return _ListingCard(
+          listing: l,
+          editable: editable,
+          onEdit: onEdit == null ? null : () => onEdit!(l),
+          cs: cs,
+          sagana: sagana,
+        );
+      },
+    );
+  }
+}
+
+class _ListingCard extends StatelessWidget {
+  final Map<String, dynamic> listing;
+  final bool editable;
+  final VoidCallback? onEdit;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _ListingCard({
+    required this.listing,
+    required this.editable,
+    required this.onEdit,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cropName = listing['crop_name'] as String;
+    final price = (listing['price_per_kg'] as num).toDouble();
+    final remaining = (listing['remaining_kg'] as num?)?.toDouble() ??
+        (listing['volume_kg'] as num).toDouble();
+    final marketLabel =
+        listing['crop_type'] == _PriceTypes.sp3 ? 'COOPERATIVE MARKET' : 'PUBLIC MARKET';
+    // The listing's own photo — never Crop Management's image. A listing
+    // with no photo shows a generic placeholder, not the crop's reference
+    // image, to keep the two sources genuinely independent rather than
+    // silently falling back to one another.
+    final photoUrl = listing['photo_url'] as String?;
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                hasPhoto
+                    ? Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                          child: Icon(Icons.image_outlined,
+                              size: 32, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+                        ),
+                      )
+                    : Container(
+                        color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                        child: Icon(Icons.image_outlined,
+                            size: 32, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+                      ),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    ),
+                    child: Text(
+                      marketLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
-              ))
-          .toList(),
+                if (editable)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: GestureDetector(
+                      onTap: onEdit,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit_rounded, size: 13, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  cropName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '₱${price.toStringAsFixed(2)}/kg',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: cs.primary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${remaining.toStringAsFixed(1)} kg available',
+                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -573,11 +948,11 @@ class _PriceCard extends StatelessWidget {
     final badgeData  = _badge(price.priceType);
     final deltaData  = _delta(price);
     final updatedStr = _updatedLabel(price.recordedAt);
+    final hasImage = price.cropImageUrl != null && price.cropImageUrl!.isNotEmpty;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -589,116 +964,128 @@ class _PriceCard extends StatelessWidget {
             ),
           ],
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Badge + edit icon row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: badgeData.bg,
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusFull),
-                  ),
-                  child: Text(
-                    badgeData.label,
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                      color: badgeData.fg,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.edit_outlined,
-                  size: 20,
-                  color: isOnline ? cs.primary : cs.outline,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Crop name + price + delta
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      price.cropName,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: cs.outline,
+            // Image fills the top of the card — the crop's identity comes
+            // first, the price is what you read once you know what it is.
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  hasImage
+                      ? Image.network(
+                          price.cropImageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                            child: Icon(Icons.eco_rounded,
+                                size: 32, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+                          ),
+                        )
+                      : Container(
+                          color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                          child: Icon(Icons.eco_rounded,
+                              size: 32, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+                        ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: badgeData.bg,
+                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      ),
+                      child: Text(
+                        badgeData.label,
+                        style: GoogleFonts.inter(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
+                          color: badgeData.fg,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        size: 13,
+                        color: isOnline ? Colors.white : Colors.white54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Crop name + price + delta + freshness — below the image, same
+            // information as before, resized so the image (not the price)
+            // is what draws the eye first.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    price.cropName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: Text(
                           '₱${price.price.toStringAsFixed(2)}',
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
-                            fontSize: 28,
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
-                            color: cs.onSurface,
+                            color: cs.primary,
                           ),
                         ),
+                      ),
+                      Text(
+                        '/${price.unit}',
+                        style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+                      ),
+                      if (deltaData != null) ...[
+                        const Spacer(),
+                        Icon(deltaData.icon, size: 12, color: deltaData.color),
                         Text(
-                          '/${price.unit}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: cs.outline,
+                          deltaData.label,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: deltaData.color,
                           ),
                         ),
                       ],
-                    ),
-                  ],
-                ),
-                if (deltaData != null)
-                  Row(
-                    children: [
-                      Icon(deltaData.icon, size: 16, color: deltaData.color),
-                      const SizedBox(width: 2),
-                      Text(
-                        deltaData.label,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: deltaData.color,
-                        ),
-                      ),
                     ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // Footer
-            Container(
-              padding: const EdgeInsets.only(top: 10),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: cs.outline.withValues(alpha: 0.10),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Updated $updatedStr',
+                    style: GoogleFonts.inter(fontSize: 9, color: cs.outline),
                   ),
-                ),
-              ),
-              child: Text(
-                'Updated $updatedStr',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: cs.outline,
-                ),
+                ],
               ),
             ),
           ],
@@ -711,19 +1098,13 @@ class _PriceCard extends StatelessWidget {
     switch (priceType) {
       case _PriceTypes.sp3:
         return const _BadgeData(
-          label: 'SP3 BUYING',
+          label: 'COOPERATIVE MARKET',
           bg: AppConstants.primaryContainer,
           fg: AppConstants.onPrimaryContainer,
         );
-      case _PriceTypes.daAmad:
-        return const _BadgeData(
-          label: 'DA-AMAD REFERENCE',
-          bg: Color(0xFFE3F2FD),
-          fg: AppConstants.buyerBlue,
-        );
       default:
         return _BadgeData(
-          label: 'MARKET AVERAGE',
+          label: 'PUBLIC MARKET',
           bg: AppConstants.secondaryContainer.withValues(alpha: 0.25),
           fg: const Color(0xFF694300),
         );
@@ -1157,7 +1538,11 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeLabel = _PriceTypes.label(price.priceType);
+    // A compact variant just for this narrow table column — the canonical
+    // "Cooperative Market"/"Public Market" labels (Phase 6 naming
+    // convention) don't fit this column's width the way the old, shorter
+    // "SP3 Buying"/"Market Avg" labels did.
+    final badgeLabel = price.priceType == _PriceTypes.sp3 ? 'Coop' : 'Public';
     final dateStr = _dateStr(price.recordedAt);
 
     return Padding(
@@ -1503,7 +1888,10 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
   final _priceCtrl  = TextEditingController();
   final _sourceCtrl = TextEditingController();
   Map<String, dynamic>? _selectedCrop;
-  String _priceType  = _PriceTypes.market;
+  // Market Type is now the first field the admin picks (Phase 6 reorder),
+  // driving which crops the Crop Name field offers — the reverse of the
+  // old crop-picks-type direction.
+  String _priceType  = _PriceTypes.sp3;
   String _unit       = 'kg';
   DateTime _date     = DateTime.now();
   bool _isSaving     = false;
@@ -1516,17 +1904,21 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
     super.dispose();
   }
 
-  // Restricts which price types are selectable based on the picked crop's
-  // crop_type — the whole reason crop_type was added to crop_master.
-  // Nothing stops an SP3 Buying price from being assigned to a DA-AMAD-only
-  // crop (or vice versa) otherwise.
-  List<String> _validPriceTypes() {
-    final cropType = _selectedCrop?['crop_type'] as String?;
-    switch (cropType) {
-      case 'sp3_cooperative': return [_PriceTypes.sp3, _PriceTypes.market];
-      case 'da_amad_market':  return [_PriceTypes.daAmad, _PriceTypes.market];
-      default:                return [_PriceTypes.market];
-    }
+  List<Map<String, dynamic>> get _cropsForMarketType => widget.availableCrops
+      .where((c) => (c['crop_type'] as String?) == _priceType)
+      .toList();
+
+  void _onMarketTypeChanged(String type) {
+    setState(() {
+      _priceType = type;
+      // A crop picked under the previous market type won't belong to this
+      // one — clear it rather than keep a mismatched crop/market pair.
+      if (_selectedCrop != null &&
+          (_selectedCrop!['crop_type'] as String?) != type) {
+        _selectedCrop = null;
+        _cropCtrl.clear();
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -1598,10 +1990,22 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          _FieldLabel(label: 'Market Type', cs: cs),
+          AppDropdownField<String>(
+            value: _priceType,
+            hintText: 'Select a market type',
+            items: const [_PriceTypes.sp3, _PriceTypes.market],
+            itemLabel: (t) => _PriceTypes.label(t),
+            onChanged: (v) {
+              if (v != null) _onMarketTypeChanged(v);
+            },
+          ),
+          const SizedBox(height: 14),
+
           _FieldLabel(label: 'Crop Name', cs: cs),
           Autocomplete<Map<String, dynamic>>(
             displayStringForOption: (c) => c['crop_name'] as String,
-            optionsBuilder: (v) => widget.availableCrops.where(
+            optionsBuilder: (v) => _cropsForMarketType.where(
               (c) => (c['crop_name'] as String)
                   .toLowerCase()
                   .contains(v.text.toLowerCase()),
@@ -1609,13 +2013,14 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
             onSelected: (c) => setState(() {
               _selectedCrop = c;
               _cropCtrl.text = c['crop_name'] as String;
-              _priceType = _validPriceTypes().first;
             }),
             fieldViewBuilder: (ctx, ctrl, focusNode, onSubmit) => TextFormField(
               controller: ctrl,
               focusNode: focusNode,
               decoration: InputDecoration(
-                hintText: 'e.g. Peanut, Palay, Ginger',
+                hintText: _priceType == _PriceTypes.sp3
+                    ? 'e.g. Palay, Peanut'
+                    : 'e.g. Banana, Copra, Ginger',
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
               ),
               onChanged: (v) {
@@ -1629,47 +2034,14 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
               },
             ),
           ),
-          if (widget.availableCrops.isEmpty)
+          if (_cropsForMarketType.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'No crops in the catalog yet.',
+                'No ${_PriceTypes.label(_priceType)} crops in the catalog yet.',
                 style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
               ),
             ),
-          const SizedBox(height: 14),
-
-          _FieldLabel(label: 'Price Type', cs: cs),
-          Row(
-            children: _validPriceTypes().map((type) {
-              final active = _priceType == type;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _priceType = type),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: active ? cs.primary : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                      ),
-                      child: Text(
-                        _PriceTypes.label(type),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                          color: active ? Colors.white : cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
           const SizedBox(height: 14),
 
           Row(
@@ -1698,14 +2070,12 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _FieldLabel(label: 'Unit', cs: cs),
-                    DropdownButtonFormField<String>(
-                      initialValue: _unit,
-                      items: ['kg', 'g', 'pc', 'sack']
-                          .map((u) => DropdownMenuItem(
-                              value: u, child: Text(u, style: GoogleFonts.inter(fontSize: 14))))
-                          .toList(),
+                    AppDropdownField<String>(
+                      value: _unit,
+                      hintText: 'Select a unit',
+                      items: const ['kg', 'g', 'pc', 'sack'],
+                      itemLabel: (u) => u,
                       onChanged: (v) => setState(() => _unit = v ?? 'kg'),
-                      decoration: const InputDecoration(),
                     ),
                   ],
                 ),

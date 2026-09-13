@@ -10,6 +10,7 @@ import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 enum _StockFilter { all, lowStock }
 
@@ -157,7 +158,7 @@ class _CooperativeStockReportScreenState
               IconButton(
                 icon: Icon(
                   Icons.file_download_outlined,
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                  color: cs.primary,
                 ),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
@@ -183,75 +184,32 @@ class _CooperativeStockReportScreenState
     return Row(
       children: [
         Expanded(
-          child: _statCard(
-            l10n.reportsTotalItems,
-            '${_data.totalItems}',
-            AppConstants.buyerBlue,
-            cs,
-            sagana,
+          child: ReportAccentStatCard(
+            label: l10n.reportsTotalItems,
+            value: '${_data.totalItems}',
+            accent: AppConstants.buyerBlue,
+            valueFontSize: 18,
           ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: _statCard(
-            l10n.reportsLowStockItems,
-            '${_data.lowStockCount}',
-            AppConstants.errorRed,
-            cs,
-            sagana,
+          child: ReportAccentStatCard(
+            label: l10n.reportsLowStockItems,
+            value: '${_data.lowStockCount}',
+            accent: AppConstants.errorRed,
+            valueFontSize: 18,
           ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: _statCard(
-            l10n.reportsCategories,
-            '${_data.categoryCounts.length}',
-            AppConstants.amber,
-            cs,
-            sagana,
+          child: ReportAccentStatCard(
+            label: l10n.reportsCategories,
+            value: '${_data.categoryCounts.length}',
+            accent: AppConstants.amber,
+            valueFontSize: 18,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _statCard(
-    String label,
-    String value,
-    Color accent,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-          ),
-          const SizedBox(height: AppConstants.spacingSm),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-              color: cs.onSurface,
-            ),
-          ),
-          Text(
-            label,
-            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
     );
   }
 
@@ -430,28 +388,12 @@ class _CooperativeStockReportScreenState
           ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_data.items.isEmpty)
-          _buildEmptyState(l10n.reportsNoCoopStockYet, cs)
+          ReportEmptyState(message: l10n.reportsNoCoopStockYet)
         else if (filtered.isEmpty)
-          _buildEmptyState(l10n.reportsNoSearchResults, cs)
+          ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
           ...filtered.map((i) => _buildItemRow(context, i, cs, sagana)),
       ],
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-      ),
     );
   }
 

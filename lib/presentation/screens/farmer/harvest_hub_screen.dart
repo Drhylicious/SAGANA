@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/harvest_model.dart';
+import '../../../data/models/farmer_crop_model.dart' hide HarvestFilter;
 import '../../../data/repositories/harvest_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../routes/app_routes.dart';
@@ -32,6 +34,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   HarvestFilter _activeFilter = HarvestFilter.all;
   int _unreadCount = 0;
   bool _isLoading = true;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -44,6 +47,10 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadData();
   }
 
@@ -67,7 +74,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
     try {
       final results = await Future.wait([
         _harvestRepo.fetchStats(),
-        _harvestRepo.fetchRecentHarvests(),
+        _harvestRepo.fetchRecentHarvests(limit: 5),
         _harvestRepo.fetchInventoryStats(),
         _notifRepo.fetchUnreadCount(),
       ]);
@@ -101,75 +108,88 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          // Subtle dot pattern background
-          Positioned.fill(child: CustomPaint(painter: _DotPatternPainter())),
+          if (!_isOnline)
+            const OfflineBanner(
+              message: "You're offline — new harvests are saved on your device and will sync automatically, but your harvest history may not be up to date.",
+            ),
+          Expanded(
+            child: Stack(
+              children: [
+                // Subtle dot pattern background
+                Positioned.fill(
+                  child: CustomPaint(painter: _DotPatternPainter()),
+                ),
 
-          // Content
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadData,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ── Header ────────────────────────────────────────
-                        _HeaderSection(),
-                        const SizedBox(height: 24),
+                // Content
+                Column(
+                  children: [
+                    const SizedBox(height: 50),
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadData,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 24),
 
-                        // ── Hero Bento Cards ──────────────────────────────
-                        _HeroCards(
-                          inventoryTotal: _inventoryStats['total'] ?? 0,
-                          inventoryLowStock: _inventoryStats['low_stock'] ?? 0,
-                          onRecordHarvest: () =>
-                              context.pushRoute(AppRoutes.selectCropForHarvest),
-                          onMyCrops: () =>
-                              context.pushRoute(AppRoutes.cropListing),
-                          onManageInventory: () =>
-                              context.pushRoute(AppRoutes.manageInventory),
+                              // ── Hero Bento Cards ──────────────────────────
+                              _HeroCards(
+                                inventoryTotal: _inventoryStats['total'] ?? 0,
+                                inventoryLowStock:
+                                    _inventoryStats['low_stock'] ?? 0,
+                                onRecordHarvest: () => context.pushRoute(
+                                    AppRoutes.selectCropForHarvest),
+                                onMyCrops: () =>
+                                    context.pushRoute(AppRoutes.cropListing),
+                                onManageInventory: () => context.pushRoute(
+                                    AppRoutes.manageInventory),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // ── Stats Bar ───────────────────────────────
+                              _StatsBar(
+                                  stats: _stats, isLoading: _isLoading),
+                              const SizedBox(height: 24),
+
+                              // ── Recent Harvests ─────────────────────────
+                              _RecentHarvestsSection(
+                                harvests: _filtered,
+                                allHarvests: _allHarvests,
+                                activeFilter: _activeFilter,
+                                isLoading: _isLoading,
+                                onFilterChanged: _setFilter,
+                                onViewAll: () => context
+                                    .pushRoute(AppRoutes.harvestHistory),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
-
-                        // ── Stats Bar ─────────────────────────────────────
-                        _StatsBar(stats: _stats, isLoading: _isLoading),
-                        const SizedBox(height: 24),
-
-                        // ── Recent Harvests ───────────────────────────────
-                        _RecentHarvestsSection(
-                          harvests: _filtered,
-                          allHarvests: _allHarvests,
-                          activeFilter: _activeFilter,
-                          isLoading: _isLoading,
-                          onFilterChanged: _setFilter,
-                          onViewAll: () =>
-                              context.pushRoute(AppRoutes.harvestHistory),
-                        ),
-                      ],
+                      ),
                     ),
+                  ],
+                ),
+
+                // ── Top App Bar ─────────────────────────────────────────
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: 'Harvest Hub',
+                    unreadCount: _unreadCount,
+                    hideProfileAvatar: true,
+                    onProfileTap: () =>
+                        context.goTab(AppRoutes.farmerProfile),
+                    onNotificationTap: () =>
+                        context.pushRoute(AppRoutes.farmerNotifications),
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          // ── Top App Bar ───────────────────────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: 'Harvest Hub',
-              unreadCount: _unreadCount,
-              hideProfileAvatar: true,
-              onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
+              ],
             ),
           ),
         ],
@@ -199,17 +219,6 @@ class _DotPatternPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Header Section
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _HeaderSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink();
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -245,7 +254,7 @@ class _HeroCards extends StatelessWidget {
           icon: Icons.eco_rounded,
           iconBg: Colors.white.withValues(alpha: 0.20),
           title: 'Record New Harvest',
-          subtitle: 'Log daily yields and batch quality',
+          subtitle: 'Log daily yields and batch details',
           subtitleColor: AppConstants.onPrimaryContainer,
           onTap: onRecordHarvest,
         ),
@@ -646,7 +655,7 @@ class _HarvestCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  _cropIcon(harvest.cropCategory),
+                  FarmerCropModel.iconForCategory(harvest.cropCategory),
                   color: AppConstants.primaryGreen,
                   size: 24,
                 ),
@@ -702,25 +711,6 @@ class _HarvestCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _cropIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'grain':
-        return Icons.grass_rounded;
-      case 'legume':
-        return Icons.eco_rounded;
-      case 'root & spice crop':
-        return Icons.spa_rounded;
-      case 'fruit':
-        return Icons.local_florist_rounded;
-      case 'tree crop':
-        return Icons.park_rounded;
-      case 'vegetable':
-        return Icons.agriculture_rounded;
-      default:
-        return Icons.eco_rounded;
-    }
   }
 
   String _formatDateTime(DateTime dt) {

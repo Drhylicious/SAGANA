@@ -17,7 +17,12 @@ import '../../widgets/shared_widgets.dart';
 /// order_management_screen.dart and program_management_screen.dart.
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
-  const OrderDetailScreen({super.key, required this.orderId});
+  // When true (opened from Buyer Details' read-only Order History), no
+  // Approve/Cancel/Complete action is ever shown, regardless of status —
+  // closes the bug where those actions were reachable from inside a
+  // buyer's profile. See M-marketplace-4.
+  final bool readOnly;
+  const OrderDetailScreen({super.key, required this.orderId, this.readOnly = false});
 
   @override
   State<OrderDetailScreen> createState() => _OrderDetailScreenState();
@@ -84,37 +89,66 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  // Cancelling requires a reason (unlike Approve/Complete, which reuse the
+  // generic _runAction flow) — the buyer sees this reason, so the primary
+  // button stays disabled until the admin actually enters one.
   Future<void> _confirmCancel() async {
     final reasonCtrl = TextEditingController();
-    await _runAction(
-      title: 'Cancel Order',
-      subtitle: 'This cannot be undone.',
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Cancelling releases the reserved inventory back to the batch. '
-            'The buyer will be notified.',
+    bool isSaving = false;
+    await showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        final hasReason = reasonCtrl.text.trim().isNotEmpty;
+        return ManagementModalShell(
+          title: 'Cancel Order',
+          subtitle: 'This cannot be undone.',
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Cancelling releases the reserved inventory back to the batch. '
+                'The buyer will be notified with the reason below.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: reasonCtrl,
+                maxLines: 2,
+                onChanged: (_) => setSheet(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Reason',
+                  hintText: 'Shown to the buyer',
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: reasonCtrl,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: 'Reason (optional)',
-              hintText: 'Shown to the buyer, if provided',
-            ),
+          footer: ManagementModalActions(
+            primaryLabel: 'Cancel Order',
+            isDestructive: true,
+            isLoading: isSaving,
+            onPrimary: !hasReason
+                ? null
+                : () async {
+                    setSheet(() => isSaving = true);
+                    String? error;
+                    try {
+                      await _repo.cancelOrder(widget.orderId, reason: reasonCtrl.text.trim());
+                    } catch (_) {
+                      error = 'Failed. Please try again.';
+                    }
+                    if (!ctx.mounted) return;
+                    Navigator.pop(ctx);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(error ?? 'Order cancelled'),
+                      backgroundColor: error != null ? AppConstants.errorRed : AppConstants.successGreen,
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                    if (error == null) _load();
+                  },
           ),
-        ],
-      ),
-      primaryLabel: 'Cancel Order',
-      isDestructive: true,
-      action: () => _repo.cancelOrder(
-        widget.orderId,
-        reason: reasonCtrl.text.trim().isEmpty ? null : reasonCtrl.text.trim(),
-      ),
-      successMessage: 'Order cancelled',
+        );
+      }),
     );
   }
 
@@ -209,37 +243,65 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: (_order == null || _order!.isCompleted || _order!.isCancelled)
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _confirmCancel,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppConstants.errorRed,
-                          side: const BorderSide(color: AppConstants.errorRed),
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        label: Text('Cancel Order', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: PrimaryButton(
-                        height: 46,
-                        icon: _order!.isPending ? Icons.check_rounded : Icons.task_alt_rounded,
-                        label: _order!.isPending ? 'Approve Order' : 'Complete Order',
-                        onPressed: _order!.isPending ? _confirmApprove : _confirmComplete,
-                      ),
-                    ),
-                  ],
+      bottomNavigationBar: _buildBottomBar(),
+    );
+  }
+
+  // Cancel is only ever offered from 'pending' — once an order is
+  // 'approved', logically the only forward action left is Complete (why
+  // would you cancel an order the cooperative already committed to
+  // fulfilling?). Completed/cancelled orders show no actions at all.
+  Widget? _buildBottomBar() {
+    if (widget.readOnly) return null;
+    final order = _order;
+    if (order == null || order.isCompleted || order.isCancelled) return null;
+
+    if (order.isPending) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _confirmCancel,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppConstants.errorRed,
+                    side: const BorderSide(color: AppConstants.errorRed),
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  label: Text('Cancel Order', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                 ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: PrimaryButton(
+                  height: 46,
+                  // No icon here: at narrow widths (360px) this button
+                  // shares the row with "Cancel Order" and the icon + gap
+                  // left too little room for "Approve Order", causing the
+                  // label to ellipsis-clip.
+                  label: 'Approve Order',
+                  onPressed: _confirmApprove,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Approved — Cancel Order is gone, Complete Order gets the full row.
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: PrimaryButton(
+          height: 46,
+          icon: Icons.task_alt_rounded,
+          label: 'Complete Order',
+          onPressed: _confirmComplete,
+        ),
+      ),
     );
   }
 
@@ -336,10 +398,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           CircleAvatar(
             radius: 20,
             backgroundColor: AppConstants.buyerBlue.withValues(alpha: 0.12),
-            child: Text(
-              order.buyerName.isNotEmpty ? order.buyerName[0].toUpperCase() : 'B',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: AppConstants.buyerBlue),
-            ),
+            backgroundImage: order.buyerPhotoUrl != null
+                ? NetworkImage(order.buyerPhotoUrl!)
+                : null,
+            onBackgroundImageError: order.buyerPhotoUrl != null ? (_, __) {} : null,
+            child: order.buyerPhotoUrl != null
+                ? null
+                : Text(
+                    order.buyerName.isNotEmpty ? order.buyerName[0].toUpperCase() : 'B',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: AppConstants.buyerBlue),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(

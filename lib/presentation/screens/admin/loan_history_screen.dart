@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
-import '../../widgets/management_modal.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
@@ -188,20 +187,16 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           AppConstants.spacingSafeH,
           AppConstants.spacingGutter,
           AppConstants.spacingSafeH,
-          32,
+          AppConstants.spacingSafeH,
         ),
         children: [
           _buildStatCard(context, l10n, cs, sagana),
           const SizedBox(height: AppConstants.spacingGutter),
-          Row(
-            children: [
-              Expanded(child: _buildSearchField(context, l10n, cs)),
-              const SizedBox(width: AppConstants.spacingSm),
-              _buildFilterButton(context, l10n, cs),
-            ],
-          ),
+          _buildSearchField(context, l10n, cs),
           const SizedBox(height: AppConstants.spacingMd),
-          _buildStatusSegmentedControl(context, l10n, cs, sagana),
+          _buildPeriodChips(cs),
+          const SizedBox(height: AppConstants.spacingSm),
+          _buildStatusChips(l10n, cs),
           const SizedBox(height: AppConstants.spacingGutter),
           if (_isLoading)
             const Padding(
@@ -307,38 +302,24 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     );
   }
 
-  Widget _buildStatusSegmentedControl(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
-    final options = {
-      null: l10n.loanHistoryFilterAll,
-      'active': l10n.loanDashActiveLoans,
-      'overdue': l10n.loanDashOverdueLoans,
-      'paid': l10n.loanHistoryFilterPaid,
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Row(
-        children: options.entries.map((entry) {
-          final active = _statusFilter == entry.key;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => _setStatusFilter(entry.key),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: active ? sagana.cardBackground : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                  boxShadow: active ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4)] : null,
-                ),
-                child: Text(entry.value, textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600,
-                        color: active ? cs.primary : cs.onSurfaceVariant)),
-              ),
+  /// Period chips — same shared reportPeriodChipOrder and visual treatment
+  /// as Loan Report's own period chips, so the two screens' filtering feels
+  /// like one consistent pattern rather than two different mechanisms.
+  Widget _buildPeriodChips(ColorScheme cs) {
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: reportPeriodChipOrder.map((p) {
+          final active = _period == p;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              selected: active,
+              onSelected: (_) => _setPeriod(p),
+              selectedColor: AppConstants.primaryGreen,
+              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
             ),
           );
         }).toList(),
@@ -346,52 +327,34 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     );
   }
 
-  void _openFilterSheet(BuildContext context, AppLocalizations l10n) {
-    ReportPeriod tempPeriod = _period;
-    showManagementModal(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
-        return ManagementModalShell(
-          title: l10n.loanHistoryFilterTitle,
-          body: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: ReportPeriod.values.map((p) {
-              final active = tempPeriod == p;
-              return ChoiceChip(
-                label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
-                selected: active,
-                onSelected: (_) => setSheet(() => tempPeriod = p),
-                selectedColor: AppConstants.buyerBlue,
-                labelStyle: TextStyle(color: active ? Colors.white : Theme.of(ctx).colorScheme.onSurface),
-              );
-            }).toList(),
-          ),
-          footer: ManagementModalActions(
-            primaryLabel: l10n.loanHistoryApplyFilter,
-            onPrimary: () {
-              Navigator.pop(ctx);
-              _setPeriod(tempPeriod);
-            },
-          ),
-        );
-      }),
-    );
-  }
+  /// Status chips — same shape as Loan Report's own status chips, replacing
+  /// the previous segmented control so both filter rows read as one
+  /// consistent chip-based filtering pattern.
+  Widget _buildStatusChips(AppLocalizations l10n, ColorScheme cs) {
+    final options = <String?, String>{
+      null: l10n.loanHistoryFilterAll,
+      'active': l10n.loanDashActiveLoans,
+      'overdue': l10n.loanDashOverdueLoans,
+      'paid': l10n.loanHistoryFilterPaid,
+    };
 
-  Widget _buildFilterButton(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
-    return Container(
-      height: 48,
-      width: 48,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.20)),
-      ),
-      child: IconButton(
-        icon: Icon(Icons.filter_list_rounded, color: cs.primary),
-        onPressed: () => _openFilterSheet(context, l10n),
-        tooltip: l10n.loanHistoryFilterTitle,
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: options.entries.map((entry) {
+          final active = _statusFilter == entry.key;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(entry.value, style: GoogleFonts.inter(fontSize: 12)),
+              selected: active,
+              onSelected: (_) => _setStatusFilter(entry.key),
+              selectedColor: AppConstants.buyerBlue,
+              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -480,6 +443,26 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                 ),
               ],
             ),
+            if (loan.isFromProgramDistribution) ...[
+              const SizedBox(height: AppConstants.spacingSm),
+              Row(
+                children: [
+                  Icon(Icons.eco_rounded, size: 13, color: AppConstants.programPurple),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'From Program Distribution: ${loan.sourceProgramName}',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.programPurple,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: AppConstants.spacingSm),
             Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
             const SizedBox(height: AppConstants.spacingSm),

@@ -1,4 +1,10 @@
 -- ============================================================
+-- ⚠️ SUPERSEDED — complete_order and cancel_order here are from
+-- the batch-centric reservation era. The canonical versions are
+-- now in supabase_schema_marketplace_order_reservation_fix.sql.
+-- See supabase_schema_RESERVATION_MODEL_NOTES.md. Kept for
+-- history only.
+-- ============================================================
 -- SAGANA — Admin Order Management
 -- Adds complete_order and cancel_order RPCs. Both are the
 -- inverse-movement half of place_order's reservation: stock

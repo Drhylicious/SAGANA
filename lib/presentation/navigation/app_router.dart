@@ -10,6 +10,7 @@ import '../../data/services/hive_service.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/auth/reset_password_screen.dart';
+import '../../presentation/screens/auth/force_password_change_screen.dart';
 import '../../presentation/screens/farmer/create_listing_screen.dart';
 import '../../presentation/screens/farmer/crop_listing_screen.dart';
 import '../../presentation/screens/farmer/crop_details_screen.dart';
@@ -35,7 +36,7 @@ import '../../presentation/screens/farmer/my_harvest_summary_screen.dart';
 import '../../presentation/screens/farmer/my_listings_screen.dart';
 import '../../presentation/screens/farmer/my_loans_screen.dart';
 import '../../presentation/screens/farmer/my_programs_screen.dart';
-import '../../presentation/screens/farmer/pending_approval_screen.dart';
+import '../../presentation/screens/farmer/my_market_linking_screen.dart';
 import '../../presentation/screens/farmer/pending_applicant_screen.dart';
 import '../../presentation/screens/admin/admin_dashboard_screen.dart';
 import '../../presentation/screens/admin/add_new_member_screen.dart';
@@ -43,7 +44,7 @@ import '../../presentation/screens/admin/admin_activity_screen.dart';
 import '../../presentation/screens/admin/admin_profile_screen.dart';
 import '../../presentation/screens/admin/admin_settings_screen.dart';
 import '../../presentation/screens/admin/admin_edit_profile_screen.dart';
-import '../../presentation/screens/admin/create_staff_account_screen.dart';
+import '../../presentation/screens/admin/create_officer_account_screen.dart';
 import '../../presentation/screens/admin/manage_accounts_screen.dart';
 import '../../presentation/screens/admin/crop_management_screen.dart';
 import '../../presentation/screens/admin/crop_request_approval_screen.dart';
@@ -63,7 +64,7 @@ import '../../presentation/screens/admin/market_linking_screen.dart';
 import '../../presentation/screens/admin/listing_review_screen.dart';
 import '../../presentation/screens/admin/operational_reports_screen.dart';
 import '../../presentation/screens/admin/record_payment_screen.dart';
-import '../../presentation/screens/admin/harvest_management_screen.dart';
+import '../../presentation/screens/admin/harvest_report_screen.dart';
 import '../../presentation/screens/admin/sales_report_screen.dart';
 import '../../presentation/screens/admin/member_contribution_report_screen.dart';
 import '../../presentation/screens/admin/export_center_screen.dart';
@@ -83,6 +84,7 @@ import '../../presentation/screens/admin/marketplace_dashboard_screen.dart';
 import '../../presentation/screens/admin/offer_to_cooperative_screen.dart';
 import '../../presentation/screens/admin/buyer_management_screen.dart';
 import '../../presentation/screens/admin/buyer_details_screen.dart';
+import '../../presentation/screens/admin/buyer_order_history_screen.dart';
 import '../../presentation/screens/admin/order_management_screen.dart';
 import '../../presentation/screens/admin/admin_order_detail_screen.dart' as admin_order_detail;
 import '../../presentation/screens/buyer/marketplace_browse_screen.dart';
@@ -97,6 +99,7 @@ import '../../presentation/screens/buyer/price_monitoring_screen.dart';
 import '../../presentation/screens/buyer/buyer_account_screen.dart';
 import '../../presentation/screens/buyer/buyer_edit_profile_screen.dart';
 import '../../presentation/screens/buyer/buyer_settings_screen.dart';
+import '../../presentation/screens/buyer/buyer_recent_activity_screen.dart';
 import '../../presentation/screens/buyer/buyer_notifications_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
 import '../../presentation/shell/admin_shell_screen.dart';
@@ -190,18 +193,59 @@ class AppRouter {
           }
         }
 
+        // Forced password change after an admin-issued temporary password
+        // (see AccountManagementRepository.resetUserPassword). Applies to
+        // every role, unlike the farmer-pending check below, so it's
+        // checked first rather than nested inside that role-scoped gate.
+        final isAuthPath = path == AppRoutes.login ||
+            path == AppRoutes.register ||
+            path == AppRoutes.resetPasswordCallback ||
+            path == AppRoutes.forcePasswordChange;
+        if (!isAuthPath && HiveService.getMustChangePassword()) {
+          return AppRoutes.forcePasswordChange;
+        }
+
+        // Officer scope enforcement (Issue 6 / Decision D19) — an Officer
+        // has every Admin module EXCEPT the Members tab and Officer/account
+        // management. Admin is never subject to this. Redirects to the
+        // Admin dashboard rather than splash — the person is legitimately
+        // logged in, just hit a wall on one screen.
+        if (HiveService.getUserRole() == 'officer') {
+          const membersOnlyPaths = {
+            AppRoutes.farmerManagement,
+            AppRoutes.farmerDetails,
+            AppRoutes.addNewMember,
+            AppRoutes.createOfficerAccount,
+            AppRoutes.manageOfficerAccounts,
+            AppRoutes.manageAdminAccounts,
+            AppRoutes.memberExpenseHistory,
+          };
+          if (membersOnlyPaths.contains(path) ||
+              path.startsWith('/admin/members')) {
+            return AppRoutes.adminDashboard;
+          }
+        }
+
         // Only enforce for farmer paths (not auth, admin, buyer, or pending paths)
         final isFarmerPath = path.startsWith('/farmer/') &&
             !path.startsWith('/farmer/pending');
         if (!isFarmerPath) return null;
 
-        // Check cached membership status — synchronous, works offline
+        // Check cached membership status — synchronous, works offline.
+        // The Pending Applicant screen holds every pre-active farmer state
+        // (Issue 5): draft (not yet submitted), pending (under review),
+        // rejected (can resubmit), and approved-but-not-yet-acknowledged
+        // (Decision D7). Inactive is derived and never gates.
         final cachedRole = HiveService.getUserRole();
         final cachedStatus = HiveService.getMemberStatus();
 
-        if (cachedRole == AppConstants.roleFarmer &&
-            cachedStatus == 'pending') {
-          return AppRoutes.pendingHome;
+        if (cachedRole == AppConstants.roleFarmer) {
+          const held = {'draft', 'pending', 'rejected'};
+          if (held.contains(cachedStatus) ||
+              (cachedStatus == 'active' &&
+                  HiveService.getPendingAcknowledgement())) {
+            return AppRoutes.pendingHome;
+          }
         }
         return null;
       },
@@ -232,18 +276,15 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.fadeThrough(
             key: s.pageKey,
             child: ResetPasswordScreen(
-              errorCode: s.uri.queryParameters['error_code'],
-              errorDescription: s.uri.queryParameters['error_description']
-                  ?.replaceAll('+', ' '),
+              email: s.uri.queryParameters['email'] ?? '',
             ),
           ),
         ),
         GoRoute(
-          path: AppRoutes.pendingApproval,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => NoTransitionPage(
+          path: AppRoutes.forcePasswordChange,
+          pageBuilder: (c, s) => AppPageTransitions.fadeThrough(
             key: s.pageKey,
-            child: const PendingApprovalScreen(),
+            child: const ForcePasswordChangeScreen(),
           ),
         ),
         GoRoute(
@@ -280,6 +321,58 @@ class AppRouter {
             child: const EditFarmDetailsScreen(),
           ),
         ),
+        // ─── Profile secondary screens — pushed above the shell (Phase 1.1) ──
+        // Previously nested under the farmerProfile branch, which kept the
+        // bottom nav visible. Moved to rootNavigatorKey to match the pattern
+        // already used above for Settings/Edit Profile/Edit Farm Details.
+        GoRoute(
+          path: AppRoutes.myLoans,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyLoansScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myExpenses,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyExpensesScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myHarvestSummary,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyHarvestSummaryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myContribution,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyContributionScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myPrograms,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyProgramsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myMarketLinking,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyMarketLinkingScreen(),
+          ),
+        ),
         GoRoute(
           path: AppRoutes.harvestEntryForm,
           parentNavigatorKey: rootNavigatorKey,
@@ -287,7 +380,7 @@ class AppRouter {
             key: s.pageKey,
             child: HarvestEntryFormScreen(
               // prefer GoRouter extra when available; may be null
-              crop: s.extra as dynamic,
+              crop: s.extra as FarmerCropModel?,
             ),
           ),
         ),
@@ -296,7 +389,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: SelectCropScreen(initialCrop: s.extra as FarmerCropModel?),
+            child: const SelectCropScreen(),
           ),
         ),
         GoRoute(
@@ -304,7 +397,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: CropDetailsScreen(crop: s.extra as dynamic),
+            child: CropDetailsScreen(crop: s.extra as FarmerCropModel),
           ),
         ),
         GoRoute(
@@ -338,7 +431,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const CreateListingScreen(),
+            child: CreateListingScreen(initialArg: s.extra),
           ),
         ),
         GoRoute(
@@ -346,7 +439,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.scaleIn(
             key: s.pageKey,
-            child: const ListingSuccessScreen(),
+            child: ListingSuccessScreen(initialArg: s.extra),
           ),
         ),
         GoRoute(
@@ -494,6 +587,14 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.coopStockReport,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CooperativeStockReportScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.memberContributionReport,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -514,7 +615,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const HarvestManagementScreen(),
+            child: HarvestReportScreen(
+              initialTabIndex: s.extra == 1 ? 1 : 0,
+            ),
           ),
         ),
         GoRoute(
@@ -554,12 +657,26 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.listingReview,
           parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: ListingReviewScreen(
-              listingId: s.extra is String ? s.extra as String : '',
-            ),
-          ),
+          pageBuilder: (c, s) {
+            // extra is either a raw listing-id String (every existing
+            // caller — Pending Review, Dashboard shortcuts, Activity feed)
+            // or a {'listingId', 'readOnly'} map (All Listings, which
+            // must never show approve/reject/request-changes actions —
+            // see M-marketplace-2).
+            final extra = s.extra;
+            String listingId = '';
+            bool readOnly = false;
+            if (extra is String) {
+              listingId = extra;
+            } else if (extra is Map) {
+              listingId = extra['listingId'] as String? ?? '';
+              readOnly = extra['readOnly'] as bool? ?? false;
+            }
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: ListingReviewScreen(listingId: listingId, readOnly: readOnly),
+            );
+          },
         ),
         // Above-shell (parentNavigatorKey: rootNavigatorKey) — kept for
         // navigation from Dashboard's "pending listings" urgent action and
@@ -616,10 +733,38 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.adminOrderDetail,
           parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: admin_order_detail.OrderDetailScreen(orderId: s.extra as String),
-          ),
+          pageBuilder: (c, s) {
+            // extra is either a raw order-id String (Order Management —
+            // fully actionable) or a {'orderId', 'readOnly'} map (Buyer
+            // Order History — never actionable, see M-marketplace-4).
+            final extra = s.extra;
+            String orderId = '';
+            bool readOnly = false;
+            if (extra is String) {
+              orderId = extra;
+            } else if (extra is Map) {
+              orderId = extra['orderId'] as String? ?? '';
+              readOnly = extra['readOnly'] as bool? ?? false;
+            }
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: admin_order_detail.OrderDetailScreen(orderId: orderId, readOnly: readOnly),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.buyerOrderHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: BuyerOrderHistoryScreen(
+                buyerId: extra?['buyerId'] as String? ?? '',
+                buyerName: extra?['buyerName'] as String?,
+              ),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.offerToCooperative,
@@ -694,11 +839,11 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.createStaffAccount,
+          path: AppRoutes.createOfficerAccount,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const CreateStaffAccountScreen(),
+            child: const CreateOfficerAccountScreen(),
           ),
         ),
         GoRoute(
@@ -707,6 +852,14 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const ManageAccountsScreen(initialTab: 'farmer'),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.manageOfficerAccounts,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ManageAccountsScreen(initialTab: 'officer'),
           ),
         ),
         GoRoute(
@@ -846,43 +999,6 @@ class AppRouter {
                     key: s.pageKey,
                     child: const FarmerProfileScreen(),
                   ),
-                  routes: [
-                    GoRoute(
-                      path: 'loans',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const MyLoansScreen(),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'expenses',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const MyExpensesScreen(),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'harvest-summary',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const MyHarvestSummaryScreen(),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'contribution',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const MyContributionScreen(),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'programs',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const MyProgramsScreen(),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -908,6 +1024,19 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.cartCheckoutResult,
           parentNavigatorKey: rootNavigatorKey,
+          redirect: (context, state) {
+            // If the in-memory checkout result was lost (e.g. a web reload
+            // or a deep link straight to this URL), there's nothing
+            // meaningful to render — send the buyer to their orders list
+            // instead of crashing on the unguarded extra cast.
+            final extra = state.extra;
+            if (extra is! Map<String, dynamic> ||
+                extra['succeeded'] is! List<CartItemModel> ||
+                extra['failed'] is! List<(CartItemModel, String)>) {
+              return AppRoutes.myOrders;
+            }
+            return null;
+          },
           pageBuilder: (c, s) {
             final extra = s.extra as Map<String, dynamic>;
             return AppPageTransitions.slideForward(
@@ -949,6 +1078,14 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const BuyerSettingsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.buyerRecentActivity,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const BuyerRecentActivityScreen(),
           ),
         ),
         GoRoute(
@@ -1038,15 +1175,6 @@ class AppRouter {
                     key: s.pageKey,
                     child: const OperationalReportsScreen(),
                   ),
-                  routes: [
-                    GoRoute(
-                      path: 'coop-stock',
-                      pageBuilder: (c, s) => AppPageTransitions.slideForward(
-                        key: s.pageKey,
-                        child: const CooperativeStockReportScreen(),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/marketplace_listing_model.dart';
@@ -125,6 +126,15 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   void _confirmWithdraw(MarketplaceListingModel listing) {
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
+          backgroundColor: AppConstants.warningAmber,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -172,6 +182,15 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   }
 
   void _confirmDelete(MarketplaceListingModel listing) {
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
+          backgroundColor: AppConstants.warningAmber,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -200,9 +219,26 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              await _repo.deleteListing(listing.id);
-              if (!mounted) return;
-              _loadData();
+              try {
+                await _repo.deleteListing(listing.id);
+                if (!mounted) return;
+                _loadData();
+              } on PostgrestException catch (e) {
+                // delete_listing() now raises a specific message when the
+                // listing has order history (Buyer review finding 1.1,
+                // Option A) or isn't withdrawn yet. Surface that message
+                // directly instead of a generic failure text, so the
+                // farmer understands this isn't a bug to retry.
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e.message)),
+                );
+              } catch (_) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Failed to delete. Please try again.')),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.errorRed,
@@ -246,9 +282,16 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   }
 
   void _editAndResubmit(MarketplaceListingModel listing) {
-    Navigator.of(
-      context,
-    ).pushNamed(AppRoutes.createListing, arguments: listing).then((result) {
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
+          backgroundColor: AppConstants.warningAmber,
+        ),
+      );
+      return;
+    }
+    context.pushRoute(AppRoutes.createListing, extra: listing).then((result) {
       if (result == true) _loadData();
     });
   }
@@ -272,13 +315,17 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              if (!_isOnline) const _OfflineBanner(),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — some listing actions require an internet connection."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
@@ -408,6 +455,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -708,7 +758,7 @@ class _ListingCard extends StatelessWidget {
                         ? _ChangesRequiredContent(
                             listing: listing,
                             onEditResubmit: onEditResubmit,
-                            onDelete: onDelete,
+                            onWithdraw: onWithdraw,
                           )
                         : _StandardContent(
                             listing: listing,
@@ -912,12 +962,12 @@ class _StandardContent extends StatelessWidget {
 class _ChangesRequiredContent extends StatelessWidget {
   final MarketplaceListingModel listing;
   final VoidCallback onEditResubmit;
-  final VoidCallback onDelete;
+  final VoidCallback onWithdraw;
 
   const _ChangesRequiredContent({
     required this.listing,
     required this.onEditResubmit,
-    required this.onDelete,
+    required this.onWithdraw,
   });
 
   @override
@@ -1075,13 +1125,13 @@ class _ChangesRequiredContent extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: TextButton(
-                onPressed: onDelete,
+                onPressed: onWithdraw,
                 style: TextButton.styleFrom(
                   foregroundColor: AppConstants.errorRed,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                 ),
                 child: Text(
-                  'Delete',
+                  'Withdraw',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -1157,25 +1207,33 @@ class _StatusBadge extends StatelessWidget {
         break;
       case 'approved':
         label = 'LIVE ON MARKET';
-        bg = AppConstants.successGreen.withValues(alpha: 0.20);
-        fg = AppConstants.successGreen;
+        fg = ListingStatusDisplay.color(context, status);
+        bg = fg.withValues(alpha: 0.20);
         break;
       case 'changes_required':
         label = 'CHANGES REQUIRED';
-        bg = Theme.of(
-          context,
-        ).colorScheme.errorContainer.withValues(alpha: 0.70);
-        fg = Theme.of(context).colorScheme.onErrorContainer;
+        fg = ListingStatusDisplay.color(context, status);
+        bg = fg.withValues(alpha: 0.20);
         break;
       case 'withdrawn':
         label = 'WITHDRAWN';
-        bg = AppConstants.outline.withValues(alpha: 0.20);
-        fg = AppConstants.outline;
+        fg = ListingStatusDisplay.color(context, status);
+        bg = fg.withValues(alpha: 0.20);
+        break;
+      case 'rejected':
+        label = 'REJECTED';
+        fg = ListingStatusDisplay.color(context, status);
+        bg = fg.withValues(alpha: 0.20);
+        break;
+      case 'sold':
+        label = 'SOLD';
+        fg = ListingStatusDisplay.color(context, status);
+        bg = fg.withValues(alpha: 0.20);
         break;
       default:
         label = status.toUpperCase();
-        bg = AppConstants.outline.withValues(alpha: 0.20);
-        fg = AppConstants.outline;
+        fg = ListingStatusDisplay.color(context, status);
+        bg = fg.withValues(alpha: 0.20);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1369,7 +1427,7 @@ class _ListingMenuSheet extends StatelessWidget {
               label: 'Withdraw Listing',
               onTap: onWithdraw,
             ),
-          if (listing.isWithdrawn)
+          if (listing.isWithdrawn || listing.isRejected)
             _MenuOption(
               icon: Icons.delete_outline_rounded,
               label: 'Delete Listing',
@@ -1495,43 +1553,6 @@ class _Shimmer extends StatelessWidget {
           context,
         ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.40),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: Theme.of(
-        context,
-      ).colorScheme.secondaryContainer.withValues(alpha: 0.18),
-      child: Row(
-        children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            size: 18,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'Offline — Showing cached listings.',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSecondaryContainer,
-            ),
-          ),
-        ],
       ),
     );
   }

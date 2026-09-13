@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/harvest_repository.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/harvest_log_widgets.dart';
 
@@ -28,6 +29,7 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
   String _activeCrop = 'All Crops';
   String _searchQuery = '';
   bool _isLoading = true;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -39,6 +41,10 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
     if (widget.initialCropFilter != null) {
       _activeCrop = widget.initialCropFilter!;
     }
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadData();
     _searchController.addListener(_onSearchChanged);
   }
@@ -101,65 +107,77 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 72),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadData,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                    children: [
-                      // Search
-                      _SearchBar(controller: _searchController),
-                      const SizedBox(height: 12),
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — your full harvest history may not be up to date."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 72),
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadData,
+                        child: ListView(
+                          padding:
+                              const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                          children: [
+                            // Search
+                            _SearchBar(controller: _searchController),
+                            const SizedBox(height: 12),
 
-                      // Crop filter chips
-                      HarvestCropChips(
-                        options: _cropOptions,
-                        active: _activeCrop,
-                        onSelected: _setCropFilter,
+                            // Crop filter chips
+                            HarvestCropChips(
+                              options: _cropOptions,
+                              active: _activeCrop,
+                              onSelected: _setCropFilter,
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Summary stats
+                            HarvestSummaryStats(
+                                stats: _stats, isLoading: _isLoading),
+                            const SizedBox(height: 24),
+
+                            // Log entries
+                            if (_isLoading)
+                              ...List.generate(4, (_) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 10),
+                                    child: _LogShimmer(),
+                                  ))
+                            else if (_filtered.isEmpty)
+                              _EmptyState(
+                                hasFilter: _searchQuery.isNotEmpty ||
+                                  _activeCrop != 'All Crops',
+                              )
+                            else
+                              ..._filtered.map((h) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 10),
+                                    child: HarvestLogEntry(harvest: h),
+                                  )),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // Summary stats
-                      HarvestSummaryStats(stats: _stats, isLoading: _isLoading),
-                      const SizedBox(height: 24),
-
-                      // Log entries
-                      if (_isLoading)
-                        ...List.generate(4, (_) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _LogShimmer(),
-                            ))
-                      else if (_filtered.isEmpty)
-                        _EmptyState(
-                          hasFilter: _searchQuery.isNotEmpty ||
-                            _activeCrop != 'All Crops',
-                        )
-                      else
-                        ..._filtered.map((h) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: HarvestLogEntry(harvest: h),
-                            )),
-                    ],
+                    ),
+                  ],
+                ),
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: FarmerTopBar(
+                    title: 'Harvest History',
+                    onBack: () => Navigator.of(context).pop(),
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () {},
+                    showNotificationButton: false,
                   ),
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: FarmerTopBar(
-              title: 'Harvest History',
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
+              ],
             ),
           ),
         ],

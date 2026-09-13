@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_order_model.dart';
+import '../models/buyer_activity_model.dart';
 
 /// Buyer-scoped access to the orders table.
 ///
@@ -35,7 +37,10 @@ class BuyerOrderRepository {
         for (final l in listings) {
           listingMap[l['id'] as String] = l;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('BuyerOrderRepository.fetchMyOrders: listing lookup '
+            'failed ($e) — crop name/photo will be missing');
+      }
 
       return orders.map((o) {
         final listing = listingMap[o['listing_id']];
@@ -46,7 +51,8 @@ class BuyerOrderRepository {
           'photo_url': listing?['photo_url'],
         });
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BuyerOrderRepository.fetchMyOrders failed: $e');
       return [];
     }
   }
@@ -62,6 +68,7 @@ class BuyerOrderRepository {
             'status, notes, created_at, updated_at',
           )
           .eq('id', orderId)
+          .eq('buyer_id', _userId)
           .maybeSingle();
 
       if (order == null) return null;
@@ -89,7 +96,9 @@ class BuyerOrderRepository {
               .ilike('crop_name', cropName)
               .maybeSingle();
           category = crop?['category'] as String?;
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('BuyerOrderRepository.fetchOrderById: category lookup failed ($e)');
+        }
 
         if (batchId != null) {
           try {
@@ -110,9 +119,13 @@ class BuyerOrderRepository {
                 harvestDate = DateTime.parse(hr!['harvest_date'] as String);
               }
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('BuyerOrderRepository.fetchOrderById: batch/harvest lookup failed ($e)');
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('BuyerOrderRepository.fetchOrderById: listing lookup failed ($e)');
+      }
 
       return BuyerOrderModel.fromMap({
         ...order,
@@ -123,8 +136,68 @@ class BuyerOrderRepository {
         'harvest_date': harvestDate?.toIso8601String(),
         'category': category,
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BuyerOrderRepository.fetchOrderById failed: $e');
       return null;
     }
   }
+
+  // ─── Recent Activity (order-derived entries) ───────────────────────────────
+  // Derived at read time from `orders` directly — same convention as
+  // Farmer's DashboardRepository.fetchActivity(). No new table: orders
+  // already carries created_at/updated_at/status, everything needed. One
+  // entry per order, reflecting its current state — mirrors how Farmer's
+  // own "Orders" activity category behaves (current state, not a full
+  // per-transition history), not a new pattern invented for Buyer.
+  Future<List<BuyerActivityItem>> fetchOrderActivity({int limit = 50}) async {
+    try {
+      final rows = await _client
+          .from('orders')
+          .select('id, total_price, status, created_at, updated_at, '
+              'marketplace_listings(crop_name)')
+          .eq('buyer_id', _userId)
+          .order('updated_at', ascending: false)
+          .limit(limit);
+
+      return rows.map((r) {
+        final cropName =
+            (r['marketplace_listings'] as Map?)?['crop_name'] as String? ?? 'Produce';
+        final status = r['status'] as String;
+        // English title/statusLabel kept as a defensive fallback only —
+        // buyer_account_screen.dart's _RecentActivityTile and
+        // buyer_recent_activity_screen.dart's _ActivityCard (the only two
+        // consumers of this model) now derive the displayed, localized
+        // text from orderStatus below instead of reading these directly.
+        final title = switch (status) {
+          'pending' => 'Order Placed',
+          'approved' => 'Order Approved',
+          'completed' => 'Order Completed',
+          'cancelled' => 'Order Cancelled',
+          _ => 'Order Updated',
+        };
+        final timestamp = status == 'pending'
+            ? DateTime.parse(r['created_at'] as String)
+            : DateTime.parse(r['updated_at'] as String);
+        return BuyerActivityItem(
+          id: r['id'] as String,
+          type: BuyerActivityType.order,
+          title: title,
+          subtitle: cropName,
+          valueLabel: '₱${(r['total_price'] as num).toStringAsFixed(2)}',
+          statusLabel: status[0].toUpperCase() + status.substring(1),
+          timestamp: timestamp,
+          orderStatus: status,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('BuyerOrderRepository.fetchOrderActivity failed: $e');
+      return [];
+    }
+  }
+
+  // Preview-only variant for the Account screen's inline section — small
+  // limit per call site, matching Farmer's fetchActivity()'s own
+  // per-category-limit pattern rather than slicing the full list.
+  Future<List<BuyerActivityItem>> fetchRecentOrderActivity({int limit = 3}) =>
+      fetchOrderActivity(limit: limit);
 }

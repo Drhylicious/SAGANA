@@ -9,6 +9,9 @@ extension SaganaNavigation on BuildContext {
   Future<T?> pushRoute<T extends Object?>(String route, {Object? extra}) =>
       GoRouter.of(this).push<T>(route, extra: extra);
 
+  Future<T?> pushReplacementRoute<T extends Object?>(String route, {Object? extra}) =>
+      GoRouter.of(this).pushReplacement<T>(route, extra: extra);
+
   void popRoute([Object? result]) => GoRouter.of(this).pop(result);
 
   void goLogin() => go(AppRoutes.login);

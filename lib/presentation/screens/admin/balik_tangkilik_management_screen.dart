@@ -11,6 +11,7 @@ import '../../../data/models/balik_tangkilik_model.dart';
 import '../../../data/models/contribution_model.dart';
 import '../../../data/repositories/balik_tangkilik_repository.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 
 /// Balik-Tangkilik Management — Admin.
@@ -397,6 +398,41 @@ class _SettingsTabState extends State<_SettingsTab> {
                   ),
                 ],
               ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _totalCoopSalesController,
+                builder: (context, value, _) {
+                  if (_liveTotalSales <= 0) return const SizedBox.shrink();
+                  final entered = double.tryParse(value.text.trim()) ?? 0;
+                  final diffPercent =
+                      ((entered - _liveTotalSales).abs() / _liveTotalSales) * 100;
+                  if (diffPercent < 1) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppConstants.warningAmber.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 14, color: AppConstants.warningAmber),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              l10n.balikTangkilikReconciliationHint(
+                                currency.format(entered),
+                                currency.format(_liveTotalSales),
+                              ),
+                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurface),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: AppConstants.spacingGutter),
               _fieldLabel(l10n.balikTangkilikPoolAmount, cs),
               _numberField(_distributableSurplusController, cs, sagana),
@@ -685,7 +721,7 @@ class _DistributionTabState extends State<_DistributionTab> {
           Text(l10n.balikTangkilikMemberBreakdown, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
           const SizedBox(height: AppConstants.spacingSm),
           if (_summary.rows.isEmpty)
-            _buildEmptyState(l10n.reportsNoSearchResults, cs)
+            ReportEmptyState(message: l10n.reportsNoSearchResults)
           else
             ..._summary.rows.map((r) => _MemberAmountRow(
                   farmerName: r.farmerName,
@@ -822,18 +858,6 @@ class _DistributionTabState extends State<_DistributionTab> {
       ],
     );
   }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(message, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
-    );
-  }
 }
 
 // ─── History tab (NEW) ───────────────────────────────────────────────────────
@@ -898,19 +922,7 @@ class _HistoryTabState extends State<_HistoryTab> {
           Text(l10n.balikTangkilikHistoryTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
           const SizedBox(height: AppConstants.spacingSm),
           if (_history.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppConstants.spacingGutter),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-              child: Text(
-                l10n.balikTangkilikNoHistoryYet,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-              ),
-            )
+            ReportEmptyState(message: l10n.balikTangkilikNoHistoryYet)
           else
             ..._history.map((year) => GestureDetector(
                   onTap: () => _openYearDetail(year),

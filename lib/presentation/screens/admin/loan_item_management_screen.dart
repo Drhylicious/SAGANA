@@ -196,40 +196,6 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
     );
   }
 
-  void _confirmRemove(LoanCatalogItem item) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: Text(
-            'Remove "${item.itemName}"?',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-          ),
-          content: Text(
-            'This will remove the item from the loan catalog. '
-            'Existing loan records that include this item will not be affected.',
-            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                final ok = await _repo.removeFromLoanCatalog(item.loanItemId);
-                if (ok) _load();
-              },
-              child: const Text('Remove', style: TextStyle(color: AppConstants.errorRed)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
@@ -358,7 +324,12 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                             ],
                           )
                         : ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                            padding: const EdgeInsets.fromLTRB(
+                              AppConstants.spacingSafeH,
+                              AppConstants.spacingGutter,
+                              AppConstants.spacingSafeH,
+                              AppConstants.spacingSafeH,
+                            ),
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -461,29 +432,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                                                     ],
                                                   ),
                                                 ),
-                                                PopupMenuButton<String>(
-                                                  icon: Icon(Icons.more_vert_rounded, size: 20, color: cs.onSurfaceVariant),
-                                                  onSelected: (v) async {
-                                                    switch (v) {
-                                                      case 'remove':
-                                                        _confirmRemove(item);
-                                                        break;
-                                                    }
-                                                  },
-                                                  itemBuilder: (_) => [
-                                                    PopupMenuItem(
-                                                      value: 'remove',
-                                                      child: Row(
-                                                        children: [
-                                                          const Icon(Icons.remove_circle_rounded, size: 16, color: AppConstants.errorRed),
-                                                          const SizedBox(width: 8),
-                                                          Text('Remove from Catalog',
-                                                              style: GoogleFonts.inter(color: AppConstants.errorRed)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                Icon(Icons.chevron_right_rounded, size: 20, color: cs.onSurfaceVariant),
                                               ],
                                             ),
                                           ),

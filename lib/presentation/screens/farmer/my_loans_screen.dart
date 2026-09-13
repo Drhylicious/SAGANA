@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/loan_model.dart';
 import '../../../data/repositories/loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -54,30 +55,10 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
     });
   }
 
-  // ── BOD date logic (port of HTML JS) ──────────────────────────────────────
-  DateTime _nextBodSaturday() {
-    final now = DateTime.now();
-    DateTime candidate = _firstSaturdayOf(now.year, now.month);
-    // If this month's first Saturday has passed, use next month's
-    if (now.isAfter(candidate)) {
-      final next = DateTime(now.year, now.month + 1, 1);
-      candidate = _firstSaturdayOf(next.year, next.month);
-    }
-    return candidate;
-  }
-
-  DateTime _firstSaturdayOf(int year, int month) {
-    DateTime d = DateTime(year, month, 1);
-    while (d.weekday != DateTime.saturday) {
-      d = d.add(const Duration(days: 1));
-    }
-    return d;
-  }
-
   @override
   Widget build(BuildContext context) {
     final activeLoans = _loans.where((l) => !l.isPaid).toList();
-    final bodDate = _nextBodSaturday();
+    final bodDate = BodSchedule.upcoming();
     final allPaid = !_isLoading && _totalOutstanding == 0 && _loans.isNotEmpty;
 
     return Scaffold(
@@ -87,7 +68,8 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
-              if (!_isOnline) const _OfflineBanner(),
+              if (!_isOnline)
+                const OfflineBanner(message: "You're offline — your loan information may not be up to date."),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -171,43 +153,6 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// Offline Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      color: AppConstants.errorRed,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            size: 16,
-            color: Theme.of(context).colorScheme.onPrimary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Connectivity lost. Showing offline data.',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ],

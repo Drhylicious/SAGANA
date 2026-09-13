@@ -45,8 +45,34 @@ class _DisposalActionSheet extends StatelessWidget {
     required this.isCoopEligible,
   });
 
+  // Ginger is DA-AMAD-exclusive — it can only ever move through Market
+  // Linking, never the open Marketplace, Offer to Cooperative, or an
+  // informal sale. Matches the same crop-name check used consistently
+  // elsewhere for Ginger (market_linking_repository.dart). See
+  // M-marketplace-7.
+  bool get _isGinger => cropName.toLowerCase().contains('ginger');
+
   @override
   Widget build(BuildContext context) {
+    if (_isGinger) {
+      return ManagementModalShell(
+        title: '$cropName • ${availableKg.toStringAsFixed(0)} kg available',
+        subtitle: 'What would you like to do with this batch?',
+        body: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ginger is sold exclusively through the DA-AMAD Market Linking '
+              'program, not the open Marketplace, Offer to Cooperative, or an '
+              'informal sale. Check My Market Linking for this batch\'s status.',
+              style: TextStyle(fontSize: 13, color: AppConstants.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
+
     return ManagementModalShell(
       title: '$cropName • ${availableKg.toStringAsFixed(0)} kg available',
       subtitle: 'What would you like to do with this batch?',

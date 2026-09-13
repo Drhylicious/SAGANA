@@ -112,33 +112,37 @@ class _SplashScreenState extends State<SplashScreen>
       final role = await AuthService.getCurrentUserRole();
 
       if (role == AppConstants.roleFarmer) {
-        // Check membership status — pending farmers go to holding screen
+        // Every pre-active farmer state routes to the Pending Applicant
+        // screen (Issue 5): draft / pending / rejected, plus approved-
+        // but-not-yet-acknowledged (Decision D7).
         try {
           final userId = AuthService.currentUser?.id;
           if (userId != null) {
             final row = await Supabase.instance.client
                 .from('user_roles')
-                .select('status')
+                .select('status, pending_acknowledgement')
                 .eq('user_id', userId)
                 .single();
             final status = row['status'] as String? ?? 'active';
-            targetRoute = status == 'pending'
-                ? AppRoutes.pendingApproval
-                : AppRoutes.farmerDashboard;
+            final pendingAck =
+                row['pending_acknowledgement'] as bool? ?? false;
+            await HiveService.saveMemberStatus(status);
+            await HiveService.savePendingAcknowledgement(pendingAck);
+            targetRoute = _farmerHome(status, pendingAck);
           } else {
             targetRoute = AppRoutes.farmerDashboard;
           }
         } catch (_) {
           // Offline fallback
-          final cachedStatus = HiveService.getMemberStatus();
-          targetRoute = cachedStatus == 'pending'
-              ? AppRoutes.pendingApproval
-              : AppRoutes.farmerDashboard;
+          targetRoute = _farmerHome(
+            HiveService.getMemberStatus(),
+            HiveService.getPendingAcknowledgement(),
+          );
         }
       } else {
         switch (role) {
           case AppConstants.roleAdmin:
-          case 'staff':
+          case 'officer':
             targetRoute = AppRoutes.adminDashboard;
             break;
           case AppConstants.roleBuyer:
@@ -154,14 +158,14 @@ class _SplashScreenState extends State<SplashScreen>
       final isLoggedIn = HiveService.isLoggedIn();
       if (isLoggedIn && cachedRole != null) {
         if (cachedRole == AppConstants.roleFarmer) {
-          final cachedStatus = HiveService.getMemberStatus();
-          targetRoute = cachedStatus == 'pending'
-              ? AppRoutes.pendingApproval
-              : AppRoutes.farmerDashboard;
+          targetRoute = _farmerHome(
+            HiveService.getMemberStatus(),
+            HiveService.getPendingAcknowledgement(),
+          );
         } else {
           switch (cachedRole) {
             case AppConstants.roleAdmin:
-            case 'staff':
+            case 'officer':
               targetRoute = AppRoutes.adminDashboard;
               break;
             case AppConstants.roleBuyer:
@@ -178,6 +182,17 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
     context.go(targetRoute);
+  }
+
+  /// Where a farmer lands based on their membership state. Every pre-active
+  /// state (and approved-but-unacknowledged) goes to the Pending Applicant
+  /// screen; a fully-active member goes to the dashboard.
+  static String _farmerHome(String? status, bool pendingAck) {
+    const held = {'draft', 'pending', 'rejected'};
+    if (held.contains(status) || (status == 'active' && pendingAck)) {
+      return AppRoutes.pendingHome;
+    }
+    return AppRoutes.farmerDashboard;
   }
 
   @override

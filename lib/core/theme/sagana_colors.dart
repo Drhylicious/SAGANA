@@ -12,12 +12,16 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
   final Color gold;
   final Color harvestGold;
   // Market Type tokens — the one shared color system for
-  // Cooperative / DA-AMAD / Open Market, reused across the Home
+  // Cooperative / Public Market, reused across the Home
   // carousel, Market Rate Details, and View Market screens. Never
   // define these locally in a screen file again.
   final Color marketCooperative;
-  final Color marketDaAmad;
   final Color marketOpenMarket;
+  // DA-AMAD Market — reintroduced exclusively for Ginger (Admin Marketplace
+  // review, Market Linking phase). Distinct from both Cooperative and
+  // Public Market so Ginger's classification is never visually confused
+  // with either.
+  final Color marketDaAmad;
 
   const SaganaColors({
     required this.scaffoldBackground,
@@ -28,8 +32,8 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     required this.gold,
     required this.harvestGold,
     required this.marketCooperative,
-    required this.marketDaAmad,
     required this.marketOpenMarket,
+    required this.marketDaAmad,
   });
 
   static const light = SaganaColors(
@@ -41,8 +45,8 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     gold: AppConstants.gold,
     harvestGold: AppConstants.harvestGold,
     marketCooperative: AppConstants.primaryGreen,
-    marketDaAmad: Color(0xFF1565C0),
     marketOpenMarket: Color(0xFF757575),
+    marketDaAmad: AppConstants.programPurple,
   );
 
   static const dark = SaganaColors(
@@ -54,8 +58,8 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     gold: AppConstants.gold,
     harvestGold: AppConstants.harvestGold,
     marketCooperative: AppConstants.lightGreen,
-    marketDaAmad: Color(0xFF64B5F6),
     marketOpenMarket: Color(0xFFB0BEC5),
+    marketDaAmad: AppConstants.programPurple,
   );
 
   @override
@@ -68,8 +72,8 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
     Color? gold,
     Color? harvestGold,
     Color? marketCooperative,
-    Color? marketDaAmad,
     Color? marketOpenMarket,
+    Color? marketDaAmad,
   }) {
     return SaganaColors(
       scaffoldBackground: scaffoldBackground ?? this.scaffoldBackground,
@@ -80,8 +84,8 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
       gold: gold ?? this.gold,
       harvestGold: harvestGold ?? this.harvestGold,
       marketCooperative: marketCooperative ?? this.marketCooperative,
-      marketDaAmad: marketDaAmad ?? this.marketDaAmad,
       marketOpenMarket: marketOpenMarket ?? this.marketOpenMarket,
+      marketDaAmad: marketDaAmad ?? this.marketDaAmad,
     );
   }
 
@@ -100,8 +104,8 @@ class SaganaColors extends ThemeExtension<SaganaColors> {
       harvestGold: Color.lerp(harvestGold, other.harvestGold, t)!,
       marketCooperative:
           Color.lerp(marketCooperative, other.marketCooperative, t)!,
-      marketDaAmad: Color.lerp(marketDaAmad, other.marketDaAmad, t)!,
       marketOpenMarket: Color.lerp(marketOpenMarket, other.marketOpenMarket, t)!,
+      marketDaAmad: Color.lerp(marketDaAmad, other.marketDaAmad, t)!,
     );
   }
 }
@@ -111,7 +115,7 @@ extension SaganaColorsContext on BuildContext {
       Theme.of(this).extension<SaganaColors>() ?? SaganaColors.light;
 }
 
-/// Shared label + lookup for the three market-type classifications
+/// Shared label + lookup for the two market-type classifications
 /// (crop_master.crop_type / price_records.price_type). One place both
 /// the color and the display text live, so Home, Market Rate Details,
 /// and View Market can never drift apart on either.
@@ -133,11 +137,47 @@ class MarketTypeDisplay {
   static String label(String priceType) {
     switch (priceType) {
       case 'sp3_cooperative':
-        return 'SP3 Cooperative';
+        return 'Cooperative Market';
       case 'da_amad_market':
-        return 'DA-AMAD Reference';
+        return 'DA-AMAD Market';
       default:
-        return 'Open Market';
+        return 'Public Market';
+    }
+  }
+}
+
+/// Shared color lookup for marketplace_listings.status, mirroring
+/// MarketTypeDisplay's pattern above — one place the color lives, so
+/// Farmer's My Listings and Admin's Listing Review can never disagree on
+/// a status's color again. Previously they did: changes_required was
+/// error-red-toned on the Farmer badge, amber/warning on Admin's review
+/// screen. Resolved here in favor of amber/warning — changes_required is
+/// an actionable-but-not-failed state, unlike rejected.
+///
+/// Labels are intentionally NOT unified here — Farmer's badge uses
+/// descriptive text ("LIVE ON MARKET") while Admin's uses compact text
+/// ("Live") for a denser review list. That's a deliberate difference
+/// between two UI densities, not accidental duplication.
+class ListingStatusDisplay {
+  ListingStatusDisplay._();
+
+  static Color color(BuildContext context, String status) {
+    final cs = Theme.of(context).colorScheme;
+    switch (status) {
+      case 'pending_review':
+        return AppConstants.warningAmber;
+      case 'approved':
+        return AppConstants.successGreen;
+      case 'changes_required':
+        return AppConstants.warningAmber;
+      case 'sold':
+        return cs.onSurfaceVariant;
+      case 'rejected':
+        return cs.error;
+      case 'withdrawn':
+        return cs.outline;
+      default:
+        return cs.outline;
     }
   }
 }

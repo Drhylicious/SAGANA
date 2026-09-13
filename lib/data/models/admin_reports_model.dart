@@ -78,6 +78,21 @@ extension ReportPeriodExt on ReportPeriod {
   }
 }
 
+/// Display order for period chips across every Report screen — deliberately
+/// independent of ReportPeriod's declared enum order (thisMonth, thisQuarter,
+/// thisYear, allTime), since other logic (sorting, previousRange()) relies
+/// on that declaration order and shouldn't be touched. Matches the order
+/// Operational Reports' landing page already uses; every individual report
+/// screen should build its period chips from this list, not from
+/// ReportPeriod.values directly, so the chip order stays consistent
+/// everywhere without being duplicated per screen.
+const reportPeriodChipOrder = [
+  ReportPeriod.allTime,
+  ReportPeriod.thisMonth,
+  ReportPeriod.thisQuarter,
+  ReportPeriod.thisYear,
+];
+
 class PerformanceSummary {
   final double totalHarvestKg;
   final double coopSalesAmount;
@@ -156,6 +171,7 @@ class SalesTransactionRow {
 
 class SalesReportData {
   final double totalRevenue;
+  final double marketplaceRevenue;
   final double totalQuantityKg;
   final int transactionCount;
   final double palayAmount;
@@ -165,6 +181,7 @@ class SalesReportData {
 
   const SalesReportData({
     required this.totalRevenue,
+    required this.marketplaceRevenue,
     required this.totalQuantityKg,
     required this.transactionCount,
     required this.palayAmount,
@@ -176,8 +193,20 @@ class SalesReportData {
   double get averageSaleAmount =>
       transactionCount > 0 ? totalRevenue / transactionCount : 0;
 
+  SalesReportData copyWithMarketplaceRevenue(double value) => SalesReportData(
+    totalRevenue: totalRevenue,
+    marketplaceRevenue: value,
+    totalQuantityKg: totalQuantityKg,
+    transactionCount: transactionCount,
+    palayAmount: palayAmount,
+    peanutAmount: peanutAmount,
+    monthlyTrend: monthlyTrend,
+    transactions: transactions,
+  );
+
   factory SalesReportData.empty() => const SalesReportData(
     totalRevenue: 0,
+    marketplaceRevenue: 0,
     totalQuantityKg: 0,
     transactionCount: 0,
     palayAmount: 0,
@@ -253,7 +282,6 @@ class InventoryReportRow {
   final String memberId;
   final String cropName;
   final String batchNumber;
-  final String qualityGrade;
   final double quantityKg;
   final double availableKg;
   final double reservedKg;
@@ -269,7 +297,6 @@ class InventoryReportRow {
     required this.memberId,
     required this.cropName,
     required this.batchNumber,
-    required this.qualityGrade,
     required this.quantityKg,
     required this.availableKg,
     required this.reservedKg,
@@ -329,7 +356,6 @@ class HarvestReportRow {
   final String farmerName;
   final String memberId;
   final String cropName;
-  final String qualityGrade;
   final double quantityKg;
   final DateTime harvestDate;
   final bool submittedToCooperative;
@@ -342,7 +368,6 @@ class HarvestReportRow {
     required this.farmerName,
     required this.memberId,
     required this.cropName,
-    required this.qualityGrade,
     required this.quantityKg,
     required this.harvestDate,
     required this.submittedToCooperative,
@@ -354,7 +379,6 @@ class HarvestReportRow {
 class HarvestReportData {
   final double totalYieldKg;
   final int harvestCount;
-  final double gradeAPercent;
   final int unsyncedCount;
   final List<double> monthlyTrend;
   final List<CropStockBreakdown> cropBreakdown;
@@ -363,7 +387,6 @@ class HarvestReportData {
   const HarvestReportData({
     required this.totalYieldKg,
     required this.harvestCount,
-    required this.gradeAPercent,
     required this.unsyncedCount,
     required this.monthlyTrend,
     required this.cropBreakdown,
@@ -373,7 +396,6 @@ class HarvestReportData {
   factory HarvestReportData.empty() => const HarvestReportData(
         totalYieldKg: 0,
         harvestCount: 0,
-        gradeAPercent: 0,
         unsyncedCount: 0,
         monthlyTrend: [],
         cropBreakdown: [],
@@ -383,6 +405,12 @@ class HarvestReportData {
 
 // ─── Expense Report ─────────────────────────────────────────────────────────
 
+/// Subsidized expenses are stored with amount = 0 by design (see
+/// ExpenseRepository.addExpense() on the farmer side — a subsidized item's
+/// cost to the farmer is zero since the cooperative/government covered it).
+/// There is therefore no meaningful peso total for "subsidized spending" —
+/// only a count. Don't add a subsidizedAmount field; it would always be
+/// zero and would misleadingly imply a real tracked total.
 class ExpenseReportRow {
   final String farmerId;
   final String farmerName;
@@ -405,12 +433,6 @@ class ExpenseReportRow {
   });
 }
 
-/// Subsidized expenses are stored with amount = 0 by design (see
-/// ExpenseRepository.addExpense() on the farmer side — a subsidized item's
-/// cost to the farmer is zero since the cooperative/government covered it).
-/// There is therefore no meaningful peso total for "subsidized spending" —
-/// only a count. Don't add a subsidizedAmount field; it would always be
-/// zero and would misleadingly imply a real tracked total.
 class CoopStockReportRow {
   final String id;
   final String itemName;

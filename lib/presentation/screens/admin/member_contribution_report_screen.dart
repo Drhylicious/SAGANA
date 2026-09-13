@@ -11,15 +11,24 @@ import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/report_summary_widgets.dart';
 
-/// Member Contribution Report — Admin.
+/// Member Patronage Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/contributions
 ///
-/// Year-scoped (not Month/Quarter/Year/All-Time like the other reports) —
-/// see repository doc comment for why. Computed live from
-/// member_sales_transactions; deliberately does not touch
-/// member_contributions' Balik-Tangkilik/interest fields — that belongs
-/// to the separate, still-pending Balik-Tangkilik Management module.
+/// "Patronage" = how much produce each member sold TO the cooperative in a
+/// year (member_sales_transactions), and their resulting share of total
+/// coop sales — the basis for the Balik-Tangkilik patronage refund. This
+/// is NOT the member's capital-share contribution (₱2,000/share, tracked
+/// per member on the Members tab via capital_contribution_events).
+///
+/// Year-scoped (not Month/Quarter/Year/All-Time like the other reports).
+/// Computed live from member_sales_transactions; deliberately does not
+/// touch member_contributions' Balik-Tangkilik/interest fields — that
+/// belongs to the Balik-Tangkilik Management module.
+///
+/// Internal identifiers (class name, route, l10n key) keep the historical
+/// "contribution" wording; only the user-facing label changed.
 class MemberContributionReportScreen extends StatefulWidget {
   const MemberContributionReportScreen({super.key});
 
@@ -144,7 +153,7 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                icon: Icon(Icons.file_download_outlined, color: cs.primary),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: ExportCenterArgs(
@@ -189,52 +198,24 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
   Widget _buildSummaryCard(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        gradient: AppConstants.primaryButtonGradient,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.reportsTotalCoopSalesLabel(_year),
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.85)),
-          ),
-          Text(
-            currency.format(_data.totalCoopSales),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: Colors.white),
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          Row(
-            children: [
-              Expanded(
-                child: _summaryStat(
-                  l10n.reportsContributingMembers,
-                  '${_data.contributingMemberCount} / ${_data.memberCount}',
-                ),
-              ),
-              Expanded(
-                child: _summaryStat(
-                  l10n.reportsParticipationRate,
-                  '${_data.participationPercent.toStringAsFixed(0)}%',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryStat(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
-        Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.white)),
+    return ReportHeroCard(
+      title: l10n.reportsTotalCoopSalesLabel(_year),
+      period: ReportPeriod.allTime,
+      primaryStats: [
+        ReportHeroStat(
+          label: '',
+          value: currency.format(_data.totalCoopSales),
+        ),
+      ],
+      secondaryStats: [
+        ReportHeroStat(
+          label: l10n.reportsContributingMembers,
+          value: '${_data.contributingMemberCount} / ${_data.memberCount}',
+        ),
+        ReportHeroStat(
+          label: l10n.reportsParticipationRate,
+          value: '${_data.participationPercent.toStringAsFixed(0)}%',
+        ),
       ],
     );
   }
@@ -264,26 +245,10 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
         ),
         const SizedBox(height: AppConstants.spacingSm),
         if (filtered.isEmpty)
-          _buildEmptyState(l10n.reportsNoSearchResults, cs)
+          ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
           ...filtered.map((row) => _buildMemberRow(context, row, l10n, cs, sagana)),
       ],
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-      ),
     );
   }
 

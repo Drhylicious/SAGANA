@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
-import '../../data/models/farmer_crop_model.dart';
+import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/crop_repository.dart';
+import 'app_dropdown_field.dart';
 import 'management_modal.dart';
 import 'material_list_tile.dart';
 
@@ -51,6 +52,7 @@ class _CropCatalogModal extends StatefulWidget {
 
 class _CropCatalogModalState extends State<_CropCatalogModal> {
   _CropCatalogStep _step = _CropCatalogStep.browse;
+  final _categoryRepo = CategoryRepository();
 
   // ── Browse step state ──
   final _searchController = TextEditingController();
@@ -61,7 +63,8 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
 
   // ── Request step state ──
   final _nameController = TextEditingController();
-  String _category = FarmerCropModel.categories.first;
+  List<String> _categories = [];
+  String? _category;
   String _cropType = 'open_market';
   bool _isSubmitting = false;
 
@@ -80,13 +83,18 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   }
 
   Future<void> _load() async {
-    final catalog = await widget.repo.fetchCropCatalog();
+    final results = await Future.wait([
+      widget.repo.fetchCropCatalog(),
+      _categoryRepo.fetchCropCategories(),
+    ]);
     if (!mounted) return;
+    final catalog = results[0] as List<Map<String, dynamic>>;
     setState(() {
       _catalog = catalog
           .where((c) => !widget.existingCropMasterIds.contains(c['id'] as String))
           .toList();
       _filtered = _catalog;
+      _categories = results[1] as List<String>;
       _isLoading = false;
     });
   }
@@ -131,12 +139,18 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   Future<void> _submitRequest() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
+    if (_category == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a category.')),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     try {
       await widget.repo.requestNewCrop(
         cropName: name,
-        category: _category,
+        category: _category!,
         cropType: _cropType,
       );
       // The crop is usable immediately (per the copy below) — closing the
@@ -225,17 +239,21 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
               itemBuilder: (_, i) {
                 final entry = _filtered[i];
                 final isAdding = _addingId == entry['id'];
+                final imageUrl = entry['image_url'] as String?;
                 return MaterialListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Container(
                     width: 40,
                     height: 40,
+                    clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: AppConstants.primaryGreen.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.eco_rounded,
-                        color: AppConstants.primaryGreen, size: 20),
+                    child: (imageUrl != null && imageUrl.isNotEmpty)
+                        ? Image.network(imageUrl, fit: BoxFit.cover)
+                        : const Icon(Icons.eco_rounded,
+                            color: AppConstants.primaryGreen, size: 20),
                   ),
                   title: Text(entry['crop_name'] as String,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
@@ -305,24 +323,21 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
           decoration: const InputDecoration(labelText: 'Crop name'),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _category,
-          decoration: const InputDecoration(labelText: 'Category'),
-          items: FarmerCropModel.categories
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-              .toList(),
-          onChanged: (v) => setState(() => _category = v ?? _category),
+        AppDropdownField<String>(
+          value: _category,
+          hintText: 'Select a category',
+          labelText: 'Category',
+          items: _categories,
+          itemLabel: (c) => c,
+          onChanged: (v) => setState(() => _category = v),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _cropType,
-          decoration: const InputDecoration(labelText: 'Market Type (SP3 will confirm)'),
-          items: const [
-            DropdownMenuItem(
-                value: 'sp3_cooperative', child: Text('Cooperative Crop (SP3 Buying)')),
-            DropdownMenuItem(value: 'da_amad_market', child: Text('DA-AMAD Reference Crop')),
-            DropdownMenuItem(value: 'open_market', child: Text('Open Market Crop')),
-          ],
+        AppDropdownField<String>(
+          value: _cropType,
+          hintText: 'Select a market type',
+          labelText: 'Market Type (SP3 will confirm)',
+          items: const ['sp3_cooperative', 'open_market'],
+          itemLabel: (v) => v == 'sp3_cooperative' ? 'Cooperative Market' : 'Public Market',
           onChanged: (v) => setState(() => _cropType = v ?? _cropType),
         ),
       ],

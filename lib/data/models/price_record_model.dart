@@ -4,11 +4,15 @@ class PriceRecordModel {
   final String cropName;
   final double price;
   final String unit;
-  final String priceType; // 'sp3_cooperative' | 'da_amad_market' | 'open_market'
+  final String priceType; // 'sp3_cooperative' | 'open_market'
   final double? previousPrice;
   final DateTime recordedAt;
   final String? recordedBy;
   final String? source; // Reference document: Board Resolution, DA Bulletin, etc.
+  // Referenced from crop_master via crop_id — Price Management never owns
+  // or uploads this, only displays it. Null until the admin sets an image
+  // on the crop in Crop Management.
+  final String? cropImageUrl;
 
   const PriceRecordModel({
     required this.id,
@@ -21,6 +25,7 @@ class PriceRecordModel {
     required this.recordedAt,
     this.recordedBy,
     this.source,
+    this.cropImageUrl,
   });
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -36,11 +41,11 @@ class PriceRecordModel {
   String get priceTypeLabel {
     switch (priceType) {
       case 'sp3_cooperative':
-        return 'SP3 Cooperative Price';
+        return 'Cooperative Market Price';
       case 'da_amad_market':
         return 'DA-AMAD Market Price';
       default:
-        return 'Market Reference Price';
+        return 'Public Market Price';
     }
   }
 
@@ -60,6 +65,9 @@ class PriceRecordModel {
       recordedAt:    DateTime.parse(map['recorded_at'] as String),
       recordedBy:    map['recorded_by'] as String?,
       source:        map['source'] as String?,
+      // Present only when fetched via a query that embeds crop_master
+      // (fetchLatestPricePerCrop) — absent (null) elsewhere, e.g. history.
+      cropImageUrl:  (map['crop_master'] as Map<String, dynamic>?)?['image_url'] as String?,
     );
   }
 

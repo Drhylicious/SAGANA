@@ -4,6 +4,15 @@
 -- of truth for buyer-order availability. inventory_batches stays
 -- exactly as-is for every other disposal path — this only changes
 -- how the buyer-order sub-flow tracks its own slice of a listing.
+--
+-- ⚠️ NOTE: this file is canonical for place_order, cancel_order,
+-- complete_order, reject_listing, withdraw_listing, and
+-- resubmit_listing_with_reservation — but NOT for
+-- create_listing_with_reservation, defined below. That one function
+-- has a bug (wrong column name, invalid status) fixed by
+-- supabase_schema_create_listing_reservation_corrected.sql, which
+-- must be re-applied after this file if this file is ever re-run.
+-- See supabase_schema_RESERVATION_MODEL_NOTES.md.
 -- ============================================================
 
 ALTER TABLE public.marketplace_listings

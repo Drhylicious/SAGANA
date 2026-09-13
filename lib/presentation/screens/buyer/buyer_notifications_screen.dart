@@ -2,10 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../widgets/app_dialog.dart';
+
+// Buyer-local time-ago formatter — deliberately not modifying
+// NotificationModel.timeAgo since that getter is shared across
+// Admin/Farmer/Buyer notification screens. Mirrors its exact branching
+// logic, just localized, using the model's public createdAt field.
+String _buyerNotifTimeAgo(DateTime createdAt, AppLocalizations l10n) {
+  final diff = DateTime.now().difference(createdAt);
+  if (diff.inMinutes < 60) return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
+  if (diff.inHours < 24) return l10n.buyerNotifTimeHoursAgo(diff.inHours);
+  if (diff.inDays == 1) return l10n.buyerNotifTimeYesterday;
+  return l10n.buyerNotifTimeDaysAgo(diff.inDays);
+}
 
 class BuyerNotificationsScreen extends StatefulWidget {
   const BuyerNotificationsScreen({super.key});
@@ -49,6 +62,19 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
   List<NotificationModel> get _filtered =>
       _all.where((n) => _selectedFilter.matches(n)).toList();
 
+  // Buyer-local label override — avoids modifying the shared NotificationFilter
+  // enum (also used by Admin/Farmer notification screens). Falls back to the
+  // enum's own .label for any filter value outside Buyer's 4-chip row.
+  String _filterLabel(NotificationFilter filter, AppLocalizations l10n) {
+    switch (filter) {
+      case NotificationFilter.all: return l10n.buyerNotifFilterAll;
+      case NotificationFilter.orders: return l10n.buyerNavOrders;
+      case NotificationFilter.listings: return l10n.buyerNotifFilterListings;
+      case NotificationFilter.prices: return l10n.buyerNavPrices;
+      default: return filter.label;
+    }
+  }
+
   Future<void> _markAsRead(NotificationModel n) async {
     if (n.isRead) return;
     setState(() {
@@ -82,6 +108,7 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final filtered = _filtered;
     final hasUnread = _all.any((n) => n.isUnread);
@@ -92,7 +119,7 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
         backgroundColor: sagana.scaffoldBackground,
         elevation: 0,
         leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text('Notifications',
+        title: Text(l10n.sectionNotifications,
             style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
         actions: [
           if (_all.isNotEmpty)
@@ -104,8 +131,8 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
               },
               itemBuilder: (context) => [
                 if (hasUnread)
-                  const PopupMenuItem(value: 'read_all', child: Text('Mark all as read')),
-                const PopupMenuItem(value: 'clear_all', child: Text('Clear all')),
+                  PopupMenuItem(value: 'read_all', child: Text(l10n.buyerNotifMenuMarkAllRead)),
+                PopupMenuItem(value: 'clear_all', child: Text(l10n.buyerNotifMenuClearAll)),
               ],
             ),
         ],
@@ -127,12 +154,12 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppConstants.primaryGreen : Colors.white,
+                      color: isSelected ? AppConstants.primaryGreen : context.saganaColors.cardBackground,
                       borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                       border: Border.all(color: isSelected ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.25)),
                     ),
                     alignment: Alignment.center,
-                    child: Text(filter.label,
+                    child: Text(_filterLabel(filter, l10n),
                         style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600,
                             color: isSelected ? Colors.white : AppConstants.onSurfaceVariant)),
                   ),
@@ -178,6 +205,7 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -186,9 +214,9 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
           children: [
             Icon(Icons.notifications_none_rounded, size: 56, color: AppConstants.outline.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
-            Text('No notifications', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(l10n.buyerNotifEmptyTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Text('You\'ll see order and marketplace updates here.',
+            Text(l10n.buyerNotifEmptyBody,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
           ],
@@ -210,18 +238,32 @@ class _NotificationTile extends StatelessWidget {
       case NotificationType.price: return Icons.trending_up_rounded;
       case NotificationType.loan: return Icons.account_balance_wallet_rounded;
       case NotificationType.sync: return Icons.sync_rounded;
-      case NotificationType.system: return Icons.info_rounded;
+      case NotificationType.system:
+      case NotificationType.listingSubmitted:
+      case NotificationType.loanOverdue:
+      case NotificationType.memberPending:
+      case NotificationType.memberRegistered:
+      case NotificationType.memberUpdated:
+      case NotificationType.memberApproved:
+      case NotificationType.memberRejected:
+      case NotificationType.lowStock:
+      case NotificationType.stockDepleted:
+      case NotificationType.cropRequest:
+      case NotificationType.cooperativeOffer:
+      case NotificationType.program:
+        return Icons.info_rounded;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: notification.isUnread ? AppConstants.primaryGreen.withValues(alpha: 0.05) : Colors.white,
+          color: notification.isUnread ? AppConstants.primaryGreen.withValues(alpha: 0.05) : context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: notification.isUnread ? Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.2)) : null,
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
@@ -245,7 +287,7 @@ class _NotificationTile extends StatelessWidget {
                   Text(notification.body,
                       style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Text(notification.timeAgo,
+                  Text(_buyerNotifTimeAgo(notification.createdAt, l10n),
                       style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant.withValues(alpha: 0.7))),
                 ],
               ),
@@ -266,17 +308,18 @@ class _NotificationTile extends StatelessWidget {
 class _ClearAllConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 40),
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Clear All Notifications?', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+            Text(l10n.buyerNotifClearDialogTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
             const SizedBox(height: 6),
-            Text('This cannot be undone.',
+            Text(l10n.buyerNotifClearDialogMessage,
                 style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
             const SizedBox(height: 18),
             Row(
@@ -284,7 +327,7 @@ class _ClearAllConfirmDialog extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
+                    child: Text(l10n.cancel),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -292,7 +335,7 @@ class _ClearAllConfirmDialog extends StatelessWidget {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: AppConstants.errorRed),
                     onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+                    child: Text(l10n.buyerNotifDialogClearAll, style: const TextStyle(color: Colors.white)),
                   ),
                 ),
               ],

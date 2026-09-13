@@ -12,6 +12,7 @@ import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 
 /// Loan Details — Admin (read-only).
@@ -162,7 +163,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               ),
               Expanded(
                 child: Text(
-                  l10n.loanDetailsTitle,
+                  _detail != null
+                      ? l10n.loanDetailsContextualTitle(_detail!.loan.referenceNo)
+                      : l10n.loanDetailsTitle,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
                 ),
               ),
@@ -199,7 +203,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           AppConstants.spacingSafeH,
           AppConstants.spacingGutter,
           AppConstants.spacingSafeH,
-          32,
+          AppConstants.spacingSafeH,
         ),
         children: [
           _buildFarmerRow(context, detail, cs, sagana),
@@ -288,23 +292,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         ),
         child: Row(
           children: [
-            CircleAvatar(
+            ProfileAvatar(
+              photoUrl: detail.farmerPhotoUrl,
+              displayName: detail.farmerName,
               radius: 20,
-              backgroundColor: AppConstants.primaryContainer,
-              child: detail.farmerPhotoUrl != null
-                  ? ClipOval(
-                      child: Image.network(
-                        detail.farmerPhotoUrl!,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: Colors.white),
-                      ),
-                    )
-                  : Text(
-                      detail.farmerName.isNotEmpty ? detail.farmerName[0].toUpperCase() : '?',
-                      style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
             ),
             const SizedBox(width: AppConstants.spacingMd),
             Expanded(
@@ -379,6 +370,27 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               ),
             ],
           ),
+          if (loan.isFromProgramDistribution as bool) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.eco_rounded, size: 12, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    'From Program Distribution: ${loan.sourceProgramName}',
+                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: AppConstants.spacingSm),
           Text(
             currency.format(loan.totalValue),
@@ -558,8 +570,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: AppConstants.spacingSm),
+          Divider(height: AppConstants.spacingSectionV, color: cs.outline.withValues(alpha: 0.10)),
           Text(l10n.issueLoanFrequency, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+          const SizedBox(height: 2),
           Text(l10n.issueLoanVenue, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
         ],
       ),

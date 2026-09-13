@@ -6,6 +6,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
 
 class FarmerNotificationsScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
 
   List<NotificationModel> _notifications = [];
   bool _isLoading = true;
+  bool _isOnline = true;
+  bool _loadFailed = false;
   NotificationFilter _activeFilter = NotificationFilter.all;
 
   @override
@@ -32,17 +35,33 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+    _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadNotifications();
   }
 
   Future<void> _loadNotifications() async {
-    setState(() => _isLoading = true);
-    final items = await _repo.fetchNotifications();
-    if (!mounted) return;
     setState(() {
-      _notifications = items;
-      _isLoading = false;
+      _isLoading = true;
+      _loadFailed = false;
     });
+    try {
+      final items =
+          await _repo.fetchNotifications().timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      setState(() {
+        _notifications = items;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
+    }
   }
 
   List<NotificationModel> get _filtered =>
@@ -83,12 +102,17 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 64),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — you may not see your latest notifications until you're reconnected."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 64),
+                    Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadNotifications,
@@ -98,8 +122,13 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
                             color: AppConstants.primaryGreen,
                           ),
                         )
+                      : _loadFailed
+                      ? _NotificationsLoadError(
+                          onRetry: _loadNotifications,
+                          isOnline: _isOnline,
+                        )
                       : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -232,6 +261,9 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
               onProfileTap: () {},
               onNotificationTap: () {},
               showNotificationButton: false,
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -449,7 +481,39 @@ class _NotifCard extends StatelessWidget {
         return const _IconConfig(Icons.show_chart_rounded, AppConstants.amber);
       case NotificationType.sync:
         return const _IconConfig(Icons.sync_rounded, AppConstants.successGreen);
+      case NotificationType.cropRequest:
+        return const _IconConfig(
+          Icons.local_florist_outlined,
+          AppConstants.primaryGreen,
+        );
+      case NotificationType.cooperativeOffer:
+        return const _IconConfig(
+          Icons.groups_outlined,
+          AppConstants.successGreen,
+        );
+      case NotificationType.program:
+        return const _IconConfig(
+          Icons.volunteer_activism_outlined,
+          AppConstants.tertiaryContainer,
+        );
+      case NotificationType.memberApproved:
+        return const _IconConfig(
+          Icons.verified_outlined,
+          AppConstants.successGreen,
+        );
+      case NotificationType.memberRejected:
+        return const _IconConfig(
+          Icons.info_outline_rounded,
+          AppConstants.errorRed,
+        );
       case NotificationType.system:
+      case NotificationType.listingSubmitted:
+      case NotificationType.loanOverdue:
+      case NotificationType.memberPending:
+      case NotificationType.memberRegistered:
+      case NotificationType.memberUpdated:
+      case NotificationType.lowStock:
+      case NotificationType.stockDepleted:
         return const _IconConfig(
           Icons.info_outline_rounded,
           AppConstants.onSurfaceVariant,
@@ -497,6 +561,65 @@ class _EmptyState extends StatelessWidget {
             style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifications Load Error — shown when fetchNotifications() fails or times
+// out. Message/icon distinguish "you're offline" from a genuine load
+// failure, matching FarmerProfileScreen's _ProfileLoadError pattern.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NotificationsLoadError extends StatelessWidget {
+  final VoidCallback onRetry;
+  final bool isOnline;
+  const _NotificationsLoadError({required this.onRetry, required this.isOnline});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
+              size: 40,
+              color: AppConstants.outline.withValues(alpha: 0.60),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isOnline ? 'Could not load your notifications' : 'You\'re offline',
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.charcoal,
+              ),
+            ),
+            if (!isOnline) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Your notifications will load once you\'re back online.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: onRetry,
+              child: Text(
+                'Retry',
+                style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

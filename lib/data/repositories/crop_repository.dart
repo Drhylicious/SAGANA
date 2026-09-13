@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_crop_model.dart';
 import '../services/app_event_service.dart';
+import 'harvest_repository.dart';
 
 class CropAlreadyExistsException implements Exception {
   final String cropName;
@@ -83,7 +84,7 @@ class CropRepository {
     try {
       final response = await _client
           .from('crop_master')
-          .select('id, crop_name, category, crop_type')
+          .select('id, crop_name, category, crop_type, image_url')
           .eq('is_active', true)
           .order('sort_order');
       return List<Map<String, dynamic>>.from(response);
@@ -114,9 +115,13 @@ class CropRepository {
   }
 
   // ─── Request a new crop (not yet in the catalog) ───────────────────────────
-  // Usable immediately (crop_master_id stays null → isPendingApproval),
-  // per the agreed "don't block the farmer" rule. Admin approval later
-  // backfills crop_master_id via the Crop Request Approval workflow.
+  // Creates the farmer_crops row immediately with crop_master_id left null
+  // (isPendingApproval == true) so the farmer can see and manage it right
+  // away — but it stays unusable for recording a harvest until an admin
+  // approves the request. That gate is enforced client-side, in
+  // select_crop_screen.dart, crop_details_screen.dart, and
+  // harvest_entry_form_screen.dart. Admin approval later backfills
+  // crop_master_id via the Crop Request Approval workflow.
 
   Future<FarmerCropModel> requestNewCrop({
     required String cropName,
@@ -142,6 +147,20 @@ class CropRepository {
         .limit(1);
     if (existingPending.isNotEmpty) {
       throw CropRequestAlreadyPendingException(trimmedName);
+    }
+
+    // farmer_crops has UNIQUE(farmer_id, crop_name) — without this check,
+    // a duplicate name against the farmer's own existing list falls
+    // through to a raw Postgres unique-violation instead of the named
+    // exception the UI expects to catch.
+    final existingOwnCrop = await _client
+        .from('farmer_crops')
+        .select('id')
+        .eq('farmer_id', _userId)
+        .ilike('crop_name', trimmedName)
+        .limit(1);
+    if (existingOwnCrop.isNotEmpty) {
+      throw CropAlreadyExistsException(trimmedName);
     }
 
     final cropResponse = await _client
@@ -208,7 +227,7 @@ class CropRepository {
       ]);
       final harvestRows = results[0];
       final batchRows = results[1];
-      final soldCount = batchRows.where((b) => b['status'] == 'sold').length;
+      final soldCount = batchRows.where((b) => b['status'] == 'sold_out').length;
       return CropDeleteImpact(
         harvestCount: harvestRows.length,
         inventoryBatchCount: batchRows.length,
@@ -232,20 +251,25 @@ class CropRepository {
 extension CropHarvestSummary on CropRepository {
   /// Returns total_kg harvested per crop_id, keyed by crop id.
   Future<Map<String, double>> fetchTotalKgPerCrop() async {
+    final Map<String, double> totals = {};
     try {
       final rows = await _client
           .from('harvest_records')
           .select('crop_id, quantity_kg')
           .eq('farmer_id', _userId);
-
-      final Map<String, double> totals = {};
       for (final row in rows) {
         final id = row['crop_id'] as String;
         totals[id] = (totals[id] ?? 0) + (row['quantity_kg'] as num).toDouble();
       }
-      return totals;
     } catch (_) {
-      return {};
+      // Falls through to pending-only totals below.
     }
+    // Merge in Hive-queued offline harvests, same source HarvestRepository
+    // uses everywhere else, so My Harvest Summary matches Home/Harvest Hub
+    // even before a queued harvest has synced (Phase 2 / U1).
+    for (final h in HarvestRepository().pendingHarvestModels()) {
+      totals[h.cropId] = (totals[h.cropId] ?? 0) + h.quantityKg;
+    }
+    return totals;
   }
 }

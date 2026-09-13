@@ -8,9 +8,13 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/program_model.dart';
+import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/program_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/app_dropdown_field.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/material_list_tile.dart';
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
@@ -24,8 +28,10 @@ class ProgramManagementScreen extends StatefulWidget {
 
 class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   final _repo = ProgramRepository();
+  final _categoryRepo = CategoryRepository();
 
   List<CooperativeProgram> _programs = [];
+  List<String> _inventoryCategories = [];
   bool _isLoading = true;
   bool _isOnline = true;
 
@@ -43,9 +49,16 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final result = await _repo.fetchPrograms();
+    final results = await Future.wait([
+      _repo.fetchPrograms(),
+      _categoryRepo.fetchInventoryCategories(),
+    ]);
     if (!mounted) return;
-    setState(() { _programs = result; _isLoading = false; });
+    setState(() {
+      _programs = results[0] as List<CooperativeProgram>;
+      _inventoryCategories = results[1] as List<String>;
+      _isLoading = false;
+    });
   }
 
   Color _typeColor(String type) {
@@ -86,6 +99,51 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     }
   }
 
+  // ─── Delete program ─────────────────────────────────────────────────────
+
+  void _confirmDeleteProgram(CooperativeProgram program) async {
+    final impact = await _repo.fetchProgramDeleteImpact(program.id);
+    if (!mounted) return;
+
+    final impactMessage = impact.checkFailed
+        ? 'Could not verify what this program contains — deleting it may still remove enrolled members and distribution history.'
+        : impact.memberCount == 0
+            ? 'No members are enrolled — this program can be safely deleted.'
+            : '${impact.memberCount} enrolled member${impact.memberCount == 1 ? '' : 's'}'
+                '${impact.distributedCount > 0 ? ', ${impact.distributedCount} already distributed a benefit' : ''} '
+                'will be permanently removed along with this program. Loans already created from a '
+                'failed distribution are not affected — they stay in the Loans tab.';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text('Delete "${program.programName}"?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(impactMessage, style: GoogleFonts.inter(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Delete', style: TextStyle(color: AppConstants.errorRed)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final ok = await _repo.deleteProgram(program.id);
+    if (!mounted) return;
+    if (ok) _load();
+    AppToast.show(
+      context,
+      ok ? 'Program deleted' : 'Failed to delete program. Try again.',
+      isError: !ok,
+    );
+  }
+
   void _showProgramSheet(CooperativeProgram? existing) {
     final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: existing?.programName ?? '');
@@ -97,7 +155,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
         text: existing?.expectedReturnPercent?.toString() ?? '');
     String selectedStatus = existing?.status ?? 'active';
     String selectedBenefitType = existing?.benefitType ?? 'grant';
+    String? selectedDistributionCategory = existing?.distributionCategory;
     bool isSaving = false;
+    var categoryOptions = List<String>.of(_inventoryCategories);
 
     showManagementModal(
       context: context,
@@ -116,6 +176,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                 expectedReturnPercent: double.tryParse(returnPercentCtrl.text),
                 description: descCtrl.text.isEmpty ? null : descCtrl.text,
                 budget: budget,
+                distributionCategory: selectedDistributionCategory,
               );
             } else {
               ok = await _repo.updateProgram(
@@ -127,21 +188,22 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                 description: descCtrl.text.isEmpty ? null : descCtrl.text,
                 budget: budget,
                 status: selectedStatus,
+                distributionCategory: selectedDistributionCategory,
               );
             }
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (ok) _load();
-            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
-              content: Text(ok
+            if (!mounted) return;
+            AppToast.show(
+              context,
+              ok
                   ? existing == null
                       ? 'Program created'
                       : 'Program updated'
-                  : 'Failed. Try again.'),
-              backgroundColor:
-                  ok ? AppConstants.successGreen : AppConstants.errorRed,
-              behavior: SnackBarBehavior.floating,
-            ));
+                  : 'Failed. Try again.',
+              isError: !ok,
+            );
           }
 
           return ManagementModalShell(
@@ -170,20 +232,40 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                   TextFormField(
                     controller: typeCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Program Type / Category (optional)',
+                      labelText: 'Program Type *',
                       hintText: 'e.g. Crop Production, Livestock, DA-AMAD',
                     ),
                     textCapitalization: TextCapitalization.words,
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Program type is required';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedBenefitType,
-                    decoration: const InputDecoration(labelText: 'Benefit Type *'),
-                    items: const [
-                      DropdownMenuItem(value: 'grant', child: Text('Grant — no return expected')),
-                      DropdownMenuItem(value: 'revenue_share', child: Text('Revenue Share — farmer returns a % later')),
-                    ],
-                    onChanged: (v) => setSheet(() => selectedBenefitType = v!),
+                  AppDropdownField<String>(
+                    value: selectedDistributionCategory,
+                    hintText: 'Select a category',
+                    labelText: 'Distributes From *',
+                    helperText: 'The inventory category this program '
+                        'distributes from. Managed in Inventory Management.',
+                    items: categoryOptions,
+                    itemLabel: (c) => c,
+                    onChanged: (v) => setSheet(() => selectedDistributionCategory = v),
+                    validator: (v) => v == null ? 'A category is required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  AppDropdownField<String>(
+                    value: selectedBenefitType,
+                    hintText: 'Select a benefit type',
+                    labelText: 'Benefit Type *',
+                    items: const ['grant', 'revenue_share'],
+                    itemLabel: (v) => v == 'grant'
+                        ? 'Grant — no return expected'
+                        : 'Revenue Share — farmer returns a % later',
+                    onChanged: (v) => setSheet(() => selectedBenefitType = v ?? selectedBenefitType),
+                    validator: (v) => v == null ? 'Benefit type is required' : null,
                   ),
                   if (selectedBenefitType == 'revenue_share') ...[
                     const SizedBox(height: 12),
@@ -203,6 +285,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                   if (existing != null) ...[
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: selectedStatus,
                       decoration: const InputDecoration(labelText: 'Status *'),
                       items: _statusOptions
@@ -576,6 +659,19 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                                     ]),
                                                   ),
                                                 ),
+                                                const SizedBox(width: 10),
+                                                GestureDetector(
+                                                  onTap: () => _confirmDeleteProgram(p),
+                                                  child: Container(
+                                                    padding: const EdgeInsets.all(9),
+                                                    decoration: BoxDecoration(
+                                                      color: AppConstants.errorRed.withValues(alpha: 0.08),
+                                                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                                    ),
+                                                    child: const Icon(Icons.delete_outline_rounded,
+                                                        size: 16, color: AppConstants.errorRed),
+                                                  ),
+                                                ),
                                               ]),
                                             ],
                                           ),
@@ -658,23 +754,39 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
+  // Uses the root-overlay toast rather than ScaffoldMessenger — a plain
+  // SnackBar renders behind any still-open management modal (they're
+  // showGeneralDialog routes, which sit above the Scaffold), so an action
+  // taken inside a modal (e.g. distributing a benefit while the Members
+  // list stays open) would show its confirmation behind that modal instead
+  // of on top of it. See app_toast.dart.
   void _showSnack(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppToast.show(context, message, isError: isError);
   }
 
   // ─── Distribute benefit ─────────────────────────────────────────────────
 
   void _showDistributeSheet(ProgramMember member) {
-    if (_items.isEmpty) {
-      _showSnack('No active cooperative inventory items available.', isError: true);
+    // Phase 4: limit the picker to the program's distribution category (set
+    // via the "Distributes From" field on the program), so e.g. a Seeds
+    // program only offers seed items rather than every active inventory
+    // item. Programs with no category set (legacy, or intentionally
+    // cross-category) still see everything.
+    final category = widget.program.distributionCategory;
+    final eligibleItems = category == null
+        ? _items
+        : _items.where((i) => i.category == category).toList();
+    if (eligibleItems.isEmpty) {
+      _showSnack(
+        category == null
+            ? 'No active cooperative inventory items available.'
+            : 'No active "$category" items in Inventory Management for this program.',
+        isError: true,
+      );
       return;
     }
-    String? selectedItemId = _items.first.id;
+    String? selectedItemId = eligibleItems.first.id;
     final qtyCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -716,14 +828,17 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: selectedItemId,
                     decoration: const InputDecoration(labelText: 'Item *'),
-                    items: _items
+                    items: eligibleItems
                         .map((i) => DropdownMenuItem(
                               value: i.id,
                               child: Text(
                                 '${i.itemName} (${i.quantityOnHand.toStringAsFixed(1)} ${i.unit} on hand)',
                                 style: GoogleFonts.inter(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                             ))
                         .toList(),
@@ -858,6 +973,178 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     );
   }
 
+  // ─── Distribution outcome (Phase 8 / Issue 3's Loan/ROI workflow) ───────
+  // "Thriving" (lumago) is a one-tap status update — for Revenue Share
+  // programs it then unlocks the existing Record Return action above; for
+  // Grant programs it just closes the item out. "Failed" (hindi lumago)
+  // walks into a second sheet collecting the two fields issue_loan()
+  // requires (monthly payment, next payment date) before converting.
+
+  void _showRecordOutcomeSheet(ProgramMember member) {
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return ManagementModalShell(
+          title: 'Record Outcome',
+          subtitle: member.farmerName,
+          body: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Did this member grow/develop ("palago") what was distributed to them?',
+                style: GoogleFonts.inter(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.trending_up_rounded),
+                  label: const Text('Thriving'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppConstants.successGreen),
+                  onPressed: () async {
+                    final ok = await widget.repo.recordThrivingOutcome(member.id);
+                    if (!ctx.mounted) return;
+                    Navigator.pop(ctx);
+                    if (ok) {
+                      _showSnack('Outcome recorded: thriving');
+                      _loadMembers();
+                    } else {
+                      _showSnack('Failed to record outcome. Try again.', isError: true);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: Icon(Icons.trending_down_rounded, color: AppConstants.errorRed),
+                  label: Text('Failed — Convert to Loan', style: TextStyle(color: AppConstants.errorRed)),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: AppConstants.errorRed)),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showConvertToLoanSheet(member);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showConvertToLoanSheet(ProgramMember member) {
+    final monthlyCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    DateTime nextPaymentDate = DateTime.now().add(const Duration(days: 30));
+
+    showManagementModal(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          bool isSaving = false;
+
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            final monthly = double.parse(monthlyCtrl.text);
+            setSheet(() => isSaving = true);
+            final ok = await widget.repo.convertDistributionToLoan(
+              programMemberId: member.id,
+              monthlyPayment: monthly,
+              nextPaymentDate: nextPaymentDate,
+              notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+            );
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (ok) {
+              _showSnack('Loan created for ${member.farmerName}');
+              _loadMembers();
+            } else {
+              _showSnack('Failed to convert distribution to a loan. Try again.', isError: true);
+            }
+          }
+
+          return ManagementModalShell(
+            title: 'Convert to Loan',
+            subtitle: member.farmerName,
+            body: Form(
+              key: formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'The distributed item becomes a loan, repaid the same way as any '
+                    'other loan issued from the Loans tab.',
+                    style: GoogleFonts.inter(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: monthlyCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Monthly Payment (₱) *',
+                      hintText: '0.00',
+                      prefixText: '₱ ',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    validator: (value) {
+                      if (!isValidCurrencyValue(value)) return 'Enter a valid amount';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Next Payment Date *',
+                      style: GoogleFonts.inter(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: nextPaymentDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) setSheet(() => nextPaymentDate = picked);
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.4)),
+                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      ),
+                      child: Text(_formatDate(nextPaymentDate)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: notesCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes (optional)',
+                      hintText: 'Defaults to noting the source program',
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+            footer: ManagementModalActions(
+              primaryLabel: isSaving ? 'Creating…' : 'Create Loan',
+              isLoading: isSaving,
+              onPrimary: submit,
+            ),
+          );
+        });
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -877,8 +1164,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Row(children: [
-                Expanded(
+                  Expanded(
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _selectedFarmerId,
                     decoration: const InputDecoration(
                       labelText: 'Enroll a member',
@@ -986,6 +1274,20 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                               color: AppConstants.successGreen),
                                         ),
                                       ],
+                                      if (m.isOutcomeRecorded) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          m.isFailed
+                                              ? 'Outcome: Failed — converted to loan on ${_formatDate(m.outcomeRecordedAt!)}'
+                                              : 'Outcome: Thriving, recorded ${_formatDate(m.outcomeRecordedAt!)}',
+                                          style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: m.isFailed
+                                                  ? AppConstants.errorRed
+                                                  : AppConstants.successGreen),
+                                        ),
+                                      ],
                                       const SizedBox(height: 8),
                                       Wrap(
                                         spacing: 8,
@@ -998,30 +1300,50 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                               filled: true,
                                               onTap: () => _showDistributeSheet(m),
                                             )
-                                          else if (widget.program.isRevenueShare && !m.isSettled)
+                                          else if (!m.isOutcomeRecorded)
+                                            _ActionChip(
+                                              label: 'Record Outcome',
+                                              color: AppConstants.buyerBlue,
+                                              filled: true,
+                                              onTap: () => _showRecordOutcomeSheet(m),
+                                            )
+                                          else if (m.isThriving && widget.program.isRevenueShare && !m.isSettled)
                                             _ActionChip(
                                               label: 'Record Return',
                                               color: AppConstants.warningAmber,
                                               filled: true,
                                               onTap: () => _showRecordReturnSheet(m),
                                             )
+                                          else if (m.isFailed)
+                                            _ActionChip(
+                                              label: 'Converted to Loan',
+                                              color: AppConstants.programPurple,
+                                              filled: false,
+                                              onTap: null,
+                                              icon: Icons.request_quote_outlined,
+                                            )
                                           else
                                             _ActionChip(
-                                              label: widget.program.isRevenueShare ? 'Settled' : 'Distributed',
+                                              label: widget.program.isRevenueShare ? 'Settled' : 'Thriving',
                                               color: AppConstants.successGreen,
                                               filled: false,
                                               onTap: null,
                                               icon: Icons.check_circle_rounded,
                                             ),
-                                          _ActionChip(
-                                            label: 'Remove',
-                                            color: AppConstants.errorRed,
-                                            filled: false,
-                                            onTap: () async {
-                                              final ok = await widget.repo.removeMember(m.id);
-                                              if (ok) _loadMembers();
-                                            },
-                                          ),
+                                          // Once distributed, the historical
+                                          // distribution must stay intact —
+                                          // removal is only for members who
+                                          // haven't received anything yet.
+                                          if (!m.isDistributed)
+                                            _ActionChip(
+                                              label: 'Remove',
+                                              color: AppConstants.errorRed,
+                                              filled: false,
+                                              onTap: () async {
+                                                final ok = await widget.repo.removeMember(m.id);
+                                                if (ok) _loadMembers();
+                                              },
+                                            ),
                                         ],
                                       ),
                                     ],
@@ -1188,7 +1510,7 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
                       separatorBuilder: (_, __) => Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
                       itemBuilder: (_, i) {
                         final a = _activities[i];
-                        return ListTile(
+                        return MaterialListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(a.title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500)),
                           subtitle: Text(

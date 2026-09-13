@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -12,6 +11,7 @@ import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/shared_widgets.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -62,38 +62,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.dispose();
   }
 
-  Future<void> _loadAdminName() async {
-    try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId != null) {
-        final row = await Supabase.instance.client
-            .from('user_information')
-            .select('full_name')
-            .eq('user_id', userId)
-            .maybeSingle();
-        final name = row?['full_name'] as String?;
-        if (name != null && name.isNotEmpty) {
-          // Use first name only
-          _adminName = name.split(' ').first;
-        }
-      }
-    } catch (_) {}
-  }
-
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
+    _repo.clearDashboardCache(); // Phase 5, item 5.1 — fresh data every cycle, not stale reuse
     final results = await Future.wait([
       _repo.fetchKpiSummary(),
       _repo.fetchDashboardPriorities(),
-      _repo.fetchRecentActivity(),
+      _repo.fetchRecentActivity(limit: 5), // Dashboard preview kept compact per your request — Activity Log's own call is separate and untouched
       _repo.fetchCoopPerformance(),
       _repo.fetchInventoryAlerts(),
       _repo.fetchManagementModuleBadges(),
       _repo.fetchCalendarEvents(
           year: _calendarMonth.year, month: _calendarMonth.month),
       _repo.fetchUnreadCount(),
+      _repo.fetchAdminFirstName(),
     ]);
-    await _loadAdminName();
     if (!mounted) return;
     setState(() {
       _kpi               = results[0] as AdminKpiSummary;
@@ -104,6 +87,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _managementModules = results[5] as List<ManagementModuleCard>;
       _calendarEvents    = results[6] as List<CalendarEvent>;
       _unreadCount       = results[7] as int;
+      final adminFirstName = results[8] as String?;
+      if (adminFirstName != null) _adminName = adminFirstName;
       _isLoading         = false;
     });
   }
@@ -138,7 +123,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               .push(AppRoutes.listingReview, extra: item.referenceId)
               .then((_) => _loadAll());
         } else {
-          context.go(AppRoutes.pendingApprovals);
+          // AppRoutes.pendingApprovals is a root-navigator push route, not
+          // a shell branch — see fetchDashboardPriorities() for the same
+          // fix and rationale. Phase 1, item 1.2.
+          context.push(AppRoutes.pendingApprovals).then((_) => _loadAll());
         }
       case AdminActivityType.loan:
         if (item.referenceId != null) {
@@ -157,7 +145,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           context.go(AppRoutes.farmerManagement);
         }
       case AdminActivityType.order:
-        context.go(AppRoutes.pendingApprovals);
+        context.push(AppRoutes.pendingApprovals).then((_) => _loadAll());
       case AdminActivityType.price:
         context.push(AppRoutes.priceManagement);
       case AdminActivityType.inventory:
@@ -204,7 +192,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: CustomScrollView(
           slivers: [
             if (!_isOnline)
-              SliverToBoxAdapter(child: _OfflineBanner(l10n: l10n)),
+              const SliverToBoxAdapter(child: OfflineBanner()),
 
             SliverPersistentHeader(
               pinned: true,
@@ -222,7 +210,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
 
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                10 + MediaQuery.of(context).viewPadding.bottom,
+              ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
 
@@ -286,8 +279,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           cs: cs,
                         ),
                         GestureDetector(
-                          onTap: () =>
-                              context.push(AppRoutes.adminInventory),
+                          // Phase 2: this card now describes cooperative_inventory
+                          // (Inventory Management's own stock), so the link routes
+                          // there instead of the farmer-harvest-batches screen.
+                          onTap: () => context.push(AppRoutes.adminInventory),
                           child: Text(
                             'View Inventory',
                             style: GoogleFonts.poppins(
@@ -322,7 +317,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         onTap: () =>
                             context.push(AppRoutes.adminCalendar),
                         child: Text(
-                          'Full Calendar',
+                          'View Full Calendar',
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -619,6 +614,22 @@ class _PrioritiesHeroCard extends StatelessWidget {
 // KPI Strip
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Phase 2, item 2.1 — flags the Overdue Loans figure as stale when the
+// nightly run_daily_loan_maintenance() job hasn't confirmed a run in over
+// 30 hours (its usual cadence is daily; 30h gives one missed-run's grace
+// before surfacing a warning).
+bool _isLoanDataStale(DateTime? asOf) {
+  if (asOf == null) return false;
+  return DateTime.now().difference(asOf) > const Duration(hours: 30);
+}
+
+String _loanDataStalenessLabel(DateTime? asOf) {
+  if (!_isLoanDataStale(asOf)) return 'loans';
+  final hours = DateTime.now().difference(asOf!).inHours;
+  final days = (hours / 24).floor();
+  return days >= 1 ? 'data ${days}d old' : 'data ${hours}h old';
+}
+
 class _KpiStrip extends StatelessWidget {
   final AdminKpiSummary kpi;
   final ColorScheme cs;
@@ -638,7 +649,7 @@ class _KpiStrip extends StatelessWidget {
         icon: Icons.people_rounded,
       ),
       _KpiTile(
-        label: 'Stock (kg)',
+        label: 'Coop Stock (kg)',
         value: _fmt(kpi.totalStockKg),
         sub: 'available',
         color: AppConstants.warningAmber,
@@ -654,10 +665,12 @@ class _KpiStrip extends StatelessWidget {
       _KpiTile(
         label: 'Overdue',
         value: '${kpi.overdueLoans}',
-        sub: 'loans',
-        color: kpi.overdueLoans > 0
-            ? AppConstants.errorRed
-            : cs.outline,
+        sub: _loanDataStalenessLabel(kpi.loanDataAsOf),
+        color: _isLoanDataStale(kpi.loanDataAsOf)
+            ? AppConstants.warningAmber
+            : kpi.overdueLoans > 0
+                ? AppConstants.errorRed
+                : cs.outline,
         icon: Icons.warning_amber_rounded,
       ),
       _KpiTile(
@@ -824,7 +837,7 @@ class _InventoryAlertsCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.cropName,
+                            item.itemName,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -832,7 +845,7 @@ class _InventoryAlertsCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            item.batchNumber,
+                            item.category,
                             style: GoogleFonts.inter(
                                 fontSize: 11,
                                 color: cs.onSurfaceVariant),
@@ -844,7 +857,7 @@ class _InventoryAlertsCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '${item.availableKg.toStringAsFixed(1)} kg',
+                          '${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
                           style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -1542,14 +1555,14 @@ class _CoopPerformanceCard extends StatelessWidget {
                 _StatPill('Harvests',
                     '${summary.totalHarvests}', cs),
                 const SizedBox(width: 12),
-                _StatPill('Stock',
+                _StatPill('Farmer Stock',
                     '${summary.totalStockKg.toStringAsFixed(0)} kg',
                     cs),
                 const SizedBox(width: 12),
                 _StatPill('Listings',
                     '${summary.activeListings}', cs),
                 const SizedBox(width: 12),
-                _StatPill('Sales',
+                _StatPill('Sales (all-time)',
                     '${summary.completedSales}', cs),
               ],
             ),
@@ -1633,40 +1646,8 @@ class _StatPill extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared: Offline Banner, Section Header, Shimmer
+// Shared: Section Header, Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _OfflineBanner extends StatelessWidget {
-  final AppLocalizations l10n;
-  const _OfflineBanner({required this.l10n});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppConstants.warningAmber,
-      padding:
-          const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.cloud_off_rounded,
-              size: 14, color: AppConstants.charcoal),
-          const SizedBox(width: 6),
-          Text(
-            l10n.offlineBanner,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _SectionHeader extends StatelessWidget {
   final String label;

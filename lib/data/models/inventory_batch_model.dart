@@ -9,7 +9,6 @@ class InventoryBatchModel {
   final double availableKg;
   final double reservedKg;
   final double soldKg;
-  final String qualityGrade;
   final String status; // available | reserved | sold_out | withdrawn | low_stock
   final bool isCoopEligible;
   final DateTime createdAt;
@@ -26,7 +25,6 @@ class InventoryBatchModel {
     required this.availableKg,
     required this.reservedKg,
     required this.soldKg,
-    required this.qualityGrade,
     required this.status,
     this.isCoopEligible = false,
     required this.createdAt,
@@ -71,7 +69,6 @@ class InventoryBatchModel {
       availableKg: (map['available_kg'] as num).toDouble(),
       reservedKg: (map['reserved_kg'] as num).toDouble(),
       soldKg: (map['sold_kg'] as num).toDouble(),
-      qualityGrade: map['quality_grade'] as String? ?? 'Grade A',
       status: map['status'] as String? ?? 'available',
       isCoopEligible: map['is_coop_eligible'] as bool? ?? false,
       createdAt: parseDate(map['created_at']) ?? DateTime.now(),

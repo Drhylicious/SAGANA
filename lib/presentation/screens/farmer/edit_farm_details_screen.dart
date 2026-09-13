@@ -48,6 +48,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   bool _isLoading     = true;
   bool _isSaving      = false;
   bool _argsRead      = false;
+  bool _loadFailed    = false;
   FarmerProfileModel? _profile;
 
   // ── Option lists ──────────────────────────────────────────────────────────
@@ -81,6 +82,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
       ),
     );
     _isOnline = ConnectivityService.instance.isOnline;
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _loadProfile();
   }
 
@@ -100,16 +104,34 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
 
   Future<void> _loadProfile() async {
     if (!_isLoading) return; // already populated from args
-    final profile = await _repo.fetchProfile();
-    if (!mounted) return;
-    if (profile != null) _populateFrom(profile);
-    setState(() => _isLoading = false);
+    setState(() => _loadFailed = false);
+    try {
+      final profile =
+          await _repo.fetchProfile().timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      if (profile != null) _populateFrom(profile);
+      setState(() => _isLoading = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
+    }
+  }
+
+  void _retryLoadProfile() {
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
+    _loadProfile();
   }
 
   void _populateFrom(FarmerProfileModel p) {
     _profile              = p;
     _farmNameCtrl.text    = p.farmName ?? '';
-    _farmAddressCtrl.text = p.farmAddress ?? p.farmLocation ?? '';
+    _farmAddressCtrl.text = p.farmAddress ?? '';
     _landAreaCtrl.text    = p.landAreaHectares?.toString() ?? '';
     _yearsFarmingCtrl.text = p.yearsFarming?.toString() ?? '';
     _ownershipType        = p.farmOwnershipType;
@@ -132,17 +154,28 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    if (!_isOnline) {
+      _showSnack('You\'re offline. Connect to the internet to save changes.');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
+      // Detect an explicit pin-clear: the profile previously had coordinates
+      // but the pin is now null. updateFarmDetails() uses conditional
+      // `if (x != null)` writes, so passing null lat/lng here would be
+      // silently omitted from the update payload — clearing requires the
+      // dedicated clearFarmCoordinates() method instead.
+      final pinWasCleared =
+          (_profile?.hasCoordinates ?? false) && _pinnedLocation == null;
+      if (pinWasCleared) {
+        await _repo.clearFarmCoordinates();
+      }
       await _repo.updateFarmDetails(
         farmName:          _farmNameCtrl.text.trim().isEmpty
             ? null
             : _farmNameCtrl.text.trim(),
         farmAddress:       _farmAddressCtrl.text.trim().isEmpty
-            ? null
-            : _farmAddressCtrl.text.trim(),
-        farmLocation:      _farmAddressCtrl.text.trim().isEmpty
             ? null
             : _farmAddressCtrl.text.trim(),
         landAreaHectares:  double.tryParse(_landAreaCtrl.text),
@@ -200,17 +233,27 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              const SizedBox(height: 64),
-              Expanded(
+          if (!_isOnline)
+            const OfflineBanner(message: "You're offline — you won't be able to save changes until you're reconnected."),
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 64),
+                    Expanded(
                 child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
                           color: AppConstants.primaryGreen,
                         ),
+                      )
+                    : _loadFailed
+                    ? _FarmDetailsLoadError(
+                        onRetry: _retryLoadProfile,
+                        isOnline: _isOnline,
                       )
                     : Form(
                         key: _formKey,
@@ -307,7 +350,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                               AppTextField(
                                 controller: _farmAddressCtrl,
                                 label:
-                                    'e.g. Sitio Kailugan, near old barangay hall',
+                                    'e.g. Purok Kailugan, near old barangay hall',
                                 prefixIcon: Icons.place_outlined,
                                 textCapitalization:
                                     TextCapitalization.sentences,
@@ -777,11 +820,18 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                 ),
               ),
               child: PrimaryButton(
-                label: _isSaving ? 'Saving...' : 'Save Farm Details',
+                label: !_isOnline
+                    ? 'Offline'
+                    : _isSaving
+                    ? 'Saving...'
+                    : 'Save Farm Details',
                 isLoading: _isSaving,
-                onPressed: _isSaving ? null : _save,
+                onPressed: (!_isOnline || _isSaving) ? null : _save,
                 icon: Icons.check_rounded,
               ),
+            ),
+          ),
+              ],
             ),
           ),
         ],
@@ -883,6 +933,65 @@ class _MapButton extends StatelessWidget {
             ],
           ),
           child: Icon(icon, size: 18, color: AppConstants.primaryGreen),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Farm Details Load Error — shown when fetchProfile() fails or times out.
+// Message/icon distinguish "you're offline" from a genuine load failure,
+// matching FarmerProfileScreen's _ProfileLoadError pattern.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FarmDetailsLoadError extends StatelessWidget {
+  final VoidCallback onRetry;
+  final bool isOnline;
+  const _FarmDetailsLoadError({required this.onRetry, required this.isOnline});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isOnline ? Icons.error_outline_rounded : Icons.wifi_off_rounded,
+              size: 40,
+              color: AppConstants.outline.withValues(alpha: 0.60),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isOnline ? 'Could not load your farm details' : 'You\'re offline',
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.charcoal,
+              ),
+            ),
+            if (!isOnline) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Your farm details will load once you\'re back online.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: onRetry,
+              child: Text(
+                'Retry',
+                style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+              ),
+            ),
+          ],
         ),
       ),
     );

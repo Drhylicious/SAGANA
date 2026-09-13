@@ -2,15 +2,24 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
-import '../../../routes/app_routes.dart';
+import '../../widgets/management_modal.dart';
 
 class ListingReviewScreen extends StatefulWidget {
   final String listingId;
-  const ListingReviewScreen({super.key, required this.listingId});
+  // When true (opened from All Listings), this screen never shows the
+  // Approve/Request Changes/Reject actions even for a pending listing —
+  // those actions are exclusive to Pending Review. See M-marketplace-2.
+  final bool readOnly;
+  const ListingReviewScreen({
+    super.key,
+    required this.listingId,
+    this.readOnly = false,
+  });
 
   @override
   State<ListingReviewScreen> createState() => _ListingReviewScreenState();
@@ -42,79 +51,138 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
 
   // ── Decision actions ────────────────────────────────────────────────────────
 
-  Future<void> _approve() async {
-    setState(() => _isSaving = true);
-    try {
-      await _repo.approveListing(widget.listingId);
-      if (!mounted) return;
-      _showSnack('Listing approved and published.', isSuccess: true);
-      context.pop(true);
-    } catch (_) {
-      setState(() => _isSaving = false);
-      _showSnack('Failed to approve. Please try again.');
-    }
+  Future<void> _confirmApprove() async {
+    bool isSaving = false;
+    await showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        return ManagementModalShell(
+          title: 'Approve Listing',
+          subtitle: 'This makes the listing publicly visible to all buyers.',
+          body: const Text(
+            'Approving publishes this listing to the Marketplace immediately. '
+            'Buyers will be able to see it and place orders right away.',
+          ),
+          footer: ManagementModalActions(
+            primaryLabel: 'Approve & Publish',
+            isDestructive: false,
+            isLoading: isSaving,
+            onPrimary: () async {
+              setSheet(() => isSaving = true);
+              setState(() => _isSaving = true);
+              String? error;
+              try {
+                await _repo.approveListing(widget.listingId);
+              } catch (e) {
+                error = e is PostgrestException && e.message.isNotEmpty
+                    ? e.message
+                    : 'Failed to approve. Please try again.';
+              }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              if (error == null) {
+                _showSnack('Listing approved and published.', isSuccess: true);
+                context.pop(true);
+              } else {
+                setState(() => _isSaving = false);
+                _showSnack(error);
+              }
+            },
+          ),
+        );
+      }),
+    );
   }
 
   void _showRequestChangesSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _NoteSheet(
-        title: 'Request Changes',
-        hint: 'Describe what the farmer needs to fix...',
-        actionLabel: 'Send Request',
-        actionColor: AppConstants.warningAmber,
-        onConfirm: (note) async {
-          Navigator.pop(context);
-          setState(() => _isSaving = true);
-          try {
-            await _repo.requestChanges(
-              listingId: widget.listingId,
-              notes: note,
-            );
-            if (!mounted) return;
-            _showSnack(
-              'Changes requested. Farmer has been notified.',
-              isSuccess: true,
-            );
-            context.pop(true);
-          } catch (_) {
-            setState(() => _isSaving = false);
-            _showSnack('Failed to send request. Please try again.');
-          }
-        },
+    _showNoteModal(
+      title: 'Request Changes',
+      hint: 'Describe what the farmer needs to fix...',
+      actionLabel: 'Send Request',
+      isDestructive: false,
+      onConfirm: (note) => _repo.requestChanges(
+        listingId: widget.listingId,
+        notes: note,
       ),
+      successMessage: 'Changes requested. Farmer has been notified.',
+      failureMessage: 'Failed to send request. Please try again.',
     );
   }
 
   void _showRejectSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _NoteSheet(
-        title: 'Reject Submission',
-        hint: 'Provide a reason for rejection...',
-        actionLabel: 'Confirm Rejection',
-        actionColor: AppConstants.errorRed,
-        onConfirm: (reason) async {
-          Navigator.pop(context);
-          setState(() => _isSaving = true);
-          try {
-            await _repo.rejectListing(
-              listingId: widget.listingId,
-              reason: reason,
-            );
-            if (!mounted) return;
-            _showSnack('Listing rejected.', isSuccess: false);
-            context.pop(true);
-          } catch (_) {
-            setState(() => _isSaving = false);
-            _showSnack('Failed to reject. Please try again.');
-          }
-        },
+    _showNoteModal(
+      title: 'Reject Submission',
+      hint: 'Provide a reason for rejection...',
+      actionLabel: 'Confirm Rejection',
+      isDestructive: true,
+      onConfirm: (reason) => _repo.rejectListing(
+        listingId: widget.listingId,
+        reason: reason,
       ),
+      successMessage: 'Listing rejected.',
+      failureMessage: 'Failed to reject. Please try again.',
+    );
+  }
+
+  /// Shared note-input modal for Request Changes / Reject — both need a
+  /// required text reason before submitting. Mirrors the confirm-modal
+  /// pattern used in AdminOrderDetailScreen's _runAction.
+  Future<void> _showNoteModal({
+    required String title,
+    required String hint,
+    required String actionLabel,
+    required bool isDestructive,
+    required Future<void> Function(String note) onConfirm,
+    required String successMessage,
+    required String failureMessage,
+  }) async {
+    final noteCtrl = TextEditingController();
+    bool isSaving = false;
+    await showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        return ManagementModalShell(
+          title: title,
+          body: TextFormField(
+            controller: noteCtrl,
+            maxLines: 4,
+            autofocus: true,
+            decoration: InputDecoration(hintText: hint),
+          ),
+          footer: ManagementModalActions(
+            primaryLabel: actionLabel,
+            isDestructive: isDestructive,
+            isLoading: isSaving,
+            onPrimary: () async {
+              if (noteCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Please enter a note.')),
+                );
+                return;
+              }
+              setSheet(() => isSaving = true);
+              String? error;
+              try {
+                await onConfirm(noteCtrl.text.trim());
+              } catch (e) {
+                error = e is PostgrestException && e.message.isNotEmpty
+                    ? e.message
+                    : failureMessage;
+              }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              if (error == null) {
+                _showSnack(successMessage, isSuccess: true);
+                context.pop(true);
+              } else {
+                _showSnack(error);
+              }
+            },
+          ),
+        );
+      }),
     );
   }
 
@@ -177,6 +245,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
 
     final listing = _listing!;
     final isPending = listing.isPending;
+    final showActions = isPending && !widget.readOnly;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -251,23 +320,23 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             right: 0,
             child: _TopAppBar(
               title: 'Listing Review',
-              status: listing.statusLabel,
-              isPending: isPending,
+              status: listing.status,
+              statusLabel: listing.statusLabel,
               onBack: () => context.pop(false),
               sagana: sagana,
               cs: cs,
             ),
           ),
 
-          // ── Fixed footer actions (only for pending listings) ────────
-          if (isPending)
+          // ── Fixed footer actions (only when actionable) ─────────────
+          if (showActions)
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
               child: _ReviewFooter(
                 isSaving: _isSaving,
-                onApprove: _approve,
+                onApprove: _confirmApprove,
                 onRequestChanges: _showRequestChangesSheet,
                 onReject: _showRejectSheet,
                 cs: cs,
@@ -275,12 +344,18 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
               ),
             )
           else
-            // Read-only footer for non-pending listings
+            // Read-only footer — either a genuinely non-pending listing,
+            // or a pending one opened read-only from All Listings.
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
-              child: _ReadOnlyFooter(listing: listing, cs: cs, sagana: sagana),
+              child: _ReadOnlyFooter(
+                listing: listing,
+                forcedReadOnly: isPending && widget.readOnly,
+                cs: cs,
+                sagana: sagana,
+              ),
             ),
         ],
       ),
@@ -294,8 +369,12 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
 
 class _TopAppBar extends StatelessWidget {
   final String title;
+  // Raw DB status value (e.g. 'rejected') — drives the badge color via the
+  // shared ListingStatusDisplay mapping, not an ad-hoc pending/not-pending
+  // binary (that binary was why a rejected listing's badge used to render
+  // green instead of red — see M-marketplace-2).
   final String status;
-  final bool isPending;
+  final String statusLabel;
   final VoidCallback onBack;
   final SaganaColors sagana;
   final ColorScheme cs;
@@ -303,7 +382,7 @@ class _TopAppBar extends StatelessWidget {
   const _TopAppBar({
     required this.title,
     required this.status,
-    required this.isPending,
+    required this.statusLabel,
     required this.onBack,
     required this.sagana,
     required this.cs,
@@ -330,6 +409,8 @@ class _TopAppBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -337,24 +418,7 @@ class _TopAppBar extends StatelessWidget {
                   ),
                 ),
               ),
-              _StatusBadge(label: status, isPending: isPending, cs: cs),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: () => context.push(AppRoutes.marketLinking),
-                icon: const Icon(Icons.link_rounded, size: 16),
-                label: Text(
-                  'Market Linking',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: cs.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-              ),
-              const SizedBox(width: 8),
+              _StatusBadge(label: statusLabel, status: status, cs: cs),
             ],
           ),
         ),
@@ -365,19 +429,17 @@ class _TopAppBar extends StatelessWidget {
 
 class _StatusBadge extends StatelessWidget {
   final String label;
-  final bool isPending;
+  final String status;
   final ColorScheme cs;
   const _StatusBadge({
     required this.label,
-    required this.isPending,
+    required this.status,
     required this.cs,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = isPending
-        ? AppConstants.warningAmber
-        : AppConstants.successGreen;
+    final color = ListingStatusDisplay.color(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -444,37 +506,6 @@ class _HeroSection extends StatelessWidget {
                         )
                       : _PhotoFallback(cs: cs),
                 ),
-                // Grade badge overlay
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cs.primary,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.20),
-                          blurRadius: 6,
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      'Grade A',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -495,34 +526,46 @@ class _HeroSection extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Icon(
-                      Icons.category_outlined,
-                      size: 14,
-                      color: cs.onSurfaceVariant,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.category_outlined,
+                          size: 14,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          listing.cropName,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      listing.cropName,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 14,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      listing.submittedLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          listing.submittedLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -551,18 +594,27 @@ class _HeroSection extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      listing.farmerName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: cs.primary,
+                    Expanded(
+                      child: Text(
+                        listing.farmerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '• Batch #${listing.id.substring(0, 8).toUpperCase()}',
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: Text(
+                        '• Batch #${listing.id.substring(0, 8).toUpperCase()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+                      ),
                     ),
                   ],
                 ),
@@ -1246,12 +1298,16 @@ class _ReviewFooter extends StatelessWidget {
                               color: AppConstants.warningAmber,
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              'Request Changes',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppConstants.warningAmber,
+                            Flexible(
+                              child: Text(
+                                'Request Changes',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.warningAmber,
+                                ),
                               ),
                             ),
                           ],
@@ -1260,9 +1316,12 @@ class _ReviewFooter extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // Approve
+                  // Approve — equal flex with Request Changes: their
+                  // labels are almost the same length ("Request Changes"
+                  // vs "Approve Listing"), so the previous 1:2 split left
+                  // Request Changes too narrow for its text at 360px
+                  // (see M-marketplace-2).
                   Expanded(
-                    flex: 2,
                     child: GestureDetector(
                       onTap: isSaving ? null : onApprove,
                       child: Container(
@@ -1306,12 +1365,16 @@ class _ReviewFooter extends StatelessWidget {
                                     color: Colors.white,
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    'Approve Listing',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                                  Flexible(
+                                    child: Text(
+                                      'Approve Listing',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1359,11 +1422,17 @@ class _ReviewFooter extends StatelessWidget {
 
 class _ReadOnlyFooter extends StatelessWidget {
   final AdminListingModel listing;
+  // True when this is actually a pending listing being shown without
+  // actions because it was opened from All Listings (not because its
+  // status is genuinely terminal/non-actionable) — changes the subtitle
+  // copy so it doesn't misleadingly say "no action needed".
+  final bool forcedReadOnly;
   final ColorScheme cs;
   final SaganaColors sagana;
 
   const _ReadOnlyFooter({
     required this.listing,
+    this.forcedReadOnly = false,
     required this.cs,
     required this.sagana,
   });
@@ -1393,6 +1462,7 @@ class _ReadOnlyFooter extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: _statusColor(
+                    context,
                     listing.status,
                     cs,
                   ).withValues(alpha: 0.10),
@@ -1404,7 +1474,7 @@ class _ReadOnlyFooter extends StatelessWidget {
                     Icon(
                       _statusIcon(listing.status),
                       size: 16,
-                      color: _statusColor(listing.status, cs),
+                      color: _statusColor(context, listing.status, cs),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1412,7 +1482,7 @@ class _ReadOnlyFooter extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: _statusColor(listing.status, cs),
+                        color: _statusColor(context, listing.status, cs),
                       ),
                     ),
                   ],
@@ -1421,7 +1491,9 @@ class _ReadOnlyFooter extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'This listing is ${listing.statusLabel.toLowerCase()} — no action needed.',
+                  forcedReadOnly
+                      ? 'Open this listing from Pending Review to approve, reject, or request changes.'
+                      : 'This listing is ${listing.statusLabel.toLowerCase()} — no action needed.',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onSurfaceVariant,
@@ -1435,23 +1507,13 @@ class _ReadOnlyFooter extends StatelessWidget {
     );
   }
 
-  Color _statusColor(String s, ColorScheme cs) {
-    switch (s) {
-      case 'approved':
-        return AppConstants.successGreen;
-      case 'changes_required':
-        return AppConstants.warningAmber;
-      case 'sold':
-        return cs.onSurfaceVariant;
-      case 'rejected':
-        return cs.error;
-      default:
-        return cs.outline;
-    }
-  }
+  Color _statusColor(BuildContext context, String s, ColorScheme cs) =>
+      ListingStatusDisplay.color(context, s);
 
   IconData _statusIcon(String s) {
     switch (s) {
+      case 'pending_review':
+        return Icons.pending_actions_rounded;
       case 'approved':
         return Icons.check_circle_outline_rounded;
       case 'changes_required':
@@ -1463,174 +1525,5 @@ class _ReadOnlyFooter extends StatelessWidget {
       default:
         return Icons.info_outline_rounded;
     }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Note Bottom Sheet (shared for Request Changes + Reject)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _NoteSheet extends StatefulWidget {
-  final String title;
-  final String hint;
-  final String actionLabel;
-  final Color actionColor;
-  final Future<void> Function(String note) onConfirm;
-
-  const _NoteSheet({
-    required this.title,
-    required this.hint,
-    required this.actionLabel,
-    required this.actionColor,
-    required this.onConfirm,
-  });
-
-  @override
-  State<_NoteSheet> createState() => _NoteSheetState();
-}
-
-class _NoteSheetState extends State<_NoteSheet> {
-  final _ctrl = TextEditingController();
-  bool _isSaving = false;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outline.withValues(alpha: 0.30),
-                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.title,
-            style: GoogleFonts.poppins(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _ctrl,
-            maxLines: 4,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              contentPadding: const EdgeInsets.all(14),
-            ),
-            style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: cs.outline.withValues(alpha: 0.30),
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: GestureDetector(
-                  onTap: _isSaving
-                      ? null
-                      : () async {
-                          if (_ctrl.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Please enter a note.'),
-                              ),
-                            );
-                            return;
-                          }
-                          setState(() => _isSaving = true);
-                          await widget.onConfirm(_ctrl.text.trim());
-                        },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: _isSaving
-                          ? widget.actionColor.withValues(alpha: 0.50)
-                          : widget.actionColor,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                    child: _isSaving
-                        ? const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                          )
-                        : Text(
-                            widget.actionLabel,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 }

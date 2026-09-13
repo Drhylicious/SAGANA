@@ -2,18 +2,20 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_analytics_model.dart';
+import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/repositories/admin_analytics_repository.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/repositories/analytics_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/app_dialog.dart';
 import '../../widgets/planting_forecast_card.dart';
+import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/top_harvested_crops_chart.dart';
 import '../../widgets/trend_chart_painter.dart';
 
@@ -43,12 +45,11 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   final _adminAnalyticsRepo = AdminAnalyticsRepository();
 
   bool _isLoading = true;
-  bool _isSendingReminders = false;
 
   List<PlantingForecast> _forecasts = [];
   List<TopSellingCrop> _topCrops = [];
   List<CropPriceCard> _priceCards = [];
-  dynamic _loanSummary;
+  AllTimeLoanSummary _loanSummary = AllTimeLoanSummary.empty();
   List<double> _collectionTrend = [];
   MemberParticipationSummary _participation = MemberParticipationSummary.empty();
 
@@ -73,7 +74,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       _forecasts = results[0] as List<PlantingForecast>;
       _topCrops = results[1] as List<TopSellingCrop>;
       _priceCards = results[2] as List<CropPriceCard>;
-      _loanSummary = results[3];
+      _loanSummary = results[3] as AllTimeLoanSummary;
       _collectionTrend = results[4] as List<double>;
       _participation = results[5] as MemberParticipationSummary;
       _isLoading = false;
@@ -86,54 +87,16 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     return withChange.take(4).toList();
   }
 
-  Future<void> _confirmAndSendReminders() async {
-    final l10n = AppLocalizations.of(context);
-    final count = _participation.inactiveCount;
-    if (count == 0) return;
-
-    final confirmed = await AppDialog.show<bool>(
-      context: context,
-      child: AlertDialog(
-        title: Text(l10n.analyticsSendReminderTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
-        content: Text(l10n.analyticsSendReminderMessage(count), style: GoogleFonts.inter(fontSize: 13)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.issueLoanCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.analyticsSendReminderConfirm, style: const TextStyle(color: AppConstants.primaryGreen)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _isSendingReminders = true);
-    try {
-      await _adminAnalyticsRepo.sendReminders(
-        farmerIds: _participation.inactiveFarmers.map((f) => f.id).toList(),
-        title: l10n.analyticsReminderNotifTitle,
-        body: l10n.analyticsReminderNotifBody,
-      );
-      if (!mounted) return;
-      _showSnack(l10n.analyticsReminderSent(count));
-    } catch (_) {
-      if (!mounted) return;
-      _showSnack(l10n.analyticsReminderError, isError: true);
-    } finally {
-      if (mounted) setState(() => _isSendingReminders = false);
-    }
-  }
-
-  void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+  /// Month abbreviations for fetchMonthlyCollectionTrend()'s trailing
+  /// window — the same period-independent method Loan Report itself
+  /// uses, so this label logic is safe here too.
+  List<String> _trailingMonthLabels(int count) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final offset = count - 1 - i;
+      final date = DateTime(now.year, now.month - offset, 1);
+      return DateFormat('MMM').format(date);
+    });
   }
 
   @override
@@ -169,7 +132,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                         const PlantingForecastSectionHeader(),
                         const SizedBox(height: AppConstants.spacingMd),
                         if (_forecasts.isEmpty)
-                          _buildEmptyState(l10n.analyticsNoForecastsYet, cs)
+                          ReportEmptyState(message: l10n.analyticsNoForecastsYet)
                         else
                           ..._forecasts.map((f) => Padding(
                                 padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
@@ -249,19 +212,6 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               Expanded(child: _tierStat(l10n.analyticsInactive, _participation.inactiveCount, AppConstants.warningAmber)),
             ],
           ),
-          if (_participation.inactiveCount > 0) ...[
-            const SizedBox(height: AppConstants.spacingGutter),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _isSendingReminders ? null : _confirmAndSendReminders,
-                icon: _isSendingReminders
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.notifications_active_outlined, size: 16),
-                label: Text(l10n.analyticsSendReminder(_participation.inactiveCount)),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -290,9 +240,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final summary = _loanSummary;
-    final isHealthy = summary?.isHealthy ?? true;
-    final repaymentRate = (summary?.repaymentRatePercent ?? 0.0) as double;
+    final isHealthy = _loanSummary.isHealthy;
+    final repaymentRate = _loanSummary.repaymentRatePercent;
     final healthColor = isHealthy ? AppConstants.successGreen : AppConstants.warningAmber;
 
     return Container(
@@ -328,6 +277,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                       values: _collectionTrend,
                       lineColor: cs.primary,
                       gradientColor: cs.primary,
+                      xLabels: _trailingMonthLabels(_collectionTrend.length),
+                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
                     ),
                   ),
           ),
@@ -392,18 +343,6 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildEmptyState(String message, ColorScheme cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Text(message, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
     );
   }
 }

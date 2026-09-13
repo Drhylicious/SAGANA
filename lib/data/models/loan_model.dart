@@ -82,6 +82,10 @@ class LoanModel {
   final double monthlyPayment; // NEW
   final List<LoanItemModel> items;
   final List<LoanPaymentModel> payments;
+  // Set only when this loan came from converting a failed program
+  // distribution (Phase 8 / Issue 3's Loan/ROI workflow) — null for every
+  // ordinary admin-issued loan.
+  final String? sourceProgramName;
 
   const LoanModel({
     required this.id,
@@ -96,7 +100,10 @@ class LoanModel {
     this.monthlyPayment = 0,
     required this.items,
     required this.payments,
+    this.sourceProgramName,
   });
+
+  bool get isFromProgramDistribution => sourceProgramName != null;
 
   double get remainingBalance =>
       (totalValue - amountPaid).clamp(0, double.infinity);
@@ -111,6 +118,7 @@ class LoanModel {
   factory LoanModel.fromMap(Map<String, dynamic> map) {
     final itemRows = (map['farmer_loan_items'] as List?) ?? [];
     final paymentRows = (map['farmer_loan_payments'] as List?) ?? [];
+    final program = map['cooperative_programs'] as Map<String, dynamic>?;
 
     return LoanModel(
       id: map['id'] as String,
@@ -132,6 +140,7 @@ class LoanModel {
           .map((r) => LoanPaymentModel.fromMap(r as Map<String, dynamic>))
           .toList()
         ..sort((a, b) => b.paymentDate.compareTo(a.paymentDate)),
+      sourceProgramName: program?['program_name'] as String?,
     );
   }
 }

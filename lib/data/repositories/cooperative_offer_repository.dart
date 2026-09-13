@@ -1,8 +1,17 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/inventory_batch_model.dart';
+import '../models/cooperative_offer_model.dart';
+import 'admin_listing_repository.dart';
 
 class CooperativeOfferRepository {
   final SupabaseClient _client = Supabase.instance.client;
+
+  // Still needed internally by fetchOffers()'s categoryFilter branch below,
+  // even though the UI no longer exposes a category filter control itself
+  // (removed per review decision — only All Listings keeps that filter).
+  Future<List<String>> fetchCropsByCategory({String? category}) {
+    return AdminListingRepository().fetchCropsByCategory(category: category);
+  }
 
   Future<void> offerToCooperative({
     required InventoryBatchModel batch,
@@ -35,16 +44,36 @@ class CooperativeOfferRepository {
     }
   }
 
-  // ─── Admin: fetch pending cooperative offers ───────────────────────────────
+  // ─── Admin: fetch offers — All (unscoped) or a specific status, with
+  //     search + crop/category filtering. Mirrors AdminListingRepository's
+  //     _fetchListings shape so this screen behaves identically to Pending
+  //     Review / All Listings. Category filtering resolves to a set of
+  //     crop names first (same text-match approach already used elsewhere
+  //     for tables without a crop_id column yet — this table is one of
+  //     them), since cooperative_purchase_offers only stores crop_name. ──
 
-  Future<List<Map<String, dynamic>>> fetchPendingOffers() async {
+  Future<List<CooperativeOfferModel>> fetchOffers({
+    String? statusFilter,
+    String? searchQuery,
+    String? cropFilter,
+    String? categoryFilter,
+  }) async {
     try {
-      final rows = await _client
-          .from('cooperative_purchase_offers')
-          .select('id, farmer_id, crop_name, offered_quantity_kg, offered_at, inventory_batch_id')
-          .eq('status', 'pending')
-          .order('offered_at', ascending: true);
+      var query = _client.from('cooperative_purchase_offers').select(
+        'id, farmer_id, crop_name, offered_quantity_kg, offered_at, '
+        'inventory_batch_id, status, confirmed_quantity_kg, confirmed_amount, admin_notes',
+      );
+      if (statusFilter != null) query = query.eq('status', statusFilter);
+      if (cropFilter != null) query = query.eq('crop_name', cropFilter);
+
+      var rows = await query.order('offered_at', ascending: false);
       if (rows.isEmpty) return [];
+
+      if (categoryFilter != null && cropFilter == null) {
+        final namesInCategory = await fetchCropsByCategory(category: categoryFilter);
+        rows = rows.where((r) => namesInCategory.contains(r['crop_name'])).toList();
+        if (rows.isEmpty) return [];
+      }
 
       final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
       final infoRows = await _client
@@ -55,17 +84,40 @@ class CooperativeOfferRepository {
         for (final r in infoRows) r['user_id'] as String: r['full_name'] as String? ?? 'Farmer',
       };
 
-      return rows
-          .map((r) => {...r, 'farmer_name': nameMap[r['farmer_id']] ?? 'Farmer'})
+      var result = rows
+          .map((r) => CooperativeOfferModel.fromMap({...r, 'farmer_name': nameMap[r['farmer_id']] ?? 'Farmer'}))
           .toList();
+
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        final q = searchQuery.toLowerCase();
+        result = result.where((o) =>
+            o.farmerName.toLowerCase().contains(q) ||
+            o.cropName.toLowerCase().contains(q)).toList();
+      }
+
+      return result;
     } catch (_) {
       return [];
     }
   }
 
+  // ─── Admin: pending offers only — still used by MarketplaceDashboardScreen
+  //     for the KPI count. Kept as its own method (rather than making the
+  //     dashboard call fetchOffers(statusFilter: 'pending')) purely because
+  //     that call site only ever wants .length and this reads clearer there.
+
+  Future<List<CooperativeOfferModel>> fetchPendingOffers() =>
+      fetchOffers(statusFilter: 'pending');
+
   // ─── Admin: confirm an offer, recording the actual settlement ─────────────
 
-  Future<String> confirmCooperativeOffer({
+  // Returns the created member_sales_transactions id — or null for a
+  // confirmed offer on any crop other than Palay/Peanut, which settles
+  // directly on the offer row instead (Scoped Fix decision, Admin
+  // Marketplace review). Callers don't currently use this value either
+  // way, but the nullability must be honest since the RPC can now
+  // genuinely return no id.
+  Future<String?> confirmCooperativeOffer({
     required String offerId,
     required double confirmedQuantityKg,
     required double confirmedAmount,
@@ -77,7 +129,7 @@ class CooperativeOfferRepository {
       'p_confirmed_amount': confirmedAmount,
       'p_admin_notes': adminNotes,
     });
-    return result as String;
+    return result as String?;
   }
 
   // ─── Admin: decline an offer, releasing the reserved quantity ─────────────

@@ -5,9 +5,9 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_profile_model.dart';
+import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/management_modal.dart';
 
 class BuyerDetailsScreen extends StatefulWidget {
   final String buyerId;
@@ -19,8 +19,10 @@ class BuyerDetailsScreen extends StatefulWidget {
 
 class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
   final _repo = BuyerProfileRepository();
+  final _orderRepo = AdminOrderRepository();
 
   BuyerProfileModel? _buyer;
+  List<AdminOrderModel> _recentOrders = [];
   bool _isLoading = true;
 
   @override
@@ -32,38 +34,16 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final buyer = await _repo.fetchAdminView(widget.buyerId);
+    final results = await Future.wait([
+      _repo.fetchAdminView(widget.buyerId),
+      _orderRepo.fetchOrders(buyerId: widget.buyerId),
+    ]);
     if (!mounted) return;
     setState(() {
-      _buyer = buyer;
+      _buyer = results[0] as BuyerProfileModel?;
+      _recentOrders = (results[1] as List<AdminOrderModel>).take(10).toList();
       _isLoading = false;
     });
-  }
-
-  void _showActionsMenu() {
-    final buyer = _buyer;
-    if (buyer == null) return;
-    showManagementModal(
-      context: context,
-      builder: (_) => _BuyerActionsMenu(
-        buyer: buyer,
-        onNotify: () {
-          Navigator.pop(context);
-          context.push(
-            AppRoutes.announcementDashboard,
-            extra: {'buyerId': buyer.userId, 'buyerName': buyer.fullName},
-          );
-        },
-        onToggleStatus: () async {
-          Navigator.pop(context);
-          await _repo.setBuyerStatus(
-            buyerId: buyer.userId,
-            status: buyer.isActive ? 'suspended' : 'active',
-          );
-          _load();
-        },
-      ),
-    );
   }
 
   @override
@@ -79,7 +59,6 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
             _TopBar(
               title: _buyer?.fullName ?? 'Buyer Details',
               onBack: () => context.pop(),
-              onMenu: _buyer != null ? _showActionsMenu : null,
               cs: cs,
             ),
             Expanded(
@@ -93,7 +72,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           color: AppConstants.primaryGreen,
                           onRefresh: _load,
                           child: ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                             children: [
                               _IdentityCard(
                                   buyer: _buyer!, cs: cs, sagana: sagana),
@@ -101,12 +80,17 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                               _StatsRow(
                                   buyer: _buyer!, cs: cs, sagana: sagana),
                               const SizedBox(height: 16),
-                              _OrderHistoryLink(
-                                buyer: _buyer!,
+                              _RecentOrdersSection(
+                                orders: _recentOrders,
+                                totalOrders: _buyer!.totalOrders,
                                 cs: cs,
                                 sagana: sagana,
-                                onTap: () => context.push(
-                                  AppRoutes.adminOrders,
+                                onOrderTap: (orderId) => context.push(
+                                  AppRoutes.adminOrderDetail,
+                                  extra: {'orderId': orderId, 'readOnly': true},
+                                ),
+                                onViewAll: () => context.push(
+                                  AppRoutes.buyerOrderHistory,
                                   extra: {
                                     'buyerId': _buyer!.userId,
                                     'buyerName': _buyer!.fullName,
@@ -181,12 +165,10 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 class _TopBar extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
-  final VoidCallback? onMenu;
   final ColorScheme cs;
   const _TopBar({
     required this.title,
     required this.onBack,
-    this.onMenu,
     required this.cs,
   });
 
@@ -208,11 +190,9 @@ class _TopBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (onMenu != null)
-            IconButton(
-              icon: Icon(Icons.more_vert_rounded, color: cs.onSurfaceVariant),
-              onPressed: onMenu,
-            ),
+          // The "..." menu that used to live here (Send Notification /
+          // Suspend Account) was removed — both actions are already always
+          // visible in the bottom bar, so the menu was pure duplication.
         ],
       ),
     );
@@ -247,20 +227,16 @@ class _IdentityCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (buyer.isActive
-                          ? AppConstants.successGreen
-                          : cs.outline)
-                      .withValues(alpha: 0.10),
+                  color: _badgeColor(buyer, cs).withValues(alpha: 0.10),
                   borderRadius:
                       BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
-                  buyer.isActive ? 'Active Buyer' : 'Suspended',
+                  _badgeLabel(buyer),
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color:
-                        buyer.isActive ? AppConstants.successGreen : cs.outline,
+                    color: _badgeColor(buyer, cs),
                   ),
                 ),
               ),
@@ -295,35 +271,48 @@ class _IdentityCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             'Buyer since ${buyer.joinedLabel}'
-            '${buyer.sitio != null ? ' • ${buyer.sitio}' : ''}',
+            '${buyer.purok != null ? ' • ${buyer.purok}' : ''}',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
           ),
-          if (buyer.phoneNumber != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: cs.primary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.phone_rounded, size: 16, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    buyer.phoneNumber!,
-                    style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          const SizedBox(height: 16),
+          // Every Edit Profile field always renders here, populated or
+          // not (placeholder "–" when empty) — previously phone/email
+          // only showed up when set, and birth date/gender didn't exist
+          // here at all.
+          _fieldRow(Icons.phone_rounded, buyer.phoneNumber, cs),
+          const SizedBox(height: 8),
+          _fieldRow(Icons.email_rounded, buyer.contactEmail, cs),
+          const SizedBox(height: 8),
+          _fieldRow(Icons.cake_rounded, buyer.dateOfBirthLabel, cs),
+          const SizedBox(height: 8),
+          _fieldRow(Icons.person_outline_rounded, buyer.genderLabel, cs),
+        ],
+      ),
+    );
+  }
+
+  Widget _fieldRow(IconData icon, String? value, ColorScheme cs) {
+    final hasValue = value != null && value.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: hasValue ? cs.primary : cs.outline),
+          const SizedBox(width: 8),
+          Text(
+            hasValue ? value : '–',
+            style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: hasValue ? cs.onSurface : cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -339,6 +328,18 @@ class _IdentityCard extends StatelessWidget {
             color: AppConstants.buyerBlue),
       ),
     );
+  }
+
+  String _badgeLabel(BuyerProfileModel buyer) {
+    if (!buyer.isActive) return 'Suspended';
+    if (buyer.isInactive) return 'Inactive';
+    return 'Active Buyer';
+  }
+
+  Color _badgeColor(BuyerProfileModel buyer, ColorScheme cs) {
+    if (!buyer.isActive) return cs.outline;
+    if (buyer.isInactive) return AppConstants.warningAmber;
+    return AppConstants.successGreen;
   }
 }
 
@@ -392,50 +393,128 @@ class _StatsRow extends StatelessWidget {
   }
 }
 
-class _OrderHistoryLink extends StatelessWidget {
-  final BuyerProfileModel buyer;
+// Replaces the old single "Order History" link card, which navigated
+// straight into the fully-actionable OrderManagementScreen — the critical
+// bug this phase fixes (an admin could approve/cancel/complete a buyer's
+// order from inside their profile). Now shows the 5 most recent orders
+// inline (read-only rows) plus a "View All" link into the new dedicated,
+// genuinely read-only BuyerOrderHistoryScreen.
+class _RecentOrdersSection extends StatelessWidget {
+  final List<AdminOrderModel> orders;
+  final int totalOrders;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+  final ValueChanged<String> onOrderTap;
+  final VoidCallback onViewAll;
+
+  const _RecentOrdersSection({
+    required this.orders,
+    required this.totalOrders,
+    required this.cs,
+    required this.sagana,
+    required this.onOrderTap,
+    required this.onViewAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Order History',
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
+            const Spacer(),
+            if (totalOrders > 0)
+              GestureDetector(
+                onTap: onViewAll,
+                child: Text('View All',
+                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (orders.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: sagana.cardBackground,
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+            ),
+            child: Text('No orders yet',
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+          )
+        else
+          // Bounded height with its own internal scroll — up to 10 rows
+          // rendered, but this section no longer stretches the whole page
+          // to fit them all; only ~4-5 show at once, the rest scroll
+          // within this box.
+          SizedBox(
+            height: 320,
+            child: ListView.separated(
+              itemCount: orders.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) => _RecentOrderRow(
+                order: orders[i],
+                cs: cs,
+                sagana: sagana,
+                onTap: () => onOrderTap(orders[i].id),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _RecentOrderRow extends StatelessWidget {
+  final AdminOrderModel order;
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onTap;
-  const _OrderHistoryLink({
-    required this.buyer,
-    required this.cs,
-    required this.sagana,
-    required this.onTap,
-  });
+  const _RecentOrderRow({required this.order, required this.cs, required this.sagana, required this.onTap});
+
+  Color get _statusColor {
+    switch (order.status) {
+      case 'approved': return AppConstants.successGreen;
+      case 'pending': return AppConstants.warningAmber;
+      case 'completed': return AppConstants.primaryGreen;
+      case 'cancelled': return AppConstants.errorRed;
+      default: return AppConstants.outline;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+          border: Border(left: BorderSide(color: _statusColor, width: 3)),
         ),
         child: Row(
           children: [
-            Icon(Icons.history_rounded, color: cs.primary, size: 20),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Order History',
-                      style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface)),
-                  Text(
-                      '${buyer.totalOrders} order${buyer.totalOrders == 1 ? '' : 's'} placed',
-                      style: GoogleFonts.inter(
-                          fontSize: 11, color: cs.onSurfaceVariant)),
+                  Text(order.displayName,
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                  Text('${order.orderReference} · ${order.quantityKg.toStringAsFixed(0)} kg',
+                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: cs.outline),
+            Text('₱${order.totalPrice.toStringAsFixed(0)}',
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 18, color: cs.outline),
           ],
         ),
       ),
@@ -470,70 +549,3 @@ class _NotFoundState extends StatelessWidget {
   }
 }
 
-class _BuyerActionsMenu extends StatelessWidget {
-  final BuyerProfileModel buyer;
-  final VoidCallback onNotify;
-  final VoidCallback onToggleStatus;
-  const _BuyerActionsMenu({
-    required this.buyer,
-    required this.onNotify,
-    required this.onToggleStatus,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return ManagementModalShell(
-      title: buyer.fullName,
-      subtitle: 'Manage buyer account',
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: onNotify,
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                children: [
-                  Icon(Icons.campaign_outlined, size: 20, color: cs.onSurface),
-                  const SizedBox(width: 14),
-                  Text('Send Notification',
-                      style:
-                          GoogleFonts.inter(fontSize: 14, color: cs.onSurface)),
-                ],
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: onToggleStatus,
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    buyer.isActive
-                        ? Icons.block_rounded
-                        : Icons.check_circle_outline_rounded,
-                    size: 20,
-                    color: buyer.isActive ? cs.error : cs.onSurface,
-                  ),
-                  const SizedBox(width: 14),
-                  Text(
-                    buyer.isActive ? 'Suspend Account' : 'Reactivate Account',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: buyer.isActive ? cs.error : cs.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

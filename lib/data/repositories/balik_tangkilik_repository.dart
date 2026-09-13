@@ -74,8 +74,9 @@ class BalikTangkilikRepository {
       final farmerInfo = results[2] as Map<String, dynamic>;
       final existing = results[3] as Map<String, Map<String, dynamic>>;
 
-      final totalCoopSales = settings?.totalCoopSales ??
+      final liveTotalCoopSales =
           salesTotals.values.fold<double>(0, (sum, t) => sum + t.totalAmount);
+      final totalCoopSales = settings?.totalCoopSales ?? liveTotalCoopSales;
       final distributableSurplus = settings?.distributableSurplus ?? 0;
       final interestRate = settings?.interestRatePercent ?? 7.0;
 
@@ -88,7 +89,10 @@ class BalikTangkilikRepository {
 
         final sharePercent = totalCoopSales > 0 ? (sales.totalAmount / totalCoopSales) : 0.0;
         final estimatedBT = distributableSurplus * sharePercent;
-        final capitalValue = ((shares?.totalShares ?? 0) * (shares?.shareValuePerUnit ?? 100)).toDouble();
+        // Interest accrues only on fully-completed ₱2,000 shares
+        // (Decision D1f) — totalShares is already floor(contribution /
+        // shareValue), so any partial amount is excluded here.
+        final capitalValue = ((shares?.totalShares ?? 0) * (shares?.shareValuePerUnit ?? 2000)).toDouble();
         final estimatedInterest = capitalValue * (interestRate / 100);
 
         final status = existingRow?['status'] as String? ?? 'not_yet_computed';
@@ -114,6 +118,10 @@ class BalikTangkilikRepository {
           actualPayoutDate: existingRow?['actual_payout_date'] != null
               ? DateTime.tryParse(existingRow!['actual_payout_date'] as String)
               : null,
+          palaySalesKg: sales.palayQtyKg,
+          palaySalesAmount: sales.palayAmount,
+          peanutSalesKg: sales.peanutQtyKg,
+          peanutSalesAmount: sales.peanutAmount,
         );
       }).toList()
         ..sort((a, b) => b.estimatedTotal.compareTo(a.estimatedTotal));
@@ -121,6 +129,7 @@ class BalikTangkilikRepository {
       return BalikTangkilikYearSummary(
         year: year,
         totalCoopSales: totalCoopSales,
+        liveTotalCoopSales: liveTotalCoopSales,
         distributableSurplus: distributableSurplus,
         interestRatePercent: interestRate,
         afsFinalized: settings?.afsFinalized ?? false,
@@ -146,6 +155,10 @@ class BalikTangkilikRepository {
           'estimated_balik_tangkilik': r.estimatedBalikTangkilik,
           'estimated_interest_on_capital': r.estimatedInterest,
           'status': 'pending',
+          'palay_sales_kg': r.palaySalesKg,
+          'palay_sales_amount': r.palaySalesAmount,
+          'peanut_sales_kg': r.peanutSalesKg,
+          'peanut_sales_amount': r.peanutSalesAmount,
         }).toList();
 
     if (toUpsert.isEmpty) return;
@@ -185,6 +198,10 @@ class BalikTangkilikRepository {
           'actual_interest_on_capital': r.estimatedInterest,
           'actual_payout_date': today,
           'status': 'paid',
+          'palay_sales_kg': r.palaySalesKg,
+          'palay_sales_amount': r.palaySalesAmount,
+          'peanut_sales_kg': r.peanutSalesKg,
+          'peanut_sales_amount': r.peanutSalesAmount,
         }).toList();
 
     await _client.from('member_contributions').upsert(toUpsert, onConflict: 'farmer_id,year');

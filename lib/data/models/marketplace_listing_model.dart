@@ -37,10 +37,14 @@ class MarketplaceListingModel {
   bool get needsChanges => status == 'changes_required';
   bool get isWithdrawn => status == 'withdrawn';
   bool get isRejected => status == 'rejected';
+  bool get isSold => status == 'sold';
 
-  String get displayName => variety != null && variety!.isNotEmpty
-      ? '$cropName ($variety)'
-      : cropName;
+  String get displayName {
+    final v = variety?.trim();
+    if (v == null || v.isEmpty) return cropName;
+    if (cropName.toLowerCase().contains(v.toLowerCase())) return cropName;
+    return '$cropName ($v)';
+  }
 
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
@@ -77,7 +81,7 @@ class MarketplaceListingModel {
 
 // ─── Listing Filter ───────────────────────────────────────────────────────────
 
-enum ListingFilter { all, pending, live, changesRequired, withdrawn }
+enum ListingFilter { all, pending, live, changesRequired, withdrawn, rejected, sold }
 
 extension ListingFilterExt on ListingFilter {
   String get label {
@@ -92,6 +96,10 @@ extension ListingFilterExt on ListingFilter {
         return 'Changes Required';
       case ListingFilter.withdrawn:
         return 'Withdrawn';
+      case ListingFilter.rejected:
+        return 'Rejected';
+      case ListingFilter.sold:
+        return 'Sold';
     }
   }
 
@@ -107,6 +115,10 @@ extension ListingFilterExt on ListingFilter {
         return listing.needsChanges;
       case ListingFilter.withdrawn:
         return listing.isWithdrawn;
+      case ListingFilter.rejected:
+        return listing.isRejected;
+      case ListingFilter.sold:
+        return listing.isSold;
     }
   }
 }

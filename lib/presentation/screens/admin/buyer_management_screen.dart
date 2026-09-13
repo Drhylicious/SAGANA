@@ -28,7 +28,9 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
   bool _isLoading = true;
   bool _isOnline  = true;
   String _searchQuery = '';
-  bool? _activeFilter; // null=all, true=active, false=inactive
+  // null=all, 'active', 'inactive' (derived, 30-day-idle — see
+  // BuyerProfileModel.isInactive), 'suspended'.
+  String? _statusFilter;
 
   @override
   void initState() {
@@ -57,19 +59,29 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
 
   List<BuyerProfileModel> get _filtered {
     var list = _buyers;
-    if (_activeFilter != null) {
-      list = list.where((b) => b.isActive == _activeFilter).toList();
+    switch (_statusFilter) {
+      case 'active':
+        list = list.where((b) => b.isActive && !b.isInactive).toList();
+        break;
+      case 'inactive':
+        list = list.where((b) => b.isInactive).toList();
+        break;
+      case 'suspended':
+        list = list.where((b) => !b.isActive).toList();
+        break;
     }
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((b) =>
           b.fullName.toLowerCase().contains(q) ||
           (b.phoneNumber?.contains(q) ?? false) ||
-          (b.sitio?.toLowerCase().contains(q) ?? false)).toList();
+          (b.purok?.toLowerCase().contains(q) ?? false)).toList();
     }
     return list;
   }
 
+  int get _activeCount => _buyers.where((b) => b.isActive && !b.isInactive).length;
+  int get _inactiveCount => _buyers.where((b) => b.isInactive).length;
   int get _suspendedCount => _buyers.where((b) => !b.isActive).length;
 
   void _showActions(BuyerProfileModel buyer) {
@@ -87,8 +99,11 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
         },
         onViewOrders: () {
           Navigator.pop(context);
+          // Read-only history, not OrderManagementScreen — this used to
+          // route into the fully-actionable screen, the same critical bug
+          // Buyer Details' Order History link had (see M-marketplace-4).
           context.push(
-            AppRoutes.adminOrders,
+            AppRoutes.buyerOrderHistory,
             extra: {'buyerId': buyer.userId, 'buyerName': buyer.fullName},
           );
         },
@@ -129,6 +144,10 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                           children: [
 
                             // ── KPI cards ─────────────────────────────────
+                            // 2x2 grid rather than a single 4-wide Row —
+                            // four cards in one row was too tight at 360px
+                            // (the same label-clipping mistake fixed
+                            // elsewhere in this review, not repeated here).
                             Row(children: [
                               Expanded(
                                 child: _BuyerKpiCard(
@@ -140,9 +159,27 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _BuyerKpiCard(
+                                    label: 'Active',
+                                    value: _activeCount,
+                                    color: AppConstants.successGreen,
+                                    cs: cs, sagana: sagana),
+                              ),
+                            ]),
+                            const SizedBox(height: 10),
+                            Row(children: [
+                              Expanded(
+                                child: _BuyerKpiCard(
+                                    label: 'Inactive',
+                                    value: _inactiveCount,
+                                    color: AppConstants.warningAmber,
+                                    cs: cs, sagana: sagana),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _BuyerKpiCard(
                                     label: 'Suspended',
                                     value: _suspendedCount,
-                                    color: AppConstants.warningAmber,
+                                    color: cs.error,
                                     cs: cs, sagana: sagana),
                               ),
                             ]),
@@ -171,23 +208,31 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                             const SizedBox(height: 12),
 
                             // ── Status tabs ───────────────────────────────
-                            Row(children: [
-                              _TextTab(label: 'All',
-                                  active: _activeFilter == null,
-                                  onTap: () => setState(
-                                      () => _activeFilter = null),
-                                  cs: cs),
-                              _TextTab(label: 'Active',
-                                  active: _activeFilter == true,
-                                  onTap: () => setState(
-                                      () => _activeFilter = true),
-                                  cs: cs),
-                              _TextTab(label: 'Suspended',
-                                  active: _activeFilter == false,
-                                  onTap: () => setState(
-                                      () => _activeFilter = false),
-                                  cs: cs),
-                            ]),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(children: [
+                                _TextTab(label: 'All',
+                                    active: _statusFilter == null,
+                                    onTap: () => setState(
+                                        () => _statusFilter = null),
+                                    cs: cs),
+                                _TextTab(label: 'Active',
+                                    active: _statusFilter == 'active',
+                                    onTap: () => setState(
+                                        () => _statusFilter = 'active'),
+                                    cs: cs),
+                                _TextTab(label: 'Inactive',
+                                    active: _statusFilter == 'inactive',
+                                    onTap: () => setState(
+                                        () => _statusFilter = 'inactive'),
+                                    cs: cs),
+                                _TextTab(label: 'Suspended',
+                                    active: _statusFilter == 'suspended',
+                                    onTap: () => setState(
+                                        () => _statusFilter = 'suspended'),
+                                    cs: cs),
+                              ]),
+                            ),
                             const SizedBox(height: 12),
 
                             // ── Buyer cards ──────────────────────────────
@@ -347,6 +392,18 @@ class _BuyerCard extends StatelessWidget {
   const _BuyerCard({required this.buyer, required this.cs,
     required this.sagana, required this.onTap, required this.onMoreTap});
 
+  String get _badgeLabel {
+    if (!buyer.isActive) return 'SUSPENDED';
+    if (buyer.isInactive) return 'INACTIVE';
+    return 'ACTIVE';
+  }
+
+  Color _badgeColor(ColorScheme cs) {
+    if (!buyer.isActive) return cs.outline;
+    if (buyer.isInactive) return AppConstants.warningAmber;
+    return AppConstants.successGreen;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -402,48 +459,65 @@ class _BuyerCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                      color: buyer.isActive
-                          ? AppConstants.successGreen.withValues(alpha: 0.12)
-                          : cs.surfaceContainerHighest,
+                      color: _badgeColor(cs).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(
                           AppConstants.radiusFull),
                     ),
-                    child: Text(buyer.isActive ? 'ACTIVE' : 'SUSPENDED',
+                    child: Text(_badgeLabel,
                         style: GoogleFonts.inter(fontSize: 8,
                             fontWeight: FontWeight.w800,
-                            color: buyer.isActive
-                                ? AppConstants.successGreen
-                                : cs.outline)),
+                            color: _badgeColor(cs))),
                   ),
                 ]),
                 const SizedBox(height: 2),
                 Text(
                   '${buyer.phoneNumber ?? 'No phone'}'
-                  '${buyer.sitio != null ? '  •  ${buyer.sitio}' : ''}',
+                  '${buyer.purok != null ? '  •  ${buyer.purok}' : ''}',
                   style: GoogleFonts.inter(
                       fontSize: 11, color: cs.onSurfaceVariant),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
                 Row(children: [
-                  Icon(Icons.shopping_bag_outlined,
-                      size: 13, color: cs.outline),
-                  const SizedBox(width: 4),
-                  Text('${buyer.totalOrders} order${buyer.totalOrders == 1 ? '' : 's'}',
-                      style: GoogleFonts.inter(
-                          fontSize: 11, color: cs.onSurfaceVariant)),
-                  if (buyer.totalSpent > 0) ...[
-                    const SizedBox(width: 10),
-                    Icon(Icons.payments_outlined,
-                        size: 13, color: cs.outline),
-                    const SizedBox(width: 4),
-                    Text('₱${buyer.totalSpent.toStringAsFixed(0)} total',
-                        style: GoogleFonts.poppins(fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: cs.primary)),
-                  ],
-                  const Spacer(),
+                  // Wrapped in Flexible so this cluster (order count +
+                  // optional total spent) shrinks/ellipsizes instead of
+                  // pushing "Since ..." off the right edge — at 360px with
+                  // both pieces present, the unwrapped Row overflowed.
+                  Flexible(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shopping_bag_outlined,
+                            size: 13, color: cs.outline),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text('${buyer.totalOrders} order${buyer.totalOrders == 1 ? '' : 's'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                  fontSize: 11, color: cs.onSurfaceVariant)),
+                        ),
+                        if (buyer.totalSpent > 0) ...[
+                          const SizedBox(width: 10),
+                          Icon(Icons.payments_outlined,
+                              size: 13, color: cs.outline),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text('₱${buyer.totalSpent.toStringAsFixed(0)} total',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: cs.primary)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   Text('Since ${buyer.joinedLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                           fontSize: 10, color: cs.outline)),
                 ]),
