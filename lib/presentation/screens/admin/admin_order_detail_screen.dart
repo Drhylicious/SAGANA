@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../widgets/management_modal.dart';
@@ -62,30 +63,32 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   // ─── Actions ────────────────────────────────────────────────────────────
 
   Future<void> _confirmApprove() async {
+    final l10n = AppLocalizations.of(context);
     await _runAction(
-      title: 'Approve Order',
-      subtitle: 'The buyer will be notified this order is ready.',
-      body: const Text(
-        'Approving confirms the cooperative can fulfill this order as listed.',
+      title: l10n.adminOrderDetailApproveTitle,
+      subtitle: l10n.adminOrderDetailApproveSubtitle,
+      body: Text(
+        l10n.adminOrderDetailApproveBody,
       ),
-      primaryLabel: 'Approve Order',
+      primaryLabel: l10n.adminOrderDetailApproveTitle,
       isDestructive: false,
       action: () => _repo.approveOrder(widget.orderId),
-      successMessage: 'Order approved',
+      successMessage: l10n.adminOrderDetailApprovedToast,
     );
   }
 
   Future<void> _confirmComplete() async {
+    final l10n = AppLocalizations.of(context);
     await _runAction(
-      title: 'Complete Order',
-      subtitle: 'Marks this order as picked up and paid.',
-      body: const Text(
-        'Use this once the buyer has collected and paid for this order at the cooperative.',
+      title: l10n.adminOrderDetailCompleteTitle,
+      subtitle: l10n.adminOrderDetailCompleteSubtitle,
+      body: Text(
+        l10n.adminOrderDetailCompleteBody,
       ),
-      primaryLabel: 'Complete Order',
+      primaryLabel: l10n.adminOrderDetailCompleteTitle,
       isDestructive: false,
       action: () => _repo.completeOrder(widget.orderId),
-      successMessage: 'Order marked complete',
+      successMessage: l10n.adminOrderDetailCompletedToast,
     );
   }
 
@@ -93,6 +96,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   // generic _runAction flow) — the buyer sees this reason, so the primary
   // button stays disabled until the admin actually enters one.
   Future<void> _confirmCancel() async {
+    final l10n = AppLocalizations.of(context);
     final reasonCtrl = TextEditingController();
     bool isSaving = false;
     await showManagementModal(
@@ -100,30 +104,29 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
         final hasReason = reasonCtrl.text.trim().isNotEmpty;
         return ManagementModalShell(
-          title: 'Cancel Order',
-          subtitle: 'This cannot be undone.',
+          title: l10n.adminOrderDetailCancelTitle,
+          subtitle: l10n.adminOrderDetailCancelSubtitle,
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Cancelling releases the reserved inventory back to the batch. '
-                'The buyer will be notified with the reason below.',
+              Text(
+                l10n.adminOrderDetailCancelBody,
               ),
               const SizedBox(height: 14),
               TextField(
                 controller: reasonCtrl,
                 maxLines: 2,
                 onChanged: (_) => setSheet(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Reason',
-                  hintText: 'Shown to the buyer',
+                decoration: InputDecoration(
+                  labelText: l10n.adminOrderDetailReasonLabel,
+                  hintText: l10n.adminOrderDetailReasonHint,
                 ),
               ),
             ],
           ),
           footer: ManagementModalActions(
-            primaryLabel: 'Cancel Order',
+            primaryLabel: l10n.adminOrderDetailCancelTitle,
             isDestructive: true,
             isLoading: isSaving,
             onPrimary: !hasReason
@@ -134,13 +137,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     try {
                       await _repo.cancelOrder(widget.orderId, reason: reasonCtrl.text.trim());
                     } catch (_) {
-                      error = 'Failed. Please try again.';
+                      error = l10n.adminOrderDetailFailedTryAgain;
                     }
                     if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(error ?? 'Order cancelled'),
+                      content: Text(error ?? l10n.adminOrderDetailCancelledToast),
                       backgroundColor: error != null ? AppConstants.errorRed : AppConstants.successGreen,
                       behavior: SnackBarBehavior.floating,
                     ));
@@ -164,6 +167,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     required Future<void> Function() action,
     required String successMessage,
   }) async {
+    final l10n = AppLocalizations.of(context);
     bool isSaving = false;
     await showManagementModal(
       context: context,
@@ -182,7 +186,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               try {
                 await action();
               } catch (_) {
-                error = 'Failed. Please try again.';
+                error = l10n.adminOrderDetailFailedTryAgain;
               }
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
@@ -202,6 +206,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -209,7 +214,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       body: Column(
         children: [
           _TopBar(
-            title: _order != null ? 'Order #${_order!.orderReference}' : 'Order Details',
+            title: _order != null
+                ? l10n.adminOrderDetailOrderNumber(_order!.orderReference)
+                : l10n.adminOrderDetailOrderDetailsTitle,
             onBack: () => context.pop(),
           ),
           Expanded(
@@ -217,7 +224,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
                 : _order == null
                     ? Center(
-                        child: Text('Order not found.',
+                        child: Text(l10n.adminOrderDetailNotFound,
                             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
                       )
                     : RefreshIndicator(
@@ -226,7 +233,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                           children: [
-                            _buildStatusCard(_order!, cs),
+                            _buildStatusCard(_order!, cs, l10n),
                             const SizedBox(height: 16),
                             if (!_order!.isCancelled) ...[
                               _buildTimeline(_order!),
@@ -234,9 +241,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             ],
                             _buildBuyerCard(_order!, cs),
                             const SizedBox(height: 16),
-                            _buildProductCard(_order!, cs),
+                            _buildProductCard(_order!, cs, l10n),
                             const SizedBox(height: 16),
-                            _buildSummaryCard(_order!, cs),
+                            _buildSummaryCard(_order!, cs, l10n),
                           ],
                         ),
                       ),
@@ -255,6 +262,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (widget.readOnly) return null;
     final order = _order;
     if (order == null || order.isCompleted || order.isCancelled) return null;
+    final l10n = AppLocalizations.of(context);
 
     if (order.isPending) {
       return SafeArea(
@@ -270,7 +278,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     side: const BorderSide(color: AppConstants.errorRed),
                   ),
                   icon: const Icon(Icons.close_rounded, size: 18),
-                  label: Text('Cancel Order', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                  label: Text(l10n.adminOrderDetailCancelTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -281,7 +289,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   // shares the row with "Cancel Order" and the icon + gap
                   // left too little room for "Approve Order", causing the
                   // label to ellipsis-clip.
-                  label: 'Approve Order',
+                  label: l10n.adminOrderDetailApproveTitle,
                   onPressed: _confirmApprove,
                 ),
               ),
@@ -298,20 +306,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         child: PrimaryButton(
           height: 46,
           icon: Icons.task_alt_rounded,
-          label: 'Complete Order',
+          label: l10n.adminOrderDetailCompleteTitle,
           onPressed: _confirmComplete,
         ),
       ),
     );
   }
 
-  Widget _buildStatusCard(AdminOrderModel order, ColorScheme cs) {
+  Widget _buildStatusCard(AdminOrderModel order, ColorScheme cs, AppLocalizations l10n) {
     final color = _statusColor(order.status);
     final subtitle = switch (order.status) {
-      'pending' => 'Awaiting your review',
-      'approved' => 'Approved — awaiting completion',
-      'completed' => 'Completed',
-      _ => 'Cancelled',
+      'pending' => l10n.adminOrderDetailAwaitingReview,
+      'approved' => l10n.adminOrderDetailApprovedAwaitingCompletion,
+      'completed' => l10n.statCompleted,
+      _ => l10n.buyerActivityStatusCancelled,
     };
     return _SectionCard(
       child: Column(
@@ -325,7 +333,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Text(order.statusLabel.toUpperCase(),
+                child: Text(adminOrderStatusLabel(l10n, order.status).toUpperCase(),
                     style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
               ),
               const SizedBox(width: 8),
@@ -347,7 +355,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildTimeline(AdminOrderModel order) {
-    const steps = ['Pending', 'Approved', 'Completed'];
+    final l10n = AppLocalizations.of(context);
+    final steps = [
+      l10n.buyerOrderDetailPendingTimestamp,
+      l10n.buyerOrderDetailStepApproved,
+      l10n.statCompleted,
+    ];
     final currentIndex = switch (order.status) {
       'approved' => 1,
       'completed' => 2,
@@ -425,7 +438,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildProductCard(AdminOrderModel order, ColorScheme cs) {
+  Widget _buildProductCard(AdminOrderModel order, ColorScheme cs, AppLocalizations l10n) {
     return _SectionCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -456,9 +469,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 spacing: 20,
                 runSpacing: 10,
                 children: [
-                  if (order.batchNumber != null) _miniField('Batch Reference', '#${order.batchNumber}', cs),
-                  if (order.harvestDate != null) _miniField('Freshness', order.harvestedLabel, cs),
-                  if (order.category != null) _miniField('Category', order.category!, cs),
+                  if (order.batchNumber != null) _miniField(l10n.adminOrderDetailBatchReference, '#${order.batchNumber}', cs),
+                  if (order.harvestDate != null) _miniField(l10n.adminOrderDetailFreshness, order.harvestedLabel, cs),
+                  if (order.category != null) _miniField(l10n.adminOrderDetailCategory, order.category!, cs),
                 ],
               ),
             ),
@@ -479,17 +492,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildSummaryCard(AdminOrderModel order, ColorScheme cs) {
+  Widget _buildSummaryCard(AdminOrderModel order, ColorScheme cs, AppLocalizations l10n) {
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Order Summary', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
+          Text(l10n.adminOrderDetailOrderSummary, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
           const SizedBox(height: 12),
-          _summaryRow('Quantity', '${order.quantityKg.toStringAsFixed(0)} kg', cs),
-          _summaryRow('Price per kg', '₱${order.pricePerKg.toStringAsFixed(2)}', cs),
+          _summaryRow(l10n.adminOrderDetailQuantity, '${order.quantityKg.toStringAsFixed(0)} kg', cs),
+          _summaryRow(l10n.adminOrderDetailPricePerKg, '₱${order.pricePerKg.toStringAsFixed(2)}', cs),
           Divider(height: 20, color: cs.outline.withValues(alpha: 0.10)),
-          _summaryRow('Total Amount', '₱${order.totalPrice.toStringAsFixed(2)}', cs, bold: true),
+          _summaryRow(l10n.adminOrderDetailTotalAmount, '₱${order.totalPrice.toStringAsFixed(2)}', cs, bold: true),
           const SizedBox(height: 12),
           Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
           const SizedBox(height: 10),
@@ -499,14 +512,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('REFERENCE', style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: cs.onSurfaceVariant)),
+                  Text(l10n.adminOrderDetailReferenceLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: cs.onSurfaceVariant)),
                   Text(order.orderReference, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurface)),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('ORDER DATE', style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: cs.onSurfaceVariant)),
+                  Text(l10n.adminOrderDetailOrderDateLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: cs.onSurfaceVariant)),
                   Text(_formatDate(order.createdAt), style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurface)),
                 ],
               ),
@@ -523,12 +536,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: GoogleFonts.inter(
-                fontSize: bold ? 15 : 13,
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-                color: bold ? AppConstants.primaryGreen : cs.onSurfaceVariant,
-              )),
+          Flexible(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: bold ? 15 : 13,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+                  color: bold ? AppConstants.primaryGreen : cs.onSurfaceVariant,
+                )),
+          ),
+          const SizedBox(width: 8),
           Text(value,
               style: GoogleFonts.poppins(
                 fontSize: bold ? 18 : 13,

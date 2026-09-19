@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/bod_schedule_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/loan_model.dart';
+import 'admin_activity_repository.dart';
 import 'farmer_lookup.dart';
 
 /// Repository for all admin-side loan operations.
@@ -328,13 +329,21 @@ class AdminLoanRepository {
   }
 
   /// Builds a monthly collection trend from farmer_loan_payments.
+  /// Always returns a dense, gap-filled array of exactly [months] entries
+  /// when there's at least one real payment in the window — a sparse,
+  /// gap-skipping array would silently mislabel the x-axis whenever a
+  /// trailing month had zero collections (see fetchYieldTrend()'s doc
+  /// comment in admin_reports_repository.dart for the full reasoning; this
+  /// method had the identical bug).
   Future<List<double>> fetchMonthlyCollectionTrend({int months = 6}) async {
     try {
-      final cutoff = DateTime.now().subtract(Duration(days: months * 31));
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month - (months - 1), 1);
       final rows = await _client
           .from('farmer_loan_payments')
           .select('amount_paid, payment_date')
           .gte('payment_date', _dateOnly(cutoff));
+      if (rows.isEmpty) return [];
 
       final buckets = <String, double>{};
       for (final row in rows) {
@@ -343,9 +352,12 @@ class AdminLoanRepository {
         buckets[key] = (buckets[key] ?? 0) + (row['amount_paid'] as num).toDouble();
       }
 
-      final sortedKeys = buckets.keys.toList()..sort();
-      final trend = sortedKeys.map((k) => buckets[k]!).toList();
-      return trend.length > months ? trend.sublist(trend.length - months) : trend;
+      return List.generate(months, (i) {
+        final offset = months - 1 - i;
+        final date = DateTime(now.year, now.month - offset, 1);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        return buckets[key] ?? 0.0;
+      });
     } catch (_) {
       return [];
     }
@@ -516,7 +528,7 @@ class AdminLoanRepository {
       final rows = await _client
           .from('loan_items_master')
           .select('id, unit_price, '
-                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand)')
+                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)')
           .eq('is_loan_eligible', true)
           .eq('cooperative_inventory.is_active', true);
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
@@ -534,7 +546,7 @@ class AdminLoanRepository {
       final rows = await _client
           .from('loan_items_master')
           .select('id, unit_price, is_loan_eligible, notes, '
-                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand)')
+                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)')
           .eq('cooperative_inventory.is_active', true);
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
     } catch (_) {
@@ -554,6 +566,12 @@ class AdminLoanRepository {
         'is_loan_eligible': isLoanEligible,
         'notes': notes,
       }).eq('id', loanItemId);
+      AdminActivityRepository().log(
+        module: 'loans',
+        actionType: 'updated',
+        description: 'Updated a loan catalog item (₱${unitPrice.toStringAsFixed(2)}).',
+        referenceId: loanItemId,
+      );
       return true;
     } catch (_) {
       return false;
@@ -612,6 +630,12 @@ class AdminLoanRepository {
     }) as List;
 
     final row = rows.first as Map<String, dynamic>;
+    AdminActivityRepository().log(
+      module: 'loans',
+      actionType: 'issued',
+      description: 'Issued a loan (₱${monthlyPayment.toStringAsFixed(2)}/month).',
+      referenceId: row['loan_id'] as String,
+    );
     return IssuedLoanResult(
       loanId: row['loan_id'] as String,
       referenceNo: row['reference_no'] as String,

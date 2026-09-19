@@ -4,11 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/models/price_record_model.dart';
+import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/price_management_repository.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/management_modal.dart';
@@ -24,6 +27,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
   final _priceRepo = PriceManagementRepository();
   final _marketRepo = BuyerMarketplaceRepository();
   final _notificationRepo = NotificationRepository();
+  final _profileRepo = BuyerProfileRepository();
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
@@ -31,6 +35,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
   Set<String> _listedCrops = {};
   Map<String, String> _cropCategories = {}; // cropId -> category
   int _unreadCount = 0;
+  BuyerProfileModel? _buyerProfile;
 
   // ─── Filters ────────────────────────────────────────────────────────────
   String? _priceTypeFilter;   // price-source chip row — null = All
@@ -47,6 +52,13 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     super.initState();
     _searchController.addListener(() => setState(() {}));
     _load();
+    _loadBuyerProfile();
+  }
+
+  Future<void> _loadBuyerProfile() async {
+    final profile = await _profileRepo.fetchProfile();
+    if (!mounted) return;
+    setState(() => _buyerProfile = profile);
   }
 
   @override
@@ -141,6 +153,21 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
+      drawer: AppNavigationDrawer(
+        photoUrl: _buyerProfile?.profilePhotoUrl,
+        displayName: _buyerProfile?.fullName ?? 'Buyer',
+        contactEmail: _buyerProfile?.contactEmail,
+        phoneNumber: _buyerProfile?.phoneNumber,
+        onEditProfile: () {
+          Navigator.pop(context);
+          context.push(AppRoutes.buyerEditProfile);
+        },
+        onSignOut: () => confirmBuyerSignOut(context),
+        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+      ),
       body: Stack(
         children: [
           Column(
@@ -195,6 +222,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
                 await context.push(AppRoutes.buyerNotifications);
                 _loadUnreadCount();
               },
+              enableMenu: true,
             ),
           ),
         ],

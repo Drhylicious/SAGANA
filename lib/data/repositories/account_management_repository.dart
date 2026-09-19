@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_activity_repository.dart';
 
 /// Admin-side account management: creating Officer accounts, listing
 /// non-Farmer accounts (Officer/Buyer), and admin-assisted password
@@ -11,6 +12,8 @@ class AccountManagementRepository {
   /// Creates an Officer account. Email + phone are optional (Decision
   /// D23); [registryId] must reference an available officer_registry row
   /// (Decision D22); the Employee ID (EMP-###) is generated server-side.
+  /// Date of birth / gender are also optional (Admin Profile & Settings
+  /// Phase 2 correction) — the 18+ check only applies if a date is given.
   Future<void> createOfficerAccount({
     required String username,
     required String password,
@@ -19,6 +22,8 @@ class AccountManagementRepository {
     String? email,
     String? phoneNumber,
     String? position,
+    DateTime? dateOfBirth,
+    String? gender,
   }) async {
     try {
       await _client.rpc('create_officer_account', params: {
@@ -29,7 +34,16 @@ class AccountManagementRepository {
         'p_phone_number': phoneNumber,
         'p_position': position,
         'p_registry_id': registryId,
+        'p_date_of_birth': dateOfBirth == null
+            ? null
+            : '${dateOfBirth.year.toString().padLeft(4, '0')}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}',
+        'p_gender': gender,
       });
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'created',
+        description: 'Created Officer account for $fullName.',
+      );
     } on PostgrestException catch (e) {
       throw Exception(e.message);
     }
@@ -56,18 +70,27 @@ class AccountManagementRepository {
   /// Fetches all accounts for a given role in exactly two queries total,
   /// regardless of row count — replaces the previous per-row
   /// user_information lookup in manage_accounts_screen.dart.
+  ///
+  /// Confirmed bug fix (Admin Profile & Settings review): previously had
+  /// no status filter at all, so Pending/Rejected/Draft applicants — who
+  /// are not cooperative members — showed up here alongside real
+  /// accounts. Restricted to 'active'/'suspended': both are genuine,
+  /// already-approved members (Suspended just blocks login, per the
+  /// SRS), while Pending/Rejected/Draft never completed or were denied
+  /// membership and must not appear in a member-accounts list.
   Future<List<AccountEntry>> fetchAccountsByRole(String role) async {
     final roles = await _client
         .from('user_roles')
         .select('user_id, status')
-        .eq('role', role);
+        .eq('role', role)
+        .inFilter('status', ['active', 'suspended']);
 
     if (roles.isEmpty) return [];
 
     final userIds = roles.map((r) => r['user_id'] as String).toList();
     final infoRows = await _client
         .from('user_information')
-        .select('user_id, full_name, username')
+        .select('user_id, full_name, username, profile_photo_url')
         .inFilter('user_id', userIds);
     final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
@@ -80,6 +103,7 @@ class AccountManagementRepository {
         username: info?['username'] as String? ?? '—',
         role: role,
         status: r['status'] as String? ?? 'active',
+        profilePhotoUrl: info?['profile_photo_url'] as String?,
       );
     }).toList();
   }
@@ -162,6 +186,7 @@ class AccountEntry {
   final String username;
   final String role;
   final String status;
+  final String? profilePhotoUrl;
 
   const AccountEntry({
     required this.userId,
@@ -169,6 +194,7 @@ class AccountEntry {
     required this.username,
     required this.role,
     required this.status,
+    this.profilePhotoUrl,
   });
 }
 

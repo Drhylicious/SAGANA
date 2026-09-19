@@ -12,8 +12,6 @@ import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
 
-enum _StockFilter { all, lowStock }
-
 /// Cooperative Stock Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/coop-stock
 ///
@@ -37,7 +35,10 @@ class _CooperativeStockReportScreenState
 
   bool _isLoading = true;
   String _searchQuery = '';
-  _StockFilter _filter = _StockFilter.all;
+  // null = All. Any other value = a real category name from
+  // _data.categoryCounts. No separate Low Stock filter — the low-stock
+  // alert banner and per-row badge already surface that.
+  String? _filter;
   CoopStockReportData _data = CoopStockReportData.empty;
 
   @override
@@ -63,9 +64,9 @@ class _CooperativeStockReportScreenState
   }
 
   List<CoopStockReportRow> get _filteredItems {
-    var list = _filter == _StockFilter.lowStock
-        ? _data.items.where((i) => i.isLowStock).toList()
-        : _data.items;
+    var list = _filter == null
+        ? _data.items
+        : _data.items.where((i) => i.category == _filter).toList();
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list
@@ -103,11 +104,7 @@ class _CooperativeStockReportScreenState
                         32,
                       ),
                       children: [
-                        _buildSummaryStats(context, l10n, cs, sagana),
-                        if (_data.lowStockCount > 0) ...[
-                          const SizedBox(height: AppConstants.spacingMd),
-                          _buildLowStockAlert(context, l10n, cs),
-                        ],
+                        _buildOverviewCard(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
                         _buildCategoryBreakdown(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
@@ -156,10 +153,7 @@ class _CooperativeStockReportScreenState
                 ),
               ),
               IconButton(
-                icon: Icon(
-                  Icons.file_download_outlined,
-                  color: cs.primary,
-                ),
+                icon: Icon(Icons.file_download_outlined, color: cs.primary),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: const ExportCenterArgs(
@@ -175,6 +169,38 @@ class _CooperativeStockReportScreenState
     );
   }
 
+  /// Header + KPI row together in one bordered, padded card — matching
+  /// the breathing room Harvest/Loan/Member Patronage's ReportHeroCard-
+  /// based headers already have, rather than a bare header row sitting
+  /// directly on the page background with only a small gap to the tiles.
+  Widget _buildOverviewCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ReportSectionHeader(
+            icon: Icons.inventory_2_rounded,
+            title: l10n.reportsStockOverview,
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          _buildSummaryStats(context, l10n, cs, sagana),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSummaryStats(
     BuildContext context,
     AppLocalizations l10n,
@@ -184,62 +210,32 @@ class _CooperativeStockReportScreenState
     return Row(
       children: [
         Expanded(
-          child: ReportAccentStatCard(
+          child: ReportIconStatCard(
+            icon: Icons.inventory_2_rounded,
             label: l10n.reportsTotalItems,
             value: '${_data.totalItems}',
             accent: AppConstants.buyerBlue,
-            valueFontSize: 18,
           ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: ReportAccentStatCard(
+          child: ReportIconStatCard(
+            icon: Icons.warning_amber_rounded,
             label: l10n.reportsLowStockItems,
             value: '${_data.lowStockCount}',
             accent: AppConstants.errorRed,
-            valueFontSize: 18,
           ),
         ),
         const SizedBox(width: AppConstants.spacingSm),
         Expanded(
-          child: ReportAccentStatCard(
+          child: ReportIconStatCard(
+            icon: Icons.category_rounded,
             label: l10n.reportsCategories,
             value: '${_data.categoryCounts.length}',
             accent: AppConstants.amber,
-            valueFontSize: 18,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLowStockAlert(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: cs.errorContainer,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, color: cs.error, size: 18),
-          const SizedBox(width: AppConstants.spacingSm),
-          Expanded(
-            child: Text(
-              l10n.reportsLowStockAlert(_data.lowStockCount),
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: cs.onErrorContainer,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -344,32 +340,40 @@ class _CooperativeStockReportScreenState
           ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
-        SizedBox(
-          height: 34,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: _StockFilter.values.map((f) {
-              final active = _filter == f;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(
-                    f == _StockFilter.all
-                        ? l10n.reportsAll
-                        : l10n.reportsLowStockItems,
-                    style: GoogleFonts.inter(fontSize: 12),
-                  ),
-                  selected: active,
-                  onSelected: (_) => setState(() => _filter = f),
-                  selectedColor: AppConstants.primaryGreen,
-                  labelStyle: TextStyle(
-                    color: active ? Colors.white : cs.onSurface,
+        if (_data.items.isNotEmpty)
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _StockFilterChip(
+                  label: l10n.reportsAll,
+                  selected: _filter == null,
+                  onTap: () => setState(() => _filter = null),
+                  cs: cs,
+                  sagana: sagana,
+                ),
+                // Dynamic, per-category chips built from whatever
+                // categories are actually present in cooperative_inventory
+                // right now — mirrors Inventory Management's own category
+                // filter exactly (All + categories only; no separate Low
+                // Stock chip, since the alert banner and per-row badge
+                // already surface that).
+                ..._data.categoryCounts.keys.map(
+                  (category) => Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _StockFilterChip(
+                      label: category,
+                      selected: _filter == category,
+                      onTap: () => setState(() => _filter = category),
+                      cs: cs,
+                      sagana: sagana,
+                    ),
                   ),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_data.items.isNotEmpty)
           TextField(
@@ -403,68 +407,143 @@ class _CooperativeStockReportScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(
-          color: item.isLowStock
-              ? AppConstants.errorRed.withValues(alpha: 0.3)
-              : cs.outline.withValues(alpha: 0.10),
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.adminInventory, extra: item.category),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+        padding: const EdgeInsets.all(AppConstants.spacingMd),
+        decoration: BoxDecoration(
+          color: sagana.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          border: Border.all(
+            color: item.isLowStock
+                ? AppConstants.errorRed.withValues(alpha: 0.3)
+                : cs.outline.withValues(alpha: 0.10),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // The item's Inventory Management photo — same All Listings-
+            // style placement as Loan Item Catalog, fetched through the
+            // existing cooperative_inventory row rather than a separate
+            // upload.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                    ? Image.network(
+                        item.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: cs.surfaceContainerHighest,
+                          child: Icon(Icons.inventory_2_outlined,
+                              size: 22, color: cs.outline.withValues(alpha: 0.4)),
+                        ),
+                      )
+                    : Container(
+                        color: cs.surfaceContainerHighest,
+                        child: Icon(Icons.inventory_2_outlined,
+                            size: 22, color: cs.outline.withValues(alpha: 0.4)),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.itemName,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  Text(
+                    item.category,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  item.itemName,
+                  '${item.quantityOnHand.toStringAsFixed(item.quantityOnHand % 1 == 0 ? 0 : 1)} ${item.unit}',
                   style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     fontSize: 13,
                     color: cs.onSurface,
                   ),
                 ),
-                Text(
-                  item.category,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
+                if (item.isLowStock)
+                  Text(
+                    l10n(context).reportsLowStockBadge,
+                    style: GoogleFonts.poppins(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.errorRed,
+                    ),
                   ),
-                ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${item.quantityOnHand.toStringAsFixed(item.quantityOnHand % 1 == 0 ? 0 : 1)} ${item.unit}',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: cs.onSurface,
-                ),
-              ),
-              if (item.isLowStock)
-                Text(
-                  l10n(context).reportsLowStockBadge,
-                  style: GoogleFonts.poppins(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.errorRed,
-                  ),
-                ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   AppLocalizations l10n(BuildContext context) => AppLocalizations.of(context);
+}
+
+/// Same rounded pill styling as Inventory Management's private category
+/// chip (admin_inventory_screen.dart's `_Chip`) — kept as a separate,
+/// file-local widget since that one is library-private and this report is
+/// a different file, not because the visual design should ever diverge.
+class _StockFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+  const _StockFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? cs.primary : sagana.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+          border: Border.all(
+            color: selected ? cs.primary : cs.outline.withValues(alpha: 0.20),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : cs.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
 }

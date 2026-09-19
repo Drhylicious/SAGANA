@@ -44,12 +44,20 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
   bool _isLoading = true;
   String _searchQuery = '';
   MemberContributionReportData _data = MemberContributionReportData.empty(DateTime.now().year);
+  List<int> _availableYears = [DateTime.now().year];
 
   @override
   void initState() {
     super.initState();
     _year = DateTime.now().year;
+    _loadAvailableYears();
     _load();
+  }
+
+  Future<void> _loadAvailableYears() async {
+    final years = await _repo.fetchAvailablePatronageYears();
+    if (!mounted) return;
+    setState(() => _availableYears = years);
   }
 
   @override
@@ -103,7 +111,14 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
                   32,
                 ),
                 children: [
-                  _buildYearChips(cs),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: YearFilterSelector(
+                      selectedYear: _year,
+                      onYearSelected: _setYear,
+                      years: _availableYears,
+                    ),
+                  ),
                   const SizedBox(height: AppConstants.spacingGutter),
                   if (_isLoading)
                     const Padding(
@@ -111,7 +126,7 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else ...[
-                    _buildSummaryCard(context, l10n, cs),
+                    _buildSummaryCard(context, l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
                     _buildMembersSection(context, l10n, cs, sagana),
                   ],
@@ -170,53 +185,80 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
     );
   }
 
-  Widget _buildYearChips(ColorScheme cs) {
-    final currentYear = DateTime.now().year;
-    final years = List.generate(5, (i) => currentYear - i);
-
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: years.map((y) {
-          final active = _year == y;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('$y', style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setYear(y),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  // Redesigned off ReportHeroCard's 2-column grid onto a single balanced
+  // row of 3 equal-width cards, at the user's explicit request — 3 stats
+  // in a 2-column grid renders as a lopsided 2-then-1 layout. The header
+  // row above it still matches ReportHeroCard's own icon+title framing
+  // exactly (via the shared ReportSectionHeader), so the visual language
+  // stays consistent with Harvest/Loan Report's hero cards even though
+  // this screen no longer uses ReportHeroCard itself.
+  Widget _buildSummaryCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
 
-    return ReportHeroCard(
-      title: l10n.reportsTotalCoopSalesLabel(_year),
-      period: ReportPeriod.allTime,
-      primaryStats: [
-        ReportHeroStat(
-          label: '',
-          value: currency.format(_data.totalCoopSales),
-        ),
-      ],
-      secondaryStats: [
-        ReportHeroStat(
-          label: l10n.reportsContributingMembers,
-          value: '${_data.contributingMemberCount} / ${_data.memberCount}',
-        ),
-        ReportHeroStat(
-          label: l10n.reportsParticipationRate,
-          value: '${_data.participationPercent.toStringAsFixed(0)}%',
-        ),
-      ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ReportSectionHeader(
+            icon: Icons.paid_rounded,
+            title: l10n.reportsTotalCoopSalesLabel(_year),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          // A fixed absolute height, NOT a GridView childAspectRatio —
+          // see the identical fix/reasoning in Expense Report's
+          // _buildSummaryStats(): aspect ratio ties cell height to cell
+          // width, but this card's content needs roughly the same height
+          // regardless of how narrow the device is, so a narrow-phone
+          // aspect-ratio cell can shrink right when a 2-line label like
+          // "Contributing Members" needs MORE height, overflowing.
+          SizedBox(
+            height: 140,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ReportIconStatCard(
+                    icon: Icons.paid_rounded,
+                    label: l10n.reportsTotalRevenue,
+                    value: currency.format(_data.totalCoopSales),
+                    accent: AppConstants.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: AppConstants.spacingSm),
+                Expanded(
+                  child: ReportIconStatCard(
+                    icon: Icons.groups_rounded,
+                    label: l10n.reportsContributingMembers,
+                    value: '${_data.contributingMemberCount} / ${_data.memberCount}',
+                    accent: AppConstants.buyerBlue,
+                  ),
+                ),
+                const SizedBox(width: AppConstants.spacingSm),
+                Expanded(
+                  child: ReportIconStatCard(
+                    icon: Icons.percent_rounded,
+                    label: l10n.reportsParticipationRate,
+                    value: '${_data.participationPercent.toStringAsFixed(0)}%',
+                    accent: AppConstants.amber,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -315,6 +357,14 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
                   _cropStat(l10n.reportsPeanut, row.peanutQtyKg, row.peanutAmount, AppConstants.amber, cs),
                 ],
               ),
+              // Any crop other than Palay/Peanut sold via Offer to
+              // Cooperative (Phase 9's any-crop widening) — only shown
+              // when non-zero, so members who only ever sold Palay/Peanut
+              // see no change to this card.
+              if (row.otherCropsAmount > 0) ...[
+                const SizedBox(height: 4),
+                _cropStat('Other Crops', row.otherCropsQtyKg, row.otherCropsAmount, AppConstants.buyerBlue, cs),
+              ],
             ] else
               Padding(
                 padding: const EdgeInsets.only(top: AppConstants.spacingSm),
@@ -323,6 +373,28 @@ class _MemberContributionReportScreenState extends State<MemberContributionRepor
                   style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
                 ),
               ),
+            // Option B — Product Sales Program purchases (farmer buys FROM
+            // the coop). Shown independently of the sales block above —
+            // even a farmer with no sales this year (hasContributed ==
+            // false) can still have purchased something, and this line
+            // must never be silently hidden by the "No contribution yet"
+            // branch, which is specifically about sales.
+            if (row.programPurchasesAmount > 0) ...[
+              const SizedBox(height: AppConstants.spacingSm),
+              Row(
+                children: [
+                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppConstants.buyerBlue, shape: BoxShape.circle)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Cooperative Purchases: ${currency.format(row.programPurchasesAmount)}',
+                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

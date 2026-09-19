@@ -75,7 +75,7 @@ class AppConstants {
   static const Duration splashTextDelay = Duration(milliseconds: 600);
   static const Duration splashTextDuration = Duration(milliseconds: 600);
   static const Duration splashBarDuration = Duration(milliseconds: 1200);
-  static const Duration splashNavDelay = Duration(milliseconds: 2800);
+  static const Duration splashNavDelay = Duration(milliseconds: 2200);
 
   // ─── Puroks of Barangay Payanas ───────────────────────────────────────────────
   static const List<String> payanasPuroks = [

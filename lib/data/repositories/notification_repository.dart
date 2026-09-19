@@ -2,9 +2,70 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/notification_model.dart';
 
+/// One notification row to be created via [NotificationRepository.createNotification]
+/// or [NotificationRepository.createNotifications]. Mirrors the notifications
+/// table's insertable columns exactly — no new fields, no behavior change
+/// versus the direct `.insert()` calls this replaces.
+class NotificationDraft {
+  final String userId;
+  final String type;
+  final String title;
+  final String body;
+  final DateTime? createdAt;
+
+  const NotificationDraft({
+    required this.userId,
+    required this.type,
+    required this.title,
+    required this.body,
+    this.createdAt,
+  });
+
+  Map<String, dynamic> toRow(DateTime fallbackNow) => {
+        'user_id': userId,
+        'type': type,
+        'title': title,
+        'body': body,
+        'is_read': false,
+        'created_at': (createdAt ?? fallbackNow).toIso8601String(),
+      };
+}
+
 class NotificationRepository {
   final SupabaseClient _client = Supabase.instance.client;
   String get _userId => _client.auth.currentUser!.id;
+
+  // ─── Create notification(s) ────────────────────────────────────────────────
+  // Shared insert path for every notification-creation call site (previously
+  // each repository hand-wrote its own `.insert()` into `notifications`).
+  // Callers keep their own error handling — these methods do not catch or
+  // swallow exceptions themselves.
+
+  Future<void> createNotification({
+    required String userId,
+    required String type,
+    required String title,
+    required String body,
+    DateTime? createdAt,
+  }) {
+    return createNotifications([
+      NotificationDraft(
+        userId: userId,
+        type: type,
+        title: title,
+        body: body,
+        createdAt: createdAt,
+      ),
+    ]);
+  }
+
+  Future<void> createNotifications(List<NotificationDraft> drafts) async {
+    if (drafts.isEmpty) return;
+    final now = DateTime.now();
+    await _client
+        .from('notifications')
+        .insert(drafts.map((d) => d.toRow(now)).toList());
+  }
 
   // ─── Fetch all notifications for current user ─────────────────────────────
 

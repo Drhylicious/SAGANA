@@ -36,6 +36,14 @@ class CooperativeProgram {
   // Null for programs created before this field existed, or for programs
   // that intentionally distribute across any category.
   final String? distributionCategory;
+  // 'distribution' (default — the existing benefit/loan-ROI workflow) or
+  // 'sales' (the cooperative sells its own inventory products to enrolled
+  // members via program_products/program_product_purchases — see
+  // supabase_schema_program_product_sales.sql). Orthogonal to benefitType,
+  // which answers "how does the member owe the coop back" — a question
+  // that doesn't apply to a sale.
+  final String programPurpose;
+  final String? imageUrl;
 
   const CooperativeProgram({
     required this.id,
@@ -49,6 +57,8 @@ class CooperativeProgram {
     required this.memberCount,
     this.expectedReturnPercent,
     this.distributionCategory,
+    this.programPurpose = 'distribution',
+    this.imageUrl,
   });
 
   factory CooperativeProgram.fromMap(Map<String, dynamic> m) =>
@@ -66,10 +76,59 @@ class CooperativeProgram {
             ? (m['expected_return_percent'] as num).toDouble()
             : null,
         distributionCategory: m['distribution_category'] as String?,
+        programPurpose: m['program_purpose'] as String? ?? 'distribution',
+        imageUrl: m['image_url'] as String?,
       );
 
   bool get isActive => status == 'active';
   bool get isRevenueShare => benefitType == 'revenue_share';
+  bool get isSalesProgram => programPurpose == 'sales';
+}
+
+// ─── Program Product (Cooperative Product Sales Program) ─────────────────
+// A cooperative_inventory item made available for purchase through a
+// 'sales'-purpose program — see program_products in
+// supabase_schema_program_product_sales.sql. Thin join, same shape as
+// DistributionItem below, plus the price/availability program_products
+// itself owns.
+
+class ProgramProduct {
+  final String id;
+  final String programId;
+  final String inventoryItemId;
+  final String itemName;
+  final String category;
+  final String unit;
+  final double quantityOnHand;
+  final double unitPrice;
+  final bool isAvailable;
+  final String? imageUrl;
+
+  const ProgramProduct({
+    required this.id,
+    required this.programId,
+    required this.inventoryItemId,
+    required this.itemName,
+    required this.category,
+    required this.unit,
+    required this.quantityOnHand,
+    required this.unitPrice,
+    required this.isAvailable,
+    this.imageUrl,
+  });
+
+  factory ProgramProduct.fromMap(Map<String, dynamic> m) => ProgramProduct(
+        id: m['id'] as String,
+        programId: m['program_id'] as String,
+        inventoryItemId: m['inventory_item_id'] as String,
+        itemName: m['item_name'] as String? ?? '',
+        category: m['category'] as String? ?? '',
+        unit: m['unit'] as String? ?? '',
+        quantityOnHand: (m['quantity_on_hand'] as num?)?.toDouble() ?? 0,
+        unitPrice: (m['unit_price'] as num).toDouble(),
+        isAvailable: m['is_available'] as bool? ?? true,
+        imageUrl: m['image_url'] as String?,
+      );
 }
 
 class ProgramMember {
@@ -154,6 +213,77 @@ class DistributionItem {
         category: m['category'] as String? ?? 'Agricultural Supplies',
         unit: m['unit'] as String,
         quantityOnHand: (m['quantity_on_hand'] as num).toDouble(),
+      );
+}
+
+// ─── Program Purchase (Cooperative Product Sales Program) ────────────────
+// One farmer's purchase request for a program_product — see
+// program_product_purchases in supabase_schema_program_product_sales.sql.
+// status: 'pending' (awaiting admin payment confirmation) | 'paid' | 'cancelled'.
+
+class ProgramPurchase {
+  final String id;
+  final String programId;
+  final String programName;
+  final String productId;
+  final String itemName;
+  final String unit;
+  final String farmerId;
+  final String farmerName;
+  final double quantity;
+  final double unitPrice;
+  final double totalAmount;
+  final String status;
+  final DateTime requestedAt;
+  final DateTime? confirmedAt;
+  final DateTime? cancelledAt;
+  final String? cancelReason;
+  final String? imageUrl;
+
+  const ProgramPurchase({
+    required this.id,
+    required this.programId,
+    required this.programName,
+    required this.productId,
+    required this.itemName,
+    required this.unit,
+    required this.farmerId,
+    required this.farmerName,
+    required this.quantity,
+    required this.unitPrice,
+    required this.totalAmount,
+    required this.status,
+    required this.requestedAt,
+    this.confirmedAt,
+    this.cancelledAt,
+    this.cancelReason,
+    this.imageUrl,
+  });
+
+  bool get isPending => status == 'pending';
+
+  factory ProgramPurchase.fromMap(Map<String, dynamic> m) => ProgramPurchase(
+        id: m['id'] as String,
+        programId: m['program_id'] as String,
+        programName: m['program_name'] as String? ?? '',
+        productId: m['product_id'] as String,
+        itemName: m['item_name'] as String? ?? '',
+        unit: m['unit'] as String? ?? '',
+        farmerId: m['farmer_id'] as String,
+        farmerName: m['farmer_name'] as String? ?? 'Unknown',
+        quantity: (m['quantity'] as num).toDouble(),
+        unitPrice: (m['unit_price'] as num).toDouble(),
+        totalAmount: (m['total_amount'] as num).toDouble(),
+        status: m['status'] as String? ?? 'pending',
+        requestedAt: DateTime.parse(m['requested_at'] as String),
+        confirmedAt: m['confirmed_at'] != null
+            ? DateTime.parse(m['confirmed_at'] as String)
+            : null,
+        cancelledAt: m['cancelled_at'] != null
+            ? DateTime.parse(m['cancelled_at'] as String)
+            : null,
+        cancelReason: m['cancel_reason'] as String?,
+        imageUrl: m['image_url'] as String?,
       );
 }
 

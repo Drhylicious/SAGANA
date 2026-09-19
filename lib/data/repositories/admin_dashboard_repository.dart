@@ -738,10 +738,12 @@ class AdminDashboardRepository {
   Future<List<AdminActivityItem>> fetchRecentActivity({
     int limit = 10,
     int offset = 0,
-    AdminActivityType? typeFilter,
+    // A list rather than a single module: Activity Log's chips filter by
+    // nav-section category (e.g. "Marketplace"), each of which maps to
+    // several underlying sourceModule values.
+    List<String>? moduleFilters,
   }) async {
     final List<AdminActivityItem> items = [];
-    final now = DateTime.now();
 
     // Local fetchNames() closure removed per Phase 5, item 5.1 — replaced by
     // the shared fetchFarmerInfoMap() utility at each call site below.
@@ -758,7 +760,10 @@ class AdminDashboardRepository {
           rows.map((r) => r['farmer_id'] as String).toList(),
         );
         for (final r in rows) {
-          final name = infoMap[r['farmer_id'] as String]?.fullName ?? 'Farmer';
+          // Left null, not defaulted to English 'Farmer' — see the member
+          // block below; adminActivityDescription() resolves the fallback
+          // via l10n.defaultFarmerName.
+          final name = infoMap[r['farmer_id'] as String]?.fullName;
           final qty = r['quantity_kg'];
           final crop = r['crop_name'] as String;
           final ts = DateTime.parse(r['created_at'] as String);
@@ -766,9 +771,11 @@ class AdminDashboardRepository {
             AdminActivityItem(
               id: r['id'] as String,
               type: AdminActivityType.harvest,
-              description: 'New harvest: $name — ${qty}kg $crop',
+              descKind: AdminActivityDescKind.harvest,
+              name: name,
+              cropName: crop,
+              quantityKg: '$qty',
               highlightedName: name,
-              timeLabel: _timeLabel(ts, now),
               timestamp: ts,
               isPrimary: true,
               sourceModule: 'harvest',
@@ -793,7 +800,10 @@ class AdminDashboardRepository {
           rows.map((r) => r['farmer_id'] as String).toList(),
         );
         for (final r in rows) {
-          final name = infoMap[r['farmer_id'] as String]?.fullName ?? 'Farmer';
+          // Left null, not defaulted to English 'Farmer' — see the member
+          // block below; adminActivityDescription() resolves the fallback
+          // via l10n.defaultFarmerName.
+          final name = infoMap[r['farmer_id'] as String]?.fullName;
           final crop = r['crop_name'] as String;
           final status = r['status'] as String;
           final ts = DateTime.parse(r['submitted_at'] as String);
@@ -802,11 +812,12 @@ class AdminDashboardRepository {
             AdminActivityItem(
               id: r['id'] as String,
               type: AdminActivityType.listing,
-              description: isApproved
-                  ? 'Listing approved: $crop — $name'
-                  : 'Listing submitted: $name — $crop',
+              descKind: isApproved
+                  ? AdminActivityDescKind.listingApproved
+                  : AdminActivityDescKind.listingSubmitted,
+              name: name,
+              cropName: crop,
               highlightedName: isApproved ? crop : name,
-              timeLabel: _timeLabel(ts, now),
               timestamp: ts,
               isPrimary: isApproved,
               sourceModule: 'listings',
@@ -832,11 +843,11 @@ class AdminDashboardRepository {
           AdminActivityItem(
             id: r['id'] as String,
             type: AdminActivityType.order,
-            description: 'Order placed: ₱$price',
-            timeLabel: _timeLabel(ts, now),
+            descKind: AdminActivityDescKind.orderPlaced,
+            amount: price,
             timestamp: ts,
             isPrimary: false,
-            sourceModule: 'listings',
+            sourceModule: 'orders',
             referenceId: r['id'] as String,
           ),
         );
@@ -859,9 +870,10 @@ class AdminDashboardRepository {
           AdminActivityItem(
             id: r['id'] as String,
             type: AdminActivityType.price,
-            description: 'Price updated: $crop — ₱$price/kg',
+            descKind: AdminActivityDescKind.priceUpdated,
+            cropName: crop,
+            amount: price,
             highlightedName: crop,
-            timeLabel: _timeLabel(ts, now),
             timestamp: ts,
             isPrimary: false,
             sourceModule: 'prices',
@@ -885,15 +897,19 @@ class AdminDashboardRepository {
           rows.map((r) => r['user_id'] as String).toList(),
         );
         for (final r in rows) {
-          final name = infoMap[r['user_id'] as String]?.fullName ?? 'New Member';
+          // Left null rather than defaulting to English 'New Member' here —
+          // the repository has no AppLocalizations access, so the fallback
+          // text is resolved from item.name == null in
+          // adminActivityDescription() instead.
+          final name = infoMap[r['user_id'] as String]?.fullName;
           final ts = DateTime.parse(r['created_at'] as String);
           items.add(
             AdminActivityItem(
               id: r['user_id'] as String,
               type: AdminActivityType.member,
-              description: 'New member: $name',
+              descKind: AdminActivityDescKind.newMember,
+              name: name,
               highlightedName: name,
-              timeLabel: _timeLabel(ts, now),
               timestamp: ts,
               isPrimary: true,
               sourceModule: 'members',
@@ -918,16 +934,20 @@ class AdminDashboardRepository {
           rows.map((r) => r['farmer_id'] as String).toList(),
         );
         for (final r in rows) {
-          final name = infoMap[r['farmer_id'] as String]?.fullName ?? 'Farmer';
+          // Left null, not defaulted to English 'Farmer' — see the member
+          // block above; adminActivityDescription() resolves the fallback
+          // via l10n.defaultFarmerName.
+          final name = infoMap[r['farmer_id'] as String]?.fullName;
           final crop = r['requested_name'] as String;
           final ts = DateTime.parse(r['created_at'] as String);
           items.add(
             AdminActivityItem(
               id: r['id'] as String,
               type: AdminActivityType.cropRequest,
-              description: 'Crop requested: $name — $crop',
+              descKind: AdminActivityDescKind.cropRequested,
+              name: name,
+              cropName: crop,
               highlightedName: crop,
-              timeLabel: _timeLabel(ts, now),
               timestamp: ts,
               isPrimary: false,
               sourceModule: 'crops',
@@ -940,11 +960,48 @@ class AdminDashboardRepository {
       debugPrint('[AdminDashboardRepository] fetchRecentActivity/cropRequest: $e');
     }
 
+    // Generic log-backed activity — see admin_activity_log
+    // (supabase_schema_admin_activity_log.sql) and AdminActivityRepository.
+    // Covers every module an action was explicitly logged from, unlike the
+    // 6 sources above which only ever infer activity from a table's
+    // created_at and can't capture updates or which admin acted.
+    try {
+      final rows = await _client
+          .from('admin_activity_log')
+          .select('id, admin_id, module, description, reference_id, created_at')
+          .order('created_at', ascending: false)
+          .limit(30);
+      if (rows.isNotEmpty) {
+        final adminIds = rows
+            .map((r) => r['admin_id'] as String?)
+            .whereType<String>()
+            .toList();
+        final infoMap = await fetchFarmerInfoMap(_client, adminIds);
+        for (final r in rows) {
+          final adminId = r['admin_id'] as String?;
+          items.add(
+            AdminActivityItem(
+              id: r['id'] as String,
+              type: AdminActivityType.logged,
+              plainDescription: r['description'] as String,
+              adminName: adminId != null ? infoMap[adminId]?.fullName : null,
+              timestamp: DateTime.parse(r['created_at'] as String),
+              isPrimary: false,
+              sourceModule: r['module'] as String,
+              referenceId: r['reference_id'] as String?,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchRecentActivity/log: $e');
+    }
+
     items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-    final filtered = typeFilter == null
+    final filtered = moduleFilters == null
         ? items
-        : items.where((item) => item.type == typeFilter).toList();
+        : items.where((item) => moduleFilters.contains(item.sourceModule)).toList();
 
     return filtered.skip(offset).take(limit).toList();
   }
@@ -997,6 +1054,34 @@ class AdminDashboardRepository {
       debugPrint('[AdminDashboardRepository] fetchCoopPerformance/sales: $e');
     }
 
+    int totalMembers = 0;
+    bool totalMembersQueryFailed = false;
+    Set<String> activeFarmerIds = {};
+    try {
+      // Total registered membership, replacing the hardcoded constant of 52.
+      // See Phase 2, item 2.5. Consolidated per Phase 5, item 5.1 — shares
+      // the same farmer user_roles row set as fetchKpiSummary()/
+      // fetchDashboardPriorities() via _fetchFarmerRoleRows().
+      //
+      // Active-only (Phase 4 fix, applied here after the Admin Dashboard's
+      // "Member Participation: X of Y" figure was found to still count
+      // every farmer role row regardless of status — including draft,
+      // pending, rejected, and suspended accounts that never became real
+      // members — while the Reports/Analytics tab's equivalent figures
+      // were already scoped to active members only. Matches
+      // BalikTangkilikRepository.fetchDistributionPreview() /
+      // AdminReportsRepository / AdminAnalyticsRepository's identical fix.
+      final rows = await _fetchFarmerRoleRows();
+      activeFarmerIds = rows
+          .where((r) => r['status'] == 'active')
+          .map((r) => r['user_id'] as String)
+          .toSet();
+      totalMembers = activeFarmerIds.length;
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/totalMembers: $e');
+      totalMembersQueryFailed = true;
+    }
+
     try {
       final seasonStart = DateTime(DateTime.now().year, 1, 1).toIso8601String();
       final rows = await _client
@@ -1006,23 +1091,10 @@ class AdminDashboardRepository {
       activeMembersThisSeason = rows
           .map((r) => r['farmer_id'] as String)
           .toSet()
+          .intersection(activeFarmerIds)
           .length;
     } catch (e) {
       debugPrint('[AdminDashboardRepository] fetchCoopPerformance/activeMembers: $e');
-    }
-
-    int totalMembers = 0;
-    bool totalMembersQueryFailed = false;
-    try {
-      // Total registered membership, replacing the hardcoded constant of 52.
-      // See Phase 2, item 2.5. Consolidated per Phase 5, item 5.1 — shares
-      // the same farmer user_roles row set as fetchKpiSummary()/
-      // fetchDashboardPriorities() via _fetchFarmerRoleRows().
-      final rows = await _fetchFarmerRoleRows();
-      totalMembers = rows.length;
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/totalMembers: $e');
-      totalMembersQueryFailed = true;
     }
 
     return CoopPerformanceSummary(

@@ -283,10 +283,14 @@ class AdminReportsRepository {
 
   // ─── Sales Report ───────────────────────────────────────────────────────
 
-  /// Reports on member_sales_transactions (direct Palay/Peanut sales to
-  /// SP3) per the agreed pivot away from the empty `orders` table. Trend
-  /// is aggregated by month, capped to the most recent 6 buckets within
-  /// the selected period so the chart stays readable regardless of range.
+  /// Sales Report is a unified view across the four real Selling Types
+  /// (Phase 10 redesign, per the organization's clarified Market Type vs.
+  /// Selling Type distinction): Offer to Cooperative (any crop, per Phase
+  /// 9), Marketplace, Informal Sale (F2F), and DA-AMAD Market Linking.
+  /// Previously this screen only ever read member_sales_transactions —
+  /// Informal Sale and DA-AMAD Market Linking were completely invisible to
+  /// any report. Trend is aggregated by month across all four sources
+  /// combined, capped to the most recent 6 buckets.
   Future<SalesReportData> fetchSalesReport(ReportPeriod period) {
     final window = period.range();
     return fetchSalesReportForRange(window.startDate, window.endDate);
@@ -305,69 +309,37 @@ class AdminReportsRepository {
     DateTime? endDate,
   ) async {
     try {
-      var query = _client.from('member_sales_transactions').select('*');
-      if (startDate != null) {
-        query = query.gte('sale_date', _dateOnly(startDate));
-      }
-      if (endDate != null) {
-        query = query.lte('sale_date', _dateOnly(endDate));
-      }
-      final results = await Future.wait<dynamic>([
-        query.order('sale_date', ascending: false),
-        _fetchMarketplaceRevenue(startDate: startDate, endDate: endDate),
+      final results = await Future.wait([
+        _fetchOfferToCoopSalesRows(startDate, endDate),
+        _fetchMarketplaceSalesRows(startDate, endDate),
+        _fetchInformalSaleRows(startDate, endDate),
+        _fetchDaAmadMarketLinkingRows(startDate, endDate),
       ]);
-      final rows = results[0] as List<Map<String, dynamic>>;
-      final marketplaceRevenue = results[1] as double;
+      final offerRows = results[0];
+      final marketplaceRows = results[1];
+      final informalRows = results[2];
+      final daAmadRows = results[3];
 
-      if (rows.isEmpty) {
-        return SalesReportData.empty().copyWithMarketplaceRevenue(marketplaceRevenue);
-      }
+      final allRows = [...offerRows, ...marketplaceRows, ...informalRows, ...daAmadRows]
+        ..sort((a, b) => b.saleDate.compareTo(a.saleDate));
 
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
-
+      // Deliberately NOT short-circuiting to SalesReportData.empty() here
+      // when allRows is empty (Phase 12 fix) — that previously made the
+      // four Selling Type channel cards disappear entirely whenever the
+      // selected period had zero activity across every channel, instead of
+      // showing four correctly zero-valued cards. channelTotals below is
+      // built from the four (possibly-empty) row lists regardless, so it's
+      // always populated.
       double totalRevenue = 0;
       double totalQtyKg = 0;
-      double palayAmount = 0;
-      double peanutAmount = 0;
       final monthlyBuckets = <String, double>{};
-      final transactions = <SalesTransactionRow>[];
 
-      for (final row in rows) {
-        final amount = (row['amount'] as num).toDouble();
-        final qty = (row['quantity_kg'] as num).toDouble();
-        final cropType = row['crop_type'] as String? ?? 'palay';
-        final saleDate = DateTime.parse(row['sale_date'] as String);
-
-        totalRevenue += amount;
-        totalQtyKg += qty;
-        if (cropType == 'palay') {
-          palayAmount += amount;
-        } else {
-          peanutAmount += amount;
-        }
-
+      for (final row in allRows) {
+        totalRevenue += row.amount;
+        totalQtyKg += row.quantityKg;
         final bucketKey =
-            '${saleDate.year}-${saleDate.month.toString().padLeft(2, '0')}';
-        monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + amount;
-
-        final info = farmerInfo[row['farmer_id']];
-        transactions.add(
-          SalesTransactionRow(
-            id: row['id'] as String,
-            farmerName: info?.fullName ?? 'Unknown Farmer',
-            memberId: info?.memberId ?? '—',
-            cropType: cropType,
-            cropName: row['crop_name'] as String,
-            quantityKg: qty,
-            amount: amount,
-            saleDate: saleDate,
-            referenceNo: row['reference_no'] as String?,
-          ),
-        );
+            '${row.saleDate.year}-${row.saleDate.month.toString().padLeft(2, '0')}';
+        monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + row.amount;
       }
 
       final sortedMonthKeys = monthlyBuckets.keys.toList()..sort();
@@ -376,18 +348,316 @@ class AdminReportsRepository {
           ? fullTrend.sublist(fullTrend.length - 6)
           : fullTrend;
 
+      final channelTotals = [
+        _buildChannelTotal('offer_to_cooperative', 'Offer to Cooperative', offerRows),
+        _buildChannelTotal('marketplace', 'Marketplace', marketplaceRows),
+        _buildChannelTotal('informal_sale', 'Informal Sale (F2F)', informalRows),
+        _buildChannelTotal('da_amad_market_linking', 'DA-AMAD Market Linking', daAmadRows),
+      ];
+
       return SalesReportData(
         totalRevenue: totalRevenue,
-        marketplaceRevenue: marketplaceRevenue,
         totalQuantityKg: totalQtyKg,
-        transactionCount: rows.length,
-        palayAmount: palayAmount,
-        peanutAmount: peanutAmount,
+        transactionCount: allRows.length,
         monthlyTrend: trend,
-        transactions: transactions,
+        transactions: allRows,
+        channelTotals: channelTotals,
       );
     } catch (_) {
       return SalesReportData.empty();
+    }
+  }
+
+  /// Revenue Trend's dedicated data source — deliberately independent of
+  /// the on-screen period filter, mirroring fetchYieldTrend()/
+  /// fetchExpenseTrend()/AdminLoanRepository.fetchMonthlyCollectionTrend()
+  /// exactly. fetchSalesReport(period)'s own monthlyTrend is filtered to
+  /// the SAME period selected by the chips before bucketing by month —
+  /// meaning it could never show more than one point while "This Month"
+  /// was selected, regardless of real sales history across all four
+  /// Selling Types. This method always looks at a fixed trailing window
+  /// instead, so the trend can render correctly no matter which period
+  /// chip is currently selected on screen.
+  ///
+  /// Always returns a dense, gap-filled array of exactly [months] entries
+  /// (one per trailing calendar month, zero-filled where there's no data)
+  /// when there's at least one real data point in the window — same
+  /// convention as fetchYieldTrend(). Returns [] only when the window has
+  /// no data at all.
+  Future<List<double>> fetchSalesTrend({int months = 6}) async {
+    try {
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month - (months - 1), 1);
+      final results = await Future.wait([
+        _fetchOfferToCoopSalesRows(cutoff, null),
+        _fetchMarketplaceSalesRows(cutoff, null),
+        _fetchInformalSaleRows(cutoff, null),
+        _fetchDaAmadMarketLinkingRows(cutoff, null),
+      ]);
+      final allRows = [...results[0], ...results[1], ...results[2], ...results[3]];
+      if (allRows.isEmpty) return [];
+
+      final buckets = <String, double>{};
+      for (final row in allRows) {
+        final key =
+            '${row.saleDate.year}-${row.saleDate.month.toString().padLeft(2, '0')}';
+        buckets[key] = (buckets[key] ?? 0) + row.amount;
+      }
+
+      return List.generate(months, (i) {
+        final offset = months - 1 - i;
+        final date = DateTime(now.year, now.month - offset, 1);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        return buckets[key] ?? 0.0;
+      });
+    } catch (_) {
+      return [];
+    }
+  }
+
+  SalesChannelTotal _buildChannelTotal(
+    String sellingType,
+    String label,
+    List<SalesTransactionRow> rows,
+  ) {
+    return SalesChannelTotal(
+      sellingType: sellingType,
+      label: label,
+      amount: rows.fold(0.0, (sum, r) => sum + r.amount),
+      quantityKg: rows.fold(0.0, (sum, r) => sum + r.quantityKg),
+      transactionCount: rows.length,
+    );
+  }
+
+  /// Channel 1/4: Offer to Cooperative — any crop, per Phase 9's widening.
+  /// The only channel with a Palay/Peanut-specific breakdown elsewhere.
+  Future<List<SalesTransactionRow>> _fetchOfferToCoopSalesRows(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    try {
+      var query = _client.from('member_sales_transactions').select('*');
+      if (startDate != null) {
+        query = query.gte('sale_date', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('sale_date', _dateOnly(endDate));
+      }
+      final rows = await query;
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+
+      return rows.map((row) {
+        final info = farmerInfo[row['farmer_id']];
+        return SalesTransactionRow(
+          id: row['id'] as String,
+          farmerName: info?.fullName ?? 'Unknown Farmer',
+          memberId: info?.memberId ?? '—',
+          cropType: row['crop_type'] as String? ?? 'palay',
+          cropName: row['crop_name'] as String,
+          quantityKg: (row['quantity_kg'] as num).toDouble(),
+          amount: (row['amount'] as num).toDouble(),
+          saleDate: DateTime.parse(row['sale_date'] as String),
+          referenceNo: row['reference_no'] as String?,
+          sellingType: 'offer_to_cooperative',
+          marketType: null,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Channel 2/4: Marketplace — orders completed against a listing, any
+  /// crop under either Public Market or Cooperative Market classification.
+  /// marketplace_listings has no direct crop_id FK to crop_master (per
+  /// supabase_schema_admin_edit_listing_price.sql's own confirmation), so
+  /// Market Type is resolved by name match, same convention already used
+  /// for the price_records backfill in supabase_schema_crop_master_price_
+  /// records_refactor.sql.
+  Future<List<SalesTransactionRow>> _fetchMarketplaceSalesRows(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    try {
+      var query = _client
+          .from('orders')
+          .select('id, listing_id, quantity_kg, total_price, created_at')
+          .eq('status', 'completed');
+      if (startDate != null) {
+        query = query.gte('created_at', _dateOnly(startDate));
+      }
+      if (endDate != null) {
+        query = query.lt('created_at', _exclusiveUpperBound(endDate));
+      }
+      final rows = await query;
+      if (rows.isEmpty) return [];
+
+      final listingIds = rows.map((r) => r['listing_id'] as String).toSet().toList();
+      final listingRows = await _client
+          .from('marketplace_listings')
+          .select('id, farmer_id, crop_name')
+          .inFilter('id', listingIds);
+      final listingMap = {for (final l in listingRows) l['id'] as String: l};
+
+      final farmerIds = listingRows.map((l) => l['farmer_id'] as String).toSet().toList();
+      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+
+      final cropNames =
+          listingRows.map((l) => l['crop_name'] as String).toSet().toList();
+      final marketTypeMap = await _fetchMarketTypeByCropName(cropNames);
+
+      return rows.map((row) {
+        final listing = listingMap[row['listing_id']];
+        final farmerId = listing?['farmer_id'] as String?;
+        final cropName = listing?['crop_name'] as String? ?? 'Unknown';
+        final info = farmerId != null ? farmerInfo[farmerId] : null;
+        return SalesTransactionRow(
+          id: row['id'] as String,
+          farmerName: info?.fullName ?? 'Unknown Farmer',
+          memberId: info?.memberId ?? '—',
+          cropType: cropName.toLowerCase(),
+          cropName: cropName,
+          quantityKg: (row['quantity_kg'] as num).toDouble(),
+          amount: (row['total_price'] as num).toDouble(),
+          saleDate: DateTime.parse(row['created_at'] as String),
+          sellingType: 'marketplace',
+          marketType: marketTypeMap[cropName.toLowerCase()],
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Channel 3/4: Informal Sale (F2F) — previously invisible to every
+  /// report. No market-type concept applies (it's a direct, off-platform
+  /// sale). amount is nullable in the schema (a barter/no-cash sale is
+  /// possible); treated as 0 for revenue purposes, but still shown as a
+  /// real transaction.
+  Future<List<SalesTransactionRow>> _fetchInformalSaleRows(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    try {
+      var query = _client
+          .from('informal_sales')
+          .select('id, farmer_id, crop_name, quantity_kg, amount, sale_date');
+      if (startDate != null) {
+        query = query.gte('sale_date', startDate.toIso8601String());
+      }
+      if (endDate != null) {
+        query = query.lt('sale_date', _exclusiveUpperBound(endDate));
+      }
+      final rows = await query;
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+
+      return rows.map((row) {
+        final info = farmerInfo[row['farmer_id']];
+        return SalesTransactionRow(
+          id: row['id'] as String,
+          farmerName: info?.fullName ?? 'Unknown Farmer',
+          memberId: info?.memberId ?? '—',
+          cropType: (row['crop_name'] as String).toLowerCase(),
+          cropName: row['crop_name'] as String,
+          quantityKg: (row['quantity_kg'] as num).toDouble(),
+          amount: (row['amount'] as num?)?.toDouble() ?? 0,
+          saleDate: DateTime.parse(row['sale_date'] as String),
+          sellingType: 'informal_sale',
+          marketType: null,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Channel 4/4: DA-AMAD Market Linking — previously invisible to every
+  /// report. Ginger-exclusive; the buyer (found by the Admin on the
+  /// farmer's behalf) sets price_per_kg, so amount = quantity × price
+  /// rather than a stored total. Uses confirmed_volume_kg (the final
+  /// quantity at completion) when present, falling back to the originally
+  /// enrolled volume_kg.
+  Future<List<SalesTransactionRow>> _fetchDaAmadMarketLinkingRows(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    try {
+      var query = _client
+          .from('market_linking_programs')
+          .select('id, farmer_id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, completed_at')
+          .eq('status', 'completed');
+      if (startDate != null) {
+        query = query.gte('completed_at', startDate.toIso8601String());
+      }
+      if (endDate != null) {
+        query = query.lt('completed_at', _exclusiveUpperBound(endDate));
+      }
+      final rows = await query;
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+
+      return rows.where((r) => r['completed_at'] != null).map((row) {
+        final info = farmerInfo[row['farmer_id']];
+        final qty = (row['confirmed_volume_kg'] as num?)?.toDouble() ??
+            (row['volume_kg'] as num?)?.toDouble() ??
+            0;
+        final pricePerKg = (row['price_per_kg'] as num?)?.toDouble() ?? 0;
+        final cropName = row['crop_name'] as String? ?? 'Ginger';
+        return SalesTransactionRow(
+          id: row['id'] as String,
+          farmerName: info?.fullName ?? 'Unknown Farmer',
+          memberId: info?.memberId ?? '—',
+          cropType: cropName.toLowerCase(),
+          cropName: cropName,
+          quantityKg: qty,
+          amount: qty * pricePerKg,
+          saleDate: DateTime.parse(row['completed_at'] as String),
+          sellingType: 'da_amad_market_linking',
+          marketType: 'DA-AMAD Market',
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Resolves each crop name to its Market Type label via crop_master,
+  /// by name (case-insensitive) — marketplace_listings has no crop_id FK
+  /// to join on directly.
+  Future<Map<String, String>> _fetchMarketTypeByCropName(
+    List<String> cropNames,
+  ) async {
+    if (cropNames.isEmpty) return {};
+    try {
+      final rows = await _client.from('crop_master').select('crop_name, crop_type');
+      final map = <String, String>{};
+      for (final r in rows) {
+        final name = (r['crop_name'] as String).toLowerCase();
+        map[name] = _marketTypeLabel(r['crop_type'] as String?);
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  String _marketTypeLabel(String? cropType) {
+    switch (cropType) {
+      case 'sp3_cooperative':
+        return 'Cooperative Market';
+      case 'da_amad_market':
+        return 'DA-AMAD Market';
+      case 'open_market':
+      default:
+        return 'Public Market';
     }
   }
 
@@ -601,13 +871,25 @@ class AdminReportsRepository {
   /// history. This method always looks at a fixed trailing window instead,
   /// so the trend can render correctly no matter which period chip is
   /// currently selected on screen.
+  ///
+  /// Always returns a dense, gap-filled array of exactly [months] entries
+  /// (one per trailing calendar month, zero-filled where there's no data)
+  /// when there's at least one real data point in the window — never a
+  /// sparse array that skips empty months. The screen's month-label
+  /// generator assumes the last entry is always the current month; a sparse
+  /// array (e.g. [July, August] when September has no harvests) would
+  /// silently mislabel July's value as August's. Returns [] only when the
+  /// window has no data at all, so the screen's own "not enough data" state
+  /// still shows correctly.
   Future<List<double>> fetchYieldTrend({int months = 6}) async {
     try {
-      final cutoff = DateTime.now().subtract(Duration(days: months * 31));
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month - (months - 1), 1);
       final rows = await _client
           .from('harvest_records')
           .select('quantity_kg, harvest_date')
           .gte('harvest_date', _dateOnly(cutoff));
+      if (rows.isEmpty) return [];
 
       final buckets = <String, double>{};
       for (final row in rows) {
@@ -616,9 +898,12 @@ class AdminReportsRepository {
         buckets[key] = (buckets[key] ?? 0) + (row['quantity_kg'] as num).toDouble();
       }
 
-      final sortedKeys = buckets.keys.toList()..sort();
-      final trend = sortedKeys.map((k) => buckets[k]!).toList();
-      return trend.length > months ? trend.sublist(trend.length - months) : trend;
+      return List.generate(months, (i) {
+        final offset = months - 1 - i;
+        final date = DateTime(now.year, now.month - offset, 1);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        return buckets[key] ?? 0.0;
+      });
     } catch (_) {
       return [];
     }
@@ -714,9 +999,15 @@ class AdminReportsRepository {
   /// looks at a fixed trailing window instead. Excludes subsidized
   /// entries, matching fetchExpenseReport()'s own totalFarmerFundedAmount
   /// convention (subsidized entries carry no peso total by design).
+  ///
+  /// Always returns a dense, gap-filled array of exactly [months] entries
+  /// when there's at least one real data point — see fetchYieldTrend()'s
+  /// doc comment for why (avoids mislabeling the x-axis when a trailing
+  /// month has zero expenses).
   Future<List<double>> fetchExpenseTrend({int months = 6}) async {
     try {
-      final cutoff = DateTime.now().subtract(Duration(days: months * 31));
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month - (months - 1), 1);
       final rows = await _client
           .from('farmer_expenses')
           .select('amount, expense_date, is_subsidy')
@@ -729,10 +1020,14 @@ class AdminReportsRepository {
         final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
         buckets[key] = (buckets[key] ?? 0) + (row['amount'] as num).toDouble();
       }
+      if (buckets.isEmpty) return [];
 
-      final sortedKeys = buckets.keys.toList()..sort();
-      final trend = sortedKeys.map((k) => buckets[k]!).toList();
-      return trend.length > months ? trend.sublist(trend.length - months) : trend;
+      return List.generate(months, (i) {
+        final offset = months - 1 - i;
+        final date = DateTime(now.year, now.month - offset, 1);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        return buckets[key] ?? 0.0;
+      });
     } catch (_) {
       return [];
     }
@@ -775,15 +1070,55 @@ class AdminReportsRepository {
       ..sort((a, b) => b.total.compareTo(a.total));
   }
 
+  /// Which years the Member Patronage Report's year selector should
+  /// actually offer — the distinct years member_sales_transactions has
+  /// real rows for (the same table fetchMemberSalesTotals() reads),
+  /// always including the current year even if it has no rows yet, so
+  /// the selector never advertises years with nothing to show and never
+  /// hides the current, most-relevant year while it's still empty.
+  /// Sorted most-recent-first, matching every other year-descending list
+  /// in Reports.
+  Future<List<int>> fetchAvailablePatronageYears() async {
+    try {
+      final rows = await _client
+          .from('member_sales_transactions')
+          .select('sale_date');
+      final years = rows
+          .map((r) => DateTime.parse(r['sale_date'] as String).year)
+          .toSet();
+      years.add(DateTime.now().year);
+      return years.toList()..sort((a, b) => b.compareTo(a));
+    } catch (_) {
+      return [DateTime.now().year];
+    }
+  }
+
   Future<MemberContributionReportData> fetchMemberContributionReport(
     int year,
   ) async {
     try {
-      final salesTotals = await fetchMemberSalesTotals(_client, year);
+      final results = await Future.wait([
+        fetchMemberSalesTotals(_client, year),
+        fetchMemberProgramPurchaseTotals(_client, year),
+      ]);
+      final salesTotals = results[0] as Map<String, MemberSalesTotals>;
+      final purchaseTotals = results[1] as Map<String, double>;
+
+      // Active members only — see BalikTangkilikRepository.
+      // fetchDistributionPreview() for the full reasoning; this method
+      // shares the identical previously-unfiltered farmer_profiles bug.
+      final activeRoleRows = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'farmer')
+          .eq('status', 'active');
+      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      if (activeIds.isEmpty) return MemberContributionReportData.empty(year);
 
       final rosterRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id');
+          .select('user_id, member_id')
+          .inFilter('user_id', activeIds);
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
@@ -810,6 +1145,9 @@ class AdminReportsRepository {
           peanutAmount: totals.peanutAmount,
           totalAmount: totals.totalAmount,
           sharePercent: sharePercent,
+          otherCropsQtyKg: totals.otherCropsQtyKg,
+          otherCropsAmount: totals.otherCropsAmount,
+          programPurchasesAmount: purchaseTotals[farmerId] ?? 0,
         );
       }).toList()..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
 
@@ -861,6 +1199,7 @@ class AdminReportsRepository {
             lastRestockedAt: row['last_restocked_at'] != null
                 ? DateTime.tryParse(row['last_restocked_at'] as String)
                 : null,
+            imageUrl: row['image_url'] as String?,
           ),
         );
       }

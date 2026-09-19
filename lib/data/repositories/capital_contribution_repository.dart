@@ -124,12 +124,22 @@ class MemberCapitalSummary {
           .clamp(0, double.infinity)
           .toDouble();
 
-  /// 0..1 progress toward the current year's ₱2,000 share.
-  double get annualShareProgress {
+  /// 0..1 progress toward the farmer's NEXT ₱2,000 capital share.
+  ///
+  /// Despite [annualShareTarget]'s name (it mirrors the DB column
+  /// `annual_capital_share_target`, describing the recommended pace of one
+  /// new share roughly per year), total_contribution is a LIFETIME-
+  /// cumulative running total with no calendar-year reset anywhere in the
+  /// schema (confirmed during the Admin-Report tab review, Phase 11) — a
+  /// member's capital keeps growing forever across years, consistent with
+  /// them being a permanent shareholder, not something that lapses or
+  /// restarts each January. This progress is always "toward the next
+  /// share," never "toward this calendar year's share."
+  double get shareProgress {
     if (annualShareTarget <= 0) return 0;
     final withinShare = shares.totalContribution % annualShareTarget;
-    // A member who has completed one or more whole shares this cycle
-    // still shows partial progress toward the next one.
+    // A member who has completed one or more whole shares still shows
+    // partial progress toward the next one.
     return (withinShare / annualShareTarget).clamp(0.0, 1.0);
   }
 }

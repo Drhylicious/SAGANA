@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
+import 'password_requirements.dart';
 
 /// Shared "choose a new password" form — used by both the OTP-based reset
 /// flow (ResetPasswordScreen) and the forced-password-change flow after an
@@ -41,6 +43,7 @@ class SetPasswordForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Form(
       key: formKey,
       child: Column(
@@ -81,11 +84,14 @@ class SetPasswordForm extends StatelessWidget {
                 onPressed: onToggleObscurePassword,
               ),
             ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Please enter a new password';
-              if (v.length < 8) return 'Password must be at least 8 characters';
-              return null;
-            },
+            validator: (v) => validatePasswordMinLength(v, l10n),
+          ),
+          // Dynamic hint — bound directly to the controller so it updates
+          // on every keystroke without the parent screens needing their
+          // own setState wiring for it.
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: passwordController,
+            builder: (_, value, __) => PasswordLengthHint(password: value.text),
           ),
           const SizedBox(height: 14),
           TextFormField(

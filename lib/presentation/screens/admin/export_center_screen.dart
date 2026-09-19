@@ -11,7 +11,9 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
+import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/services/csv_export_service.dart';
+import '../../../data/services/pdf_export_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
@@ -19,10 +21,11 @@ import '../../widgets/shared_widgets.dart';
 /// Export Center — Admin.
 /// Pushed above the shell. Route: /admin/export
 ///
-/// Phase A: CSV only, per agreed scope. Purely an orchestration and
-/// serialization layer — every fetch here goes through the exact same
-/// repository methods each report screen already uses; nothing new is
-/// computed here. PDF export is deliberately out of scope for this pass.
+/// Both PDF and CSV are offered side by side (Phase 15) — the admin picks
+/// per export via the Format selector. Purely an orchestration and
+/// serialization layer either way — every fetch here goes through the
+/// exact same repository methods each report screen already uses;
+/// nothing new is computed here.
 class ExportCenterScreen extends StatefulWidget {
   final ExportCenterArgs? args;
 
@@ -33,13 +36,17 @@ class ExportCenterScreen extends StatefulWidget {
 }
 
 class _ExportCenterScreenState extends State<ExportCenterScreen> {
-  final _service = CsvExportService();
+  final _csvService = CsvExportService();
+  final _pdfService = PdfExportService();
+  final _reportsRepo = AdminReportsRepository();
 
   final Set<ReportModuleType> _selectedModules = {};
   ReportPeriod _period = ReportPeriod.thisMonth;
   late int _contributionYear;
+  String _format = 'pdf';
   bool _isGenerating = false;
   List<ExportHistoryEntry> _history = [];
+  List<int> _availableContributionYears = [DateTime.now().year];
 
   bool get _needsYearSelector =>
       _selectedModules.contains(ReportModuleType.memberContribution);
@@ -53,6 +60,13 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       _selectedModules.add(widget.args!.preselectedModule!);
     }
     _loadHistory();
+    _loadAvailableContributionYears();
+  }
+
+  Future<void> _loadAvailableContributionYears() async {
+    final years = await _reportsRepo.fetchAvailablePatronageYears();
+    if (!mounted) return;
+    setState(() => _availableContributionYears = years);
   }
 
   void _loadHistory() {
@@ -86,7 +100,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
 
     setState(() => _isGenerating = true);
     try {
-      final paths = await _service.generateExports(
+      final ReportExportService service = _format == 'pdf' ? _pdfService : _csvService;
+      final paths = await service.generateExports(
         modules: _selectedModules,
         period: _period,
         contributionYear: _contributionYear,
@@ -161,9 +176,13 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 const SizedBox(height: AppConstants.spacingSm),
                 _buildModuleGrid(context, cs, sagana),
                 const SizedBox(height: AppConstants.spacingSectionV),
+                Text(l10n.exportFormatLabel, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+                const SizedBox(height: AppConstants.spacingSm),
+                _buildFormatChips(cs),
+                const SizedBox(height: AppConstants.spacingSectionV),
                 Text(l10n.exportPeriod, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
                 const SizedBox(height: AppConstants.spacingSm),
-                _buildPeriodChips(cs),
+                _buildPeriodChips(l10n, cs),
                 if (_needsYearSelector) ...[
                   const SizedBox(height: AppConstants.spacingMd),
                   Text(
@@ -171,7 +190,12 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: AppConstants.spacingSm),
-                  _buildYearChips(cs),
+                  YearFilterSelector(
+                    selectedYear: _contributionYear,
+                    onYearSelected: (y) => setState(() => _contributionYear = y),
+                    years: _availableContributionYears,
+                    selectedColor: AppConstants.buyerBlue,
+                  ),
                 ],
                 const SizedBox(height: AppConstants.spacingSectionV),
                 ReportEmptyState(
@@ -320,44 +344,44 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     );
   }
 
-  Widget _buildPeriodChips(ColorScheme cs) {
+  Widget _buildFormatChips(ColorScheme cs) {
+    final options = <String, (String, IconData)>{
+      'pdf': ('PDF', Icons.picture_as_pdf_rounded),
+      'csv': ('CSV', Icons.table_chart_rounded),
+    };
+    return Row(
+      children: options.entries.map((entry) {
+        final active = _format == entry.key;
+        final (label, icon) = entry.value;
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            avatar: Icon(icon, size: 15, color: active ? Colors.white : cs.onSurfaceVariant),
+            label: Text(label, style: GoogleFonts.inter(fontSize: 12)),
+            selected: active,
+            onSelected: (_) => setState(() => _format = entry.key),
+            selectedColor: AppConstants.primaryGreen,
+            labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
     return SizedBox(
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: ReportPeriod.values.map((p) {
+        children: reportPeriodChipOrder.map((p) {
           final active = _period == p;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
               selected: active,
               onSelected: (_) => setState(() => _period = p),
               selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildYearChips(ColorScheme cs) {
-    final currentYear = DateTime.now().year;
-    final years = List.generate(5, (i) => currentYear - i);
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: years.map((y) {
-          final active = _contributionYear == y;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('$y', style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => setState(() => _contributionYear = y),
-              selectedColor: AppConstants.buyerBlue,
               labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
             ),
           );
@@ -382,7 +406,11 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.description_outlined, color: AppConstants.primaryGreen, size: 20),
+          Icon(
+            entry.format == 'pdf' ? Icons.picture_as_pdf_rounded : Icons.table_chart_rounded,
+            color: AppConstants.primaryGreen,
+            size: 20,
+          ),
           const SizedBox(width: AppConstants.spacingMd),
           Expanded(
             child: Column(

@@ -11,8 +11,10 @@ import '../../../data/repositories/listing_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/profile_state_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 
 class MyListingsScreen extends StatefulWidget {
@@ -315,6 +317,31 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
+      drawer: AnimatedBuilder(
+        animation: FarmerProfileStateService.instance,
+        builder: (context, _) {
+          final profile = FarmerProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Farmer',
+            contactEmail: profile?.contactEmail,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.farmerEditProfile);
+            },
+            onEditFarmDetails: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.editFarmDetails);
+            },
+            onSignOut: () => confirmFarmerSignOut(context),
+            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: Column(
         children: [
           if (!_isOnline)
@@ -455,6 +482,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
+              enableMenu: true,
             ),
           ),
               ],

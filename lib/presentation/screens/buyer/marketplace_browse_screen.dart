@@ -5,11 +5,14 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_listing_model.dart';
+import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
+import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/animated_pressable.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -25,6 +28,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   final _repository = BuyerMarketplaceRepository();
   final _cartService = CartService();
   final _notificationRepo = NotificationRepository();
+  final _profileRepo = BuyerProfileRepository();
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
@@ -33,6 +37,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   String _selectedCategory = 'All';
   int _cartCount = 0;
   int _unreadCount = 0;
+  BuyerProfileModel? _buyerProfile;
 
   static const _pageSize = 20;
   final _scrollController = ScrollController();
@@ -46,6 +51,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     _load();
     _loadCartCount();
     _loadUnreadCount();
+    _loadBuyerProfile();
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -70,6 +76,12 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     final count = await _notificationRepo.fetchUnreadCount();
     if (!mounted) return;
     setState(() => _unreadCount = count);
+  }
+
+  Future<void> _loadBuyerProfile() async {
+    final profile = await _profileRepo.fetchProfile();
+    if (!mounted) return;
+    setState(() => _buyerProfile = profile);
   }
 
   @override
@@ -138,6 +150,21 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
+      drawer: AppNavigationDrawer(
+        photoUrl: _buyerProfile?.profilePhotoUrl,
+        displayName: _buyerProfile?.fullName ?? 'Buyer',
+        contactEmail: _buyerProfile?.contactEmail,
+        phoneNumber: _buyerProfile?.phoneNumber,
+        onEditProfile: () {
+          Navigator.pop(context);
+          context.push(AppRoutes.buyerEditProfile);
+        },
+        onSignOut: () => confirmBuyerSignOut(context),
+        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+      ),
       body: Stack(
         children: [
           Column(
@@ -197,6 +224,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                 await context.push(AppRoutes.buyerNotifications);
                 _loadUnreadCount();
               },
+              enableMenu: true,
             ),
           ),
         ],

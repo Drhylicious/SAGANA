@@ -13,6 +13,7 @@ import '../../../data/repositories/price_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/report_summary_widgets.dart' show ReportIconStatCard, ReportSectionCard;
 
 // ─── Price type constants ─────────────────────────────────────────────────────
 
@@ -20,12 +21,25 @@ class _PriceTypes {
   static const sp3      = 'sp3_cooperative';
   static const market   = 'open_market';
 
-  static String label(String type) {
+  static String label(AppLocalizations l10n, String type) {
     switch (type) {
-      case sp3:    return 'Cooperative Market';
-      case market: return 'Public Market';
+      case sp3:    return l10n.priceCooperativeMarket;
+      case market: return l10n.pricePublicMarket;
       default:     return type;
     }
+  }
+}
+
+// Presentation-layer mapping for PriceRecordModel.priceTypeLabel — the
+// model getter (lib/data/models/price_record_model.dart) has no
+// BuildContext to call AppLocalizations from, so the localized text is
+// derived here instead, off the same priceType string, rather than
+// changing the model.
+String _priceTypeFullLabel(AppLocalizations l10n, String priceType) {
+  switch (priceType) {
+    case 'sp3_cooperative': return l10n.priceTypeCooperativeFull;
+    case 'da_amad_market':  return l10n.priceTypeDaAmadFull;
+    default:                return l10n.priceTypePublicFull;
   }
 }
 
@@ -162,12 +176,13 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
     showManagementModal(
       context: context,
       builder: (ctx) {
+        final l10n = AppLocalizations.of(ctx);
         return StatefulBuilder(builder: (ctx, setSheet) {
           Future<void> submit() async {
             final price = double.tryParse(priceCtrl.text.trim());
             if (price == null || price <= 0) {
               ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(content: Text('Please enter a valid price.')),
+                SnackBar(content: Text(l10n.priceInvalidPriceError)),
               );
               return;
             }
@@ -179,17 +194,17 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (ok) _loadAll();
-            _showSnack(ok ? 'Listing price updated' : 'Failed. Try again.');
+            _showSnack(ok ? l10n.priceListingUpdated : l10n.adminInvFailedTryAgain);
           }
 
           return ManagementModalShell(
-            title: 'Edit Listing Price',
+            title: l10n.priceEditListingTitle,
             subtitle: listing['crop_name'] as String,
             body: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _FieldLabel(label: 'Price (₱/kg)', cs: Theme.of(ctx).colorScheme),
+                _FieldLabel(label: l10n.priceFieldPricePerKg, cs: Theme.of(ctx).colorScheme),
                 TextFormField(
                   controller: priceCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -202,7 +217,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
               ],
             ),
             footer: ManagementModalActions(
-              primaryLabel: isSaving ? 'Saving…' : 'Save Price',
+              primaryLabel: isSaving ? l10n.saving : l10n.priceSavePriceAction,
               isLoading: isSaving,
               onPrimary: submit,
             ),
@@ -225,12 +240,86 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
     );
   }
 
-  String _refreshLabel() {
+  String _refreshLabel(AppLocalizations l10n) {
     if (_lastRefreshed == null) return '';
     final diff = DateTime.now().difference(_lastRefreshed!);
-    if (diff.inSeconds < 60) return 'Just now';
+    if (diff.inSeconds < 60) return l10n.broadcastJustNow;
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     return '${diff.inHours}h ago';
+  }
+
+  // ── KPI cards (dashboard.md section 12) ───────────────────────────────────
+  // Counts for the same 4 categories the sections below already split the
+  // data into — Public/Cooperative reference prices, Public/Cooperative
+  // live listings — so these are a summary of data the screen already
+  // fetches, not a new query.
+  Widget _buildPriceKpiCards(AppLocalizations l10n, ColorScheme cs) {
+    final publicCount = _latestPrices
+        .where((p) => p.priceType == _PriceTypes.market)
+        .length;
+    final coopCount =
+        _latestPrices.where((p) => p.priceType == _PriceTypes.sp3).length;
+    final livePublicCount = _liveListings
+        .where((l) => l['crop_type'] != _PriceTypes.sp3)
+        .length;
+    final liveCoopCount = _liveListings
+        .where((l) => l['crop_type'] == _PriceTypes.sp3)
+        .length;
+
+    // Grouped inside the same outer titled container the Report tab uses
+    // (Executive Snapshot etc.), not just individually restyled cards.
+    return ReportSectionCard(
+      title: 'Price Overview',
+      icon: Icons.sell_rounded,
+      accent: AppConstants.buyerBlue,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ReportIconStatCard(
+                  icon: Icons.storefront_rounded,
+                  accent: AppConstants.buyerBlue,
+                  label: l10n.pricePublicMarketReference,
+                  value: '$publicCount',
+                ),
+              ),
+              const SizedBox(width: AppConstants.spacingSm),
+              Expanded(
+                child: ReportIconStatCard(
+                  icon: Icons.groups_rounded,
+                  accent: AppConstants.primaryGreen,
+                  label: l10n.priceCoopMarketReference,
+                  value: '$coopCount',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppConstants.spacingSm),
+          Row(
+            children: [
+              Expanded(
+                child: ReportIconStatCard(
+                  icon: Icons.sensors_rounded,
+                  accent: AppConstants.amber,
+                  label: l10n.priceLiveListingsPublicTitle,
+                  value: '$livePublicCount',
+                ),
+              ),
+              const SizedBox(width: AppConstants.spacingSm),
+              Expanded(
+                child: ReportIconStatCard(
+                  icon: Icons.sensors_rounded,
+                  accent: AppConstants.warningAmber,
+                  label: l10n.priceLiveListingsCoopTitle,
+                  value: '$liveCoopCount',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -265,12 +354,8 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                               _OfflineWarningBanner(l10n: l10n),
                             if (!_isOnline) const SizedBox(height: 12),
 
-                            // ── Info banner ──────────────────────────────
-                            _InfoBanner(
-                              memberCount: 52,
-                              sagana: sagana,
-                              cs: cs,
-                            ),
+                            // ── KPI cards (section 12) ───────────────────
+                            _buildPriceKpiCards(l10n, cs),
                             const SizedBox(height: 20),
 
                             // ── Live Market Rates (2 sections: Public /
@@ -288,7 +373,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                                   ),
                                 ),
                                 Text(
-                                  _refreshLabel(),
+                                  _refreshLabel(l10n),
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: cs.outline,
@@ -301,7 +386,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                               _EmptyPrices(cs: cs)
                             else ...[
                               _SectionLabel(
-                                  text: 'Public Market — Reference Prices',
+                                  text: l10n.pricePublicMarketReference,
                                   cs: cs),
                               const SizedBox(height: 8),
                               _PriceGrid(
@@ -315,7 +400,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                               ),
                               const SizedBox(height: 16),
                               _SectionLabel(
-                                  text: 'Cooperative Market — Reference Prices',
+                                  text: l10n.priceCoopMarketReference,
                                   cs: cs),
                               const SizedBox(height: 8),
                               _PriceGrid(
@@ -333,11 +418,11 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                             // ── Live Listings (2 sections: Public /
                             // Cooperative — only Cooperative is editable) ───
                             _SectionLabel(
-                                text: 'Live Listings — Public Market',
+                                text: l10n.priceLiveListingsPublicTitle,
                                 cs: cs),
                             const SizedBox(height: 4),
                             Text(
-                              'Farmer-set prices. Not editable — this market lets farmers set their own price.',
+                              l10n.priceLiveListingsPublicNote,
                               style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
                             ),
                             const SizedBox(height: 8),
@@ -352,11 +437,11 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
                             ),
                             const SizedBox(height: 20),
                             _SectionLabel(
-                                text: 'Live Listings — Cooperative Market',
+                                text: l10n.priceLiveListingsCoopTitle,
                                 cs: cs),
                             const SizedBox(height: 4),
                             Text(
-                              'You can correct the price on these — the farmer keeps their listing otherwise unchanged.',
+                              l10n.priceLiveListingsCoopNote,
                               style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
                             ),
                             const SizedBox(height: 8),
@@ -527,7 +612,7 @@ class _OfflineWarningBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'System Offline',
+                  l10n.priceSystemOfflineTitle,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -535,110 +620,10 @@ class _OfflineWarningBanner extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Price updates are disabled until connection is restored.',
+                  l10n.priceSystemOfflineBody,
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onErrorContainer.withValues(alpha: 0.80),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Info Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _InfoBanner extends StatelessWidget {
-  final int memberCount;
-  final SaganaColors sagana;
-  final ColorScheme cs;
-
-  const _InfoBanner({
-    required this.memberCount,
-    required this.sagana,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 4,
-            decoration: BoxDecoration(
-              color: cs.primary,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppConstants.radiusLg),
-                bottomLeft: Radius.circular(AppConstants.radiusLg),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline_rounded, color: cs.primary, size: 26),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pricing Impact',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text.rich(
-                        TextSpan(
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: cs.onSurfaceVariant,
-                            height: 1.4,
-                          ),
-                          children: [
-                            const TextSpan(
-                                text:
-                                    'Updates here directly affect buying rates for '),
-                            TextSpan(
-                              text: '$memberCount cooperative members',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w700,
-                                color: cs.primary,
-                              ),
-                            ),
-                            const TextSpan(
-                                text:
-                                    '. Cooperative Market prices are premium rates exclusive to member-only transactions.'),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ],
@@ -747,6 +732,7 @@ class _ListingGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (listings.isEmpty) {
+      final l10n = AppLocalizations.of(context);
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -756,7 +742,7 @@ class _ListingGrid extends StatelessWidget {
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         ),
         alignment: Alignment.center,
-        child: Text('No live listings in this market right now.',
+        child: Text(l10n.priceNoLiveListings,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
       );
     }
@@ -806,12 +792,14 @@ class _ListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cropName = listing['crop_name'] as String;
     final price = (listing['price_per_kg'] as num).toDouble();
     final remaining = (listing['remaining_kg'] as num?)?.toDouble() ??
         (listing['volume_kg'] as num).toDouble();
-    final marketLabel =
-        listing['crop_type'] == _PriceTypes.sp3 ? 'COOPERATIVE MARKET' : 'PUBLIC MARKET';
+    final marketLabel = listing['crop_type'] == _PriceTypes.sp3
+        ? l10n.priceMarketBadgeCoop
+        : l10n.priceMarketBadgePublic;
     // The listing's own photo — never Crop Management's image. A listing
     // with no photo shows a generic placeholder, not the crop's reference
     // image, to keep the two sources genuinely independent rather than
@@ -916,7 +904,7 @@ class _ListingCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${remaining.toStringAsFixed(1)} kg available',
+                  l10n.priceListingKgAvailable(remaining.toStringAsFixed(1)),
                   style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
                 ),
               ],
@@ -945,7 +933,8 @@ class _PriceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeData  = _badge(price.priceType);
+    final l10n = AppLocalizations.of(context);
+    final badgeData  = _badge(l10n, price.priceType);
     final deltaData  = _delta(price);
     final updatedStr = _updatedLabel(price.recordedAt);
     final hasImage = price.cropImageUrl != null && price.cropImageUrl!.isNotEmpty;
@@ -1082,7 +1071,9 @@ class _PriceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Updated $updatedStr',
+                    l10n.priceUpdatedPrefix(updatedStr),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(fontSize: 9, color: cs.outline),
                   ),
                 ],
@@ -1094,17 +1085,17 @@ class _PriceCard extends StatelessWidget {
     );
   }
 
-  _BadgeData _badge(String priceType) {
+  _BadgeData _badge(AppLocalizations l10n, String priceType) {
     switch (priceType) {
       case _PriceTypes.sp3:
-        return const _BadgeData(
-          label: 'COOPERATIVE MARKET',
+        return _BadgeData(
+          label: l10n.priceMarketBadgeCoop,
           bg: AppConstants.primaryContainer,
           fg: AppConstants.onPrimaryContainer,
         );
       default:
         return _BadgeData(
-          label: 'PUBLIC MARKET',
+          label: l10n.priceMarketBadgePublic,
           bg: AppConstants.secondaryContainer.withValues(alpha: 0.25),
           fg: const Color(0xFF694300),
         );
@@ -1166,11 +1157,12 @@ class _EmptyPrices extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       height: 100,
       alignment: Alignment.center,
       child: Text(
-        'No price records yet. Tap + to add the first entry.',
+        l10n.priceNoRecordsYet,
         textAlign: TextAlign.center,
         style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
       ),
@@ -1293,7 +1285,7 @@ class _MarketTrendsCard extends StatelessWidget {
                   : trendData.length < 2
                       ? Center(
                           child: Text(
-                            'Not enough data for trend.\nAdd more price entries.',
+                            l10n.priceNotEnoughTrendData,
                             textAlign: TextAlign.center,
                             style: GoogleFonts.inter(
                               fontSize: 12,
@@ -1450,6 +1442,7 @@ class _HistoryTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1461,7 +1454,9 @@ class _HistoryTable extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: Text(
-                  'CROP',
+                  l10n.priceColCrop,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -1473,7 +1468,9 @@ class _HistoryTable extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Text(
-                  'TYPE',
+                  l10n.priceColType,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -1485,7 +1482,9 @@ class _HistoryTable extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Text(
-                  'PRICE',
+                  l10n.priceColPrice,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -1497,8 +1496,10 @@ class _HistoryTable extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Text(
-                  'DATE',
+                  l10n.priceColDate,
                   textAlign: TextAlign.end,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -1517,7 +1518,7 @@ class _HistoryTable extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'No price history yet.',
+                l10n.priceNoHistoryYet,
                 style: GoogleFonts.inter(
                     fontSize: 12, color: cs.onSurfaceVariant),
               ),
@@ -1538,11 +1539,14 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // A compact variant just for this narrow table column — the canonical
     // "Cooperative Market"/"Public Market" labels (Phase 6 naming
     // convention) don't fit this column's width the way the old, shorter
     // "SP3 Buying"/"Market Avg" labels did.
-    final badgeLabel = price.priceType == _PriceTypes.sp3 ? 'Coop' : 'Public';
+    final badgeLabel = price.priceType == _PriceTypes.sp3
+        ? l10n.priceBadgeCoopShort
+        : l10n.priceBadgePublicShort;
     final dateStr = _dateStr(price.recordedAt);
 
     return Padding(
@@ -1673,10 +1677,11 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     final newPrice = double.tryParse(_priceCtrl.text.trim());
     if (newPrice == null || newPrice <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid price.')),
+        SnackBar(content: Text(l10n.priceInvalidPriceError)),
       );
       return;
     }
@@ -1705,7 +1710,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update price. Try again.')),
+          SnackBar(content: Text(l10n.priceUpdateFailed)),
         );
       }
     }
@@ -1724,10 +1729,11 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return ManagementModalShell(
       title: widget.price.cropName,
-      subtitle: widget.price.priceTypeLabel,
+      subtitle: _priceTypeFullLabel(l10n, widget.price.priceType),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1749,8 +1755,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Significant change detected! This price is >20% different '
-                      'from the current rate. Please verify before updating.',
+                      l10n.priceSignificantChangeWarning,
                       style: GoogleFonts.inter(fontSize: 12, color: cs.onErrorContainer),
                     ),
                   ),
@@ -1765,7 +1770,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _FieldLabel(label: 'New Price (₱/kg)', cs: cs),
+                    _FieldLabel(label: l10n.priceNewPriceLabel, cs: cs),
                     TextFormField(
                       controller: _priceCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1792,7 +1797,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _FieldLabel(label: 'Effective Date', cs: cs),
+                    _FieldLabel(label: l10n.priceEffectiveDateLabel, cs: cs),
                     GestureDetector(
                       onTap: _pickDate,
                       child: Container(
@@ -1821,11 +1826,11 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
           ),
           const SizedBox(height: 16),
 
-          _FieldLabel(label: 'Source / Reference Document', cs: cs),
+          _FieldLabel(label: l10n.priceSourceRefDocLabel, cs: cs),
           TextFormField(
             controller: _sourceCtrl,
             decoration: InputDecoration(
-              hintText: 'e.g. Board Resolution #102, DA Bulletin',
+              hintText: l10n.priceSourceRefDocHint,
               hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
             ),
           ),
@@ -1845,8 +1850,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Updating this price will send a push notification '
-                    'to all 52 registered members via the Member App.',
+                    l10n.priceUpdateNotifyNote(52),
                     style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
                   ),
                 ),
@@ -1856,7 +1860,7 @@ class _UpdatePriceSheetState extends State<_UpdatePriceSheet> {
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: _isSaving ? 'Saving…' : 'Update Price',
+        primaryLabel: _isSaving ? l10n.saving : l10n.priceUpdatePriceAction,
         isLoading: _isSaving,
         onPrimary: _save,
       ),
@@ -1884,7 +1888,6 @@ class _AddPriceSheet extends StatefulWidget {
 }
 
 class _AddPriceSheetState extends State<_AddPriceSheet> {
-  final _cropCtrl   = TextEditingController();
   final _priceCtrl  = TextEditingController();
   final _sourceCtrl = TextEditingController();
   Map<String, dynamic>? _selectedCrop;
@@ -1898,7 +1901,6 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
 
   @override
   void dispose() {
-    _cropCtrl.dispose();
     _priceCtrl.dispose();
     _sourceCtrl.dispose();
     super.dispose();
@@ -1916,23 +1918,22 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
       if (_selectedCrop != null &&
           (_selectedCrop!['crop_type'] as String?) != type) {
         _selectedCrop = null;
-        _cropCtrl.clear();
       }
     });
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     final price = double.tryParse(_priceCtrl.text.trim());
     if (_selectedCrop == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please select a crop from the list.')),
+        SnackBar(content: Text(l10n.priceSelectCropError)),
       );
       return;
     }
     if (price == null || price <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid price.')),
+        SnackBar(content: Text(l10n.priceInvalidPriceError)),
       );
       return;
     }
@@ -1962,8 +1963,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Failed to add price entry. Try again.')),
+          SnackBar(content: Text(l10n.priceAddFailed)),
         );
       }
     }
@@ -1983,27 +1983,41 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
+    final l10n = AppLocalizations.of(context);
 
     return ManagementModalShell(
-      title: 'Add Price Entry',
+      title: l10n.priceAddNew,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _FieldLabel(label: 'Market Type', cs: cs),
+          _FieldLabel(label: l10n.priceMarketTypeLabel, cs: cs),
           AppDropdownField<String>(
             value: _priceType,
-            hintText: 'Select a market type',
+            hintText: l10n.priceSelectMarketTypeHint,
             items: const [_PriceTypes.sp3, _PriceTypes.market],
-            itemLabel: (t) => _PriceTypes.label(t),
+            itemLabel: (t) => _PriceTypes.label(l10n, t),
             onChanged: (v) {
               if (v != null) _onMarketTypeChanged(v);
             },
           ),
           const SizedBox(height: 14),
 
-          _FieldLabel(label: 'Crop Name', cs: cs),
+          _FieldLabel(label: l10n.priceCropNameLabel, cs: cs),
+          // Keyed on the selected market type — Autocomplete owns its own
+          // internal TextEditingController (the `ctrl` fieldViewBuilder
+          // hands back), never actually bound to this class's _cropCtrl
+          // despite _cropCtrl being written to elsewhere. That meant a
+          // crop name typed/selected under one market could stay visibly
+          // displayed (and its stale suggestion list stay cached) after
+          // switching markets, since Autocomplete only recomputes options
+          // on text edits, not when _cropsForMarketType's underlying data
+          // changes. A fresh key forces Flutter to fully recreate the
+          // widget (and its internal controller/options cache) on every
+          // market switch, guaranteeing the crop field can never carry
+          // over a selection from the previous market.
           Autocomplete<Map<String, dynamic>>(
+            key: ValueKey(_priceType),
             displayStringForOption: (c) => c['crop_name'] as String,
             optionsBuilder: (v) => _cropsForMarketType.where(
               (c) => (c['crop_name'] as String)
@@ -2012,19 +2026,17 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
             ),
             onSelected: (c) => setState(() {
               _selectedCrop = c;
-              _cropCtrl.text = c['crop_name'] as String;
             }),
             fieldViewBuilder: (ctx, ctrl, focusNode, onSubmit) => TextFormField(
               controller: ctrl,
               focusNode: focusNode,
               decoration: InputDecoration(
                 hintText: _priceType == _PriceTypes.sp3
-                    ? 'e.g. Palay, Peanut'
-                    : 'e.g. Banana, Copra, Ginger',
+                    ? l10n.priceCropHintSp3
+                    : l10n.priceCropHintMarket,
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
               ),
               onChanged: (v) {
-                _cropCtrl.text = v;
                 // Typing away from the selected option invalidates it —
                 // a valid crop_id must come from picking a suggestion.
                 if (_selectedCrop != null &&
@@ -2038,7 +2050,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'No ${_PriceTypes.label(_priceType)} crops in the catalog yet.',
+                l10n.priceNoCropsInCatalog(_PriceTypes.label(l10n, _priceType)),
                 style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
               ),
             ),
@@ -2051,7 +2063,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _FieldLabel(label: 'Price (₱)', cs: cs),
+                    _FieldLabel(label: l10n.priceFieldPrice, cs: cs),
                     TextFormField(
                       controller: _priceCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2069,10 +2081,10 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _FieldLabel(label: 'Unit', cs: cs),
+                    _FieldLabel(label: l10n.priceUnitLabel, cs: cs),
                     AppDropdownField<String>(
                       value: _unit,
-                      hintText: 'Select a unit',
+                      hintText: l10n.priceSelectUnitHint,
                       items: const ['kg', 'g', 'pc', 'sack'],
                       itemLabel: (u) => u,
                       onChanged: (v) => setState(() => _unit = v ?? 'kg'),
@@ -2084,7 +2096,7 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
           ),
           const SizedBox(height: 14),
 
-          _FieldLabel(label: 'Effective Date', cs: cs),
+          _FieldLabel(label: l10n.priceEffectiveDateLabel, cs: cs),
           GestureDetector(
             onTap: _pickDate,
             child: Container(
@@ -2107,18 +2119,18 @@ class _AddPriceSheetState extends State<_AddPriceSheet> {
           ),
           const SizedBox(height: 14),
 
-          _FieldLabel(label: 'Source / Reference', cs: cs),
+          _FieldLabel(label: l10n.priceSourceRefLabel, cs: cs),
           TextFormField(
             controller: _sourceCtrl,
             decoration: InputDecoration(
-              hintText: 'e.g. Board Resolution, DA Bulletin',
+              hintText: l10n.priceSourceRefHint,
               hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
             ),
           ),
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: _isSaving ? 'Saving…' : 'Add Price Entry',
+        primaryLabel: _isSaving ? l10n.saving : l10n.priceAddNew,
         isLoading: _isSaving,
         onPrimary: _save,
       ),

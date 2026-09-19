@@ -11,8 +11,6 @@ import '../../../data/services/app_settings_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
-import '../../widgets/management_modal.dart';
-import '../../widgets/material_list_tile.dart';
 import '../../widgets/shared_widgets.dart';
 
 /// Admin Settings — Account, App Preference, Data & Storage, Support & Info,
@@ -51,74 +49,17 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   String _themeLabel(AppLocalizations l10n) =>
       (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark ? l10n.themeDark : l10n.themeLight;
 
-  void _showThemePicker() {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (ctx) => ManagementModalShell(
-        title: l10n.selectAppearance,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _pickerTile(l10n.themeLight, _prefs!.themeMode == ThemeMode.light, () async {
-              await AppSettingsService.instance.setThemeMode(ThemeMode.light);
-              if (mounted) setState(() => _prefs = _prefs!.copyWith(themeMode: ThemeMode.light));
-              if (ctx.mounted) Navigator.pop(ctx);
-            }),
-            _pickerTile(l10n.themeDark, _prefs!.themeMode == ThemeMode.dark, () async {
-              await AppSettingsService.instance.setThemeMode(ThemeMode.dark);
-              if (mounted) setState(() => _prefs = _prefs!.copyWith(themeMode: ThemeMode.dark));
-              if (ctx.mounted) Navigator.pop(ctx);
-            }),
-          ],
-        ),
-      ),
-    );
+  Future<void> _setDarkMode(bool isDark) async {
+    await AppSettingsService.instance.setThemeMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    if (mounted) {
+      setState(() => _prefs = _prefs!.copyWith(themeMode: isDark ? ThemeMode.dark : ThemeMode.light));
+    }
   }
 
-  void _showLanguagePicker() {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (ctx) => ManagementModalShell(
-        title: l10n.selectLanguage,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _pickerTile(l10n.languageEnglish, _prefs!.localeCode == AppConstants.localeEnglish, () async {
-              await AppSettingsService.instance.setLocale(const Locale(AppConstants.localeEnglish));
-              if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: AppConstants.localeEnglish));
-              if (ctx.mounted) Navigator.pop(ctx);
-            }),
-            _pickerTile(l10n.languageTagalog, _prefs!.localeCode == AppConstants.localeTagalog, () async {
-              await AppSettingsService.instance.setLocale(const Locale(AppConstants.localeTagalog));
-              if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: AppConstants.localeTagalog));
-              if (ctx.mounted) Navigator.pop(ctx);
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _pickerTile(String label, bool selected, VoidCallback onTap) {
-    return MaterialListTile(
-      title: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
-      trailing: selected ? const Icon(Icons.check_circle_rounded, color: AppConstants.primaryGreen) : null,
-      onTap: onTap,
-    );
-  }
-
-  void _showInfoDialog(String title, String content) {
-    showManagementModal(
-      context: context,
-      builder: (ctx) => ManagementModalShell(
-        title: title,
-        body: SingleChildScrollView(
-          child: Text(content, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5)),
-        ),
-      ),
-    );
+  Future<void> _setTagalog(bool isTagalog) async {
+    final code = isTagalog ? AppConstants.localeTagalog : AppConstants.localeEnglish;
+    await AppSettingsService.instance.setLocale(Locale(code));
+    if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: code));
   }
 
   Future<void> _confirmClearCache() async {
@@ -195,10 +136,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           SettingsCard(children: [
             SettingsRow(
               icon: Icons.dark_mode_outlined,
-              iconColor: AppConstants.charcoal,
+              iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
               title: l10n.appearance,
               subtitle: _themeLabel(l10n),
-              onTap: _showThemePicker,
+              showChevron: false,
+              trailing: Switch(
+                value: (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark,
+                onChanged: _setDarkMode,
+              ),
             ),
             const SettingsDivider(),
             SettingsRow(
@@ -206,7 +151,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               iconColor: AppConstants.buyerBlue,
               title: l10n.language,
               subtitle: _languageLabel(l10n),
-              onTap: _showLanguagePicker,
+              showChevron: false,
+              trailing: Switch(
+                value: (_prefs?.localeCode ?? AppConstants.localeEnglish) == AppConstants.localeTagalog,
+                onChanged: _setTagalog,
+              ),
             ),
           ]),
           const SizedBox(height: 20),
@@ -237,28 +186,28 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               icon: Icons.info_outline_rounded,
               iconColor: AppConstants.primaryGreen,
               title: l10n.aboutSagana,
-              onTap: () => _showInfoDialog(l10n.aboutSagana, l10n.adminAboutSaganaBody),
+              onTap: () => context.push(AppRoutes.aboutSagana),
             ),
             const SettingsDivider(),
             SettingsRow(
               icon: Icons.support_agent_rounded,
               iconColor: AppConstants.buyerBlue,
-              title: l10n.contactSp3,
-              onTap: () => _showInfoDialog(l10n.contactSp3, l10n.contactSp3Body),
+              title: l10n.aboutCooperative,
+              onTap: () => context.push(AppRoutes.aboutCooperative),
             ),
             const SettingsDivider(),
             SettingsRow(
               icon: Icons.privacy_tip_outlined,
               iconColor: AppConstants.amber,
               title: l10n.privacyPolicy,
-              onTap: () => _showInfoDialog(l10n.privacyPolicy, l10n.privacyPolicyBody),
+              onTap: () => context.push(AppRoutes.privacyPolicy),
             ),
             const SettingsDivider(),
             SettingsRow(
               icon: Icons.gavel_rounded,
-              iconColor: AppConstants.onSurfaceVariant,
+              iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
               title: l10n.termsOfUse,
-              onTap: () => _showInfoDialog(l10n.termsOfUse, l10n.termsOfUseBody),
+              onTap: () => context.push(AppRoutes.termsOfUse),
             ),
           ]),
           const SizedBox(height: 28),

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
  
@@ -192,30 +193,31 @@ class _AdminNotificationsScreenState
     }
   }
 
-  String _categoryLabel(AdminNotifCategory cat) {
+  String _categoryLabel(AppLocalizations l10n, AdminNotifCategory cat) {
     switch (cat) {
-      case AdminNotifCategory.all:       return 'All';
-      case AdminNotifCategory.actions:   return 'Actions';
-      case AdminNotifCategory.members:   return 'Members';
-      case AdminNotifCategory.inventory: return 'Inventory';
-      case AdminNotifCategory.system:    return 'System';
+      case AdminNotifCategory.all:       return l10n.buyerNotifFilterAll;
+      case AdminNotifCategory.actions:   return l10n.adminNotifCategoryActions;
+      case AdminNotifCategory.members:   return l10n.adminNavMembers;
+      case AdminNotifCategory.inventory: return l10n.supplyChainFlowInventory;
+      case AdminNotifCategory.system:    return l10n.adminNotifCategorySystem;
     }
   }
 
-  String _timeLabel(DateTime dt) {
+  String _timeLabel(AppLocalizations l10n, DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    return '${diff.inDays}d ago';
+    if (diff.inMinutes < 1) return l10n.broadcastJustNow;
+    if (diff.inMinutes < 60) return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return l10n.buyerNotifTimeHoursAgo(diff.inHours);
+    if (diff.inDays == 1) return l10n.buyerNotifTimeYesterday;
+    return l10n.buyerNotifTimeDaysAgo(diff.inDays);
   }
 
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     final filtered = _filtered;
     final unreadTotal = _unreadCount(AdminNotifCategory.all);
 
@@ -246,7 +248,7 @@ class _AdminNotificationsScreenState
                     ),
                     Expanded(
                       child: Text(
-                        'Notifications',
+                        l10n.pendingNotificationsTitle,
                         style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -260,7 +262,7 @@ class _AdminNotificationsScreenState
                           _load();
                         },
                         child: Text(
-                          'Mark all read',
+                          l10n.adminNotifMarkAllRead,
                           style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -307,7 +309,7 @@ class _AdminNotificationsScreenState
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              _categoryLabel(cat),
+                              _categoryLabel(l10n, cat),
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -369,7 +371,7 @@ class _AdminNotificationsScreenState
                                     color: cs.onSurfaceVariant),
                                 const SizedBox(height: 12),
                                 Text(
-                                  'No notifications',
+                                  l10n.buyerNotifEmptyTitle,
                                   style: GoogleFonts.inter(
                                       fontSize: 14,
                                       color: cs.onSurfaceVariant),
@@ -458,7 +460,7 @@ class _AdminNotificationsScreenState
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              _timeLabel(notif.createdAt),
+                                              _timeLabel(l10n, notif.createdAt),
                                               style: GoogleFonts.inter(
                                                 fontSize: 10,
                                                 color: cs.onSurfaceVariant,

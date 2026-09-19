@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/sagana_colors.dart';
 import '../../data/models/harvest_model.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,6 +25,8 @@ class HarvestCropChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -38,7 +42,7 @@ class HarvestCropChips extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppConstants.primaryContainer.withValues(alpha: 0.12)
-                      : const Color(0xFFD5ECF8),
+                      : sagana.cardBackground,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   border: isActive
                       ? Border.all(color: AppConstants.primaryContainer.withValues(alpha: 0.30))
@@ -49,7 +53,7 @@ class HarvestCropChips extends StatelessWidget {
                         fontSize: 12, fontWeight: FontWeight.w500,
                         color: isActive
                             ? AppConstants.primaryContainer
-                            : AppConstants.onSurfaceVariant)),
+                            : cs.onSurfaceVariant)),
               ),
             ),
           );
@@ -71,11 +75,12 @@ class HarvestSummaryStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: _StatCard(
-            label: 'Total Harvest (30d)',
+            label: l10n.harvestSummaryTotalLabel,
             value: isLoading ? '—' : _fmtYield(stats['total_yield'] ?? 0),
             unit: 'kg',
             valueColor: AppConstants.primaryGreen,
@@ -84,7 +89,7 @@ class HarvestSummaryStats extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(
           child: _StatCard(
-            label: 'Synced',
+            label: l10n.reportsSynced,
             value: isLoading ? '—' : (stats['synced_percent'] ?? 100).toStringAsFixed(0),
             unit: '%',
             valueColor: AppConstants.successGreen,
@@ -112,6 +117,8 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -119,9 +126,9 @@ class _StatCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
+            border: Border.all(color: sagana.glassBorder),
             boxShadow: [
               BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 8),
             ],
@@ -129,7 +136,7 @@ class _StatCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+              Text(label, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
               const SizedBox(height: 4),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -137,7 +144,7 @@ class _StatCard extends StatelessWidget {
                 children: [
                   Text(value, style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700, color: valueColor)),
                   const SizedBox(width: 4),
-                  Text(unit, style: GoogleFonts.poppins(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+                  Text(unit, style: GoogleFonts.poppins(fontSize: 13, color: cs.onSurfaceVariant)),
                 ],
               ),
             ],
@@ -158,6 +165,9 @@ class HarvestLogEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    final l10n = AppLocalizations.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -165,9 +175,9 @@ class HarvestLogEntry extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
+            border: Border.all(color: sagana.glassBorder),
             boxShadow: [
               BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 8),
             ],
@@ -200,7 +210,7 @@ class HarvestLogEntry extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.charcoal,
+                        color: cs.onSurface,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -211,7 +221,7 @@ class HarvestLogEntry extends StatelessWidget {
                           : '${harvest.quantityKg.toStringAsFixed(0)}kg',
                       style: GoogleFonts.inter(
                         fontSize: 11.5,
-                        color: AppConstants.onSurfaceVariant,
+                        color: cs.onSurfaceVariant,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -239,7 +249,7 @@ class HarvestLogEntry extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          harvest.isSynced ? 'Synced' : 'Pending',
+                          harvest.isSynced ? l10n.reportsSynced : l10n.adminDashKpiPending,
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -254,7 +264,7 @@ class HarvestLogEntry extends StatelessWidget {
                     DateFormat('MMM d, h:mm a').format(harvest.harvestDate),
                     style: GoogleFonts.inter(
                       fontSize: 10,
-                      color: AppConstants.outline,
+                      color: cs.outline,
                     ),
                   ),
                 ],

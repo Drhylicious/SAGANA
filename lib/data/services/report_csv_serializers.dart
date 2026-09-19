@@ -23,10 +23,30 @@ String _row(List<Object?> values) => values.map(_escape).join(',');
 
 final _dateFmt = DateFormat('yyyy-MM-dd');
 
+/// Selling Type raw values -> export-friendly labels — mirrors the labels
+/// used on screen (sales_report_screen.dart), kept here since this file
+/// has no UI dependency of its own.
+String _sellingTypeLabel(String sellingType) {
+  switch (sellingType) {
+    case 'offer_to_cooperative':
+      return 'Offer to Cooperative';
+    case 'marketplace':
+      return 'Marketplace';
+    case 'informal_sale':
+      return 'Informal Sale (F2F)';
+    case 'da_amad_market_linking':
+      return 'DA-AMAD Market Linking';
+    default:
+      return sellingType;
+  }
+}
+
 String serializeSalesReportCsv(SalesReportData data) {
   final buffer = StringBuffer();
   buffer.writeln(
     _row([
+      'Selling Type',
+      'Market Type',
       'Farmer Name',
       'Member ID',
       'Crop Type',
@@ -40,6 +60,8 @@ String serializeSalesReportCsv(SalesReportData data) {
   for (final t in data.transactions) {
     buffer.writeln(
       _row([
+        _sellingTypeLabel(t.sellingType),
+        t.marketType ?? '',
         t.farmerName,
         t.memberId,
         t.cropType,
@@ -54,7 +76,7 @@ String serializeSalesReportCsv(SalesReportData data) {
   return buffer.toString();
 }
 
-String serializeInventoryReportCsv(InventoryReportData data) {
+String _serializeInventoryBatchesCsv(InventoryReportData data) {
   final buffer = StringBuffer();
   buffer.writeln(
     _row([
@@ -85,8 +107,18 @@ String serializeInventoryReportCsv(InventoryReportData data) {
   return buffer.toString();
 }
 
-String serializeHarvestReportCsv(HarvestReportData data) {
+/// Harvest Report's export — two sections in one file, matching the
+/// screen's own two tabs (Activity & Trends / Batches & Stock) over their
+/// two deliberately-separate data sources. Folds in what used to be a
+/// standalone "Inventory Report" export module — that module duplicated
+/// this exact inventory_batches data with no on-screen report of its own,
+/// so it's no longer offered as a separate Export Center selection.
+String serializeHarvestReportCsv(
+  HarvestReportData data,
+  InventoryReportData batches,
+) {
   final buffer = StringBuffer();
+  buffer.writeln(_row(['Harvest Activity']));
   buffer.writeln(
     _row([
       'Date',
@@ -111,6 +143,9 @@ String serializeHarvestReportCsv(HarvestReportData data) {
       ]),
     );
   }
+  buffer.writeln();
+  buffer.writeln(_row(['Batches & Stock']));
+  buffer.write(_serializeInventoryBatchesCsv(batches));
   return buffer.toString();
 }
 
@@ -186,6 +221,8 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
       'Palay Amount (PHP)',
       'Peanut Qty (kg)',
       'Peanut Amount (PHP)',
+      'Other Crops Qty (kg)',
+      'Other Crops Amount (PHP)',
       'Total Amount (PHP)',
       'Share (%)',
     ]),
@@ -199,6 +236,8 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
         r.palayAmount.toStringAsFixed(2),
         r.peanutQtyKg.toStringAsFixed(2),
         r.peanutAmount.toStringAsFixed(2),
+        r.otherCropsQtyKg.toStringAsFixed(2),
+        r.otherCropsAmount.toStringAsFixed(2),
         r.totalAmount.toStringAsFixed(2),
         r.sharePercent.toStringAsFixed(2),
       ]),

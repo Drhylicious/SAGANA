@@ -1,5 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/broadcast_model.dart';
+import 'admin_activity_repository.dart';
+import 'notification_repository.dart';
 
 class BroadcastRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -15,7 +18,8 @@ Future<List<BroadcastModel>> fetchRecentBroadcasts({int limit = 20}) async {
         .order('sent_at', ascending: false)
         .limit(limit);
     return rows.map((r) => BroadcastModel.fromMap(r)).toList();
-  } catch (_) {
+  } catch (e) {
+    debugPrint('BroadcastRepository.fetchRecentBroadcasts failed: $e');
     return [];
   }
 }
@@ -28,7 +32,8 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
         .order('sent_at', ascending: false, nullsFirst: false)
         .limit(limit);
     return rows.map((r) => BroadcastModel.fromMap(r)).toList();
-  } catch (_) {
+  } catch (e) {
+    debugPrint('BroadcastRepository.fetchBroadcastHistory failed: $e');
     return [];
   }
 }
@@ -80,7 +85,8 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
           if (filter == null || filter.isEmpty) return [];
           return [filter];
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BroadcastRepository.resolveRecipientIds failed: $e');
       return [];
     }
   }
@@ -100,28 +106,58 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
   }) async {
     final adminId = _client.auth.currentUser?.id;
     final now     = DateTime.now();
+    final isDeferred = scheduledAt != null && scheduledAt.isAfter(now);
 
-    // 1. Resolve recipients
+    // 1. Resolve recipients now — for an immediate send this is the actual
+    //    recipient list; for a deferred one it's only an estimate for
+    //    display (recipient_count gets overwritten with the real count
+    //    once process_scheduled_broadcasts() actually sends it, since the
+    //    matching set — e.g. outstanding loans — can shift by then).
     final recipientIds = await resolveRecipientIds(
       type:   recipientType,
       filter: recipientFilter,
     );
 
-    if (recipientIds.isEmpty) return 0;
+    if (!isDeferred && recipientIds.isEmpty) return 0;
 
-    // 2. Insert notification rows for each recipient
-    final notifRows = recipientIds
-        .map((uid) => {
-              'user_id':    uid,
-              'type':       'system',
-              'title':      title,
-              'body':       body,
-              'is_read':    false,
-              'created_at': (scheduledAt ?? now).toIso8601String(),
-            })
+    if (isDeferred) {
+      // Queue only. Notifications are inserted later, once scheduled_at
+      // has passed, by process_scheduled_broadcasts() (run periodically —
+      // see supabase/functions/process-scheduled-broadcasts).
+      await _client.from('broadcast_logs').insert({
+        'title':            title,
+        'body':             body,
+        'category':         category.value,
+        'recipient_type':   recipientType.value,
+        'recipient_filter': recipientFilter,
+        'recipient_count':  recipientIds.length,
+        'scheduled_at':     scheduledAt.toIso8601String(),
+        'sent_at':          null,
+        'created_by':       adminId,
+        'created_at':       now.toIso8601String(),
+      });
+
+      AdminActivityRepository().log(
+        module: 'broadcast',
+        actionType: 'scheduled',
+        description: 'Broadcast "$title" scheduled for ${scheduledAt.toIso8601String()}.',
+      );
+
+      return recipientIds.length;
+    }
+
+    // 2. Insert notification rows for each recipient (immediate send)
+    final notifDrafts = recipientIds
+        .map((uid) => NotificationDraft(
+              userId: uid,
+              type: 'system',
+              title: title,
+              body: body,
+              createdAt: now,
+            ))
         .toList();
 
-    await _client.from('notifications').insert(notifRows);
+    await NotificationRepository().createNotifications(notifDrafts);
 
     // 3. Log the broadcast
     await _client.from('broadcast_logs').insert({
@@ -132,10 +168,16 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
       'recipient_filter': recipientFilter,
       'recipient_count':  recipientIds.length,
       'scheduled_at':     scheduledAt?.toIso8601String(),
-      'sent_at':          (scheduledAt ?? now).toIso8601String(),
+      'sent_at':          now.toIso8601String(),
       'created_by':       adminId,
       'created_at':       now.toIso8601String(),
     });
+
+    AdminActivityRepository().log(
+      module: 'broadcast',
+      actionType: 'sent',
+      description: 'Broadcast "$title" sent to ${recipientIds.length} recipient${recipientIds.length == 1 ? '' : 's'}.',
+    );
 
     return recipientIds.length;
   }
@@ -150,7 +192,8 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
     try {
       final ids = await resolveRecipientIds(type: type, filter: filter);
       return ids.length;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BroadcastRepository.previewRecipientCount failed: $e');
       return 0;
     }
   }
@@ -168,7 +211,8 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
           .toSet()
           .toList()
         ..sort();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BroadcastRepository.fetchCropNames failed: $e');
       // Fallback to SP3's known primary crops
       return ['Peanut', 'Ginger', 'Palay', 'Banana', 'Copra'];
     }
@@ -188,7 +232,8 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
                 'name': r['full_name'] as String? ?? 'Unknown',
               })
           .toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BroadcastRepository.fetchFarmersList failed: $e');
       return [];
     }
   }
@@ -216,7 +261,8 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
                 'name': r['full_name'] as String? ?? 'Buyer',
               })
           .toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BroadcastRepository.fetchBuyersList failed: $e');
       return [];
     }
   }

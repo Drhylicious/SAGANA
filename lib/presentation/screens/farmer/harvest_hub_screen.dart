@@ -13,6 +13,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 
 class HarvestHubScreen extends StatefulWidget {
@@ -108,6 +109,31 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
+      drawer: AnimatedBuilder(
+        animation: FarmerProfileStateService.instance,
+        builder: (context, _) {
+          final profile = FarmerProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Farmer',
+            contactEmail: profile?.contactEmail,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.farmerEditProfile);
+            },
+            onEditFarmDetails: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.editFarmDetails);
+            },
+            onSignOut: () => confirmFarmerSignOut(context),
+            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: Column(
         children: [
           if (!_isOnline)
@@ -187,6 +213,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                         context.goTab(AppRoutes.farmerProfile),
                     onNotificationTap: () =>
                         context.pushRoute(AppRoutes.farmerNotifications),
+                    enableMenu: true,
                   ),
                 ),
               ],

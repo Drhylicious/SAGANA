@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_profile_model.dart';
@@ -48,6 +49,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n   = AppLocalizations.of(context);
     final cs     = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
 
@@ -57,7 +59,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
         child: Column(
           children: [
             _TopBar(
-              title: _buyer?.fullName ?? 'Buyer Details',
+              title: _buyer?.fullName ?? l10n.buyerDetailsTitle,
               onBack: () => context.pop(),
               cs: cs,
             ),
@@ -121,7 +123,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           },
                         ),
                         icon: const Icon(Icons.campaign_outlined, size: 18),
-                        label: Text('Notify',
+                        label: Text(l10n.farmerDetailsNotifyAction,
                             style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.w600)),
                       ),
@@ -148,7 +150,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           size: 18,
                         ),
                         label: Text(
-                          _buyer!.isActive ? 'Suspend' : 'Reactivate',
+                          _buyer!.isActive ? l10n.buyerDetailsSuspendAction : l10n.buyerDetailsReactivateAction,
                           style:
                               GoogleFonts.poppins(fontWeight: FontWeight.w600),
                         ),
@@ -210,6 +212,7 @@ class _IdentityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -232,7 +235,7 @@ class _IdentityCard extends StatelessWidget {
                       BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
-                  _badgeLabel(buyer),
+                  _badgeLabel(l10n, buyer),
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -270,8 +273,8 @@ class _IdentityCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            'Buyer since ${buyer.joinedLabel}'
-            '${buyer.purok != null ? ' • ${buyer.purok}' : ''}',
+            l10n.buyerDetailsSinceLine(buyerJoinedLabel(l10n, buyer.memberSince)) +
+            (buyer.purok != null ? ' • ${buyer.purok}' : ''),
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
           ),
@@ -279,39 +282,71 @@ class _IdentityCard extends StatelessWidget {
           // Every Edit Profile field always renders here, populated or
           // not (placeholder "–" when empty) — previously phone/email
           // only showed up when set, and birth date/gender didn't exist
-          // here at all.
-          _fieldRow(Icons.phone_rounded, buyer.phoneNumber, cs),
-          const SizedBox(height: 8),
-          _fieldRow(Icons.email_rounded, buyer.contactEmail, cs),
-          const SizedBox(height: 8),
-          _fieldRow(Icons.cake_rounded, buyer.dateOfBirthLabel, cs),
-          const SizedBox(height: 8),
-          _fieldRow(Icons.person_outline_rounded, buyer.genderLabel, cs),
+          // here at all. Laid out as a 2x2 grid (Email/Phone, then
+          // Date of Birth/Gender) rather than one stacked column, so the
+          // four fields read as a balanced block instead of a long list.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _fieldTile(Icons.email_rounded, l10n.emailAddress, buyer.contactEmail, cs)),
+                const SizedBox(width: 10),
+                Expanded(child: _fieldTile(Icons.phone_rounded, l10n.adminProfilePhoneNumber, buyer.phoneNumber, cs)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _fieldTile(Icons.cake_rounded, l10n.dateOfBirthLabel, buyer.dateOfBirthLabel, cs)),
+                const SizedBox(width: 10),
+                Expanded(child: _fieldTile(Icons.person_outline_rounded, l10n.addMemberGenderLabel, buyerGenderLabel(l10n, buyer.gender), cs)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          _fieldTile(Icons.map_outlined, l10n.adminProfilePurok, buyer.purok, cs),
         ],
       ),
     );
   }
 
-  Widget _fieldRow(IconData icon, String? value, ColorScheme cs) {
+  Widget _fieldTile(IconData icon, String label, String? value, ColorScheme cs) {
     final hasValue = value != null && value.isNotEmpty;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cs.primary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: hasValue ? cs.primary : cs.outline),
-          const SizedBox(width: 8),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: hasValue ? cs.primary : cs.outline),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
           Text(
             hasValue ? value : '–',
             style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: hasValue ? cs.onSurface : cs.onSurfaceVariant),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -330,10 +365,10 @@ class _IdentityCard extends StatelessWidget {
     );
   }
 
-  String _badgeLabel(BuyerProfileModel buyer) {
-    if (!buyer.isActive) return 'Suspended';
-    if (buyer.isInactive) return 'Inactive';
-    return 'Active Buyer';
+  String _badgeLabel(AppLocalizations l10n, BuyerProfileModel buyer) {
+    if (!buyer.isActive) return l10n.farmerMgmtStatusSuspendedLabel;
+    if (buyer.isInactive) return l10n.analyticsInactive;
+    return l10n.buyerDetailsActiveBadge;
   }
 
   Color _badgeColor(BuyerProfileModel buyer, ColorScheme cs) {
@@ -352,6 +387,7 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     Widget tile(String label, String value, IconData icon) => Expanded(
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -380,13 +416,13 @@ class _StatsRow extends StatelessWidget {
 
     return Row(
       children: [
-        tile('Total Orders', '${buyer.totalOrders}',
+        tile(l10n.buyerDetailsTotalOrders, '${buyer.totalOrders}',
             Icons.shopping_bag_outlined),
         const SizedBox(width: 10),
-        tile('Completed', '${buyer.completedOrders}',
+        tile(l10n.statCompleted, '${buyer.completedOrders}',
             Icons.check_circle_outline_rounded),
         const SizedBox(width: 10),
-        tile('Total Spent', '₱${buyer.totalSpent.toStringAsFixed(0)}',
+        tile(l10n.buyerDetailsTotalSpent, '₱${buyer.totalSpent.toStringAsFixed(0)}',
             Icons.payments_outlined),
       ],
     );
@@ -418,18 +454,19 @@ class _RecentOrdersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text('Order History',
+            Text(l10n.buyerOrderHistoryTitleGeneric,
                 style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
             const Spacer(),
             if (totalOrders > 0)
               GestureDetector(
                 onTap: onViewAll,
-                child: Text('View All',
+                child: Text(l10n.listingsAllButton,
                     style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
               ),
           ],
@@ -444,7 +481,7 @@ class _RecentOrdersSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
             ),
-            child: Text('No orders yet',
+            child: Text(l10n.buyerOrderHistoryNoOrdersYet,
                 style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
           )
         else
@@ -537,7 +574,7 @@ class _NotFoundState extends StatelessWidget {
             Icon(Icons.person_off_outlined,
                 size: 48, color: cs.outline.withValues(alpha: 0.4)),
             const SizedBox(height: 12),
-            Text('Buyer not found',
+            Text(AppLocalizations.of(context).buyerDetailsNotFound,
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
@@ -97,6 +98,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
 
@@ -120,7 +122,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                         TextField(
                           controller: _searchCtrl,
                           decoration: InputDecoration(
-                            hintText: 'Search crop, farmer, variety...',
+                            hintText: l10n.marketplaceSearchHint,
                             prefixIcon: const Icon(Icons.search_rounded),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
@@ -139,22 +141,22 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                             scrollDirection: Axis.horizontal,
                             children: [
                               ListingStatusFilterChip(
-                                label: 'All', active: _statusFilter == null, color: cs.primary,
+                                label: l10n.farmerMgmtAllFilter, active: _statusFilter == null, color: cs.primary,
                                 onTap: () => setState(() => _statusFilter = null), cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: 'Pending', active: _statusFilter == 'pending_review', color: AppConstants.warningAmber,
+                                label: l10n.buyerOrderDetailPendingTimestamp, active: _statusFilter == 'pending_review', color: AppConstants.warningAmber,
                                 onTap: () => setState(() => _statusFilter = 'pending_review'), cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: 'Approved', active: _statusFilter == 'approved', color: AppConstants.successGreen,
+                                label: l10n.buyerOrderDetailStepApproved, active: _statusFilter == 'approved', color: AppConstants.successGreen,
                                 onTap: () => setState(() => _statusFilter = 'approved'), cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: 'Rejected', active: _statusFilter == 'rejected', color: cs.error,
+                                label: l10n.farmerMgmtStatusRejectedLabel, active: _statusFilter == 'rejected', color: cs.error,
                                 onTap: () => setState(() => _statusFilter = 'rejected'), cs: cs,
                               ),
                             ],
@@ -204,6 +206,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -219,10 +222,10 @@ class _TopBar extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.arrow_back_rounded, color: cs.primary, size: 24),
                 onPressed: () => context.pop(),
-                tooltip: 'Back',
+                tooltip: l10n.offerCoopBackTooltip,
               ),
               Expanded(
-                child: Text('Pending Approvals',
+                child: Text(l10n.pendingApprovalsTitle,
                     style: GoogleFonts.poppins(
                         fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
               ),
@@ -253,6 +256,7 @@ class _PendingListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final card = Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
@@ -358,7 +362,7 @@ class _PendingListingCard extends StatelessWidget {
                             children: [
                               Icon(Icons.rate_review_outlined, size: 16, color: cs.primary),
                               const SizedBox(width: 6),
-                              Text('Review',
+                              Text(l10n.pendingApprovalsReviewAction,
                                   style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: cs.primary)),
                             ],
                           ),
@@ -381,7 +385,7 @@ class _PendingListingCard extends StatelessWidget {
                               Icon(Icons.check_circle_outline_rounded, size: 16,
                                   color: onQuickApprove != null ? Colors.white : cs.outline),
                               const SizedBox(width: 6),
-                              Text('Approve',
+                              Text(l10n.farmerMgmtApproveAction,
                                   style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600,
                                       color: onQuickApprove != null ? Colors.white : cs.outline)),
                             ],
@@ -496,6 +500,7 @@ class _EmptyPendingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -512,13 +517,13 @@ class _EmptyPendingState extends StatelessWidget {
             color: (hasActiveFilter ? cs.outline : AppConstants.successGreen).withValues(alpha: 0.40),
           ),
           const SizedBox(height: 14),
-          Text(hasActiveFilter ? 'No listings match your filter' : 'All caught up!',
+          Text(hasActiveFilter ? l10n.marketplaceNoListingsFiltered : l10n.pendingApprovalsAllCaughtUp,
               style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
           const SizedBox(height: 4),
           Text(
             hasActiveFilter
-                ? 'Try a different search or filter.'
-                : 'No listings are waiting for review.',
+                ? l10n.offerCoopTryDifferentFilter
+                : l10n.pendingApprovalsNoneWaiting,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ],

@@ -120,7 +120,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                   32,
                 ),
                 children: [
-                  _buildPeriodChips(cs),
+                  _buildPeriodChips(l10n, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
                   if (_isLoading)
                     const Padding(
@@ -128,7 +128,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else ...[
-                    _buildSummaryStats(context, l10n, cs, sagana),
+                    _buildOverviewCard(context, l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
                     _buildCategoryBreakdown(context, l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
@@ -191,7 +191,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     );
   }
 
-  Widget _buildPeriodChips(ColorScheme cs) {
+  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
     return SizedBox(
       height: 34,
       child: ListView(
@@ -201,7 +201,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
@@ -213,6 +213,38 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     );
   }
 
+  /// Header + KPI cards together in one bordered, padded card — matching
+  /// the breathing room Harvest/Loan/Member Patronage's ReportHeroCard-
+  /// based headers already have, rather than a bare header row sitting
+  /// directly on the page background with only a small gap to the cards.
+  Widget _buildOverviewCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ReportSectionHeader(
+            icon: Icons.account_balance_wallet_rounded,
+            title: l10n.reportsExpenseOverview,
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          _buildSummaryStats(context, l10n, cs, sagana),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSummaryStats(
     BuildContext context,
     AppLocalizations l10n,
@@ -220,35 +252,46 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     SaganaColors sagana,
   ) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
-    return Row(
-      children: [
-        Expanded(
-          child: ReportAccentStatCard(
-            label: l10n.reportsFarmerFundedTotal,
-            value: currency.format(_data.totalFarmerFundedAmount),
-            accent: AppConstants.primaryGreen,
-            valueFontSize: 14,
+    // A fixed absolute height, NOT a GridView childAspectRatio — aspect
+    // ratio ties cell height to cell width, but this card's content
+    // (icon badge + up-to-2-line label + value) needs roughly the same
+    // height regardless of how narrow the device is. On a narrow phone a
+    // 3-column aspect-ratio cell shrinks its height right when a 2-line
+    // label like "Farmer-Funded Total" needs MORE height, causing a
+    // bottom overflow. A fixed height sidesteps that mismatch entirely.
+    return SizedBox(
+      height: 140,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ReportIconStatCard(
+              icon: Icons.payments_rounded,
+              label: l10n.reportsFarmerFundedTotal,
+              value: currency.format(_data.totalFarmerFundedAmount),
+              accent: AppConstants.primaryGreen,
+            ),
           ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: ReportAccentStatCard(
-            label: l10n.reportsSubsidizedItems,
-            value: '${_data.subsidizedCount}',
-            accent: AppConstants.buyerBlue,
-            valueFontSize: 14,
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(
+            child: ReportIconStatCard(
+              icon: Icons.volunteer_activism_rounded,
+              label: l10n.reportsSubsidizedItems,
+              value: '${_data.subsidizedCount}',
+              accent: AppConstants.buyerBlue,
+            ),
           ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: ReportAccentStatCard(
-            label: l10n.reportsTotalEntries,
-            value: '${_data.totalEntryCount}',
-            accent: AppConstants.amber,
-            valueFontSize: 14,
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(
+            child: ReportIconStatCard(
+              icon: Icons.receipt_long_rounded,
+              label: l10n.reportsTotalEntries,
+              value: '${_data.totalEntryCount}',
+              accent: AppConstants.amber,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

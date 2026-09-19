@@ -530,6 +530,15 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                             userAgentPackageName:
                                                 'com.sp3coop.sagana',
                                             tileProvider: fm.NetworkTileProvider(),
+                                            // flutter_map cancels in-flight
+                                            // tile requests for tiles that
+                                            // scroll out of view mid-pan/zoom
+                                            // — expected, not a real
+                                            // failure. Without this it
+                                            // surfaces as a noisy "EXCEPTION
+                                            // CAUGHT BY IMAGE RESOURCE
+                                            // SERVICE" log.
+                                            errorTileCallback: (tile, error, stackTrace) {},
                                           ),
                                           if (_pinnedLocation != null)
                                             fm.MarkerLayer(

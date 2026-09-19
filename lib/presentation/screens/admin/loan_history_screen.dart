@@ -12,6 +12,7 @@ import '../../../data/models/admin_reports_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 /// Loan History — Admin (all-loans registry).
 /// Pushed above the shell. Route: /admin/loans/history, extra: String? statusFilter
@@ -194,7 +195,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           const SizedBox(height: AppConstants.spacingGutter),
           _buildSearchField(context, l10n, cs),
           const SizedBox(height: AppConstants.spacingMd),
-          _buildPeriodChips(cs),
+          _buildPeriodChips(l10n, cs),
           const SizedBox(height: AppConstants.spacingSm),
           _buildStatusChips(l10n, cs),
           const SizedBox(height: AppConstants.spacingGutter),
@@ -239,10 +240,13 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingGutter),
       decoration: BoxDecoration(
-        color: sagana.cardBackground,
+        // Accent-tinted, matching the KPI-card visual language used
+        // throughout the rest of this review — was a plain white card
+        // with just a drop shadow, which read as flat/unfinished next to
+        // everything else.
+        color: healthColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))],
+        border: Border.all(color: healthColor.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,8 +255,21 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(l10n.loanHistoryTotalIssued(_summary.totalLoanCount),
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: healthColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                    ),
+                    child: Icon(Icons.account_balance_wallet_rounded, size: 15, color: healthColor),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(l10n.loanHistoryTotalIssued(_summary.totalLoanCount),
+                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                ],
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -286,8 +303,9 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: cs.surface,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,7 +323,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
   /// Period chips — same shared reportPeriodChipOrder and visual treatment
   /// as Loan Report's own period chips, so the two screens' filtering feels
   /// like one consistent pattern rather than two different mechanisms.
-  Widget _buildPeriodChips(ColorScheme cs) {
+  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
     return SizedBox(
       height: 34,
       child: ListView(
@@ -315,7 +333,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,

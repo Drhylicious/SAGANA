@@ -42,12 +42,16 @@ import '../../presentation/screens/admin/admin_dashboard_screen.dart';
 import '../../presentation/screens/admin/add_new_member_screen.dart';
 import '../../presentation/screens/admin/admin_activity_screen.dart';
 import '../../presentation/screens/admin/admin_profile_screen.dart';
+import '../../presentation/screens/shared/about_sagana_screen.dart';
+import '../../presentation/screens/shared/support_info_screen.dart';
 import '../../presentation/screens/admin/admin_settings_screen.dart';
 import '../../presentation/screens/admin/admin_edit_profile_screen.dart';
 import '../../presentation/screens/admin/create_officer_account_screen.dart';
 import '../../presentation/screens/admin/manage_accounts_screen.dart';
 import '../../presentation/screens/admin/crop_management_screen.dart';
 import '../../presentation/screens/admin/crop_request_approval_screen.dart';
+import '../../presentation/screens/admin/program_purchase_review_screen.dart';
+import '../../presentation/screens/farmer/program_product_catalog_screen.dart';
 import '../../presentation/screens/admin/loan_item_management_screen.dart';
 import '../../presentation/screens/admin/program_management_screen.dart';
 import '../../presentation/screens/admin/admin_inventory_screen.dart';
@@ -82,11 +86,13 @@ import '../../presentation/screens/admin/balik_tangkilik_management_screen.dart'
 import '../../presentation/screens/admin/farmer_harvest_history_screen.dart';
 import '../../presentation/screens/admin/marketplace_dashboard_screen.dart';
 import '../../presentation/screens/admin/offer_to_cooperative_screen.dart';
+import '../../presentation/screens/admin/offer_detail_screen.dart';
 import '../../presentation/screens/admin/buyer_management_screen.dart';
 import '../../presentation/screens/admin/buyer_details_screen.dart';
 import '../../presentation/screens/admin/buyer_order_history_screen.dart';
 import '../../presentation/screens/admin/order_management_screen.dart';
-import '../../presentation/screens/admin/admin_order_detail_screen.dart' as admin_order_detail;
+import '../../presentation/screens/admin/admin_order_detail_screen.dart'
+    as admin_order_detail;
 import '../../presentation/screens/buyer/marketplace_browse_screen.dart';
 import '../../presentation/screens/buyer/listing_details_screen.dart';
 import '../../presentation/screens/buyer/cart_screen.dart';
@@ -197,7 +203,8 @@ class AppRouter {
         // (see AccountManagementRepository.resetUserPassword). Applies to
         // every role, unlike the farmer-pending check below, so it's
         // checked first rather than nested inside that role-scoped gate.
-        final isAuthPath = path == AppRoutes.login ||
+        final isAuthPath =
+            path == AppRoutes.login ||
             path == AppRoutes.register ||
             path == AppRoutes.resetPasswordCallback ||
             path == AppRoutes.forcePasswordChange;
@@ -227,8 +234,8 @@ class AppRouter {
         }
 
         // Only enforce for farmer paths (not auth, admin, buyer, or pending paths)
-        final isFarmerPath = path.startsWith('/farmer/') &&
-            !path.startsWith('/farmer/pending');
+        final isFarmerPath =
+            path.startsWith('/farmer/') && !path.startsWith('/farmer/pending');
         if (!isFarmerPath) return null;
 
         // Check cached membership status — synchronous, works offline.
@@ -413,9 +420,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: HarvestHistoryScreen(
-              initialCropFilter: s.extra as String?,
-            ),
+            child: HarvestHistoryScreen(initialCropFilter: s.extra as String?),
           ),
         ),
         GoRoute(
@@ -505,7 +510,9 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const AdminInventoryScreen(),
+            child: AdminInventoryScreen(
+              initialCategoryFilter: s.extra as String?,
+            ),
           ),
         ),
         GoRoute(
@@ -523,6 +530,28 @@ class AppRouter {
             key: s.pageKey,
             child: const CropRequestApprovalScreen(),
           ),
+        ),
+        GoRoute(
+          path: AppRoutes.programPurchaseReview,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ProgramPurchaseReviewScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.programProductCatalog,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: ProgramProductCatalogScreen(
+                programId: extra?['programId'] as String? ?? '',
+                programName: extra?['programName'] as String? ?? 'Program',
+              ),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.programManagement,
@@ -615,9 +644,7 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: HarvestReportScreen(
-              initialTabIndex: s.extra == 1 ? 1 : 0,
-            ),
+            child: HarvestReportScreen(initialTabIndex: s.extra == 1 ? 1 : 0),
           ),
         ),
         GoRoute(
@@ -674,7 +701,10 @@ class AppRouter {
             }
             return AppPageTransitions.slideForward(
               key: s.pageKey,
-              child: ListingReviewScreen(listingId: listingId, readOnly: readOnly),
+              child: ListingReviewScreen(
+                listingId: listingId,
+                readOnly: readOnly,
+              ),
             );
           },
         ),
@@ -683,7 +713,8 @@ class AppRouter {
         // any existing deep links, now that these live nested under
         // adminMarketplace within the Listings shell branch.
         GoRoute(
-          path: AppRoutes.pendingApprovals, // '/admin/listings/pending' — kept for backward compat
+          path: AppRoutes
+              .pendingApprovals, // '/admin/listings/pending' — kept for backward compat
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
@@ -748,7 +779,10 @@ class AppRouter {
             }
             return AppPageTransitions.slideForward(
               key: s.pageKey,
-              child: admin_order_detail.OrderDetailScreen(orderId: orderId, readOnly: readOnly),
+              child: admin_order_detail.OrderDetailScreen(
+                orderId: orderId,
+                readOnly: readOnly,
+              ),
             );
           },
         ),
@@ -772,6 +806,14 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const OfferToCooperativeScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.offerDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: OfferDetailScreen(offerId: s.extra as String? ?? ''),
           ),
         ),
         GoRoute(
@@ -951,7 +993,6 @@ class AppRouter {
                     child: const FarmerDashboardScreen(),
                   ),
                 ),
-                
               ],
             ),
             StatefulShellBranch(
@@ -1203,7 +1244,9 @@ class AppRouter {
                   path: AppRoutes.myOrders,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: MyOrdersScreen(initialTabIndex: s.extra as int? ?? 0),
+                    child: MyOrdersScreen(
+                      initialTabIndex: s.extra as int? ?? 0,
+                    ),
                   ),
                 ),
               ],
@@ -1233,6 +1276,67 @@ class AppRouter {
               ],
             ),
           ],
+        ),
+
+        // ─── Support & Info — shared across all roles (Admin Profile &
+        // Settings Phase 7). Reachable from the Navigation Drawer on
+        // every role's primary screens; top-level so they push above
+        // whichever shell is currently active. ───────────────────────
+        GoRoute(
+          path: AppRoutes.aboutSagana,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const AboutSaganaScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.aboutCooperative,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: Builder(builder: (context) {
+              final l10n = AppLocalizations.of(context);
+              return SupportInfoScreen(
+                icon: Icons.support_agent_rounded,
+                iconColor: AppConstants.buyerBlue,
+                title: l10n.aboutCooperative,
+                body: l10n.aboutCooperativeBody,
+              );
+            }),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.privacyPolicy,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: Builder(builder: (context) {
+              final l10n = AppLocalizations.of(context);
+              return SupportInfoScreen(
+                icon: Icons.privacy_tip_outlined,
+                iconColor: AppConstants.amber,
+                title: l10n.privacyPolicy,
+                body: l10n.privacyPolicyBody,
+              );
+            }),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.termsOfUse,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: Builder(builder: (context) {
+              final l10n = AppLocalizations.of(context);
+              return SupportInfoScreen(
+                icon: Icons.gavel_rounded,
+                iconColor: AppConstants.onSurfaceVariant,
+                title: l10n.termsOfUse,
+                body: l10n.termsOfUseBody,
+              );
+            }),
+          ),
         ),
       ],
       errorBuilder: (context, state) =>

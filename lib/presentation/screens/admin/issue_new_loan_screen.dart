@@ -332,17 +332,25 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                       AppConstants.spacingSafeH,
                       AppConstants.spacingGutter,
                       AppConstants.spacingSafeH,
-                      100,
+                      AppConstants.spacingSafeH,
                     ),
                     children: [
-                      _buildFarmerSection(context, l10n, cs, sagana),
-                      const SizedBox(height: AppConstants.spacingSectionV),
-                      _buildItemsSection(context, l10n, cs, sagana),
-                      const SizedBox(height: AppConstants.spacingSectionV),
-                      _buildTotalCard(context, l10n, cs),
-                      const SizedBox(height: AppConstants.spacingSectionV),
-                      _buildPaymentScheduleSection(context, l10n, cs, sagana),
-                      const SizedBox(height: AppConstants.spacingSectionV),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        child: _buildFarmerSection(context, l10n, cs, sagana),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        child: _buildItemsSection(context, l10n, cs, sagana),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        child: _buildTotalCard(context, l10n, cs),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        child: _buildPaymentScheduleSection(context, l10n, cs, sagana),
+                      ),
                       _buildNotesSection(context, l10n, cs, sagana),
                     ],
                   ),
@@ -648,12 +656,16 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              l10n.issueLoanInputItems,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-                color: cs.onSurface,
+            Flexible(
+              child: Text(
+                l10n.issueLoanInputItems,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
               ),
             ),
             TextButton.icon(
@@ -724,7 +736,33 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // The item's own Inventory Management photo — selected from the
+          // Loan Item Catalog, never uploaded here directly.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                  ? Image.network(
+                      item.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: cs.surfaceContainerHighest,
+                        child: Icon(Icons.inventory_2_outlined,
+                            size: 20, color: cs.outline.withValues(alpha: 0.4)),
+                      ),
+                    )
+                  : Container(
+                      color: cs.surfaceContainerHighest,
+                      child: Icon(Icons.inventory_2_outlined,
+                          size: 20, color: cs.outline.withValues(alpha: 0.4)),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -747,27 +785,46 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               ],
             ),
           ),
-          Text(
-            currency.format(item.lineTotal),
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            color: cs.onSurfaceVariant,
-            onPressed: () => _openAddItemSheet(existing: item),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-            color: AppConstants.errorRed,
-            onPressed: () => _deleteItem(item.id),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          const SizedBox(width: 8),
+          // Price above the two actions, not alongside them — reverted per
+          // your correction. The two icons are just brought closer to each
+          // other than before: visualDensity.compact trims IconButton's own
+          // default hit-target padding, which was the actual source of the
+          // gap (the explicit 32x32 constraints alone didn't remove it).
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                currency.format(item.lineTotal),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    color: cs.onSurfaceVariant,
+                    onPressed: () => _openAddItemSheet(existing: item),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    color: AppConstants.errorRed,
+                    onPressed: () => _deleteItem(item.id),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -794,14 +851,22 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            l10n.issueLoanTotalValue,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: Colors.white,
+          // Flexible + ellipsis: "Kabuuang Halaga ng Pautang" is much
+          // longer than "Total Loan Value" and this banner has no other
+          // slack next to the peso total.
+          Flexible(
+            child: Text(
+              l10n.issueLoanTotalValue,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.white,
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             currency.format(_totalValue),
             style: GoogleFonts.poppins(
@@ -864,7 +929,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               ),
             ),
           ),
-          const Divider(height: AppConstants.spacingSectionV),
+          Divider(height: AppConstants.spacingGutter, color: cs.outline.withValues(alpha: 0.15)),
           Text(
             l10n.issueLoanMonthlyPayment,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
@@ -917,25 +982,42 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     required ColorScheme cs,
     Widget? trailing,
   }) {
+    // Flexible + ellipsis on both sides: labels like "Susunod na Takdang
+    // Bayad" / "Petsa ng Pagbibigay" run noticeably longer than their
+    // English source ("Next Payment Due" / "Issue Date"), and this Row
+    // has no other slack between the label and the formatted date value
+    // — without this the two sides overflow past the available width.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
         ),
-        Row(
-          children: [
-            Text(
-              value,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: cs.onSurface,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
-            ),
-            if (trailing != null) ...[const SizedBox(width: 6), trailing],
-          ],
+              if (trailing != null) ...[const SizedBox(width: 6), trailing],
+            ],
+          ),
         ),
       ],
     );
@@ -963,7 +1045,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         const SizedBox(height: AppConstants.spacingSm),
         TextField(
           controller: _notesController,
-          maxLines: 3,
+          maxLines: 2,
           style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
           decoration: InputDecoration(
             filled: true,
@@ -1041,6 +1123,7 @@ class _LoanItemDraft {
   double quantity;
   String unit;
   double unitPrice;
+  String? imageUrl;
 
   _LoanItemDraft({
     required this.id,
@@ -1049,6 +1132,7 @@ class _LoanItemDraft {
     required this.quantity,
     required this.unit,
     required this.unitPrice,
+    this.imageUrl,
   });
 
   double get lineTotal => quantity * unitPrice;
@@ -1225,6 +1309,7 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
         quantity: _quantity,
         unit: _selected!.unit,
         unitPrice: _selected!.unitPrice,
+        imageUrl: _selected!.imageUrl,
       ),
     );
     Navigator.of(context).pop();
@@ -1256,7 +1341,7 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
             ),
             const SizedBox(height: 12),
             Text(
-              'No loanable items yet',
+              l10n.loanItemNoItemsYet,
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
@@ -1265,15 +1350,15 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Publish an item from Inventory Management before it can be selected here.',
+              l10n.issueLoanPublishFirstHint,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
             ),
           ],
         ),
         footer: ManagementModalActions(
-          cancelLabel: 'Close',
-          primaryLabel: 'Go to Inventory',
+          cancelLabel: l10n.close,
+          primaryLabel: l10n.issueLoanGoToInventory,
           onPrimary: () {
             Navigator.of(context).pop();
             context.push(AppRoutes.adminInventory);
@@ -1295,7 +1380,7 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
           const SizedBox(height: 6),
           AppDropdownField<LoanCatalogItem>(
             value: _selected,
-            hintText: 'Select a loanable item',
+            hintText: l10n.issueLoanSelectItemHint,
             items: widget.loanCatalog,
             itemLabel: (c) => '${c.itemName} (${c.unit})',
             onChanged: (v) => setState(() => _selected = v),
@@ -1305,13 +1390,18 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  l10n.issueLoanUnitPrice,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
+                Flexible(
+                  child: Text(
+                    l10n.issueLoanUnitPrice,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   currency.format(_selected!.unitPrice),
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
@@ -1321,13 +1411,18 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Available in stock',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
+                Flexible(
+                  child: Text(
+                    l10n.loanItemAvailableInStock,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   '${_selected!.quantityOnHand.toStringAsFixed(0)} ${_selected!.unit}',
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
@@ -1367,9 +1462,11 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${_quantity.toStringAsFixed(0)} requested — only '
-                        '${_selected!.quantityOnHand.toStringAsFixed(0)} ${_selected!.unit} available. '
-                        'Reduce the quantity or restock this item in Inventory Management before adding it to the loan.',
+                        l10n.issueLoanInsufficientStock(
+                          _quantity.toStringAsFixed(0),
+                          _selected!.quantityOnHand.toStringAsFixed(0),
+                          _selected!.unit,
+                        ),
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: cs.onSurface,
@@ -1383,9 +1480,40 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
           ],
         ],
       ),
-      footer: ManagementModalActions(
-        primaryLabel: l10n.issueLoanConfirmItem,
-        onPrimary: _insufficientStock ? null : _confirm,
+      // Local footer, not ManagementModalActions — that shared widget's
+      // Cancel button sits in a narrower flex:1 box than its flex:2 Confirm
+      // button and both use FittedBox(fit: scaleDown), so "Cancel" shrinks
+      // more than the longer Confirm label does at this dialog's width.
+      // Fixed here to both buttons' text at an explicit, equal size instead
+      // of leaving it to that scaling — scoped to this dialog only, per
+      // your decision not to touch the shared widget everywhere else uses.
+      footer: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                l10n.cancel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: _insufficientStock ? null : _confirm,
+              child: Text(
+                l10n.issueLoanConfirmItem,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

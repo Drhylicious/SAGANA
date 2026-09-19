@@ -2,7 +2,31 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/sagana_colors.dart';
 import '../../data/models/analytics_model.dart';
+
+String forecastTrendLabel(AppLocalizations l10n, String trend) {
+  switch (trend) {
+    case 'trending_up': return l10n.forecastTrendingUp;
+    case 'trending_down': return l10n.forecastTrendingDown;
+    case 'stable': return l10n.forecastStable;
+    default: return l10n.forecastNotEnoughData;
+  }
+}
+
+String forecastExplanation(AppLocalizations l10n, PlantingForecast forecast) {
+  if (!forecast.hasForecast) {
+    return l10n.forecastNotEnoughDataExplanation;
+  }
+  final diff = forecast.forecastNextCycleKg! - forecast.mostRecentCycleKg;
+  final diffAbs = diff.abs().toStringAsFixed(0);
+  switch (forecast.trend) {
+    case 'trending_up': return l10n.forecastIncreaseExplanation(diffAbs);
+    case 'trending_down': return l10n.forecastDecreaseExplanation(diffAbs);
+    default: return l10n.forecastStableExplanation;
+  }
+}
 
 /// Shared forecast section header + card, extracted from
 /// farmer_analytics_screen.dart's private _ForecastSectionHeader /
@@ -14,55 +38,45 @@ class PlantingForecastSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                'Planting Forecast',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal,
-                ),
-              ),
+        Text(
+          l10n.plantingForecastTitle,
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 6),
+        // On its own line below the title (rather than sharing a Row with
+        // it) so the title never has to compete with this badge for width
+        // and truncate on narrow phone screens.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppConstants.primaryContainer,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            l10n.plantingForecastBasedOnHistory,
+            style: GoogleFonts.inter(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 0.3,
             ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 180),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppConstants.primaryContainer,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'FORECAST BASED ON HARVEST HISTORY',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFFDBF1FE).withValues(alpha: 0.50),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             border: Border.all(
               color: AppConstants.primaryGreen.withValues(alpha: 0.10),
@@ -79,10 +93,10 @@ class PlantingForecastSectionHeader extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Forecasts use a weighted average of cooperative-wide harvest volume over the last 3 thirty-day cycles. This reflects supply trends only, not buyer demand.',
+                  l10n.plantingForecastInfoBody,
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
+                    color: cs.onSurfaceVariant,
                     height: 1.4,
                   ),
                 ),
@@ -101,6 +115,9 @@ class PlantingForecastCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    final l10n = AppLocalizations.of(context);
     final color = _trendColor();
 
     return ClipRRect(
@@ -110,7 +127,7 @@ class PlantingForecastCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border(left: BorderSide(color: color, width: 4)),
             boxShadow: [
@@ -135,7 +152,7 @@ class PlantingForecastCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: AppConstants.charcoal,
+                          color: cs.onSurface,
                         ),
                       ),
                       Text(
@@ -143,7 +160,7 @@ class PlantingForecastCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.outline,
+                          color: cs.outline,
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -161,7 +178,7 @@ class PlantingForecastCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      forecast.trendLabel.toUpperCase(),
+                      forecastTrendLabel(l10n, forecast.trend).toUpperCase(),
                       style: GoogleFonts.inter(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
@@ -173,10 +190,10 @@ class PlantingForecastCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                forecast.explanation,
+                forecastExplanation(l10n, forecast),
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
+                  color: cs.onSurfaceVariant,
                   height: 1.4,
                 ),
               ),
@@ -186,7 +203,7 @@ class PlantingForecastCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: ForecastFigure(
-                        label: 'Last Cycle',
+                        label: l10n.plantingForecastLastCycle,
                         value:
                             '${forecast.mostRecentCycleKg.toStringAsFixed(0)} kg',
                       ),
@@ -194,11 +211,11 @@ class PlantingForecastCard extends StatelessWidget {
                     Icon(
                       Icons.arrow_forward_rounded,
                       size: 16,
-                      color: AppConstants.outline.withValues(alpha: 0.50),
+                      color: cs.outline.withValues(alpha: 0.50),
                     ),
                     Expanded(
                       child: ForecastFigure(
-                        label: 'Next Cycle (Forecast)',
+                        label: l10n.plantingForecastNextCycle,
                         value:
                             '${forecast.forecastNextCycleKg!.toStringAsFixed(0)} kg',
                         highlight: true,
@@ -241,12 +258,13 @@ class ForecastFigure extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(fontSize: 9, color: AppConstants.outline),
+          style: GoogleFonts.inter(fontSize: 9, color: cs.outline),
         ),
         Text(
           value,
@@ -255,7 +273,7 @@ class ForecastFigure extends StatelessWidget {
             fontWeight: FontWeight.w700,
             color: highlight
                 ? AppConstants.primaryGreen
-                : AppConstants.onSurface,
+                : cs.onSurface,
           ),
         ),
       ],

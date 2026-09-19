@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/inventory_batch_model.dart';
+import 'admin_activity_repository.dart';
 
 class InventoryRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -85,6 +86,12 @@ class InventoryRepository {
         'is_loan_eligible': true,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       });
+      AdminActivityRepository().log(
+        module: 'loans',
+        actionType: 'created',
+        description: 'Published an inventory item to the loan catalog (₱${loanPrice.toStringAsFixed(2)}).',
+        referenceId: inventoryItemId,
+      );
       return true;
     } catch (_) {
       return false;

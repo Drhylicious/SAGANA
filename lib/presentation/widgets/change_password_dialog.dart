@@ -7,6 +7,7 @@ import '../../core/theme/sagana_colors.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/services/auth_service.dart';
 import '../../routes/app_routes.dart';
+import 'password_requirements.dart';
 import 'shared_widgets.dart';
 
 /// Shared Change Password flow for all three roles — replaces Buyer's
@@ -54,7 +55,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       setState(() => _error = l10n.currentPasswordRequired);
       return;
     }
-    if (_newController.text.length < 8) {
+    if (!isPasswordValid(_newController.text)) {
       setState(() => _error = l10n.passwordMinLength);
       return;
     }
@@ -107,6 +108,10 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
               AppTextField(controller: _currentController, label: l10n.currentPassword, isPassword: true),
               const SizedBox(height: 12),
               AppTextField(controller: _newController, label: l10n.newPassword, isPassword: true),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _newController,
+                builder: (_, value, __) => PasswordLengthHint(password: value.text),
+              ),
               const SizedBox(height: 12),
               AppTextField(controller: _confirmController, label: l10n.confirmNewPassword, isPassword: true),
               if (_error != null) ...[

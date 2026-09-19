@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/sagana_colors.dart';
 import '../../data/models/analytics_model.dart';
 
 /// Shared bar chart, extracted from farmer_analytics_screen.dart's private
@@ -21,6 +22,8 @@ class TopHarvestedCropsChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -28,9 +31,9 @@ class TopHarvestedCropsChart extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+            border: Border.all(color: sagana.glassBorder),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF455A64).withValues(alpha: 0.05),
@@ -46,7 +49,7 @@ class TopHarvestedCropsChart extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(height: 20),
@@ -68,7 +71,7 @@ class TopHarvestedCropsChart extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: AppConstants.onSurfaceVariant,
+                                color: cs.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -109,7 +112,7 @@ class TopHarvestedCropsChart extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                             fontSize: 9,
-                            color: AppConstants.outline,
+                            color: cs.outline,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),

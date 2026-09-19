@@ -1,8 +1,33 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../data/services/auth_service.dart';
+import '../../routes/app_routes.dart';
+import 'app_dialog.dart';
+import 'shared_widgets.dart';
+
+/// Shared Sign Out confirmation for every Buyer screen that hosts the
+/// Navigation Drawer — mirrors BuyerSettingsScreen's existing private
+/// _LogoutConfirmDialog content and flow (that widget is private to its
+/// file, so this reproduces it via the shared ConfirmDialog rather than
+/// exporting it) so the Drawer's Sign Out row behaves identically.
+Future<void> confirmBuyerSignOut(BuildContext context) async {
+  final confirmed = await AppDialog.show<bool>(
+    context: context,
+    child: const ConfirmDialog(
+      title: 'Log Out?',
+      message: "You'll need to sign in again to place new orders.",
+      confirmLabel: 'Log Out',
+    ),
+  );
+  if (confirmed == true) {
+    await AuthService.logout();
+    if (context.mounted) context.go(AppRoutes.login);
+  }
+}
 
 /// Shared top bar for all primary Buyer screens (Browse, Orders, Prices,
 /// Account) — the Buyer-module analog of AdminTopBar/FarmerTopBar.
@@ -20,6 +45,11 @@ class BuyerTopBar extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onNotificationTap;
   final VoidCallback? onSettingsTap;
+  // A bool, not a caller-supplied VoidCallback: Scaffold.of(context) must
+  // be called with a context that is a DESCENDANT of the Scaffold being
+  // opened, not the screen's own outer build context — so this is
+  // resolved from BuyerTopBar's own build context, not the caller's.
+  final bool enableMenu;
 
   const BuyerTopBar({
     super.key,
@@ -27,6 +57,7 @@ class BuyerTopBar extends StatelessWidget {
     required this.onNotificationTap,
     this.unreadCount = 0,
     this.onSettingsTap,
+    this.enableMenu = false,
   });
 
   @override
@@ -46,22 +77,26 @@ class BuyerTopBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // SAGANA icon — identical implementation to AdminTopBar's.
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.95),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/sagana_icon.png',
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
+              // SAGANA icon — identical implementation to AdminTopBar's,
+              // opens the Navigation Drawer when enableMenu is set.
+              GestureDetector(
+                onTap: enableMenu ? () => Scaffold.of(context).openDrawer() : null,
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.95),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/sagana_icon.png',
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
                   ),
                 ),
               ),

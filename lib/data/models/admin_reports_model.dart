@@ -142,19 +142,26 @@ class QuickInsights {
 
 // ─── Sales Report ───────────────────────────────────────────────────────────
 
-/// One row in Sales Report's transaction table. Reports on
-/// member_sales_transactions (direct Palay/Peanut sales to SP3) per the
-/// agreed data-source pivot — not the marketplace `orders` table.
+/// One row in Sales Report's unified transaction table — as of Phase 10,
+/// merged across all four real Selling Types (not just member_sales_
+/// transactions): Offer to Cooperative, Marketplace, Informal Sale (F2F),
+/// and DA-AMAD Market Linking. [sellingType] identifies which; [marketType]
+/// is the crop's Cooperative/Public/DA-AMAD Market classification where one
+/// meaningfully applies (Marketplace, DA-AMAD) and null where it doesn't
+/// (Offer to Cooperative accepts any crop regardless of Market Type;
+/// Informal Sale has no market-type concept at all).
 class SalesTransactionRow {
   final String id;
   final String farmerName;
   final String memberId;
-  final String cropType; // 'palay' | 'peanut'
+  final String cropType; // 'palay' | 'peanut' | other crop's lowercased name
   final String cropName;
   final double quantityKg;
   final double amount;
   final DateTime saleDate;
   final String? referenceNo;
+  final String sellingType; // offer_to_cooperative | marketplace | informal_sale | da_amad_market_linking
+  final String? marketType; // 'Cooperative Market' | 'Public Market' | 'DA-AMAD Market' | null
 
   const SalesTransactionRow({
     required this.id,
@@ -166,53 +173,55 @@ class SalesTransactionRow {
     required this.amount,
     required this.saleDate,
     this.referenceNo,
+    required this.sellingType,
+    this.marketType,
+  });
+}
+
+/// One Selling Type's aggregate — Sales Report's four channel cards.
+class SalesChannelTotal {
+  final String sellingType;
+  final String label;
+  final double amount;
+  final double quantityKg;
+  final int transactionCount;
+
+  const SalesChannelTotal({
+    required this.sellingType,
+    required this.label,
+    required this.amount,
+    required this.quantityKg,
+    required this.transactionCount,
   });
 }
 
 class SalesReportData {
   final double totalRevenue;
-  final double marketplaceRevenue;
   final double totalQuantityKg;
   final int transactionCount;
-  final double palayAmount;
-  final double peanutAmount;
   final List<double> monthlyTrend;
   final List<SalesTransactionRow> transactions;
+  final List<SalesChannelTotal> channelTotals;
 
   const SalesReportData({
     required this.totalRevenue,
-    required this.marketplaceRevenue,
     required this.totalQuantityKg,
     required this.transactionCount,
-    required this.palayAmount,
-    required this.peanutAmount,
     required this.monthlyTrend,
     required this.transactions,
+    this.channelTotals = const [],
   });
 
   double get averageSaleAmount =>
       transactionCount > 0 ? totalRevenue / transactionCount : 0;
 
-  SalesReportData copyWithMarketplaceRevenue(double value) => SalesReportData(
-    totalRevenue: totalRevenue,
-    marketplaceRevenue: value,
-    totalQuantityKg: totalQuantityKg,
-    transactionCount: transactionCount,
-    palayAmount: palayAmount,
-    peanutAmount: peanutAmount,
-    monthlyTrend: monthlyTrend,
-    transactions: transactions,
-  );
-
   factory SalesReportData.empty() => const SalesReportData(
     totalRevenue: 0,
-    marketplaceRevenue: 0,
     totalQuantityKg: 0,
     transactionCount: 0,
-    palayAmount: 0,
-    peanutAmount: 0,
     monthlyTrend: [],
     transactions: [],
+    channelTotals: [],
   );
 }
 
@@ -227,6 +236,18 @@ class MemberContributionRow {
   final double totalAmount;
   final double sharePercent;
 
+  /// Any crop other than Palay/Peanut sold via Offer to Cooperative, as of
+  /// Phase 9's any-crop widening (Phase 11 addition) — previously any such
+  /// sale was invisible here, silently missing from the member's total.
+  final double otherCropsQtyKg;
+  final double otherCropsAmount;
+
+  /// Option B — Product Sales Program purchases (farmer buys FROM the
+  /// coop), kept structurally separate from totalAmount/sharePercent
+  /// above (farmer sells TO the coop via Offer to Cooperative). Shown as
+  /// its own line, never folded into the sales-based total.
+  final double programPurchasesAmount;
+
   const MemberContributionRow({
     required this.farmerId,
     required this.farmerName,
@@ -237,6 +258,9 @@ class MemberContributionRow {
     required this.peanutAmount,
     required this.totalAmount,
     required this.sharePercent,
+    this.otherCropsQtyKg = 0,
+    this.otherCropsAmount = 0,
+    this.programPurchasesAmount = 0,
   });
 
   bool get hasContributed => totalAmount > 0;
@@ -443,6 +467,7 @@ class CoopStockReportRow {
   final bool isLowStock;
   final double? unitCost;
   final DateTime? lastRestockedAt;
+  final String? imageUrl;
 
   const CoopStockReportRow({
     required this.id,
@@ -454,6 +479,7 @@ class CoopStockReportRow {
     required this.isLowStock,
     this.unitCost,
     this.lastRestockedAt,
+    this.imageUrl,
   });
 }
 

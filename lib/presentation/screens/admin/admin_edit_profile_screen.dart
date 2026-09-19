@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/repositories/admin_profile_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../widgets/app_dialog.dart';
@@ -29,13 +30,22 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   final _repo = AdminProfileRepository();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _emailController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
   String? _photoUrl;
-  String _email = '';
   String? _selectedPurok;
+  DateTime? _dateOfBirth;
+  String? _gender;
+
+  Map<String, String> _genderOptions(AppLocalizations l10n) => {
+        'male': l10n.registerGenderMale,
+        'female': l10n.registerGenderFemale,
+        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+      };
 
   @override
   void initState() {
@@ -47,6 +57,8 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _dobController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -57,9 +69,32 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       _nameController.text = profile?.fullName ?? '';
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
-      _email = profile?.email ?? '';
+      _emailController.text = profile?.email ?? '';
       _selectedPurok = profile?.purok;
+      _dateOfBirth = profile?.dateOfBirth;
+      _dobController.text = _dateOfBirth == null
+          ? ''
+          : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}';
+      _gender = profile?.gender;
       _isLoading = false;
+    });
+  }
+
+  Future<void> _pickDateOfBirth() async {
+    final picked = await AppUtils.pickDateOfBirth(
+      context,
+      initialDate: _dateOfBirth,
+    );
+    if (picked == null) return;
+    if (!AppUtils.isAtLeast18(picked)) {
+      if (!mounted) return;
+      await AppUtils.showUnder18Dialog(context);
+      return;
+    }
+    setState(() {
+      _dateOfBirth = picked;
+      _dobController.text =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
     });
   }
 
@@ -111,6 +146,8 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         purok: _selectedPurok,
+        dateOfBirth: _dateOfBirth,
+        gender: _gender,
       );
       AdminProfileStateService.instance.refresh();
       if (!mounted) return;
@@ -203,6 +240,19 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                 ),
                 const SizedBox(height: 16),
                 AppTextField(
+                  controller: _emailController,
+                  label: l10n.emailAddress,
+                  prefixIcon: Icons.email_outlined,
+                  readOnly: true,
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(l10n.emailCannotBeChanged,
+                      style: GoogleFonts.inter(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
                   controller: _phoneController,
                   label: l10n.adminProfilePhoneNumber,
                   hint: '09XXXXXXXXX',
@@ -212,24 +262,36 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                 const SizedBox(height: 16),
                 AppDropdownField<String>(
                   value: AppConstants.payanasPuroks.contains(_selectedPurok) ? _selectedPurok : null,
-                  hintText: 'Select a purok',
+                  hintText: l10n.addMemberSelectHint,
                   labelText: l10n.adminProfilePurok,
                   items: AppConstants.payanasPuroks,
                   itemLabel: (s) => s,
                   onChanged: (v) => setState(() => _selectedPurok = v),
                 ),
                 const SizedBox(height: 16),
-                AppTextField(
-                  controller: TextEditingController(text: _email),
-                  label: l10n.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                  readOnly: true,
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(l10n.emailCannotBeChanged,
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _LabeledDateField(
+                        label: l10n.addMemberDobLabel,
+                        hintText: l10n.addMemberSelectHint,
+                        valueText: _dobController.text,
+                        onTap: _pickDateOfBirth,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppDropdownField<String>(
+                        value: _gender,
+                        hintText: l10n.addMemberSelectHint,
+                        labelText: l10n.addMemberGenderLabel,
+                        items: _genderOptions(l10n).keys.toList(),
+                        itemLabel: (key) => _genderOptions(l10n)[key]!,
+                        onChanged: (v) => setState(() => _gender = v),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 SectionLabel(label: l10n.sectionSecurity),
@@ -245,6 +307,72 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                 ]),
               ],
             ),
+    );
+  }
+}
+
+/// Date-of-birth field styled to match AppDropdownField's exact shape
+/// (a label rendered above the field, then a bordered box) rather than
+/// AppTextField's floating inside-label — the two were visually
+/// misaligned when placed side by side in a half-width Row (Gender's
+/// label-above pushes its box down; AppTextField's inside-label doesn't,
+/// and its text truncated at half width). No dropdown arrow box, since
+/// this isn't a dropdown — the outer border/radius/padding otherwise
+/// matches AppDropdownField's box exactly so both fields' boxes align.
+class _LabeledDateField extends StatelessWidget {
+  final String label;
+  final String hintText;
+  final String valueText;
+  final VoidCallback onTap;
+
+  const _LabeledDateField({
+    required this.label,
+    required this.hintText,
+    required this.valueText,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasValue = valueText.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: cs.outline.withValues(alpha: 0.4)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Icon(Icons.cake_outlined, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasValue ? valueText : hintText,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: hasValue ? cs.onSurface : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -17,34 +17,52 @@ extension MemberStatusExt on MemberStatus {
   /// stored — it maps to `active` so an accidental write path stays sane.
   String get value {
     switch (this) {
-      case MemberStatus.active:    return 'active';
-      case MemberStatus.inactive:  return 'active';
-      case MemberStatus.suspended: return 'suspended';
-      case MemberStatus.pending:   return 'pending';
-      case MemberStatus.rejected:  return 'rejected';
-      case MemberStatus.draft:     return 'draft';
+      case MemberStatus.active:
+        return 'active';
+      case MemberStatus.inactive:
+        return 'active';
+      case MemberStatus.suspended:
+        return 'suspended';
+      case MemberStatus.pending:
+        return 'pending';
+      case MemberStatus.rejected:
+        return 'rejected';
+      case MemberStatus.draft:
+        return 'draft';
     }
   }
 
   String get label {
     switch (this) {
-      case MemberStatus.active:    return 'Active';
-      case MemberStatus.inactive:  return 'Inactive';
-      case MemberStatus.suspended: return 'Suspended';
-      case MemberStatus.pending:   return 'Pending';
-      case MemberStatus.rejected:  return 'Rejected';
-      case MemberStatus.draft:     return 'Draft';
+      case MemberStatus.active:
+        return 'Active';
+      case MemberStatus.inactive:
+        return 'Inactive';
+      case MemberStatus.suspended:
+        return 'Suspended';
+      case MemberStatus.pending:
+        return 'Pending';
+      case MemberStatus.rejected:
+        return 'Rejected';
+      case MemberStatus.draft:
+        return 'Draft';
     }
   }
 
   static MemberStatus fromString(String? v) {
     switch (v) {
-      case 'active':    return MemberStatus.active;
-      case 'inactive':  return MemberStatus.inactive;
-      case 'suspended': return MemberStatus.suspended;
-      case 'rejected':  return MemberStatus.rejected;
-      case 'draft':     return MemberStatus.draft;
-      default:          return MemberStatus.pending;
+      case 'active':
+        return MemberStatus.active;
+      case 'inactive':
+        return MemberStatus.inactive;
+      case 'suspended':
+        return MemberStatus.suspended;
+      case 'rejected':
+        return MemberStatus.rejected;
+      case 'draft':
+        return MemberStatus.draft;
+      default:
+        return MemberStatus.pending;
     }
   }
 
@@ -99,9 +117,12 @@ enum LoanStatusSummary { none, active, overdue }
 extension LoanStatusSummaryExt on LoanStatusSummary {
   String get label {
     switch (this) {
-      case LoanStatusSummary.none:    return 'No Loans';
-      case LoanStatusSummary.active:  return 'Active Loan';
-      case LoanStatusSummary.overdue: return 'Overdue';
+      case LoanStatusSummary.none:
+        return 'No Loans';
+      case LoanStatusSummary.active:
+        return 'Active Loan';
+      case LoanStatusSummary.overdue:
+        return 'Overdue';
     }
   }
 }
@@ -147,8 +168,7 @@ class FarmerMemberModel {
     this.applicationAttempts = 0,
   });
 
-  bool get hasPhoto =>
-      profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
+  bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
 
   bool get hasOutstandingLoan => outstandingLoanBalance > 0;
 
@@ -166,8 +186,18 @@ class FarmerMemberModel {
   String get lastHarvestLabel {
     if (lastHarvestDate == null) return 'No records';
     const months = [
-      'Jan','Feb','Mar','Apr','May','Jun',
-      'Jul','Aug','Sep','Oct','Nov','Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final d = lastHarvestDate!;
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
@@ -177,9 +207,14 @@ class FarmerMemberModel {
     final loanStatusStr = map['loan_status'] as String? ?? 'none';
     LoanStatusSummary ls;
     switch (loanStatusStr) {
-      case 'overdue': ls = LoanStatusSummary.overdue; break;
-      case 'active':  ls = LoanStatusSummary.active;  break;
-      default:        ls = LoanStatusSummary.none;
+      case 'overdue':
+        ls = LoanStatusSummary.overdue;
+        break;
+      case 'active':
+        ls = LoanStatusSummary.active;
+        break;
+      default:
+        ls = LoanStatusSummary.none;
     }
 
     final lastActiveAt = map['last_active_at'] != null
@@ -187,34 +222,33 @@ class FarmerMemberModel {
         : null;
 
     return FarmerMemberModel(
-      userId:                 map['user_id'] as String,
-      fullName:               map['full_name'] as String? ?? 'Farmer',
-      memberId:               map['member_id'] as String?,
-      purok:                  map['purok'] as String?,
-      profilePhotoUrl:        map['profile_photo_url'] as String?,
-      memberStatus:           MemberStatusExt.derive(
-                                  map['member_status'] as String?, lastActiveAt),
-      lastActiveAt:           lastActiveAt,
-      rejectionReason:        map['rejection_reason'] as String?,
-      suspensionReason:       map['suspension_reason'] as String?,
-      applicationAttempts:    (map['application_attempts'] as num?)?.toInt() ?? 0,
-      isVerified:             map['is_verified'] as bool? ?? false,
-      primaryCrops:           (map['crops'] as List<dynamic>?)
-                                  ?.map((c) => c.toString())
-                                  .toList() ??
-                              [],
-      lastHarvestDate:        map['last_harvest_date'] != null
-                                  ? DateTime.tryParse(
-                                      map['last_harvest_date'] as String)
-                                  : null,
+      userId: map['user_id'] as String,
+      fullName: map['full_name'] as String? ?? 'Farmer',
+      memberId: map['member_id'] as String?,
+      purok: map['purok'] as String?,
+      profilePhotoUrl: map['profile_photo_url'] as String?,
+      memberStatus: MemberStatusExt.derive(
+        map['member_status'] as String?,
+        lastActiveAt,
+      ),
+      lastActiveAt: lastActiveAt,
+      rejectionReason: map['rejection_reason'] as String?,
+      suspensionReason: map['suspension_reason'] as String?,
+      applicationAttempts: (map['application_attempts'] as num?)?.toInt() ?? 0,
+      isVerified: map['is_verified'] as bool? ?? false,
+      primaryCrops:
+          (map['crops'] as List<dynamic>?)?.map((c) => c.toString()).toList() ??
+          [],
+      lastHarvestDate: map['last_harvest_date'] != null
+          ? DateTime.tryParse(map['last_harvest_date'] as String)
+          : null,
       outstandingLoanBalance: (map['outstanding_balance'] as num? ?? 0)
-                                  .toDouble(),
-      loanStatus:             ls,
-      isSynced:               map['is_synced'] as bool? ?? true,
-      joinedAt:               map['joined_at'] != null
-                                  ? DateTime.tryParse(
-                                      map['joined_at'] as String)
-                                  : null,
+          .toDouble(),
+      loanStatus: ls,
+      isSynced: map['is_synced'] as bool? ?? true,
+      joinedAt: map['joined_at'] != null
+          ? DateTime.tryParse(map['joined_at'] as String)
+          : null,
     );
   }
 }
@@ -239,7 +273,12 @@ class MemberStatusEvent {
       fromStatus: map['from_status'] as String?,
       toStatus: map['to_status'] as String? ?? 'unknown',
       reason: map['reason'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
+      // tryParse, not parse — a malformed/unexpected value should never
+      // crash the whole status-history fetch; falling back to now() keeps
+      // this row visible (if slightly mis-timestamped) instead of throwing.
+      createdAt:
+          DateTime.tryParse(map['created_at'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -264,8 +303,8 @@ class MemberSummaryStats {
   });
 
   static const empty = MemberSummaryStats(
-    totalMembers:   0,
-    activeMembers:  0,
+    totalMembers: 0,
+    activeMembers: 0,
     pendingMembers: 0,
     rejectedMembers: 0,
     withActiveLoans: 0,
@@ -275,28 +314,27 @@ class MemberSummaryStats {
 
 // ─── Filter & Sort State ──────────────────────────────────────────────────────
 
-enum FarmerSortOption {
-  nameAZ,
-  recentHarvest,
-  memberId,
-  loanBalance,
-}
+enum FarmerSortOption { nameAZ, recentHarvest, memberId, loanBalance }
 
 extension FarmerSortOptionExt on FarmerSortOption {
   String get label {
     switch (this) {
-      case FarmerSortOption.nameAZ:         return 'Name (A–Z)';
-      case FarmerSortOption.recentHarvest:  return 'Recent Harvest';
-      case FarmerSortOption.memberId:       return 'Member ID';
-      case FarmerSortOption.loanBalance:    return 'Loan Balance';
+      case FarmerSortOption.nameAZ:
+        return 'Name (A–Z)';
+      case FarmerSortOption.recentHarvest:
+        return 'Recent Harvest';
+      case FarmerSortOption.memberId:
+        return 'Member ID';
+      case FarmerSortOption.loanBalance:
+        return 'Loan Balance';
     }
   }
 }
 
 class FarmerFilterState {
-  final MemberStatus? statusFilter;      // null = All
-  final String? cropFilter;             // null = All
-  final LoanStatusSummary? loanFilter;  // null = All
+  final MemberStatus? statusFilter; // null = All
+  final String? cropFilter; // null = All
+  final LoanStatusSummary? loanFilter; // null = All
   final FarmerSortOption sortBy;
 
   const FarmerFilterState({
@@ -308,8 +346,8 @@ class FarmerFilterState {
 
   FarmerFilterState copyWith({
     Object? statusFilter = _sentinel,
-    Object? cropFilter   = _sentinel,
-    Object? loanFilter   = _sentinel,
+    Object? cropFilter = _sentinel,
+    Object? loanFilter = _sentinel,
     FarmerSortOption? sortBy,
   }) {
     return FarmerFilterState(

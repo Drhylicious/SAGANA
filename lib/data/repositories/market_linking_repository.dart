@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_activity_repository.dart';
 
 // ─── Market Linking Status ─────────────────────────────────────────────────────
 
@@ -356,6 +357,11 @@ class MarketLinkingRepository {
       'created_by':  adminId,
       'submitted_at': DateTime.now().toIso8601String(),
     });
+    AdminActivityRepository().log(
+      module: 'market_linking',
+      actionType: 'enrolled',
+      description: 'Enrolled a farmer into Ginger market linking.',
+    );
   }
 
   /// Buyer Found and Cancelled stay a plain update — no inventory
@@ -385,6 +391,12 @@ class MarketLinkingRepository {
         if (pricePerKg != null) 'p_price_per_kg': pricePerKg,
         if (notes != null) 'p_notes': notes,
       });
+      AdminActivityRepository().log(
+        module: 'market_linking',
+        actionType: 'completed',
+        description: 'Completed a market linking round.',
+        referenceId: id,
+      );
       return;
     }
 
@@ -399,6 +411,12 @@ class MarketLinkingRepository {
       if (newStatus == MarketLinkingStatus.buyerFound)
         'buyer_found_at': now,
     }).eq('id', id);
+    AdminActivityRepository().log(
+      module: 'market_linking',
+      actionType: newStatus.value,
+      description: 'Updated a market linking status to "${newStatus.value}".',
+      referenceId: id,
+    );
   }
 
   /// Creates a fresh enrollment for the same farmer after a prior round

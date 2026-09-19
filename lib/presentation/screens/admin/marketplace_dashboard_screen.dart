@@ -6,12 +6,15 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/app_navigation_drawer.dart';
+import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/shared_widgets.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
 import '../../../data/repositories/market_linking_repository.dart';
+import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 
@@ -90,6 +93,27 @@ class _MarketplaceDashboardScreenState
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      drawer: AnimatedBuilder(
+        animation: AdminProfileStateService.instance,
+        builder: (context, _) {
+          final profile = AdminProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Admin',
+            contactEmail: profile?.contactEmail ?? profile?.email,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.push(AppRoutes.adminEditProfile);
+            },
+            onSignOut: () => confirmAdminSignOut(context),
+            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: RefreshIndicator(
         color: AppConstants.primaryGreen,
         onRefresh: _loadAll,
@@ -106,6 +130,7 @@ class _MarketplaceDashboardScreenState
                 onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
                 onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
                 onProfileTap: () => context.push(AppRoutes.adminProfile),
+                enableMenu: true,
               ),
             ),
 
@@ -134,21 +159,29 @@ class _MarketplaceDashboardScreenState
                   const SizedBox(height: 20),
 
                   // ── KPI grid (non-clickable) ────────────────────────────
+                  // Grouped inside the same outer titled container the
+                  // Report tab uses (Executive Snapshot etc.), not just
+                  // individually restyled cards.
                   if (_isLoading)
-                    const _ShimmerBlock(height: 88)
+                    const _ShimmerBlock(height: 150)
                   else
-                    _KpiStrip(
-                      stats: _stats,
-                      orderStats: _orderStats,
-                      pendingOffersCount: _pendingOffersCount,
-                      buyerCount: _buyerCount,
-                      marketLinkingCount: _marketLinkingCount,
-                      cs: cs, sagana: sagana,
+                    ReportSectionCard(
+                      title: l10n.marketDashOverviewTitle,
+                      icon: Icons.storefront_rounded,
+                      accent: AppConstants.primaryGreen,
+                      child: _KpiStrip(
+                        stats: _stats,
+                        orderStats: _orderStats,
+                        pendingOffersCount: _pendingOffersCount,
+                        buyerCount: _buyerCount,
+                        marketLinkingCount: _marketLinkingCount,
+                        cs: cs, sagana: sagana,
+                      ),
                     ),
                   const SizedBox(height: 20),
 
                   // ── Marketplace Management ──────────────────────────────
-                  Text('Marketplace Management',
+                  Text(l10n.marketDashManagementTitle,
                       style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
                   const SizedBox(height: 12),
                   _QuickActionsGrid(
@@ -204,14 +237,14 @@ class _MarketplaceOverviewCard extends StatelessWidget {
     required this.onMarketLinkingTap,
   });
 
-  List<_PriorityItem> get _priorities {
+  List<_PriorityItem> _priorities(AppLocalizations l10n) {
     final items = <_PriorityItem>[];
     if (stats.pending > 0) {
       items.add(_PriorityItem(
         icon: Icons.pending_actions_rounded,
         color: AppConstants.warningAmber,
-        title: '${stats.pending} Listing${stats.pending == 1 ? '' : 's'} Awaiting Review',
-        subtitle: 'Farmer submissions need approval',
+        title: l10n.marketDashListingsAwaitingReview(stats.pending),
+        subtitle: l10n.marketDashFarmerSubmissionsNote,
         onTap: onPendingListingsTap,
       ));
     }
@@ -219,8 +252,8 @@ class _MarketplaceOverviewCard extends StatelessWidget {
       items.add(_PriorityItem(
         icon: Icons.shopping_bag_outlined,
         color: AppConstants.programPurple,
-        title: '${orderStats.pending} Order${orderStats.pending == 1 ? '' : 's'} Awaiting Fulfillment',
-        subtitle: 'Buyer orders need action',
+        title: l10n.marketDashOrdersAwaitingFulfillment(orderStats.pending),
+        subtitle: l10n.marketDashBuyerOrdersNote,
         onTap: onPendingOrdersTap,
       ));
     }
@@ -228,8 +261,8 @@ class _MarketplaceOverviewCard extends StatelessWidget {
       items.add(_PriorityItem(
         icon: Icons.handshake_outlined,
         color: AppConstants.successGreen,
-        title: '$pendingOffersCount Cooperative Offer${pendingOffersCount == 1 ? '' : 's'} Awaiting Review',
-        subtitle: 'Farmers offered crops for purchase',
+        title: l10n.marketDashOffersAwaitingReview(pendingOffersCount),
+        subtitle: l10n.marketDashOffersNote,
         onTap: onPendingOffersTap,
       ));
     }
@@ -237,8 +270,8 @@ class _MarketplaceOverviewCard extends StatelessWidget {
       items.add(_PriorityItem(
         icon: Icons.eco_outlined,
         color: AppConstants.midGreen,
-        title: '$marketLinkingSubmittedCount Farmer${marketLinkingSubmittedCount == 1 ? '' : 's'} in DA-AMAD Pipeline',
-        subtitle: 'Market Linking enrollments in progress',
+        title: l10n.marketDashFarmersInPipeline(marketLinkingSubmittedCount),
+        subtitle: l10n.marketDashLinkingNote,
         onTap: onMarketLinkingTap,
       ));
     }
@@ -247,7 +280,8 @@ class _MarketplaceOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = _priorities;
+    final l10n = AppLocalizations.of(context);
+    final items = _priorities(l10n);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
       decoration: BoxDecoration(
@@ -263,27 +297,27 @@ class _MarketplaceOverviewCard extends StatelessWidget {
             children: [
               Container(width: 4, height: 20, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(4))),
               const SizedBox(width: 10),
-              Text('Marketplace Overview', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
+              Text(l10n.marketDashOverviewTitle, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
               const Spacer(),
               if (items.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: AppConstants.warningAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                  child: Text('${items.length} item${items.length == 1 ? '' : 's'}',
+                  child: Text(l10n.buyerCartItemCount(items.length),
                       style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.warningAmber)),
                 ),
             ],
           ),
           Padding(
             padding: const EdgeInsets.only(left: 14, top: 2),
-            child: Text('Real-time governance dashboard',
+            child: Text(l10n.marketDashGovernanceSubtitle,
                 style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
           ),
           const SizedBox(height: 12),
           if (items.isEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 14),
-              child: Text("Everything's running smoothly — nothing needs attention right now.",
+              child: Text(l10n.marketDashAllClear,
                   style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface, height: 1.4)),
             )
           else
@@ -361,16 +395,17 @@ class _KpiStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tiles = [
-      _KpiTile('All Listings', '${stats.total}', cs.primary, Icons.list_alt_rounded),
-      _KpiTile('Pending Review', '${stats.pending}', AppConstants.warningAmber, Icons.pending_actions_rounded),
-      _KpiTile('Buyers', '$buyerCount', AppConstants.buyerBlue, Icons.people_rounded),
+      _KpiTile(l10n.marketDashKpiAllListings, '${stats.total}', cs.primary, Icons.list_alt_rounded),
+      _KpiTile(l10n.marketDashKpiPendingReview, '${stats.pending}', AppConstants.warningAmber, Icons.pending_actions_rounded),
+      _KpiTile(l10n.marketDashKpiBuyers, '$buyerCount', AppConstants.buyerBlue, Icons.people_rounded),
       // Was cs.primary (near-black) before — visually indistinguishable from
       // "black" next to the amber/blue tiles. programPurple isn't used
       // elsewhere in this module, so Orders is now unambiguous at a glance.
-      _KpiTile('Orders', '${orderStats.total}', AppConstants.programPurple, Icons.shopping_bag_rounded),
-      _KpiTile('Market Linking', '$marketLinkingCount', AppConstants.midGreen, Icons.eco_rounded),
-      _KpiTile('Coop Offers', '$pendingOffersCount', AppConstants.successGreen, Icons.handshake_rounded),
+      _KpiTile(l10n.marketDashKpiOrders, '${orderStats.total}', AppConstants.programPurple, Icons.shopping_bag_rounded),
+      _KpiTile(l10n.marketDashKpiMarketLinking, '$marketLinkingCount', AppConstants.midGreen, Icons.eco_rounded),
+      _KpiTile(l10n.marketDashKpiCoopOffers, '$pendingOffersCount', AppConstants.successGreen, Icons.handshake_rounded),
     ];
 
     return SizedBox(
@@ -385,30 +420,30 @@ class _KpiStrip extends StatelessWidget {
             width: 112,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+              color: t.color.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: t.color.withValues(alpha: 0.18)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(t.icon, size: 13, color: t.color),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(t.label,
-                          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant, height: 1.2),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: t.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                  ),
+                  child: Icon(t.icon, size: 14, color: t.color),
                 ),
+                const SizedBox(height: 6),
+                Text(t.label,
+                    style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant, height: 1.2),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
                 Text(t.value,
-                    style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: t.color)),
+                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: cs.onSurface)),
               ],
             ),
           );
@@ -459,19 +494,20 @@ class _QuickActionsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // Order matches the requested 2-column layout, row by row:
     // All Listings | Pending Review
     // Buyer Management | Orders
     // Market Linking | Offer to Cooperative
     final actions = [
-      _ActionItem(icon: Icons.list_alt_rounded, label: 'All Listings', badge: '${stats.total}', hasBadge: false, color: cs.primary, onTap: onAllListings),
-      _ActionItem(icon: Icons.pending_actions_rounded, label: 'Pending Review', badge: stats.pending > 0 ? '${stats.pending} pending' : '', hasBadge: false,
+      _ActionItem(icon: Icons.list_alt_rounded, label: l10n.marketDashKpiAllListings, badge: '${stats.total}', hasBadge: false, color: cs.primary, onTap: onAllListings),
+      _ActionItem(icon: Icons.pending_actions_rounded, label: l10n.marketDashKpiPendingReview, badge: stats.pending > 0 ? l10n.marketDashPendingBadge(stats.pending) : '', hasBadge: false,
           color: stats.pending > 0 ? AppConstants.warningAmber : cs.outline, onTap: onPendingReview),
-      _ActionItem(icon: Icons.people_rounded, label: 'Buyer Management', badge: '', hasBadge: false, color: AppConstants.buyerBlue, onTap: onBuyerManagement),
-      _ActionItem(icon: Icons.shopping_bag_rounded, label: 'Orders', badge: orderStats.pending > 0 ? '${orderStats.pending} pending' : '', hasBadge: false,
+      _ActionItem(icon: Icons.people_rounded, label: l10n.marketDashActionBuyerManagement, badge: '', hasBadge: false, color: AppConstants.buyerBlue, onTap: onBuyerManagement),
+      _ActionItem(icon: Icons.shopping_bag_rounded, label: l10n.marketDashKpiOrders, badge: orderStats.pending > 0 ? l10n.marketDashPendingBadge(orderStats.pending) : '', hasBadge: false,
           color: orderStats.pending > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOrders),
-      _ActionItem(icon: Icons.alt_route_rounded, label: 'Market Linking', badge: 'DA-AMAD', hasBadge: false, color: AppConstants.primaryGreen, onTap: onMarketLinking),
-      _ActionItem(icon: Icons.handshake_rounded, label: 'Offer to Cooperative', badge: pendingOffersCount > 0 ? '$pendingOffersCount pending' : '', hasBadge: false,
+      _ActionItem(icon: Icons.alt_route_rounded, label: l10n.marketDashKpiMarketLinking, badge: 'DA-AMAD', hasBadge: false, color: AppConstants.primaryGreen, onTap: onMarketLinking),
+      _ActionItem(icon: Icons.handshake_rounded, label: l10n.marketDashActionOfferToCoop, badge: pendingOffersCount > 0 ? l10n.marketDashPendingBadge(pendingOffersCount) : '', hasBadge: false,
           color: pendingOffersCount > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOfferToCooperative),
     ];
 

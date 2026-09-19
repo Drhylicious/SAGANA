@@ -788,7 +788,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                             borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                           ),
                           child: Text(
-                            'OVERDUE',
+                            l10n.farmerMgmtOverdueBadge,
                             style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.errorRed),
                           ),
                         ),
@@ -831,13 +831,20 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(loan.referenceNo, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
-                  if (loan.isOverdue)
+                  Flexible(
+                    child: Text(loan.referenceNo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
+                  ),
+                  if (loan.isOverdue) ...[
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                      child: Text('OVERDUE', style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
+                      child: Text(l10n.farmerMgmtOverdueBadge, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 6),
@@ -894,7 +901,13 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(l10n.paymentRemainingAfter, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                  Flexible(
+                    child: Text(l10n.paymentRemainingAfter,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     currency.format(remainingAfter),
                     style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),

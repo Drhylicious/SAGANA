@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/account_management_repository.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/profile_avatar.dart';
 import '../../widgets/temp_password_dialog.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
@@ -77,8 +79,8 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not resolve this request. Please try again.'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).manageAccountsResolveError),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -86,6 +88,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
   }
 
   void _showAccountActions(AccountEntry account) {
+    final l10n = AppLocalizations.of(context);
     showManagementModal(
       context: context,
       builder: (_) => ManagementModalShell(
@@ -108,7 +111,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
                     const Icon(Icons.lock_reset_rounded, color: AppConstants.primaryGreen),
                     const SizedBox(width: 12),
                     Text(
-                      'Reset Password',
+                      l10n.farmerMgmtActionResetPassword,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                   ],
@@ -133,8 +136,8 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not reset password. Please try again.'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).farmerMgmtResetPasswordError),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -143,6 +146,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
 
@@ -156,7 +160,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Manage Accounts',
+          l10n.manageAccountsTitle,
           style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.onSurface),
         ),
         bottom: TabBar(
@@ -166,7 +170,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
           tabs: [
             const Tab(text: 'Farmers'),
             const Tab(text: 'Officer'),
-            Tab(text: _requests.isEmpty ? 'Requests' : 'Requests (${_requests.length})'),
+            Tab(text: _requests.isEmpty
+                ? l10n.manageAccountsRequestsTab
+                : l10n.manageAccountsRequestsTabCount(_requests.length)),
           ],
         ),
       ),
@@ -204,7 +210,7 @@ class _AccountList extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No accounts found yet.',
+            AppLocalizations.of(context).manageAccountsNoAccountsYet,
             style: GoogleFonts.inter(color: cs.onSurfaceVariant),
           ),
         ),
@@ -229,10 +235,10 @@ class _AccountList extends StatelessWidget {
           ),
           child: Row(
             children: [
-              CircleAvatar(
+              ProfileAvatar(
+                photoUrl: account.profilePhotoUrl,
+                displayName: account.name,
                 radius: 24,
-                backgroundColor: cs.primary.withValues(alpha: 0.12),
-                child: Icon(Icons.person_rounded, color: cs.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -289,7 +295,7 @@ class _PasswordRequestsList extends StatelessWidget {
     if (requests.isEmpty) {
       return Center(
         child: Text(
-          'No pending requests.',
+          AppLocalizations.of(context).manageAccountsNoPendingRequests,
           style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
         ),
       );
@@ -335,7 +341,7 @@ class _PasswordRequestsList extends StatelessWidget {
                   minimumSize: const Size(0, 40),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
-                child: const Text('Resolve'),
+                child: Text(AppLocalizations.of(context).manageAccountsResolveAction),
               ),
             ],
           ),

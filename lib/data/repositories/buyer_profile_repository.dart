@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_profile_model.dart';
 import '../models/buyer_activity_model.dart';
+import 'notification_repository.dart';
 
 class BuyerProfileRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -11,7 +12,7 @@ class BuyerProfileRepository {
     try {
       final info = await _client
           .from('user_information')
-          .select('full_name, phone_number, profile_photo_url, contact_email')
+          .select('full_name, phone_number, profile_photo_url, contact_email, purok')
           .eq('user_id', _userId)
           .maybeSingle();
 
@@ -72,6 +73,7 @@ class BuyerProfileRepository {
         profilePhotoUrl: info?['profile_photo_url'] as String?,
         email: _client.auth.currentUser?.email ?? '',
         contactEmail: info?['contact_email'] as String?,
+        purok: info?['purok'] as String?,
         memberSince: memberSince,
         totalOrders: totalOrders,
         completedOrders: completedOrders,
@@ -94,6 +96,7 @@ class BuyerProfileRepository {
     String? phoneNumber,
     String? photoUrl,
     String? contactEmail,
+    String? purok,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
@@ -116,6 +119,7 @@ class BuyerProfileRepository {
       'full_name': fullName.trim(),
       if (phoneNumber != null) 'phone_number': phoneNumber.trim(),
       if (photoUrl != null) 'profile_photo_url': photoUrl,
+      if (purok != null) 'purok': purok,
     }).eq('user_id', _userId);
 
     if (contactEmail != null) {
@@ -392,19 +396,17 @@ class BuyerProfileRepository {
 
     try {
       final isActive = status == 'active';
-      await _client.from('notifications').insert({
-        'user_id': buyerId,
+      await NotificationRepository().createNotification(
+        userId: buyerId,
         // notifications.type is a fixed CHECK ('order','listing','loan',
         // 'price','sync','system') — 'system' is the closest existing fit
         // for an account-level event; not an order/listing/loan/price/sync.
-        'type': 'system',
-        'title': isActive ? 'Account Reactivated' : 'Account Suspended',
-        'body': isActive
+        type: 'system',
+        title: isActive ? 'Account Reactivated' : 'Account Suspended',
+        body: isActive
             ? 'Your buyer account has been reactivated. You can resume placing orders.'
             : 'Your buyer account has been suspended by the SP3 Administrator. Please contact the cooperative for assistance.',
-        'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      );
     } catch (e) {
       debugPrint('BuyerProfileRepository.setBuyerStatus: notification insert failed: $e');
     }

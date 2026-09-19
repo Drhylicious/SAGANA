@@ -1,8 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import 'app_dialog.dart';
+
+/// Localized label for an admin-facing order status ('pending' / 'approved'
+/// / 'completed' / 'cancelled') — kept here (a widely-imported shared
+/// widgets file) rather than on AdminOrderModel, which has no
+/// BuildContext, so every admin order screen shares one translation
+/// instead of AdminOrderModel.statusLabel's hardcoded English.
+String adminOrderStatusLabel(AppLocalizations l10n, String status) {
+  switch (status) {
+    case 'pending':
+      return l10n.adminOrderStatusPendingReview;
+    case 'approved':
+      return l10n.buyerOrderDetailStepApproved;
+    case 'completed':
+      return l10n.statCompleted;
+    case 'cancelled':
+      return l10n.buyerActivityStatusCancelled;
+    default:
+      return status;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ManagementModal
@@ -190,7 +211,13 @@ class ManagementModalShell extends StatelessWidget {
 
 /// Standard Cancel / Primary footer row for [ManagementModalShell].
 class ManagementModalActions extends StatelessWidget {
-  final String cancelLabel;
+  // Nullable, not a hardcoded 'Cancel' default: a compile-time-constant
+  // default can't call AppLocalizations, and nearly every call site across
+  // the admin screens relies on this default rather than passing its own
+  // cancelLabel — so leaving it hardcoded English meant almost every
+  // management sheet's Cancel button ignored the selected locale. Falls
+  // back to l10n.cancel in build() instead. See M-l10n-cancel-default.
+  final String? cancelLabel;
   final String primaryLabel;
   final VoidCallback? onCancel;
   final VoidCallback? onPrimary;
@@ -199,7 +226,7 @@ class ManagementModalActions extends StatelessWidget {
 
   const ManagementModalActions({
     super.key,
-    this.cancelLabel = 'Cancel',
+    this.cancelLabel,
     required this.primaryLabel,
     this.onCancel,
     required this.onPrimary,
@@ -209,12 +236,24 @@ class ManagementModalActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedCancelLabel = cancelLabel ?? AppLocalizations.of(context).cancel;
     return Row(
       children: [
         Expanded(
           child: OutlinedButton(
             onPressed: isLoading ? null : (onCancel ?? () => Navigator.pop(context)),
-            child: Text(cancelLabel, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            // FittedBox + maxLines: 1: this button only gets 1/3 of the
+            // row's width (see the primary button's flex: 2 below), and
+            // Tagalog "Kanselahin" is long enough next to the default
+            // English "Cancel" that it used to wrap onto two lines here,
+            // making the button taller and visually misaligned against the
+            // single-line primary button beside it. Shrinking to fit keeps
+            // it on one line instead.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(resolvedCancelLabel,
+                  maxLines: 1, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -234,7 +273,11 @@ class ManagementModalActions extends StatelessWidget {
                       valueColor: AlwaysStoppedAnimation(Colors.white),
                     ),
                   )
-                : Text(primaryLabel, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(primaryLabel,
+                        maxLines: 1, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                  ),
           ),
         ),
       ],

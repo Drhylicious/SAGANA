@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_profile_model.dart';
@@ -80,10 +81,6 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
     return list;
   }
 
-  int get _activeCount => _buyers.where((b) => b.isActive && !b.isInactive).length;
-  int get _inactiveCount => _buyers.where((b) => b.isInactive).length;
-  int get _suspendedCount => _buyers.where((b) => !b.isActive).length;
-
   void _showActions(BuyerProfileModel buyer) {
     showManagementModal(
       context: context,
@@ -121,6 +118,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n    = AppLocalizations.of(context);
     final sagana  = context.saganaColors;
     final cs      = Theme.of(context).colorScheme;
     final visible = _filtered;
@@ -142,54 +140,16 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
                           children: [
-
-                            // ── KPI cards ─────────────────────────────────
-                            // 2x2 grid rather than a single 4-wide Row —
-                            // four cards in one row was too tight at 360px
-                            // (the same label-clipping mistake fixed
-                            // elsewhere in this review, not repeated here).
-                            Row(children: [
-                              Expanded(
-                                child: _BuyerKpiCard(
-                                    label: 'Total Buyers',
-                                    value: _buyers.length,
-                                    color: cs.primary,
-                                    cs: cs, sagana: sagana),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _BuyerKpiCard(
-                                    label: 'Active',
-                                    value: _activeCount,
-                                    color: AppConstants.successGreen,
-                                    cs: cs, sagana: sagana),
-                              ),
-                            ]),
-                            const SizedBox(height: 10),
-                            Row(children: [
-                              Expanded(
-                                child: _BuyerKpiCard(
-                                    label: 'Inactive',
-                                    value: _inactiveCount,
-                                    color: AppConstants.warningAmber,
-                                    cs: cs, sagana: sagana),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _BuyerKpiCard(
-                                    label: 'Suspended',
-                                    value: _suspendedCount,
-                                    color: cs.error,
-                                    cs: cs, sagana: sagana),
-                              ),
-                            ]),
-                            const SizedBox(height: 14),
+                            // KPI cards removed — the status filter tabs
+                            // below already surface the same Total/Active/
+                            // Inactive/Suspended breakdown, so the cards
+                            // were purely redundant.
 
                             // ── Search ───────────────────────────────────
                             TextField(
                               controller: _searchCtrl,
                               decoration: InputDecoration(
-                                hintText: 'Search buyer name or phone...',
+                                hintText: l10n.buyerMgmtSearchHint,
                                 hintStyle: GoogleFonts.inter(
                                     fontSize: 13, color: cs.outline),
                                 prefixIcon: Icon(Icons.search_rounded,
@@ -211,22 +171,22 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                             SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(children: [
-                                _TextTab(label: 'All',
+                                _TextTab(label: l10n.farmerMgmtAllFilter,
                                     active: _statusFilter == null,
                                     onTap: () => setState(
                                         () => _statusFilter = null),
                                     cs: cs),
-                                _TextTab(label: 'Active',
+                                _TextTab(label: l10n.farmerMgmtStatusActiveLabel,
                                     active: _statusFilter == 'active',
                                     onTap: () => setState(
                                         () => _statusFilter = 'active'),
                                     cs: cs),
-                                _TextTab(label: 'Inactive',
+                                _TextTab(label: l10n.analyticsInactive,
                                     active: _statusFilter == 'inactive',
                                     onTap: () => setState(
                                         () => _statusFilter = 'inactive'),
                                     cs: cs),
-                                _TextTab(label: 'Suspended',
+                                _TextTab(label: l10n.farmerMgmtStatusSuspendedLabel,
                                     active: _statusFilter == 'suspended',
                                     onTap: () => setState(
                                         () => _statusFilter = 'suspended'),
@@ -301,49 +261,13 @@ class _TopAppBar extends StatelessWidget {
                 onPressed: onBack,
               ),
               Expanded(
-                child: Text('Buyer Management',
+                child: Text(AppLocalizations.of(context).buyerMgmtTitle,
                     style: GoogleFonts.poppins(fontSize: 18,
                         fontWeight: FontWeight.w700, color: cs.primary)),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─── Filter Pill ──────────────────────────────────────────────────────────────
-
-class _BuyerKpiCard extends StatelessWidget {
-  final String label;
-  final int value;
-  final Color color;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-  const _BuyerKpiCard({required this.label, required this.value,
-    required this.color, required this.cs, required this.sagana});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$value',
-              style: GoogleFonts.poppins(fontSize: 22,
-                  fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: GoogleFonts.inter(fontSize: 11,
-                  fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
-        ],
       ),
     );
   }
@@ -392,10 +316,10 @@ class _BuyerCard extends StatelessWidget {
   const _BuyerCard({required this.buyer, required this.cs,
     required this.sagana, required this.onTap, required this.onMoreTap});
 
-  String get _badgeLabel {
-    if (!buyer.isActive) return 'SUSPENDED';
-    if (buyer.isInactive) return 'INACTIVE';
-    return 'ACTIVE';
+  String _badgeLabel(AppLocalizations l10n) {
+    if (!buyer.isActive) return l10n.buyerMgmtSuspendedBadge;
+    if (buyer.isInactive) return l10n.buyerMgmtInactiveBadge;
+    return l10n.buyerMgmtActiveBadge;
   }
 
   Color _badgeColor(ColorScheme cs) {
@@ -406,6 +330,7 @@ class _BuyerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -463,7 +388,7 @@ class _BuyerCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(
                           AppConstants.radiusFull),
                     ),
-                    child: Text(_badgeLabel,
+                    child: Text(_badgeLabel(l10n),
                         style: GoogleFonts.inter(fontSize: 8,
                             fontWeight: FontWeight.w800,
                             color: _badgeColor(cs))),
@@ -471,7 +396,7 @@ class _BuyerCard extends StatelessWidget {
                 ]),
                 const SizedBox(height: 2),
                 Text(
-                  '${buyer.phoneNumber ?? 'No phone'}'
+                  '${buyer.phoneNumber ?? l10n.buyerMgmtNoPhone}'
                   '${buyer.purok != null ? '  •  ${buyer.purok}' : ''}',
                   style: GoogleFonts.inter(
                       fontSize: 11, color: cs.onSurfaceVariant),
@@ -491,7 +416,10 @@ class _BuyerCard extends StatelessWidget {
                             size: 13, color: cs.outline),
                         const SizedBox(width: 4),
                         Flexible(
-                          child: Text('${buyer.totalOrders} order${buyer.totalOrders == 1 ? '' : 's'}',
+                          child: Text(
+                              buyer.totalOrders == 1
+                                  ? l10n.buyerMgmtOrderCountOne(buyer.totalOrders)
+                                  : l10n.buyerMgmtOrderCountOther(buyer.totalOrders),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.inter(
@@ -503,7 +431,7 @@ class _BuyerCard extends StatelessWidget {
                               size: 13, color: cs.outline),
                           const SizedBox(width: 4),
                           Flexible(
-                            child: Text('₱${buyer.totalSpent.toStringAsFixed(0)} total',
+                            child: Text(l10n.buyerMgmtTotalSpentSuffix(buyer.totalSpent.toStringAsFixed(0)),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(fontSize: 11,
@@ -515,7 +443,7 @@ class _BuyerCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text('Since ${buyer.joinedLabel}',
+                  Text(l10n.buyerMgmtSinceShort(buyerJoinedLabel(l10n, buyer.memberSince)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -546,17 +474,18 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 60),
       child: Column(children: [
         Icon(Icons.person_search_rounded,
             size: 48, color: cs.outline.withValues(alpha: 0.35)),
         const SizedBox(height: 12),
-        Text('No buyers found',
+        Text(l10n.buyerMgmtNoBuyersFound,
             style: GoogleFonts.poppins(fontSize: 14,
                 fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
         const SizedBox(height: 4),
-        Text('Buyers appear here once they register in the app.',
+        Text(l10n.buyerMgmtNoBuyersHint,
             style: GoogleFonts.inter(
                 fontSize: 12, color: cs.onSurfaceVariant)),
       ]),
@@ -578,28 +507,29 @@ class _ActionsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
 
     return ManagementModalShell(
       title: buyer.fullName,
-      subtitle: '${buyer.totalOrders} orders  •  Since ${buyer.joinedLabel}',
+      subtitle: l10n.buyerMgmtOrdersSinceLine(buyer.totalOrders, buyerJoinedLabel(l10n, buyer.memberSince)),
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ActionRow(icon: Icons.history_rounded,
-              label: 'View Order History',
+              label: l10n.buyerMgmtViewOrderHistory,
               onTap: onViewOrders, cs: cs),
           _ActionRow(icon: Icons.campaign_outlined,
-              label: 'Send Notification',
+              label: l10n.farmerMgmtActionSendNotification,
               onTap: onSendNotification, cs: cs),
           _ActionRow(
             icon: buyer.isActive
                 ? Icons.block_rounded
                 : Icons.check_circle_outline_rounded,
             label: buyer.isActive
-                ? 'Suspend Account'
-                : 'Reactivate Account',
+                ? l10n.farmerMgmtSuspendAccountAction
+                : l10n.buyerMgmtReactivateAccount,
             onTap: isOnline ? onToggleStatus : null,
             cs: cs,
             isDestructive: buyer.isActive,

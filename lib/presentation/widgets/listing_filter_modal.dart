@@ -1,9 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../data/repositories/admin_listing_repository.dart';
 import '../../data/repositories/category_repository.dart';
 import 'management_modal.dart';
+
+/// Localized label for an [AdminListingModel] status — kept here rather
+/// than on the repository model (which has no BuildContext) so every
+/// screen that shows a listing's status shares one translation instead of
+/// AdminListingModel.statusLabel's hardcoded English.
+String listingStatusLabel(AppLocalizations l10n, String status) {
+  switch (status) {
+    case 'pending_review':
+      return l10n.buyerOrderDetailPendingTimestamp;
+    case 'approved':
+      return l10n.marketplaceFilterLive;
+    case 'changes_required':
+      return l10n.marketplaceChangesRequired;
+    case 'sold':
+      return l10n.marketplaceFilterSold;
+    case 'rejected':
+      return l10n.farmerMgmtStatusRejectedLabel;
+    default:
+      return status;
+  }
+}
 
 // ─── Listing Filter Modal (category → scoped crop list, AND-combined) ─────
 // Opened via showManagementModal() as a centered dialog, matching the
@@ -82,13 +104,14 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     return ManagementModalShell(
-      title: 'Filter Listings',
-      subtitle: 'Refine the list by crop category or crop',
+      title: l10n.listingFilterTitle,
+      subtitle: l10n.buyerPriceFilterPanelSubtitle,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('CROP CATEGORY',
+          Text(l10n.buyerPriceFilterCategoryLabel,
               style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
                   letterSpacing: 0.6, color: cs.outline)),
           const SizedBox(height: 10),
@@ -98,7 +121,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else if (_categories.isEmpty)
-            Text('No categories yet',
+            Text(l10n.listingFilterNoCategoriesYet,
                 style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant))
           else
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -107,7 +130,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
                       onTap: () => _onCategorySelected(_category == c ? null : c), cs: cs)),
             ]),
           const SizedBox(height: 20),
-          Text('CROPS',
+          Text(l10n.listingFilterCropsLabel,
               style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
                   letterSpacing: 0.6, color: cs.outline)),
           const SizedBox(height: 10),
@@ -117,7 +140,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else if (_crops.isEmpty)
-            Text('No crops in this category',
+            Text(l10n.listingFilterNoCropsInCategory,
                 style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant))
           else
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -140,7 +163,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
               ),
               onPressed: () => Navigator.pop(context, (null, null)),
               child: Text(
-                'Reset All',
+                l10n.farmerMgmtResetAll,
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface,
@@ -154,7 +177,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context, (_category, _crop)),
               child: Text(
-                'Apply Filters',
+                l10n.farmerMgmtApplyFilters,
                 style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
               ),
             ),

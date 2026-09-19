@@ -78,6 +78,11 @@ class FarmerProfileModel {
   bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
   bool get hasCoordinates => farmLatitude != null && farmLongitude != null;
 
+  String? get dateOfBirthLabel {
+    if (dateOfBirth == null) return null;
+    return '${dateOfBirth!.year}-${dateOfBirth!.month.toString().padLeft(2, '0')}-${dateOfBirth!.day.toString().padLeft(2, '0')}';
+  }
+
   String get memberSinceLabel =>
       memberSince != null ? memberSince!.year.toString() : '—';
 
@@ -199,8 +204,10 @@ class FarmerProfileModel {
 
 class MyProgramEntry {
   final String id;
+  final String programId;
   final String programName;
   final String benefitType;
+  final String programPurpose; // 'distribution' | 'sales'
   final String programStatus;
   final String enrollmentStatus;
   final DateTime enrolledAt;
@@ -211,11 +218,15 @@ class MyProgramEntry {
   final double? expectedReturnPercent;
   final double? amountReturned;
   final DateTime? settledAt;
+  final String? programImageUrl;
+  final String? itemImageUrl;
 
   const MyProgramEntry({
     required this.id,
+    required this.programId,
     required this.programName,
     required this.benefitType,
+    this.programPurpose = 'distribution',
     required this.programStatus,
     required this.enrollmentStatus,
     required this.enrolledAt,
@@ -226,23 +237,32 @@ class MyProgramEntry {
     this.expectedReturnPercent,
     this.amountReturned,
     this.settledAt,
+    this.programImageUrl,
+    this.itemImageUrl,
   });
 
   bool get isRevenueShare => benefitType == 'revenue_share';
   bool get isDistributed => distributedAt != null;
   bool get isSettled => settledAt != null;
+  bool get isSalesProgram => programPurpose == 'sales';
 
   factory MyProgramEntry.fromMap(Map<String, dynamic> m) {
     final program = m['cooperative_programs'] as Map<String, dynamic>? ?? {};
     final item = m['cooperative_inventory'] as Map<String, dynamic>?;
     return MyProgramEntry(
       id: m['id'] as String,
+      programId: m['program_id'] as String,
       programName: program['program_name'] as String? ?? 'Program',
       benefitType: program['benefit_type'] as String? ?? 'grant',
+      programPurpose: program['program_purpose'] as String? ?? 'distribution',
       programStatus: program['status'] as String? ?? 'active',
       enrollmentStatus: m['status'] as String? ?? 'active',
       enrolledAt: DateTime.parse(m['enrolled_at'] as String),
-      itemName: item?['item_name'] as String?,
+      // Falls back to the snapshot taken at distribution time — the live
+      // join goes null if the inventory item was later deleted
+      // (inventory_item_id is ON DELETE SET NULL there), so this keeps a
+      // farmer's past distribution record meaningful either way.
+      itemName: item?['item_name'] as String? ?? m['distributed_item_name'] as String?,
       itemUnit: item?['unit'] as String?,
       quantityGiven: m['quantity_given'] != null ? (m['quantity_given'] as num).toDouble() : null,
       distributedAt: m['distributed_at'] != null ? DateTime.parse(m['distributed_at'] as String) : null,
@@ -251,6 +271,8 @@ class MyProgramEntry {
           : null,
       amountReturned: m['amount_returned'] != null ? (m['amount_returned'] as num).toDouble() : null,
       settledAt: m['settled_at'] != null ? DateTime.parse(m['settled_at'] as String) : null,
+      programImageUrl: program['image_url'] as String?,
+      itemImageUrl: item?['image_url'] as String?,
     );
   }
 }

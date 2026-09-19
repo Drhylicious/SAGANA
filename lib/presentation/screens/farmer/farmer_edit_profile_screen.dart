@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/profile_state_service.dart';
@@ -43,11 +44,11 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   DateTime? _dateOfBirth;
   String? _gender; // male | female | prefer_not_to_say
 
-  static const Map<String, String> _genderOptions = {
-    'male': 'Male',
-    'female': 'Female',
-    'prefer_not_to_say': 'Prefer not to say',
-  };
+  Map<String, String> _genderOptions(AppLocalizations l10n) => {
+        'male': l10n.registerGenderMale,
+        'female': l10n.registerGenderFemale,
+        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+      };
 
   @override
   void initState() {
@@ -111,16 +112,18 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     if (url != null) {
       FarmerProfileStateService.instance.refresh();
     } else if (mounted) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to upload photo. Please try again.')),
+        SnackBar(content: Text(l10n.photoUploadFailed)),
       );
     }
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Full name is required.'), backgroundColor: AppConstants.errorRed),
+        SnackBar(content: Text(l10n.fullNameEmpty), backgroundColor: AppConstants.errorRed),
       );
       return;
     }
@@ -130,8 +133,8 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
           _dateOfBirth!.year + 18, _dateOfBirth!.month, _dateOfBirth!.day);
       if (eighteenth.isAfter(now)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You must be at least 18 years old.'),
+          SnackBar(
+            content: Text(l10n.pendingAgeError),
             backgroundColor: AppConstants.errorRed,
           ),
         );
@@ -151,7 +154,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       FarmerProfileStateService.instance.refresh();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated.'), backgroundColor: AppConstants.successGreen),
+        SnackBar(content: Text(l10n.profileUpdated), backgroundColor: AppConstants.successGreen),
       );
       context.pop();
     } catch (e) {
@@ -194,7 +197,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
               actions: [
                 TextButton(
                   onPressed: _isSaving ? null : _save,
-                  child: Text('Save',
+                  child: Text(l10n.save,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
                 ),
               ],
@@ -213,7 +216,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                           children: [
                             ProfileAvatar(
                               photoUrl: _photoUrl,
-                              displayName: _nameController.text.isNotEmpty ? _nameController.text : 'Farmer',
+                              displayName: _nameController.text.isNotEmpty ? _nameController.text : l10n.defaultFarmerName,
                               radius: 56,
                             ),
                             if (_isUploadingPhoto)
@@ -242,7 +245,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                       Center(
                         child: TextButton(
                           onPressed: _isUploadingPhoto ? null : _pickPhoto,
-                          child: Text('Change Photo',
+                          child: Text(l10n.changePhoto,
                               style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
                         ),
                       ),
@@ -251,76 +254,71 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                       const SizedBox(height: 8),
                       AppTextField(
                         controller: _nameController,
-                        label: 'Full Name',
+                        label: l10n.fullName,
                         prefixIcon: Icons.person_outline_rounded,
                         textCapitalization: TextCapitalization.words,
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
-                        controller: _phoneController,
-                        label: 'Phone Number',
-                        prefixIcon: Icons.phone_outlined,
-                        keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 16),
-                      AppTextField(
                         controller: _emailController,
-                        label: 'Email Address (optional)',
+                        label: l10n.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _phoneController,
+                        label: l10n.phoneNumber,
+                        prefixIcon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 16),
                       AppDropdownField<String>(
                         value: AppConstants.payanasPuroks.contains(_selectedPurok) ? _selectedPurok : null,
-                        hintText: 'Select a purok',
-                        labelText: 'Purok',
+                        hintText: l10n.addMemberSelectHint,
+                        labelText: l10n.adminProfilePurok,
                         items: AppConstants.payanasPuroks,
                         itemLabel: (s) => s,
                         onChanged: (v) => setState(() => _selectedPurok = v),
                       ),
                       const SizedBox(height: 16),
-                      InkWell(
-                        onTap: () async {
-                          final now = DateTime.now();
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate:
-                                _dateOfBirth ?? DateTime(now.year - 25),
-                            firstDate: DateTime(1930),
-                            lastDate: DateTime(
-                                now.year - 18, now.month, now.day),
-                          );
-                          if (picked != null) {
-                            setState(() => _dateOfBirth = picked);
-                          }
-                        },
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Date of Birth',
-                            prefixIcon: Icon(Icons.cake_outlined,
-                                size: 20, color: AppConstants.outline),
-                          ),
-                          child: Text(
-                            _dateOfBirth == null
-                                ? 'Not set'
-                                : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: _dateOfBirth == null
-                                  ? AppConstants.onSurfaceVariant
-                                  : AppConstants.charcoal,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _FarmerLabeledDateField(
+                              label: l10n.addMemberDobLabel,
+                              hintText: l10n.addMemberSelectHint,
+                              valueText: _dateOfBirth == null
+                                  ? ''
+                                  : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
+                              onTap: () async {
+                                final picked = await AppUtils.pickDateOfBirth(
+                                  context,
+                                  initialDate: _dateOfBirth,
+                                );
+                                if (picked == null) return;
+                                if (!AppUtils.isAtLeast18(picked)) {
+                                  if (!context.mounted) return;
+                                  await AppUtils.showUnder18Dialog(context);
+                                  return;
+                                }
+                                setState(() => _dateOfBirth = picked);
+                              },
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      AppDropdownField<String>(
-                        value: _gender,
-                        hintText: 'Select gender',
-                        labelText: 'Gender',
-                        items: _genderOptions.keys.toList(),
-                        itemLabel: (key) => _genderOptions[key]!,
-                        onChanged: (v) => setState(() => _gender = v),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppDropdownField<String>(
+                              value: _gender,
+                              hintText: l10n.addMemberSelectHint,
+                              labelText: l10n.addMemberGenderLabel,
+                              items: _genderOptions(l10n).keys.toList(),
+                              itemLabel: (key) => _genderOptions(l10n)[key]!,
+                              onChanged: (v) => setState(() => _gender = v),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
                       SectionLabel(label: l10n.sectionSecurity),
@@ -329,8 +327,8 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                         SettingsRow(
                           icon: Icons.lock_reset_rounded,
                           iconColor: AppConstants.primaryGreen,
-                          title: 'Change Password',
-                          subtitle: 'Update your account password',
+                          title: l10n.changePassword,
+                          subtitle: l10n.updatePasswordSubtitle,
                           onTap: () => AppDialog.show<void>(
                             context: context,
                             child: ChangePasswordDialog(onSuccess: _repo.logPasswordChanged),
@@ -359,6 +357,7 @@ class _EditProfileLoadError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -372,7 +371,7 @@ class _EditProfileLoadError extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              isOnline ? 'Could not load your profile' : 'You\'re offline',
+              isOnline ? l10n.couldNotLoadProfile : l10n.youAreOffline,
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -382,7 +381,7 @@ class _EditProfileLoadError extends StatelessWidget {
             if (!isOnline) ...[
               const SizedBox(height: 4),
               Text(
-                'Your profile will load once you\'re back online.',
+                l10n.profileWillLoadWhenOnline,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 12,
@@ -394,13 +393,79 @@ class _EditProfileLoadError extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(
-                'Retry',
+                l10n.retry,
                 style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Labeled date field — mirrors AdminEditProfileScreen's private
+// _LabeledDateField (Dart privates aren't shared across files) so DOB/Gender
+// align identically across roles: a one-line label capped with maxLines/
+// ellipsis so a longer translated label never wraps and misaligns this
+// field's height against its sibling Gender dropdown.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FarmerLabeledDateField extends StatelessWidget {
+  final String label;
+  final String hintText;
+  final String valueText;
+  final VoidCallback onTap;
+
+  const _FarmerLabeledDateField({
+    required this.label,
+    required this.hintText,
+    required this.valueText,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasValue = valueText.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: cs.outline.withValues(alpha: 0.4)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Icon(Icons.cake_outlined, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasValue ? valueText : hintText,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: hasValue ? cs.onSurface : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

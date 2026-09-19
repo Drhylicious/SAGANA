@@ -17,11 +17,11 @@ import '../../widgets/report_summary_widgets.dart';
 /// Sales Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/sales
 ///
-/// Reports on member_sales_transactions (direct Palay/Peanut sales to
-/// SP3) rather than the marketplace `orders` table — see the Phase 1
-/// analysis for why. Read-only; shows an explicit empty state if no
-/// transactions have been recorded yet, since there is currently no
-/// admin tool that creates rows in this table.
+/// Unified across all four real Selling Types (Phase 10 redesign): Offer
+/// to Cooperative (member_sales_transactions, any crop as of Phase 9),
+/// Marketplace (orders), Informal Sale (informal_sales), and DA-AMAD
+/// Market Linking (market_linking_programs). Each channel card is
+/// tappable as a filter for the Transaction Details list below. Read-only.
 class SalesReportScreen extends StatefulWidget {
   const SalesReportScreen({super.key});
 
@@ -36,8 +36,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   ReportPeriod _period = ReportPeriod.thisMonth;
   bool _isLoading = true;
   String _searchQuery = '';
+  String? _sellingTypeFilter; // null = All
   SalesReportData _data = SalesReportData.empty();
   SalesReportData _previousData = SalesReportData.empty();
+  List<double> _revenueTrend = [];
 
   @override
   void initState() {
@@ -56,11 +58,13 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     final results = await Future.wait([
       _repo.fetchSalesReport(_period),
       _repo.fetchPreviousSalesReport(_period),
+      _repo.fetchSalesTrend(),
     ]);
     if (!mounted) return;
     setState(() {
-      _data = results[0];
-      _previousData = results[1];
+      _data = results[0] as SalesReportData;
+      _previousData = results[1] as SalesReportData;
+      _revenueTrend = results[2] as List<double>;
       _isLoading = false;
     });
   }
@@ -70,10 +74,26 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     _load();
   }
 
+  /// Month abbreviations for fetchSalesTrend()'s trailing window — safe to
+  /// compute client-side without touching the repository, since that
+  /// method always returns a fixed "last [count] months ending at the
+  /// current month" window by construction (see its own doc comment).
+  List<String> _trailingMonthLabels(int count) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final offset = count - 1 - i;
+      final date = DateTime(now.year, now.month - offset, 1);
+      return DateFormat('MMM').format(date);
+    });
+  }
+
   List<SalesTransactionRow> get _filteredTransactions {
-    if (_searchQuery.isEmpty) return _data.transactions;
+    var list = _sellingTypeFilter == null
+        ? _data.transactions
+        : _data.transactions.where((t) => t.sellingType == _sellingTypeFilter).toList();
+    if (_searchQuery.isEmpty) return list;
     final q = _searchQuery.toLowerCase();
-    return _data.transactions
+    return list
         .where(
           (t) =>
               t.farmerName.toLowerCase().contains(q) ||
@@ -106,7 +126,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   32,
                 ),
                 children: [
-                  _buildPeriodChips(cs),
+                  _buildPeriodChips(l10n, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
                   if (_isLoading)
                     const Padding(
@@ -114,9 +134,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else ...[
-                    _buildSummaryStats(context, l10n, cs, sagana),
+                    // The 4 headline KPIs (Total Revenue, Total Volume,
+                    // Transactions, Avg. Sale) lead the screen, with the
+                    // Selling Type breakdown below them.
+                    _buildOverviewCard(context, l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
-                    _buildCropSplit(context, l10n, cs, sagana),
+                    _buildChannelBreakdown(context, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
                     _buildTrendChart(context, l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
@@ -186,7 +209,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
   }
 
-  Widget _buildPeriodChips(ColorScheme cs) {
+  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
     return SizedBox(
       height: 34,
       child: ListView(
@@ -196,7 +219,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
@@ -206,6 +229,38 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  /// Header + KPI grid together in one bordered, padded card — matching
+  /// the breathing room Harvest/Loan/Member Patronage's ReportHeroCard-
+  /// based headers already have, rather than a bare header row sitting
+  /// directly on the page background with only a small gap to the tiles.
+  Widget _buildOverviewCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ReportSectionHeader(
+            icon: Icons.point_of_sale_rounded,
+            title: l10n.reportsSalesOverview,
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          _buildSummaryStats(context, l10n, cs, sagana),
+        ],
       ),
     );
   }
@@ -221,145 +276,201 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       symbol: '₱',
       decimalDigits: 0,
     );
+    // A fixed absolute height per row, NOT a GridView childAspectRatio —
+    // aspect ratio ties cell height to cell width, but this card's
+    // content (icon + label + value, plus a delta row on Total Revenue)
+    // needs roughly the same height regardless of how narrow the device
+    // is. A narrow-phone aspect-ratio cell can shrink its height right
+    // when the delta badge or a wrapping label needs MORE height,
+    // overflowing — confirmed happening on 2 different aspect ratios
+    // (1.6, then 1.3) before switching to this fixed-height approach.
+    Widget row(ReportIconStatCard a, ReportIconStatCard b) => SizedBox(
+      height: 140,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: a),
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(child: b),
+        ],
+      ),
+    );
+
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: ReportKpiTile(
-                label: l10n.reportsTotalRevenue,
-                value: currency.format(_data.totalRevenue),
-                delta: ReportDeltaBadge(
-                  current: _data.totalRevenue,
-                  previous: _previousData.totalRevenue,
-                  period: _period,
-                ),
-              ),
+        row(
+          ReportIconStatCard(
+            icon: Icons.payments_rounded,
+            accent: AppConstants.primaryGreen,
+            label: l10n.reportsTotalRevenue,
+            value: currency.format(_data.totalRevenue),
+            delta: ReportDeltaBadge(
+              current: _data.totalRevenue,
+              previous: _previousData.totalRevenue,
+              period: _period,
             ),
-            const SizedBox(width: AppConstants.spacingSm),
-            Expanded(
-              child: ReportKpiTile(
-                label: l10n.reportsTotalVolume,
-                value: '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
-              ),
-            ),
-          ],
+          ),
+          ReportIconStatCard(
+            icon: Icons.scale_rounded,
+            accent: AppConstants.buyerBlue,
+            label: l10n.reportsTotalVolume,
+            value: '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
+          ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
-        Row(
-          children: [
-            Expanded(
-              child: ReportKpiTile(
-                label: l10n.reportsTransactions,
-                value: '${_data.transactionCount}',
-              ),
-            ),
-            const SizedBox(width: AppConstants.spacingSm),
-            Expanded(
-              child: ReportKpiTile(
-                label: l10n.reportsAvgSale,
-                value: currency.format(_data.averageSaleAmount),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppConstants.spacingSm),
-        Row(
-          children: [
-            Expanded(
-              child: ReportKpiTile(
-                label: l10n.reportsMarketplaceRevenue,
-                value: currency.format(_data.marketplaceRevenue),
-              ),
-            ),
-          ],
+        row(
+          ReportIconStatCard(
+            icon: Icons.receipt_long_rounded,
+            accent: AppConstants.amber,
+            label: l10n.reportsTransactions,
+            value: '${_data.transactionCount}',
+          ),
+          ReportIconStatCard(
+            icon: Icons.trending_up_rounded,
+            accent: AppConstants.warningAmber,
+            label: l10n.reportsAvgSale,
+            value: currency.format(_data.averageSaleAmount),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCropSplit(
+  static const _channelIcons = {
+    'offer_to_cooperative': Icons.handshake_rounded,
+    'marketplace': Icons.storefront_rounded,
+    'informal_sale': Icons.people_alt_rounded,
+    'da_amad_market_linking': Icons.local_shipping_rounded,
+  };
+
+  /// The four real Selling Types (Phase 10) — Offer to Cooperative,
+  /// Marketplace, Informal Sale, DA-AMAD Market Linking — each a distinct
+  /// data source. This is the screen's centerpiece (Phase 13): shown
+  /// first, largest, and in full color, per feedback that it previously
+  /// felt small and buried below generic KPIs.
+  Widget _buildChannelBreakdown(
     BuildContext context,
-    AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 0,
-    );
-    final total = _data.palayAmount + _data.peanutAmount;
-    final palayFraction = total > 0 ? _data.palayAmount / total : 0.5;
+    final l10n = AppLocalizations.of(context);
+    final colors = [
+      AppConstants.primaryGreen,
+      AppConstants.buyerBlue,
+      AppConstants.amber,
+      AppConstants.warningAmber,
+    ];
 
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.reportsCropBreakdown,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.reportsSalesBySellingType,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: cs.onSurface),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          l10n.reportsTapCardToFilter,
+          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppConstants.spacingMd),
+        // A fixed absolute height per row, NOT a GridView childAspectRatio
+        // — see the identical fix/reasoning in _buildSummaryStats(). Set
+        // generously (computed from worst-case content: 32 padding + 34
+        // icon + 2-line label (~31) + 25 amount + 14 txn-count ≈ 142,
+        // plus margin for larger text-scale settings) after 132 still
+        // wasn't enough for "DA-AMAD Market Linking" wrapped to 2 lines.
+        for (var i = 0; i < _data.channelTotals.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: i + 2 < _data.channelTotals.length ? AppConstants.spacingMd : 0,
             ),
-          ),
-          const SizedBox(height: AppConstants.spacingSm),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
             child: SizedBox(
-              height: 10,
+              height: 172,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    flex: (palayFraction * 100).round().clamp(1, 99),
-                    child: Container(color: AppConstants.primaryGreen),
+                    child: _channelCard(_data.channelTotals[i], colors[i % colors.length], cs, sagana, l10n),
                   ),
-                  Expanded(
-                    flex: (100 - (palayFraction * 100).round()).clamp(1, 99),
-                    child: Container(color: AppConstants.amber),
-                  ),
+                  if (i + 1 < _data.channelTotals.length) ...[
+                    const SizedBox(width: AppConstants.spacingMd),
+                    Expanded(
+                      child: _channelCard(
+                        _data.channelTotals[i + 1],
+                        colors[(i + 1) % colors.length],
+                        cs,
+                        sagana,
+                        l10n,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
-          const SizedBox(height: AppConstants.spacingSm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _legendDot(
-                AppConstants.primaryGreen,
-                'Palay — ${currency.format(_data.palayAmount)}',
-              ),
-              _legendDot(
-                AppConstants.amber,
-                'Peanut — ${currency.format(_data.peanutAmount)}',
-              ),
-            ],
-          ),
-        ],
-      ),
+      ],
     );
   }
 
-  Widget _legendDot(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  Widget _channelCard(
+    SalesChannelTotal channel,
+    Color accent,
+    ColorScheme cs,
+    SaganaColors sagana,
+    AppLocalizations l10n,
+  ) {
+    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final active = _sellingTypeFilter == channel.sellingType;
+    final icon = _channelIcons[channel.sellingType] ?? Icons.point_of_sale_rounded;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _sellingTypeFilter = active ? null : channel.sellingType;
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(AppConstants.spacingGutter),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.withValues(alpha: active ? 0.22 : 0.10),
+              accent.withValues(alpha: active ? 0.10 : 0.03),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(color: accent.withValues(alpha: active ? 0.6 : 0.2), width: active ? 2 : 1),
         ),
-        const SizedBox(width: 6),
-        Text(label, style: GoogleFonts.inter(fontSize: 11)),
-      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+              child: Icon(icon, size: 18, color: Colors.white),
+            ),
+            const Spacer(),
+            Text(
+              _sellingTypeLabel(l10n, channel.sellingType),
+              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              currency.format(channel.amount),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 20, color: accent),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              l10n.reportsTransactionCount(channel.transactionCount),
+              style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -379,18 +490,24 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.reportsRevenueTrend,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
-            ),
+          Row(
+            children: [
+              const Icon(Icons.show_chart_rounded, size: 15, color: AppConstants.primaryGreen),
+              const SizedBox(width: 6),
+              Text(
+                l10n.reportsRevenueTrend,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppConstants.spacingSm),
           SizedBox(
             height: 120,
-            child: _data.monthlyTrend.length < 2
+            child: _revenueTrend.length < 2
                 ? Center(
                     child: Text(
                       l10n.reportsNotEnoughTrendData,
@@ -400,9 +517,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 : CustomPaint(
                     size: const Size(double.infinity, 120),
                     painter: TrendChartPainter(
-                      values: _data.monthlyTrend,
+                      values: _revenueTrend,
                       lineColor: cs.primary,
                       gradientColor: cs.primary,
+                      xLabels: _trailingMonthLabels(_revenueTrend.length),
+                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
                     ),
                   ),
           ),
@@ -427,13 +546,43 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.reportsTransactionDetails,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-            color: cs.onSurface,
-          ),
+        Row(
+          children: [
+            const Icon(Icons.receipt_long_rounded, size: 16, color: AppConstants.primaryGreen),
+            const SizedBox(width: 6),
+            Text(
+              l10n.reportsTransactionDetails,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: cs.onSurface,
+              ),
+            ),
+            if (_sellingTypeFilter != null) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => setState(() => _sellingTypeFilter = null),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _sellingTypeLabel(l10n, _sellingTypeFilter!),
+                        style: GoogleFonts.inter(fontSize: 10, color: AppConstants.primaryGreen),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.close_rounded, size: 12, color: AppConstants.primaryGreen),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_data.transactions.isNotEmpty)
@@ -457,20 +606,37 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         else if (filtered.isEmpty)
           ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
-          ...filtered.map((t) => _buildTransactionRow(t, currency, cs, sagana)),
+          ...filtered.map((t) => _buildTransactionRow(t, currency, cs, sagana, l10n)),
       ],
     );
   }
+
+  static String _sellingTypeLabel(AppLocalizations l10n, String type) {
+    switch (type) {
+      case 'offer_to_cooperative': return l10n.sellingTypeOfferToCooperative;
+      case 'marketplace': return l10n.navMarketplace;
+      case 'informal_sale': return l10n.sellingTypeInformalSale;
+      case 'da_amad_market_linking': return l10n.sellingTypeDaAmadMarketLinking;
+      default: return type;
+    }
+  }
+
+  static const _sellingTypeColors = {
+    'offer_to_cooperative': AppConstants.primaryGreen,
+    'marketplace': AppConstants.buyerBlue,
+    'informal_sale': AppConstants.amber,
+    'da_amad_market_linking': AppConstants.warningAmber,
+  };
 
   Widget _buildTransactionRow(
     SalesTransactionRow t,
     NumberFormat currency,
     ColorScheme cs,
     SaganaColors sagana,
+    AppLocalizations l10n,
   ) {
-    final cropColor = t.cropType == 'palay'
-        ? AppConstants.primaryGreen
-        : AppConstants.amber;
+    final typeColor = _sellingTypeColors[t.sellingType] ?? cs.outline;
+    final typeLabel = _sellingTypeLabel(l10n, t.sellingType);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
@@ -480,56 +646,69 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: cropColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-            ),
-            child: Text(
-              t.cropName,
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: cropColor,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppConstants.spacingMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t.farmerName,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: cs.onSurface,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: typeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                Text(
-                  '${t.memberId} • ${t.quantityKg.toStringAsFixed(0)} kg • ${DateFormat('MMM d, yyyy').format(t.saleDate)}'
-                  '${t.referenceNo != null ? ' • ${t.referenceNo}' : ''}',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: cs.onSurfaceVariant,
+                child: Text(
+                  typeLabel,
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: typeColor,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (t.marketType != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cs.outline.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  ),
+                  child: Text(
+                    t.marketType!,
+                    style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
+                  ),
                 ),
               ],
-            ),
+              const Spacer(),
+              Text(
+                currency.format(t.amount),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: AppConstants.spacingSm),
           Text(
-            currency.format(t.amount),
+            '${t.cropName} • ${t.farmerName}',
             style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               fontSize: 13,
               color: cs.onSurface,
             ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            '${t.memberId} • ${t.quantityKg.toStringAsFixed(0)} kg • ${DateFormat('MMM d, yyyy').format(t.saleDate)}'
+            '${t.referenceNo != null ? ' • ${t.referenceNo}' : ''}',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: cs.onSurfaceVariant,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

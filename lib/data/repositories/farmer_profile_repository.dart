@@ -427,10 +427,10 @@ class FarmerProfileRepository {
     try {
       final rows = await _client
           .from('program_members')
-          .select('id, status, enrolled_at, quantity_given, distributed_at, '
-              'amount_returned, settled_at, '
-              'cooperative_programs(program_name, benefit_type, status, expected_return_percent), '
-              'cooperative_inventory(item_name, unit)')
+          .select('id, program_id, status, enrolled_at, quantity_given, distributed_at, '
+              'amount_returned, settled_at, distributed_item_name, '
+              'cooperative_programs(program_name, benefit_type, program_purpose, status, expected_return_percent, image_url), '
+              'cooperative_inventory(item_name, unit, image_url)')
           .eq('farmer_id', _userId)
           .order('enrolled_at', ascending: false);
       return rows.map((r) => MyProgramEntry.fromMap(r)).toList();

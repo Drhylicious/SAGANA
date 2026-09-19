@@ -134,8 +134,8 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return ManagementModalShell(
-          title: 'Members Without Farm Location',
-          subtitle: '${members.length} member${members.length == 1 ? '' : 's'}',
+          title: l10n.supplyChainMembersWithoutLocationTitle,
+          subtitle: l10n.supplyChainMemberCount(members.length),
           bodyIsScrollable: true,
           body: members.isEmpty
               ? Center(child: Text(l10n.supplyChainAllMapped,
@@ -274,7 +274,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('View Full Map',
+                                  Text(l10n.supplyChainViewFullMap,
                                       style: GoogleFonts.inter(
                                           fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.primary)),
                                   const SizedBox(width: 2),
@@ -317,6 +317,13 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                                           TileLayer(
                                             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                             userAgentPackageName: 'com.sp3coop.sagana',
+                                            // flutter_map cancels in-flight tile requests for
+                                            // tiles that scroll out of view mid-pan/zoom — a
+                                            // normal, expected RequestAbortedException, not a
+                                            // real failure. Without this callback it still
+                                            // surfaces as a noisy "EXCEPTION CAUGHT BY IMAGE
+                                            // RESOURCE SERVICE" log; swallow it here instead.
+                                            errorTileCallback: (tile, error, stackTrace) {},
                                           ),
                                           MarkerLayer(
                                             markers: _farmers.map((farmer) {
@@ -498,6 +505,9 @@ class _SupplyChainFullMapScreenState extends State<SupplyChainFullMapScreen> {
                       TileLayer(
                         urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.sp3coop.sagana',
+                        // See the other TileLayer above — cancelled tile
+                        // requests during pan/zoom are expected, not errors.
+                        errorTileCallback: (tile, error, stackTrace) {},
                       ),
                       MarkerLayer(
                         markers: _farmers.map((farmer) {
@@ -647,6 +657,7 @@ class _CoverageBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final unmapped = coverage.unmappedMembers;
     return Container(
       padding: const EdgeInsets.all(14),
@@ -672,13 +683,13 @@ class _CoverageBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${coverage.mappedMembers} of ${coverage.totalMembers} members mapped',
+                  l10n.supplyChainMappedCount(coverage.mappedMembers, coverage.totalMembers),
                   style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
                 ),
                 Text(
                   unmapped > 0
-                      ? '$unmapped without a farm location on file'
-                      : 'Every active member has a farm location on file',
+                      ? l10n.supplyChainUnmappedCount(unmapped)
+                      : l10n.supplyChainAllMapped,
                   style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
                 ),
               ],
@@ -690,7 +701,7 @@ class _CoverageBanner extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('View List',
+                  Text(l10n.supplyChainViewList,
                       style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: cs.primary)),
                   Icon(Icons.chevron_right_rounded, size: 16, color: cs.primary),
                 ],
@@ -711,14 +722,15 @@ class _CooperativeFlowRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final steps = [
-      _FlowStepData('Farm', Icons.agriculture_rounded, AppConstants.primaryGreen,
+      _FlowStepData(l10n.supplyChainFlowFarm, Icons.agriculture_rounded, AppConstants.primaryGreen,
           () => context.goTab(AppRoutes.farmerManagement)),
-      _FlowStepData('Inventory', Icons.inventory_2_rounded, AppConstants.buyerBlue,
+      _FlowStepData(l10n.supplyChainFlowInventory, Icons.inventory_2_rounded, AppConstants.buyerBlue,
           () => context.pushRoute(AppRoutes.adminInventory)),
-      _FlowStepData('Marketplace', Icons.storefront_rounded, AppConstants.amber,
+      _FlowStepData(l10n.navMarketplace, Icons.storefront_rounded, AppConstants.amber,
           () => context.goTab(AppRoutes.adminMarketplace)),
-      _FlowStepData('Orders', Icons.receipt_long_rounded, AppConstants.programPurple,
+      _FlowStepData(l10n.statOrders, Icons.receipt_long_rounded, AppConstants.programPurple,
           () => context.pushRoute(AppRoutes.adminOrders)),
     ];
 
@@ -737,12 +749,12 @@ class _CooperativeFlowRow extends StatelessWidget {
           children: [
             for (final step in steps) ...[
               _FlowStepChip(data: step, cs: cs),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.grey),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.arrow_forward_rounded, size: 16, color: cs.outline),
               ),
             ],
-            _PlannedFlowStepChip(label: 'Logistics', cs: cs),
+            _PlannedFlowStepChip(label: l10n.supplyChainLogistics, cs: cs),
           ],
         ),
       ),
@@ -802,7 +814,7 @@ class _PlannedFlowStepChip extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(label, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-        Text('Planned',
+        Text(AppLocalizations.of(context).supplyChainPlanned,
             style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w600, color: cs.outline)),
       ],
     );
@@ -876,6 +888,7 @@ class _MapLayersPanelState extends State<_MapLayersPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = widget.cs;
     final sagana = widget.sagana;
 
@@ -894,7 +907,7 @@ class _MapLayersPanelState extends State<_MapLayersPanel> {
             children: [
               Icon(Icons.layers_rounded, size: 14, color: cs.onSurfaceVariant),
               const SizedBox(width: 4),
-              Text('Layers',
+              Text(l10n.supplyChainLayers,
                   style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
             ],
           ),
@@ -925,7 +938,7 @@ class _MapLayersPanelState extends State<_MapLayersPanel> {
                   Icon(Icons.layers_rounded, size: 13, color: cs.onSurfaceVariant),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text('MAP LAYERS',
+                    child: Text(l10n.supplyChainMapLayers,
                         style: GoogleFonts.inter(
                             fontSize: 9, fontWeight: FontWeight.w700,
                             letterSpacing: 0.5, color: cs.onSurfaceVariant)),
@@ -939,12 +952,12 @@ class _MapLayersPanelState extends State<_MapLayersPanel> {
               const SizedBox(height: 8),
 
               _LayerSection(
-                title: 'Crop Types',
+                title: l10n.supplyChainCropTypes,
                 isOpen: _cropOpen,
                 onToggle: () => setState(() => _cropOpen = !_cropOpen),
                 cs: cs,
                 child: crops.isEmpty
-                    ? Text('No crops recorded yet',
+                    ? Text(l10n.supplyChainNoCropsRecorded,
                         style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant))
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -971,13 +984,13 @@ class _MapLayersPanelState extends State<_MapLayersPanel> {
               const SizedBox(height: 6),
 
               _LayerSection(
-                title: 'Operational Status',
+                title: l10n.supplyChainOperationalStatus,
                 isOpen: _statusOpen,
                 onToggle: () => setState(() => _statusOpen = !_statusOpen),
                 cs: cs,
-                trailingBadge: 'Planned',
+                trailingBadge: l10n.supplyChainPlanned,
                 child: Text(
-                  'Will activate once collection and logistics tracking is available.',
+                  l10n.supplyChainWillActivate,
                   style: GoogleFonts.inter(fontSize: 9.5, color: cs.onSurfaceVariant, height: 1.3),
                 ),
               ),
@@ -1263,8 +1276,10 @@ class _FarmerDetailDrawer extends StatelessWidget {
                     style: GoogleFonts.poppins(fontSize: 17,
                         fontWeight: FontWeight.w700, color: cs.primary)),
                 Text(
-                  '${farmer.memberId != null ? 'ID: ${farmer.memberId}' : 'Pending ID'}'
-                  '${farmer.purok != null ? ' • ${farmer.purok}' : ''}',
+                  (farmer.memberId != null
+                          ? l10n.supplyChainMemberIdPrefix(farmer.memberId!)
+                          : l10n.supplyChainPendingId) +
+                      (farmer.purok != null ? ' • ${farmer.purok}' : ''),
                   style: GoogleFonts.inter(fontSize: 11,
                       color: cs.onSurfaceVariant)),
               ],
@@ -1281,14 +1296,14 @@ class _FarmerDetailDrawer extends StatelessWidget {
           // header comment for why loan/harvest status were removed).
           Row(children: [
             Expanded(child: _InfoTile(
-                label: 'Currently Planted',
+                label: l10n.supplyChainCurrentlyPlanted,
                 value: farmer.primaryCrops.isEmpty
-                    ? 'Not recorded'
+                    ? l10n.supplyChainNotRecorded
                     : farmer.primaryCrops.take(3).join(', '),
                 cs: cs)),
             const SizedBox(width: 10),
             Expanded(child: _InfoTile(
-                label: 'Farm Coordinates',
+                label: l10n.supplyChainFarmCoordinates,
                 value: '${farmer.farmLatitude.toStringAsFixed(5)}, '
                     '${farmer.farmLongitude.toStringAsFixed(5)}',
                 cs: cs)),
@@ -1297,7 +1312,7 @@ class _FarmerDetailDrawer extends StatelessWidget {
           Row(children: [
             Expanded(child: ElevatedButton(
               onPressed: onViewProfile,
-              child: Text('View Profile',
+              child: Text(l10n.supplyChainViewProfile,
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
             )),
             const SizedBox(width: 10),
@@ -1309,7 +1324,7 @@ class _FarmerDetailDrawer extends StatelessWidget {
                   border: Border.all(color: cs.primary),
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
-                child: Text('Send Notice', textAlign: TextAlign.center,
+                child: Text(l10n.supplyChainSendNotice, textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(fontSize: 14,
                         fontWeight: FontWeight.w600, color: cs.primary)),
               ),
@@ -1399,7 +1414,7 @@ class _OfficeDetailDrawer extends StatelessWidget {
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('SP3 Cooperative Office',
+                Text(l10n.supplyChainOfficeTitle,
                     style: GoogleFonts.poppins(fontSize: 16,
                         fontWeight: FontWeight.w700, color: cs.onSurface)),
                 Text(_officeAddress,
@@ -1415,13 +1430,13 @@ class _OfficeDetailDrawer extends StatelessWidget {
           ]),
           const SizedBox(height: 16),
           _OfficeInfoRow(icon: Icons.calendar_month_rounded,
-              text: 'BOD Meeting: Every 1st Saturday of the month', cs: cs),
+              text: l10n.supplyChainBodMeetingSchedule, cs: cs),
           const SizedBox(height: 10),
           _OfficeInfoRow(icon: Icons.groups_rounded,
-              text: 'Active Members: 52 Registered Farmers', cs: cs),
+              text: l10n.supplyChainActiveMembersLine, cs: cs),
           const SizedBox(height: 10),
           _OfficeInfoRow(icon: Icons.location_on_outlined,
-              text: 'Payanas, Torrijos, Marinduque, Philippines', cs: cs),
+              text: l10n.supplyChainAddressLine, cs: cs),
           const SizedBox(height: 10),
           _OfficeInfoRow(icon: Icons.inventory_2_rounded,
               text: 'Primary Crops: Palay · Peanut · Ginger · Banana · Copra',
@@ -1434,7 +1449,7 @@ class _OfficeDetailDrawer extends StatelessWidget {
               foregroundColor: AppConstants.charcoal,
             ),
             icon: const Icon(Icons.map_outlined, size: 18),
-            label: Text('Close', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            label: Text(l10n.commonClose, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
           ),
         ],
       ),

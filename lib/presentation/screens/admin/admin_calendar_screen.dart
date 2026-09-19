@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
@@ -111,11 +112,18 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  static const _monthNames = [
-    'January','February','March','April','May','June',
-    'July','August','September','October','November','December',
+  List<String> _monthNames(AppLocalizations l10n) => [
+    l10n.adminCalMonthJan, l10n.adminCalMonthFeb, l10n.adminCalMonthMar,
+    l10n.adminCalMonthApr, l10n.adminCalMonthMay, l10n.adminCalMonthJun,
+    l10n.adminCalMonthJul, l10n.adminCalMonthAug, l10n.adminCalMonthSep,
+    l10n.adminCalMonthOct, l10n.adminCalMonthNov, l10n.adminCalMonthDec,
   ];
-  static const _dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  List<String> _dayLabels(AppLocalizations l10n) => [
+    l10n.adminCalWeekdayShortSun, l10n.adminCalWeekdayShortMon,
+    l10n.adminCalWeekdayShortTue, l10n.adminCalWeekdayShortWed,
+    l10n.adminCalWeekdayShortThu, l10n.adminCalWeekdayShortFri,
+    l10n.adminCalWeekdayShortSat,
+  ];
 
   Color _eventColor(CalendarEventType type) {
     switch (type) {
@@ -137,25 +145,26 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
     }
   }
 
-  String _eventTypeName(CalendarEventType type) {
+  String _eventTypeName(AppLocalizations l10n, CalendarEventType type) {
     switch (type) {
-      case CalendarEventType.bodMeeting:   return 'BOD Meeting';
-      case CalendarEventType.loanDue:      return 'Loan Due';
-      case CalendarEventType.harvest:      return 'Harvest';
-      case CalendarEventType.announcement: return 'Announcement';
-      case CalendarEventType.program:      return 'Program';
+      case CalendarEventType.bodMeeting:   return l10n.adminCalEventBodMeeting;
+      case CalendarEventType.loanDue:      return l10n.adminCalEventLoanDue;
+      case CalendarEventType.harvest:      return l10n.adminCalEventHarvest;
+      case CalendarEventType.announcement: return l10n.adminCalEventAnnouncement;
+      case CalendarEventType.program:      return l10n.adminCalEventProgram;
     }
   }
 
-  String _dayLabel(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    return '${days[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}';
+  String _dayLabel(AppLocalizations l10n, DateTime dt) {
+    // Short month/day forms reuse the same shared calendar vocabulary.
+    final months = _monthNames(l10n);
+    final days = _dayLabels(l10n);
+    return '${days[(dt.weekday - 1) % 7]}, ${months[dt.month - 1]} ${dt.day}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final today = DateTime.now();
@@ -192,7 +201,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Cooperative Calendar',
+                      l10n.adminCalTitle,
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -211,7 +220,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
               child: Text(
-                'You are offline. Calendar may not reflect latest data.',
+                l10n.adminCalOfflineNotice,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 11,
@@ -267,7 +276,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                               Column(
                                 children: [
                                   Text(
-                                    _monthNames[_month.month - 1],
+                                    _monthNames(l10n)[_month.month - 1],
                                     style: GoogleFonts.poppins(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
@@ -301,7 +310,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
 
                           // Day headers
                           Row(
-                            children: _dayLabels.map((d) => Expanded(
+                            children: _dayLabels(l10n).map((d) => Expanded(
                               child: Center(
                                 child: Text(
                                   d,
@@ -429,7 +438,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
-                                  _eventTypeName(type),
+                                  _eventTypeName(l10n, type),
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: cs.onSurfaceVariant,
@@ -448,8 +457,8 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                       children: [
                         Text(
                           _selectedDay != null
-                              ? _dayLabel(_selectedDay!)
-                              : 'Select a day',
+                              ? _dayLabel(l10n, _selectedDay!)
+                              : l10n.adminCalSelectDay,
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -494,7 +503,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                                 size: 32, color: cs.onSurfaceVariant),
                             const SizedBox(height: 8),
                             Text(
-                              'No events on this day',
+                              l10n.adminCalNoEvents,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: cs.onSurfaceVariant,
@@ -561,7 +570,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                                                     ),
                                                   ),
                                                   Text(
-                                                    _eventTypeName(event.type).toUpperCase(),
+                                                    _eventTypeName(l10n, event.type).toUpperCase(),
                                                     style: GoogleFonts.inter(
                                                       fontSize: 9,
                                                       fontWeight: FontWeight.w700,

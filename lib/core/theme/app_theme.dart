@@ -48,6 +48,21 @@ class AppTheme {
         thickness: 1,
       ),
       snackBarTheme: _snackBarTheme,
+      // Explicit surface for every native dropdown/overflow-menu popup —
+      // without this, DropdownButtonFormField and PopupMenuButton fall back
+      // to Flutter's default canvas color (near-white) regardless of the
+      // app's own dark theme, which is what made Admin dropdowns render
+      // white-on-white in Dark Mode.
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(saganaColors.cardBackground),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: saganaColors.cardBackground,
+        textStyle: GoogleFonts.inter(fontSize: 14, color: onSurface),
+      ),
+      canvasColor: saganaColors.cardBackground,
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {

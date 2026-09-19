@@ -17,6 +17,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/profile_state_service.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/profile_avatar.dart';
 
@@ -134,6 +135,31 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
+      drawer: AnimatedBuilder(
+        animation: FarmerProfileStateService.instance,
+        builder: (context, _) {
+          final profile = FarmerProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Farmer',
+            contactEmail: profile?.contactEmail,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.farmerEditProfile);
+            },
+            onEditFarmDetails: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.editFarmDetails);
+            },
+            onSignOut: () => confirmFarmerSignOut(context),
+            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: Column(
         children: [
           if (!_isOnline)
@@ -272,10 +298,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
               onProfileTap: () {},
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
-              onSettingsTap: () async {
-                await context.pushRoute(AppRoutes.farmerSettings);
-                if (mounted) _loadData();
-              },
+              enableMenu: true,
             ),
           ),
               ],
@@ -747,6 +770,13 @@ class _FarmDetailsSection extends StatelessWidget {
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.sp3coop.sagana',
                               tileProvider: fm.NetworkTileProvider(),
+                              // flutter_map cancels in-flight tile requests
+                              // for tiles that go out of view (e.g. the
+                              // screen is closed mid-fetch) — expected, not
+                              // a real failure. Without this it surfaces as
+                              // a noisy "EXCEPTION CAUGHT BY IMAGE RESOURCE
+                              // SERVICE" log.
+                              errorTileCallback: (tile, error, stackTrace) {},
                             ),
                             fm.MarkerLayer(
                               markers: [

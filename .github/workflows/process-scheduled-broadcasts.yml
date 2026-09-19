@@ -1,0 +1,26 @@
+# Triggers the process-scheduled-broadcasts Edge Function on a schedule.
+# Mirrors daily-loan-maintenance.yml. Runs every 5 minutes so a Broadcast
+# scheduled for a specific time actually goes out close to that time,
+# rather than only once daily.
+
+name: Process Scheduled Broadcasts
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}  # allows manual trigger from the Actions tab for testing
+
+jobs:
+  trigger-broadcast-processing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call process-scheduled-broadcasts Edge Function
+        run: |
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/process-scheduled-broadcasts" \
+            -H "x-scheduler-secret: ${{ secrets.BROADCAST_SCHEDULER_SECRET }}")
+          cat /tmp/response.json
+          if [ "$response" -ne 200 ]; then
+            echo "Edge Function call failed with status $response"
+            exit 1
+          fi

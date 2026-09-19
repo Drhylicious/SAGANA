@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_member_model.dart';
+import 'admin_activity_repository.dart';
 
 class FarmerManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -15,36 +16,37 @@ class FarmerManagementRepository {
       // they tap Submit Application (Issue 5 / Decision D5).
       final roleRows = await _client
           .from('user_roles')
-          .select('user_id, status, created_at, application_attempts, '
-              'rejection_reason, suspension_reason')
+          .select(
+            'user_id, status, created_at, application_attempts, '
+            'rejection_reason, suspension_reason',
+          )
           .eq('role', 'farmer')
           .neq('status', 'draft');
 
       if (roleRows.isEmpty) return [];
 
-      final userIds =
-          roleRows.map((r) => r['user_id'] as String).toList();
+      final userIds = roleRows.map((r) => r['user_id'] as String).toList();
 
       final roleMap = {
         for (final r in roleRows)
           r['user_id'] as String: {
-            'status':               r['status'] as String? ?? 'pending',
-            'created_at':           r['created_at'] as String?,
+            'status': r['status'] as String? ?? 'pending',
+            'created_at': r['created_at'] as String?,
             'application_attempts': r['application_attempts'],
-            'rejection_reason':     r['rejection_reason'] as String?,
-            'suspension_reason':    r['suspension_reason'] as String?,
-          }
+            'rejection_reason': r['rejection_reason'] as String?,
+            'suspension_reason': r['suspension_reason'] as String?,
+          },
       };
 
       // 2. user_information
       final infoRows = await _client
           .from('user_information')
-          .select('user_id, full_name, purok, profile_photo_url, last_active_at')
+          .select(
+            'user_id, full_name, purok, profile_photo_url, last_active_at',
+          )
           .inFilter('user_id', userIds);
 
-      final infoMap = {
-        for (final r in infoRows) r['user_id'] as String: r,
-      };
+      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
       // 3. farmer_profiles (member_id, is_verified)
       final profileRows = await _client
@@ -77,18 +79,20 @@ class FarmerManagementRepository {
 
       final loanMap = <String, Map<String, dynamic>>{};
       for (final r in loanRows) {
-        final id  = r['farmer_id'] as String;
-        final rem = ((r['total_value'] as num).toDouble() -
-                (r['amount_paid'] as num? ?? 0).toDouble())
-            .clamp(0.0, double.infinity);
+        final id = r['farmer_id'] as String;
+        final rem =
+            ((r['total_value'] as num).toDouble() -
+                    (r['amount_paid'] as num? ?? 0).toDouble())
+                .clamp(0.0, double.infinity);
         final existing = loanMap[id];
-        final balance  = (existing?['balance'] as double? ?? 0) + rem;
+        final balance = (existing?['balance'] as double? ?? 0) + rem;
         final paymentStatus = r['status'] as String? ?? 'active';
-        final isOverdue = paymentStatus == 'overdue' ||
+        final isOverdue =
+            paymentStatus == 'overdue' ||
             ((existing?['status'] as String?) == 'overdue');
         loanMap[id] = {
           'balance': balance,
-          'status':  isOverdue ? 'overdue' : 'active',
+          'status': isOverdue ? 'overdue' : 'active',
         };
       }
 
@@ -106,31 +110,29 @@ class FarmerManagementRepository {
       }
 
       return userIds.map((uid) {
-        final role    = roleMap[uid]!;
-        final info    = infoMap[uid] ?? {};
+        final role = roleMap[uid]!;
+        final info = infoMap[uid] ?? {};
         final profile = profileMap[uid] ?? {};
-        final loan    = loanMap[uid];
+        final loan = loanMap[uid];
 
         return FarmerMemberModel.fromMap({
-          'user_id':            uid,
-          'full_name':          info['full_name'] as String? ?? 'Farmer',
-          'member_id':          profile['member_id'] as String?,
-          'purok':              info['purok'] as String?,
-          'profile_photo_url':  info['profile_photo_url'] as String?,
-          'member_status':      role['status'],
-          'last_active_at':     info['last_active_at'],
+          'user_id': uid,
+          'full_name': info['full_name'] as String? ?? 'Farmer',
+          'member_id': profile['member_id'] as String?,
+          'purok': info['purok'] as String?,
+          'profile_photo_url': info['profile_photo_url'] as String?,
+          'member_status': role['status'],
+          'last_active_at': info['last_active_at'],
           'application_attempts': role['application_attempts'],
-          'rejection_reason':   role['rejection_reason'],
-          'suspension_reason':  role['suspension_reason'],
-          'is_verified':        profile['is_verified'] as bool? ?? false,
-          'crops':              cropsMap[uid] ?? [],
+          'rejection_reason': role['rejection_reason'],
+          'suspension_reason': role['suspension_reason'],
+          'is_verified': profile['is_verified'] as bool? ?? false,
+          'crops': cropsMap[uid] ?? [],
           'outstanding_balance': loan?['balance'] ?? 0.0,
-          'loan_status':        loan != null
-              ? loan['status']
-              : 'none',
-          'is_synced':          true,
-          'last_harvest_date':  harvestMap[uid],
-          'joined_at':          role['created_at'],
+          'loan_status': loan != null ? loan['status'] : 'none',
+          'is_synced': true,
+          'last_harvest_date': harvestMap[uid],
+          'joined_at': role['created_at'],
         });
       }).toList();
     } catch (_) {
@@ -147,8 +149,7 @@ class FarmerManagementRepository {
           .select('user_id, status')
           .eq('role', 'farmer');
 
-      final userIds =
-          roleRows.map((r) => r['user_id'] as String).toList();
+      final userIds = roleRows.map((r) => r['user_id'] as String).toList();
 
       // Only count a member as "active" if their role status is active
       // AND their farmer_profiles.is_verified flag is true. This keeps the
@@ -162,24 +163,24 @@ class FarmerManagementRepository {
 
       final verifiedSet = {
         for (final r in profileRows)
-          if (r['is_verified'] == true) r['user_id'] as String
+          if (r['is_verified'] == true) r['user_id'] as String,
       };
 
-      int active   = 0;
-      int pending  = 0;
+      int active = 0;
+      int pending = 0;
       int rejected = 0;
-      int draft    = 0;
+      int draft = 0;
       for (final r in roleRows) {
-        final uid    = r['user_id'] as String;
+        final uid = r['user_id'] as String;
         final status = r['status'] as String? ?? 'pending';
         // Active = status active AND is_verified true
         if (status == 'active' && verifiedSet.contains(uid)) active++;
-        if (status == 'pending')  pending++;
+        if (status == 'pending') pending++;
         if (status == 'rejected') rejected++;
-        if (status == 'draft')    draft++;
+        if (status == 'draft') draft++;
       }
 
-      int withActive  = 0;
+      int withActive = 0;
       int withOverdue = 0;
       if (userIds.isNotEmpty) {
         final loanRows = await _client
@@ -190,7 +191,7 @@ class FarmerManagementRepository {
 
         final seen = <String>{};
         for (final r in loanRows) {
-          final id     = r['farmer_id'] as String;
+          final id = r['farmer_id'] as String;
           final status = r['status'] as String;
           if (status == 'overdue' && !seen.contains('$id-overdue')) {
             withOverdue++;
@@ -204,9 +205,9 @@ class FarmerManagementRepository {
 
       return MemberSummaryStats(
         // Draft applicants are not listed, so don't count them here either.
-        totalMembers:    roleRows.length - draft,
-        activeMembers:   active,
-        pendingMembers:  pending,
+        totalMembers: roleRows.length - draft,
+        activeMembers: active,
+        pendingMembers: pending,
         rejectedMembers: rejected,
         withActiveLoans: withActive,
         withOverdueLoans: withOverdue,
@@ -229,8 +230,10 @@ class FarmerManagementRepository {
     required String fullName,
   }) async {
     try {
-      final memberId =
-          await _client.rpc('approve_member', params: {'p_user_id': userId});
+      final memberId = await _client.rpc(
+        'approve_member',
+        params: {'p_user_id': userId},
+      );
 
       final infoRow = await _client
           .from('user_information')
@@ -238,15 +241,21 @@ class FarmerManagementRepository {
           .eq('user_id', userId)
           .maybeSingle();
 
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'approved',
+        description: 'Approved $fullName\'s membership application.',
+        referenceId: userId,
+      );
       return ApproveMemberResult(
-        success:  true,
+        success: true,
         memberId: memberId as String?,
         username: infoRow?['username'] as String? ?? '',
       );
     } catch (e) {
       return ApproveMemberResult(
-        success:  false,
-        error:    e.toString().replaceFirst('Exception: ', ''),
+        success: false,
+        error: e.toString().replaceFirst('Exception: ', ''),
       );
     }
   }
@@ -263,10 +272,16 @@ class FarmerManagementRepository {
     required String userId,
     required String reason,
   }) async {
-    await _client.rpc('reject_member', params: {
-      'p_user_id': userId,
-      'p_reason':  reason.trim(),
-    });
+    await _client.rpc(
+      'reject_member',
+      params: {'p_user_id': userId, 'p_reason': reason.trim()},
+    );
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'rejected',
+      description: 'Rejected a membership application.',
+      referenceId: userId,
+    );
   }
 
   // ─── Suspend / reactivate (Issue 5, Decision D17) ────────────────────────
@@ -275,14 +290,26 @@ class FarmerManagementRepository {
     required String userId,
     required String reason,
   }) async {
-    await _client.rpc('suspend_member', params: {
-      'p_user_id': userId,
-      'p_reason':  reason.trim(),
-    });
+    await _client.rpc(
+      'suspend_member',
+      params: {'p_user_id': userId, 'p_reason': reason.trim()},
+    );
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'suspended',
+      description: 'Suspended a member.',
+      referenceId: userId,
+    );
   }
 
   Future<void> reactivateMember({required String userId}) async {
     await _client.rpc('reactivate_member', params: {'p_user_id': userId});
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'reactivated',
+      description: 'Reactivated a member.',
+      referenceId: userId,
+    );
   }
 
   // ─── Status history (audit trail for the member record) ──────────────────
@@ -305,14 +332,8 @@ class FarmerManagementRepository {
 
   Future<List<String>> fetchDistinctCrops() async {
     try {
-      final rows = await _client
-          .from('farmer_crops')
-          .select('crop_name');
-      return rows
-          .map((r) => r['crop_name'] as String)
-          .toSet()
-          .toList()
-        ..sort();
+      final rows = await _client.from('farmer_crops').select('crop_name');
+      return rows.map((r) => r['crop_name'] as String).toSet().toList()..sort();
     } catch (_) {
       return ['Peanut', 'Ginger', 'Palay', 'Banana', 'Copra'];
     }
@@ -342,32 +363,36 @@ extension FarmerListFilter on List<FarmerMemberModel> {
     FarmerFilterState filter,
     String searchQuery,
   ) {
-    var list = this;
+    // Always start from a fresh copy — sorting below must never mutate the
+    // caller's own list in place (e.g. a screen's cached _allFarmers), which
+    // it would if no filter above first produced a copy via .toList().
+    var list = List<FarmerMemberModel>.of(this);
 
     // Search
     if (searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
       list = list
-          .where((f) =>
-              f.fullName.toLowerCase().contains(q) ||
-              (f.memberId?.toLowerCase().contains(q) ?? false) ||
-              (f.purok?.toLowerCase().contains(q) ?? false))
+          .where(
+            (f) =>
+                f.fullName.toLowerCase().contains(q) ||
+                (f.memberId?.toLowerCase().contains(q) ?? false) ||
+                (f.purok?.toLowerCase().contains(q) ?? false),
+          )
           .toList();
     }
 
     // Status filter
     if (filter.statusFilter != null) {
-      list = list
-          .where((f) => f.memberStatus == filter.statusFilter)
-          .toList();
+      list = list.where((f) => f.memberStatus == filter.statusFilter).toList();
     }
 
     // Crop filter
     if (filter.cropFilter != null) {
       final crop = filter.cropFilter!.toLowerCase();
       list = list
-          .where((f) =>
-              f.primaryCrops.any((c) => c.toLowerCase().contains(crop)))
+          .where(
+            (f) => f.primaryCrops.any((c) => c.toLowerCase().contains(crop)),
+          )
           .toList();
     }
 

@@ -154,29 +154,74 @@ enum AdminActivityType {
   inventory,
   program,
   cropRequest,
+  // Sourced from admin_activity_log rather than inferred from a domain
+  // table's created_at — see AdminActivityRepository and
+  // AdminDashboardRepository.fetchRecentActivity. Covers every module an
+  // admin action was explicitly logged from (module identified by
+  // sourceModule, e.g. 'inventory', 'programs', 'loans', 'market_linking',
+  // 'offers', 'broadcast', 'profile') plus 'crops' admin CRUD alongside
+  // the legacy cropRequest items. Adding a new logged module never
+  // requires a new enum case — only a call to AdminActivityRepository.log.
+  logged,
 }
 
+// Which message template this item renders as — distinct from
+// AdminActivityType because 'listing' covers two different templates
+// (submitted vs. approved) that read very differently once localized.
+enum AdminActivityDescKind {
+  harvest,
+  listingApproved,
+  listingSubmitted,
+  orderPlaced,
+  priceUpdated,
+  newMember,
+  cropRequested,
+}
+
+// description/timeLabel used to be pre-composed English strings built in
+// AdminDashboardRepository (a data-layer class with no AppLocalizations
+// access). Localizing them meant moving the raw values (name/crop/qty/
+// amount, plus the bare timestamp) onto the model instead, so the actual
+// sentence can be assembled with AppLocalizations in the presentation
+// layer — see adminActivityDescription()/adminActivityTimeLabel() in
+// admin_activity_screen.dart.
 class AdminActivityItem {
   final String id;
   final AdminActivityType type;
-  final String description;
+  // Null only for AdminActivityType.logged items, which carry their own
+  // ready-made [plainDescription] instead — see adminActivityDescription()
+  // in admin_activity_screen.dart.
+  final AdminActivityDescKind? descKind;
+  final String? name;
+  final String? cropName;
+  final String? quantityKg;
+  final String? amount;
   final String? highlightedName;
-  final String timeLabel;
   final DateTime timestamp;
   final bool isPrimary;
   final String? sourceModule;
   final String? referenceId;
+  // AdminActivityType.logged only — an already-composed description from
+  // admin_activity_log, and the name of the admin who performed it (null
+  // if that admin's profile couldn't be resolved).
+  final String? plainDescription;
+  final String? adminName;
 
   const AdminActivityItem({
     required this.id,
     required this.type,
-    required this.description,
+    this.descKind,
+    this.name,
+    this.cropName,
+    this.quantityKg,
+    this.amount,
     this.highlightedName,
-    required this.timeLabel,
     required this.timestamp,
     required this.isPrimary,
     this.sourceModule,
     this.referenceId,
+    this.plainDescription,
+    this.adminName,
   });
 }
 

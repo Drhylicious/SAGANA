@@ -133,7 +133,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                   const SizedBox(height: AppConstants.spacingSectionV),
                   _buildTrendChart(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildPeriodChips(cs),
+                  _buildPeriodChips(l10n, cs),
                   const SizedBox(height: AppConstants.spacingSm),
                   _buildStatusChips(context, l10n, cs),
                   const SizedBox(height: AppConstants.spacingGutter),
@@ -206,6 +206,10 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     );
   }
 
+  // Migrated onto the shared ReportHeroCard (Phase 16) — this screen
+  // previously hand-built its own copy of the same gradient Container
+  // Executive Snapshot/Harvest Report used, rather than sharing the
+  // widget. The health badge moves into ReportHeroCard's trailing slot.
   Widget _buildAllTimeHealthCard(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
     // A cooperative that has never issued a loan and one that has fully
@@ -226,50 +230,41 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
             ? l10n.loanHistoryHealthy
             : l10n.loanHistoryNeedsAttention;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        gradient: AppConstants.primaryButtonGradient,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+    return ReportHeroCard(
+      title: l10n.loanHistoryAllTimeSummary,
+      period: ReportPeriod.allTime,
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: healthColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
+        child: Text(healthLabel, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: healthColor)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l10n.loanHistoryAllTimeSummary, style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.85))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: healthColor.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                child: Text(healthLabel, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
-              ),
-            ],
-          ),
-          Text(
-            currency.format(_allTimeSummary.totalIssued),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: Colors.white),
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          Row(
-            children: [
-              Expanded(child: _summaryStat(l10n.loanHistoryTotalCollected, currency.format(_allTimeSummary.totalCollected))),
-              Expanded(child: _summaryStat(l10n.loanDashTotalOutstanding, currency.format(_allTimeSummary.totalOutstanding))),
-              Expanded(child: _summaryStat(l10n.loanHistoryRate, '${_allTimeSummary.repaymentRatePercent.toStringAsFixed(0)}%')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryStat(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
-        Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+      primaryStats: [
+        ReportHeroStat(
+          label: l10n.issueLoanTotalValue,
+          value: currency.format(_allTimeSummary.totalIssued),
+          icon: Icons.account_balance_wallet_rounded,
+          accent: AppConstants.primaryGreen,
+        ),
+      ],
+      secondaryStats: [
+        ReportHeroStat(
+          label: l10n.loanHistoryTotalCollected,
+          value: currency.format(_allTimeSummary.totalCollected),
+          icon: Icons.check_circle_rounded,
+          accent: AppConstants.successGreen,
+        ),
+        ReportHeroStat(
+          label: l10n.loanDashTotalOutstanding,
+          value: currency.format(_allTimeSummary.totalOutstanding),
+          icon: Icons.pending_actions_rounded,
+          accent: AppConstants.warningAmber,
+        ),
+        ReportHeroStat(
+          label: l10n.loanHistoryRate,
+          value: '${_allTimeSummary.repaymentRatePercent.toStringAsFixed(0)}%',
+          icon: Icons.percent_rounded,
+          accent: AppConstants.buyerBlue,
+        ),
       ],
     );
   }
@@ -317,7 +312,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     );
   }
 
-  Widget _buildPeriodChips(ColorScheme cs) {
+  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
     return SizedBox(
       height: 34,
       child: ListView(
@@ -327,7 +322,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,

@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/management_modal.dart';
 import '../../widgets/listing_filter_modal.dart';
 
 class AllListingsScreen extends StatefulWidget {
@@ -29,8 +29,6 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
 
   String _searchQuery = '';
   String? _statusFilter; // null = All
-  String? _categoryFilter; // null = All Categories
-  String? _cropFilter; // null = All Crops
 
   @override
   void initState() {
@@ -52,15 +50,10 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
 
   // Status is deliberately NOT passed here — it's filtered client-side in
   // _filtered below, so switching status chips never re-hits the network
-  // (matching Order Management's already-smooth behavior). Crop/category
-  // still refetch, since picking those is a deliberate "Apply Filters"
-  // action from the modal, not a quick chip tap. See M-marketplace-8.
+  // (matching Order Management's already-smooth behavior).
   Future<void> _loadAll() async {
     if (!_hasLoadedOnce) setState(() => _isLoading = true);
-    final listings = await _repo.fetchAllListings(
-      cropFilter: _cropFilter,
-      categoryFilter: _categoryFilter,
-    );
+    final listings = await _repo.fetchAllListings();
     if (!mounted) return;
     setState(() {
       _allListings = listings;
@@ -87,26 +80,6 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     setState(() => _statusFilter = status);
   }
 
-  bool get _hasActiveFilter => _categoryFilter != null || _cropFilter != null;
-
-  void _openFilterPanel() async {
-    final result = await showManagementModal<(String?, String?)>(
-      context: context,
-      builder: (_) => ListingFilterModal(
-        repo: _repo,
-        initialCategory: _categoryFilter,
-        initialCrop: _cropFilter,
-      ),
-    );
-    if (result != null) {
-      setState(() {
-        _categoryFilter = result.$1;
-        _cropFilter = result.$2;
-      });
-      _loadAll();
-    }
-  }
-
   Future<void> _quickApprove(AdminListingModel listing) async {
     await _repo.approveListing(listing.id);
     _showSnack('${listing.cropName} listing approved.', isSuccess: true);
@@ -127,6 +100,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final visible = _filtered;
@@ -147,43 +121,20 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _searchCtrl,
-                                    decoration: InputDecoration(
-                                      hintText: 'Search crop, farmer, variety...',
-                                      hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                                      prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
-                                      suffixIcon: _searchQuery.isNotEmpty
-                                          ? IconButton(
-                                              icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
-                                              onPressed: () => _searchCtrl.clear(),
-                                            )
-                                          : null,
-                                    ),
-                                    style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                GestureDetector(
-                                  onTap: _openFilterPanel,
-                                  child: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: _hasActiveFilter ? cs.primary : cs.surfaceContainerHighest,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.tune_rounded,
-                                      size: 20,
-                                      color: _hasActiveFilter ? Colors.white : cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            TextField(
+                              controller: _searchCtrl,
+                              decoration: InputDecoration(
+                                hintText: l10n.marketplaceSearchHint,
+                                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+                                prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
+                                        onPressed: () => _searchCtrl.clear(),
+                                      )
+                                    : null,
+                              ),
+                              style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
                             ),
                             const SizedBox(height: 14),
 
@@ -197,32 +148,32 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                                 scrollDirection: Axis.horizontal,
                                 children: [
                                   ListingStatusFilterChip(
-                                    label: 'All', active: _statusFilter == null,
+                                    label: l10n.farmerMgmtAllFilter, active: _statusFilter == null,
                                     color: cs.primary, onTap: () => _onStatusFilterChanged(null), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: 'Pending', active: _statusFilter == 'pending_review',
+                                    label: l10n.buyerOrderDetailPendingTimestamp, active: _statusFilter == 'pending_review',
                                     color: cs.error, onTap: () => _onStatusFilterChanged('pending_review'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: 'Live', active: _statusFilter == 'approved',
+                                    label: l10n.marketplaceFilterLive, active: _statusFilter == 'approved',
                                     color: AppConstants.successGreen, onTap: () => _onStatusFilterChanged('approved'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: 'Changes', active: _statusFilter == 'changes_required',
+                                    label: l10n.marketplaceFilterChanges, active: _statusFilter == 'changes_required',
                                     color: AppConstants.warningAmber, onTap: () => _onStatusFilterChanged('changes_required'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: 'Sold', active: _statusFilter == 'sold',
+                                    label: l10n.marketplaceFilterSold, active: _statusFilter == 'sold',
                                     color: cs.onSurfaceVariant, onTap: () => _onStatusFilterChanged('sold'), cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: 'Rejected', active: _statusFilter == 'rejected',
+                                    label: l10n.farmerMgmtStatusRejectedLabel, active: _statusFilter == 'rejected',
                                     color: cs.error, onTap: () => _onStatusFilterChanged('rejected'), cs: cs,
                                   ),
                                 ],
@@ -232,7 +183,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
 
                             if (visible.isEmpty)
                               _EmptyState(
-                                hasSearch: _searchQuery.isNotEmpty || _statusFilter != null || _hasActiveFilter,
+                                hasSearch: _searchQuery.isNotEmpty || _statusFilter != null,
                                 cs: cs,
                                 sagana: sagana,
                               )
@@ -305,7 +256,7 @@ class _TopAppBar extends StatelessWidget {
                 onPressed: onBack,
               ),
               Expanded(
-                child: Text('All Listings',
+                child: Text(AppLocalizations.of(context).marketplaceAllListingsTitle,
                     style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
               ),
             ],
@@ -338,8 +289,9 @@ class _AllListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final statusColor = _statusColor(listing.status, cs, context);
-    final statusLabel = listing.statusLabel;
+    final statusLabel = listingStatusLabel(l10n, listing.status);
 
     return GestureDetector(
       onTap: onTap,
@@ -434,7 +386,7 @@ class _AllListingCard extends StatelessWidget {
                           children: [
                             Icon(Icons.warning_amber_rounded, size: 13, color: cs.error),
                             const SizedBox(width: 2),
-                            Text('Stock',
+                            Text(AppLocalizations.of(context).marketplaceStockWarningBadge,
                                 style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: cs.error)),
                           ],
                         ),
@@ -525,7 +477,9 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(Icons.inventory_2_outlined, size: 44, color: cs.outline.withValues(alpha: 0.35)),
           const SizedBox(height: 12),
-          Text(hasSearch ? 'No listings match your filter' : 'No listings yet',
+          Text(hasSearch
+                  ? AppLocalizations.of(context).marketplaceNoListingsFiltered
+                  : AppLocalizations.of(context).marketplaceNoListingsYet,
               style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
         ],
       ),

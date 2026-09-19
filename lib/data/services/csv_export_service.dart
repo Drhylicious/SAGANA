@@ -8,6 +8,17 @@ import '../repositories/admin_reports_repository.dart';
 import 'hive_service.dart';
 import 'report_csv_serializers.dart';
 
+/// Shared shape for CsvExportService and PdfExportService (Phase 15) —
+/// lets Export Center pick either at runtime via one variable rather than
+/// branching on format everywhere it calls generateExports().
+abstract class ReportExportService {
+  Future<List<String>> generateExports({
+    required Set<ReportModuleType> modules,
+    required ReportPeriod period,
+    required int contributionYear,
+  });
+}
+
 /// Orchestrates CSV export generation: calls the SAME repository methods
 /// each report screen already uses, serializes the typed result, writes
 /// it to a local file, and records it in Hive-backed export history.
@@ -17,7 +28,7 @@ import 'report_csv_serializers.dart';
 /// Depends on repositories directly (same precedent as SyncService
 /// depending on AdminLoanRepository) rather than requiring the screen to
 /// pre-fetch everything and hand it over — keeps the screen thin.
-class CsvExportService {
+class CsvExportService implements ReportExportService {
   final _reportsRepo = AdminReportsRepository();
   final _loanRepo = AdminLoanRepository();
 
@@ -26,6 +37,7 @@ class CsvExportService {
   /// for the caller to share. Throws on failure — the caller decides how
   /// to surface that; silently returning an empty list would look like
   /// "nothing to export" rather than "something went wrong."
+  @override
   Future<List<String>> generateExports({
     required Set<ReportModuleType> modules,
     required ReportPeriod period,
@@ -49,12 +61,13 @@ class CsvExportService {
 
       await HiveService.addExportHistoryEntry(
         ExportHistoryEntry(
-          id: 'export_${DateTime.now().millisecondsSinceEpoch}_${module.name}',
+          id: 'export_${DateTime.now().millisecondsSinceEpoch}_${module.name}_csv',
           fileName: fileName,
           filePath: file.path,
           moduleLabels: [module.label],
           periodLabel: periodLabel,
           generatedAt: DateTime.now(),
+          format: 'csv',
         ).toMap(),
       );
 
@@ -73,13 +86,14 @@ class CsvExportService {
         return serializeSalesReportCsv(
           await _reportsRepo.fetchSalesReport(period),
         );
-      case ReportModuleType.inventory:
-        return serializeInventoryReportCsv(
-          await _reportsRepo.fetchInventoryReport(),
-        );
       case ReportModuleType.harvest:
+        final results = await Future.wait([
+          _reportsRepo.fetchHarvestReport(period),
+          _reportsRepo.fetchInventoryReport(),
+        ]);
         return serializeHarvestReportCsv(
-          await _reportsRepo.fetchHarvestReport(period),
+          results[0] as HarvestReportData,
+          results[1] as InventoryReportData,
         );
       case ReportModuleType.expense:
         return serializeExpenseReportCsv(

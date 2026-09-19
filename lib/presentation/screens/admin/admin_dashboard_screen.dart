@@ -8,10 +8,15 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
+import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/app_navigation_drawer.dart';
+import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/shared_widgets.dart';
+import 'admin_activity_screen.dart'
+    show adminActivityDescription, adminActivityTimeLabel, moduleColor;
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -154,25 +159,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         context.push(AppRoutes.programManagement);
       case AdminActivityType.cropRequest:
         context.push(AppRoutes.cropRequestApproval);
+      case AdminActivityType.logged:
+        switch (item.sourceModule) {
+          case 'inventory': context.push(AppRoutes.adminInventory);
+          case 'crops':     context.push(AppRoutes.cropManagement);
+          case 'programs':  context.push(AppRoutes.programManagement);
+          case 'loans':     context.push(AppRoutes.loanItemManagement);
+          case 'prices':    context.push(AppRoutes.priceManagement);
+          case 'market_linking': context.push(AppRoutes.marketLinking);
+          case 'offers':    context.push(AppRoutes.offerToCooperative);
+          case 'broadcast': context.push(AppRoutes.broadcastHistory);
+          case 'profile':   context.push(AppRoutes.adminProfile);
+        }
     }
   }
 
   // ── Formatting ────────────────────────────────────────────────────────────
 
-  String _greeting() {
+  String _greeting(AppLocalizations l10n) {
     final h = DateTime.now().hour;
-    if (h >= 5 && h < 12) return 'Good morning';
-    if (h >= 12 && h < 18) return 'Good afternoon';
-    return 'Good evening';
+    if (h >= 5 && h < 12) return l10n.greetingMorning;
+    if (h >= 12 && h < 18) return l10n.greetingAfternoon;
+    return l10n.greetingEvening;
   }
 
-  String _formattedDate() {
-    const months = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December'
+  String _formattedDate(AppLocalizations l10n) {
+    final months = [
+      l10n.adminCalMonthJan, l10n.adminCalMonthFeb, l10n.adminCalMonthMar,
+      l10n.adminCalMonthApr, l10n.adminCalMonthMay, l10n.adminCalMonthJun,
+      l10n.adminCalMonthJul, l10n.adminCalMonthAug, l10n.adminCalMonthSep,
+      l10n.adminCalMonthOct, l10n.adminCalMonthNov, l10n.adminCalMonthDec,
     ];
-    const days = [
-      'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'
+    final days = [
+      l10n.adminCalWeekdayMon, l10n.adminCalWeekdayTue, l10n.adminCalWeekdayWed,
+      l10n.adminCalWeekdayThu, l10n.adminCalWeekdayFri, l10n.adminCalWeekdaySat,
+      l10n.adminCalWeekdaySun,
     ];
     final now = DateTime.now();
     return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}, ${now.year}';
@@ -186,6 +207,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      drawer: AnimatedBuilder(
+        animation: AdminProfileStateService.instance,
+        builder: (context, _) {
+          final profile = AdminProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Admin',
+            contactEmail: profile?.contactEmail ?? profile?.email,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.push(AppRoutes.adminEditProfile);
+            },
+            onSignOut: () => confirmAdminSignOut(context),
+            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: RefreshIndicator(
         color: AppConstants.primaryGreen,
         onRefresh: _loadAll,
@@ -206,6 +248,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     context.push(AppRoutes.announcementDashboard),
                 onProfileTap: () =>
                     context.push(AppRoutes.adminProfile),
+                enableMenu: true,
               ),
             ),
 
@@ -221,7 +264,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                   // ── Greeting ────────────────────────────────────────────
                   Text(
-                    '${_greeting()}, $_adminName!',
+                    '${_greeting(l10n)}, $_adminName!',
                     style: GoogleFonts.poppins(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -231,7 +274,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _formattedDate(),
+                    _formattedDate(l10n),
                     style: GoogleFonts.inter(
                         fontSize: 12, color: cs.onSurfaceVariant),
                   ),
@@ -261,10 +304,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 20),
 
                   // ── KPI Strip ────────────────────────────────────────────
+                  // Grouped inside the same outer titled container the
+                  // Report tab uses (Executive Snapshot etc.), not just
+                  // individually restyled cards.
                   if (_isLoading)
-                    const _ShimmerBlock(height: 96)
+                    const _ShimmerBlock(height: 150)
                   else
-                    _KpiStrip(kpi: _kpi, cs: cs, sagana: sagana),
+                    ReportSectionCard(
+                      title: 'Overview',
+                      icon: Icons.dashboard_rounded,
+                      accent: AppConstants.primaryGreen,
+                      child: _KpiStrip(kpi: _kpi, cs: cs, sagana: sagana),
+                    ),
                   const SizedBox(height: 20),
 
                   // ── Inventory Alerts ─────────────────────────────────────
@@ -272,19 +323,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _SectionHeader(
-                          icon: Icons.inventory_2_outlined,
-                          label: 'Inventory Alerts',
-                          iconColor: AppConstants.warningAmber,
-                          cs: cs,
+                        Expanded(
+                          child: _SectionHeader(
+                            icon: Icons.inventory_2_outlined,
+                            label: l10n.adminDashInventoryAlerts,
+                            iconColor: AppConstants.warningAmber,
+                            cs: cs,
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         GestureDetector(
                           // Phase 2: this card now describes cooperative_inventory
                           // (Inventory Management's own stock), so the link routes
                           // there instead of the farmer-harvest-batches screen.
                           onTap: () => context.push(AppRoutes.adminInventory),
                           child: Text(
-                            'View Inventory',
+                            l10n.adminDashViewInventory,
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -307,17 +361,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _SectionHeader(
-                        icon: Icons.calendar_month_rounded,
-                        label: 'Cooperative Calendar',
-                        cs: cs,
+                      Expanded(
+                        child: _SectionHeader(
+                          icon: Icons.calendar_month_rounded,
+                          label: l10n.adminCalTitle,
+                          cs: cs,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         // Full Calendar is a real screen — push above shell
                         onTap: () =>
                             context.push(AppRoutes.adminCalendar),
                         child: Text(
-                          'View Full Calendar',
+                          l10n.adminDashViewFullCalendar,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -344,7 +403,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // ── Management Modules ───────────────────────────────────
                   _SectionHeader(
                       icon: Icons.grid_view_rounded,
-                      label: 'Management Modules',
+                      label: l10n.adminDashManagementModules,
                       cs: cs),
                   const SizedBox(height: 12),
                   if (_isLoading)
@@ -363,11 +422,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _SectionHeader(label: 'Recent Activity', cs: cs),
+                      Expanded(
+                        child: _SectionHeader(label: l10n.adminDashRecentActivity, cs: cs),
+                      ),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () => context.push(AppRoutes.adminActivityLog),
                         child: Text(
-                          'View All',
+                          l10n.listingsAllButton,
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -436,6 +498,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (priorities.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(18),
@@ -463,7 +526,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'All Clear',
+                    l10n.dashboardAllClearTitle,
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -471,7 +534,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'No urgent items today. Cooperative is on track.',
+                    l10n.adminDashAllClearMessage,
                     style: GoogleFonts.inter(
                         fontSize: 12,
                         color: cs.onSurfaceVariant),
@@ -517,7 +580,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  "Today's Priorities",
+                  l10n.adminDashTodaysPriorities,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -534,7 +597,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                         BorderRadius.circular(AppConstants.radiusFull),
                   ),
                   child: Text(
-                    '${priorities.length} item${priorities.length == 1 ? '' : 's'}',
+                    l10n.buyerCartItemCount(priorities.length),
                     style: GoogleFonts.inter(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -623,11 +686,13 @@ bool _isLoanDataStale(DateTime? asOf) {
   return DateTime.now().difference(asOf) > const Duration(hours: 30);
 }
 
-String _loanDataStalenessLabel(DateTime? asOf) {
-  if (!_isLoanDataStale(asOf)) return 'loans';
+String _loanDataStalenessLabel(AppLocalizations l10n, DateTime? asOf) {
+  if (!_isLoanDataStale(asOf)) return l10n.adminDashLoansLabel;
   final hours = DateTime.now().difference(asOf!).inHours;
   final days = (hours / 24).floor();
-  return days >= 1 ? 'data ${days}d old' : 'data ${hours}h old';
+  return days >= 1
+      ? l10n.adminDashLoanDataStaleDays(days)
+      : l10n.adminDashLoanDataStaleHours(hours);
 }
 
 class _KpiStrip extends StatelessWidget {
@@ -640,32 +705,33 @@ class _KpiStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tiles = [
       _KpiTile(
-        label: 'Members',
+        label: l10n.adminDashKpiMembers,
         value: '${kpi.activeMembers}',
-        sub: 'of ${kpi.totalMembersTarget}',
+        sub: l10n.adminDashKpiOfTarget(kpi.totalMembersTarget),
         color: AppConstants.successGreen,
         icon: Icons.people_rounded,
       ),
       _KpiTile(
-        label: 'Coop Stock (kg)',
+        label: l10n.adminDashKpiCoopStock,
         value: _fmt(kpi.totalStockKg),
-        sub: 'available',
+        sub: l10n.buyerBrowseAvailableSuffix,
         color: AppConstants.warningAmber,
         icon: Icons.inventory_2_rounded,
       ),
       _KpiTile(
-        label: 'Pending',
+        label: l10n.adminDashKpiPending,
         value: '${kpi.pendingListings}',
-        sub: 'listings',
+        sub: l10n.adminDashKpiListingsSub,
         color: cs.primary,
         icon: Icons.pending_actions_rounded,
       ),
       _KpiTile(
-        label: 'Overdue',
+        label: l10n.adminDashKpiOverdue,
         value: '${kpi.overdueLoans}',
-        sub: _loanDataStalenessLabel(kpi.loanDataAsOf),
+        sub: _loanDataStalenessLabel(l10n, kpi.loanDataAsOf),
         color: _isLoanDataStale(kpi.loanDataAsOf)
             ? AppConstants.warningAmber
             : kpi.overdueLoans > 0
@@ -674,9 +740,9 @@ class _KpiStrip extends StatelessWidget {
         icon: Icons.warning_amber_rounded,
       ),
       _KpiTile(
-        label: 'Revenue',
+        label: l10n.adminDashKpiRevenue,
         value: '₱${_fmt(kpi.totalRevenueThisMonth)}',
-        sub: 'this month',
+        sub: l10n.adminDashKpiThisMonth,
         color: AppConstants.successGreen,
         icon: Icons.trending_up_rounded,
       ),
@@ -724,22 +790,22 @@ class _KpiCard extends StatelessWidget {
   const _KpiCard(
       {required this.tile, required this.cs, required this.sagana});
 
+  // Visually matches ReportIconStatCard (report_summary_widgets.dart) —
+  // accent-tinted background/border, icon in its own tinted badge — the
+  // Report tab's reference KPI card style (dashboard.md section 2). Kept
+  // as its own widget rather than reusing ReportIconStatCard directly
+  // because this card needs a 3rd "sub" caption line (e.g. "of 500
+  // target", "This month") that ReportIconStatCard's 2-line shape doesn't
+  // have room for.
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 110,
+      width: 128,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius:
-            BorderRadius.circular(AppConstants.radiusLg),
-        border:
-            Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8),
-        ],
+        color: tile.color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: tile.color.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -747,8 +813,15 @@ class _KpiCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(tile.icon, size: 14, color: tile.color),
-              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: tile.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                ),
+                child: Icon(tile.icon, size: 12, color: tile.color),
+              ),
+              const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   tile.label,
@@ -763,9 +836,9 @@ class _KpiCard extends StatelessWidget {
           Text(
             tile.value,
             style: GoogleFonts.poppins(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: tile.color,
+              color: cs.onSurface,
             ),
           ),
           Text(
@@ -793,6 +866,7 @@ class _InventoryAlertsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
@@ -812,7 +886,9 @@ class _InventoryAlertsCard extends StatelessWidget {
           final color = item.isDepleted
               ? AppConstants.errorRed
               : AppConstants.warningAmber;
-          final label = item.isDepleted ? 'DEPLETED' : 'LOW STOCK';
+          final label = item.isDepleted
+              ? l10n.adminDashDepletedBadge
+              : l10n.reportsLowStockBadge;
 
           return Column(
             children: [
@@ -922,11 +998,18 @@ class _MiniCalendar extends StatelessWidget {
     required this.sagana,
   });
 
-  static const _monthNames = [
-    'January','February','March','April','May','June',
-    'July','August','September','October','November','December',
+  List<String> _monthNames(AppLocalizations l10n) => [
+    l10n.adminCalMonthJan, l10n.adminCalMonthFeb, l10n.adminCalMonthMar,
+    l10n.adminCalMonthApr, l10n.adminCalMonthMay, l10n.adminCalMonthJun,
+    l10n.adminCalMonthJul, l10n.adminCalMonthAug, l10n.adminCalMonthSep,
+    l10n.adminCalMonthOct, l10n.adminCalMonthNov, l10n.adminCalMonthDec,
   ];
-  static const _dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  List<String> _dayLabels(AppLocalizations l10n) => [
+    l10n.adminCalWeekdayShortSun, l10n.adminCalWeekdayShortMon,
+    l10n.adminCalWeekdayShortTue, l10n.adminCalWeekdayShortWed,
+    l10n.adminCalWeekdayShortThu, l10n.adminCalWeekdayShortFri,
+    l10n.adminCalWeekdayShortSat,
+  ];
 
   Map<int, Set<CalendarEventType>> _buildEventMap() {
     final map = <int, Set<CalendarEventType>>{};
@@ -948,18 +1031,21 @@ class _MiniCalendar extends StatelessWidget {
     }
   }
 
-  String _legendLabel(CalendarEventType type) {
+  String _legendLabel(AppLocalizations l10n, CalendarEventType type) {
     switch (type) {
-      case CalendarEventType.bodMeeting:   return 'BOD Meeting';
-      case CalendarEventType.loanDue:      return 'Loan Due';
-      case CalendarEventType.harvest:      return 'Harvest';
-      case CalendarEventType.announcement: return 'Announcement';
-      case CalendarEventType.program:      return 'Program';
+      case CalendarEventType.bodMeeting:   return l10n.adminCalEventBodMeeting;
+      case CalendarEventType.loanDue:      return l10n.adminCalEventLoanDue;
+      case CalendarEventType.harvest:      return l10n.adminCalEventHarvest;
+      case CalendarEventType.announcement: return l10n.adminCalEventAnnouncement;
+      case CalendarEventType.program:      return l10n.adminCalEventProgram;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final monthNames = _monthNames(l10n);
+    final dayLabels = _dayLabels(l10n);
     final today = DateTime.now();
     final firstDay = DateTime(month.year, month.month, 1);
     final daysInMonth =
@@ -1000,7 +1086,7 @@ class _MiniCalendar extends StatelessWidget {
                 ),
               ),
               Text(
-                '${_monthNames[month.month - 1]} ${month.year}',
+                '${monthNames[month.month - 1]} ${month.year}',
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -1026,7 +1112,7 @@ class _MiniCalendar extends StatelessWidget {
 
           // Day-of-week headers
           Row(
-            children: _dayLabels.map((d) {
+            children: dayLabels.map((d) {
               return Expanded(
                 child: Center(
                   child: Text(
@@ -1138,7 +1224,7 @@ class _MiniCalendar extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      _legendLabel(type),
+                      _legendLabel(l10n, type),
                       style: GoogleFonts.inter(
                           fontSize: 10,
                           color: cs.onSurfaceVariant),
@@ -1180,8 +1266,38 @@ class _ManagementModulesGrid extends StatelessWidget {
     'prices':       Icons.sell_rounded,
   };
 
+  // Card title/subtitle are looked up here by id rather than read off the
+  // model — ManagementModuleCard.title/subtitle come from the repository
+  // (a data layer with no AppLocalizations access) and were hardcoded
+  // English; the id is stable data, so it's the right join key for the
+  // locale-aware display strings instead.
+  static String _title(AppLocalizations l10n, String id) {
+    switch (id) {
+      case 'inventory': return l10n.adminInvManagementTitle;
+      case 'crops': return l10n.cropMgmtTitle;
+      case 'programs': return l10n.programMgmtTitle;
+      case 'loan-items': return l10n.loanItemCatalogTitle;
+      case 'supply-chain': return l10n.supplyChainTitle;
+      case 'prices': return l10n.adminPriceManagement;
+      default: return id;
+    }
+  }
+
+  static String _subtitle(AppLocalizations l10n, String id) {
+    switch (id) {
+      case 'inventory': return l10n.adminDashModuleInventorySubtitle;
+      case 'crops': return l10n.adminDashModuleCropsSubtitle;
+      case 'programs': return l10n.adminDashModuleProgramsSubtitle;
+      case 'loan-items': return l10n.adminDashModuleLoanItemsSubtitle;
+      case 'supply-chain': return l10n.adminDashModuleSupplyChainSubtitle;
+      case 'prices': return l10n.adminDashModulePricesSubtitle;
+      default: return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -1262,7 +1378,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        m.title,
+                        _title(l10n, m.id),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1272,7 +1388,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        m.subtitle,
+                        _subtitle(l10n, m.id),
                         style: GoogleFonts.inter(
                             fontSize: 9,
                             color: cs.onSurfaceVariant),
@@ -1310,6 +1426,7 @@ class _ActivityFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (items.isEmpty) {
       return Container(
         height: 80,
@@ -1322,7 +1439,7 @@ class _ActivityFeed extends StatelessWidget {
               color: cs.outline.withValues(alpha: 0.10)),
         ),
         child: Text(
-          'No recent activity',
+          l10n.adminDashNoRecentActivity,
           style: GoogleFonts.inter(
               fontSize: 13, color: cs.onSurfaceVariant),
         ),
@@ -1373,22 +1490,16 @@ class _ActivityRow extends StatelessWidget {
   const _ActivityRow({required this.item, required this.cs});
 
   Color _dotColor() {
-    switch (item.type) {
-      case AdminActivityType.harvest:   return AppConstants.primaryGreen;
-      case AdminActivityType.listing:   return item.isPrimary ? AppConstants.successGreen : AppConstants.primaryGreen;
-      case AdminActivityType.member:    return AppConstants.primaryGreen;
-      case AdminActivityType.order:     return cs.outline;
-      case AdminActivityType.loan:      return AppConstants.errorRed;
-      case AdminActivityType.price:     return cs.outline;
-      case AdminActivityType.inventory: return AppConstants.warningAmber;
-      case AdminActivityType.program:   return AppConstants.programPurple;
-      case AdminActivityType.cropRequest: return AppConstants.warningAmber;
+    if (item.type == AdminActivityType.listing) {
+      return item.isPrimary ? AppConstants.successGreen : AppConstants.primaryGreen;
     }
+    return moduleColor(item.sourceModule, cs);
   }
 
   @override
   Widget build(BuildContext context) {
-    final desc = item.description;
+    final l10n = AppLocalizations.of(context);
+    final desc = adminActivityDescription(l10n, item);
     final name = item.highlightedName;
 
     return Padding(
@@ -1425,7 +1536,7 @@ class _ActivityRow extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      item.timeLabel,
+                      adminActivityTimeLabel(l10n, item.timestamp),
                       style: GoogleFonts.inter(
                           fontSize: 11,
                           color: cs.onSurfaceVariant),
@@ -1501,6 +1612,7 @@ class _CoopPerformanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1520,7 +1632,7 @@ class _CoopPerformanceCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'COOPERATIVE PERFORMANCE',
+                    l10n.adminDashCoopPerformanceHeader,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
@@ -1536,7 +1648,7 @@ class _CoopPerformanceCard extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'View Reports →',
+                      l10n.adminDashViewReportsArrow,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -1552,17 +1664,17 @@ class _CoopPerformanceCard extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                _StatPill('Harvests',
+                _StatPill(l10n.adminDashStatHarvests,
                     '${summary.totalHarvests}', cs),
                 const SizedBox(width: 12),
-                _StatPill('Farmer Stock',
+                _StatPill(l10n.adminDashStatFarmerStock,
                     '${summary.totalStockKg.toStringAsFixed(0)} kg',
                     cs),
                 const SizedBox(width: 12),
-                _StatPill('Listings',
+                _StatPill(l10n.adminDashStatListings,
                     '${summary.activeListings}', cs),
                 const SizedBox(width: 12),
-                _StatPill('Sales (all-time)',
+                _StatPill(l10n.adminDashStatSalesAllTime,
                     '${summary.completedSales}', cs),
               ],
             ),
@@ -1576,17 +1688,17 @@ class _CoopPerformanceCard extends StatelessWidget {
                     fontSize: 13,
                     color: cs.onSurfaceVariant),
                 children: [
-                  const TextSpan(text: 'Member participation: '),
+                  TextSpan(text: l10n.adminDashMemberParticipationPrefix),
                   TextSpan(
-                    text:
-                        '${summary.activeMembersThisSeason} of ${summary.totalMembers} members',
+                    text: l10n.adminDashMembersOfTotal(
+                        summary.activeMembersThisSeason, summary.totalMembers),
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: cs.primary,
                     ),
                   ),
-                  const TextSpan(text: ' active this season.'),
+                  TextSpan(text: l10n.adminDashMemberParticipationSuffix),
                 ],
               ),
             ),
@@ -1662,17 +1774,28 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = cs ?? Theme.of(context).colorScheme;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
           Icon(icon, size: 18, color: iconColor ?? scheme.primary),
           const SizedBox(width: 6),
         ],
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: scheme.onSurface,
+        // Flexible + ellipsis: translated section titles (e.g. "Kalendaryo
+        // ng Kooperatiba", "Mga Alerto sa Imbakan") run noticeably longer
+        // than their English source. This header always sits in a
+        // spaceBetween Row next to a trailing "View X" link with no other
+        // slack, so without this a long title pushes the link past the
+        // available width and overflows.
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+            ),
           ),
         ),
       ],

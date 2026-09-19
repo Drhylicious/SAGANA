@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'admin_reports_model.dart';
 
-/// The six report types Export Center can generate. Deliberately mirrors
-/// the six existing report screens exactly — Export Center doesn't fetch
-/// or compute anything new, it only orchestrates and serializes what
-/// those screens' repositories already produce.
+/// The report types Export Center can generate. Deliberately mirrors the
+/// six existing report screens exactly — Export Center doesn't fetch or
+/// compute anything new, it only orchestrates and serializes what those
+/// screens' repositories already produce. There is no standalone
+/// "Inventory Report" module — that data (inventory_batches) has no
+/// on-screen report of its own; it's the second tab of Harvest Report, so
+/// its export lives inside [harvest]'s CSV instead of as a separate card.
 enum ReportModuleType {
   sales,
-  inventory,
   harvest,
   expense,
   loan,
@@ -20,8 +22,6 @@ extension ReportModuleTypeExt on ReportModuleType {
     switch (this) {
       case ReportModuleType.sales:
         return 'Sales Report';
-      case ReportModuleType.inventory:
-        return 'Inventory Report';
       case ReportModuleType.harvest:
         return 'Harvest Report';
       case ReportModuleType.expense:
@@ -39,8 +39,6 @@ extension ReportModuleTypeExt on ReportModuleType {
     switch (this) {
       case ReportModuleType.sales:
         return Icons.point_of_sale_rounded;
-      case ReportModuleType.inventory:
-        return Icons.inventory_2_rounded;
       case ReportModuleType.harvest:
         return Icons.agriculture_rounded;
       case ReportModuleType.expense:
@@ -54,11 +52,9 @@ extension ReportModuleTypeExt on ReportModuleType {
     }
   }
 
-  /// Inventory Report is a point-in-time snapshot, not scoped to a date
-  /// range — same reasoning as its own screen (no ReportPeriod filter).
-  bool get usesReportPeriod => this != ReportModuleType.inventory && this != ReportModuleType.memberContribution;
-
   /// Member Contribution Report is year-scoped, not ReportPeriod-scoped.
+  bool get usesReportPeriod => this != ReportModuleType.memberContribution;
+
   bool get usesYear => this == ReportModuleType.memberContribution;
 }
 
@@ -79,7 +75,7 @@ extension CompliancePresetExt on CompliancePreset {
       case CompliancePreset.cda:
         return 'Sales, Loan, and Member Contribution reports';
       case CompliancePreset.da:
-        return 'Harvest and Inventory reports';
+        return 'Harvest report (includes batches & stock)';
     }
   }
 
@@ -92,7 +88,7 @@ extension CompliancePresetExt on CompliancePreset {
           ReportModuleType.memberContribution,
         };
       case CompliancePreset.da:
-        return {ReportModuleType.harvest, ReportModuleType.inventory};
+        return {ReportModuleType.harvest};
     }
   }
 }
@@ -121,6 +117,11 @@ class ExportHistoryEntry {
   final String periodLabel;
   final DateTime generatedAt;
 
+  /// 'csv' | 'pdf' (Phase 15 — both formats are now offered side by side).
+  /// Defaults to 'csv' when reading an entry created before this field
+  /// existed, so old export-history rows don't break.
+  final String format;
+
   const ExportHistoryEntry({
     required this.id,
     required this.fileName,
@@ -128,6 +129,7 @@ class ExportHistoryEntry {
     required this.moduleLabels,
     required this.periodLabel,
     required this.generatedAt,
+    this.format = 'csv',
   });
 
   Map<String, dynamic> toMap() => {
@@ -137,6 +139,7 @@ class ExportHistoryEntry {
         'moduleLabels': moduleLabels,
         'periodLabel': periodLabel,
         'generatedAt': generatedAt.toIso8601String(),
+        'format': format,
       };
 
   factory ExportHistoryEntry.fromMap(Map<dynamic, dynamic> map) {
@@ -147,6 +150,7 @@ class ExportHistoryEntry {
       moduleLabels: List<String>.from(map['moduleLabels'] as List? ?? []),
       periodLabel: map['periodLabel'] as String? ?? '',
       generatedAt: DateTime.parse(map['generatedAt'] as String),
+      format: map['format'] as String? ?? 'csv',
     );
   }
 }

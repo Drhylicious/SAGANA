@@ -20,6 +20,19 @@ class MemberDistributionRow {
   final double palaySalesAmount;
   final double peanutSalesKg;
   final double peanutSalesAmount;
+  final double otherCropsQtyKg;
+  final double otherCropsAmount;
+
+  /// Option B — Product Sales Program purchases (farmer buys FROM the
+  /// coop), kept structurally separate from the sales fields above
+  /// (farmer sells TO the coop) at every layer. purchaseSharePercent and
+  /// estimatedPurchasePatronage are computed the same way their sales-side
+  /// counterparts are, but against totalProgramSales/
+  /// distributableProgramSurplus instead — never the sales-side pool.
+  final double programPurchasesAmount;
+  final double purchaseSharePercent;
+  final double estimatedPurchasePatronage;
+  final double? actualPurchasePatronage;
 
   const MemberDistributionRow({
     required this.farmerId,
@@ -39,10 +52,18 @@ class MemberDistributionRow {
     this.palaySalesAmount = 0,
     this.peanutSalesKg = 0,
     this.peanutSalesAmount = 0,
+    this.otherCropsQtyKg = 0,
+    this.otherCropsAmount = 0,
+    this.programPurchasesAmount = 0,
+    this.purchaseSharePercent = 0,
+    this.estimatedPurchasePatronage = 0,
+    this.actualPurchasePatronage,
   });
 
-  double get estimatedTotal => estimatedBalikTangkilik + estimatedInterest;
-  double get actualTotal => (actualBalikTangkilik ?? 0) + (actualInterest ?? 0);
+  double get estimatedTotal =>
+      estimatedBalikTangkilik + estimatedInterest + estimatedPurchasePatronage;
+  double get actualTotal =>
+      (actualBalikTangkilik ?? 0) + (actualInterest ?? 0) + (actualPurchasePatronage ?? 0);
   bool get isPaid => status == 'paid';
 }
 
@@ -56,6 +77,11 @@ class BalikTangkilikYearSummary {
   final bool isDistributed;
   final List<MemberDistributionRow> rows;
 
+  /// Option B's parallel Product Sales Program year settings.
+  final double totalProgramSales;
+  final double liveTotalProgramSales;
+  final double distributableProgramSurplus;
+
   const BalikTangkilikYearSummary({
     required this.year,
     required this.totalCoopSales,
@@ -65,6 +91,9 @@ class BalikTangkilikYearSummary {
     required this.afsFinalized,
     required this.isDistributed,
     required this.rows,
+    this.totalProgramSales = 0,
+    this.liveTotalProgramSales = 0,
+    this.distributableProgramSurplus = 0,
   });
 
   double get totalEstimatedPayout =>

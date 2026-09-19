@@ -38,12 +38,16 @@ class BalikTangkilikRepository {
     required double distributableSurplus,
     required double interestRatePercent,
     bool? afsFinalized,
+    double totalProgramSales = 0,
+    double distributableProgramSurplus = 0,
   }) async {
     final payload = <String, dynamic>{
       'year': year,
       'total_coop_sales': totalCoopSales,
       'distributable_surplus': distributableSurplus,
       'interest_rate_percent': interestRatePercent,
+      'total_program_sales': totalProgramSales,
+      'distributable_program_surplus': distributableProgramSurplus,
     };
     if (afsFinalized != null) payload['afs_finalized'] = afsFinalized;
 
@@ -58,7 +62,25 @@ class BalikTangkilikRepository {
   Future<BalikTangkilikYearSummary> fetchDistributionPreview(int year) async {
     try {
       final settings = await fetchYearSettings(year);
-      final rosterRows = await _client.from('farmer_profiles').select('user_id, member_id');
+      // Active members only — farmer_profiles gets a row at registration,
+      // before any admin review, and a rejected/draft account's row is
+      // never removed (reject_member() explicitly leaves it in place).
+      // An unfiltered roster here previously let draft/rejected/suspended
+      // accounts receive real capital-share interest and dilute the
+      // reported member count. Matches the same active-only pattern
+      // AdminLoanRepository.fetchFarmerRoster() already established.
+      final activeRoleRows = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'farmer')
+          .eq('status', 'active');
+      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      if (activeIds.isEmpty) return BalikTangkilikYearSummary.empty(year);
+
+      final rosterRows = await _client
+          .from('farmer_profiles')
+          .select('user_id, member_id')
+          .inFilter('user_id', activeIds);
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       if (farmerIds.isEmpty) return BalikTangkilikYearSummary.empty(year);
 
@@ -67,18 +89,27 @@ class BalikTangkilikRepository {
         _fetchAllCapitalShares(),
         fetchFarmerInfoMap(_client, farmerIds),
         _fetchExistingContributions(year, farmerIds),
+        fetchMemberProgramPurchaseTotals(_client, year),
       ]);
 
       final salesTotals = results[0] as Map<String, MemberSalesTotals>;
       final capitalShares = results[1] as Map<String, CapitalSharesModel>;
       final farmerInfo = results[2] as Map<String, dynamic>;
       final existing = results[3] as Map<String, Map<String, dynamic>>;
+      final purchaseTotals = results[4] as Map<String, double>;
 
       final liveTotalCoopSales =
           salesTotals.values.fold<double>(0, (sum, t) => sum + t.totalAmount);
       final totalCoopSales = settings?.totalCoopSales ?? liveTotalCoopSales;
       final distributableSurplus = settings?.distributableSurplus ?? 0;
       final interestRate = settings?.interestRatePercent ?? 7.0;
+
+      // Option B — Product Sales Program's own parallel pool. Never
+      // blended with the sales-side figures above.
+      final liveTotalProgramSales =
+          purchaseTotals.values.fold<double>(0, (sum, amount) => sum + amount);
+      final totalProgramSales = settings?.totalProgramSales ?? liveTotalProgramSales;
+      final distributableProgramSurplus = settings?.distributableProgramSurplus ?? 0;
 
       bool anyPaid = false;
       final rows = farmerIds.map((farmerId) {
@@ -94,6 +125,14 @@ class BalikTangkilikRepository {
         // shareValue), so any partial amount is excluded here.
         final capitalValue = ((shares?.totalShares ?? 0) * (shares?.shareValuePerUnit ?? 2000)).toDouble();
         final estimatedInterest = capitalValue * (interestRate / 100);
+
+        // Option B — computed identically to the sales-side share/estimate
+        // above, but against the Product Sales Program's own pool. Never
+        // blended into sharePercent/estimatedBT.
+        final purchasesAmount = purchaseTotals[farmerId] ?? 0;
+        final purchaseShare =
+            totalProgramSales > 0 ? (purchasesAmount / totalProgramSales) : 0.0;
+        final estimatedPurchasePatronage = distributableProgramSurplus * purchaseShare;
 
         final status = existingRow?['status'] as String? ?? 'not_yet_computed';
         if (status == 'paid') anyPaid = true;
@@ -122,6 +161,14 @@ class BalikTangkilikRepository {
           palaySalesAmount: sales.palayAmount,
           peanutSalesKg: sales.peanutQtyKg,
           peanutSalesAmount: sales.peanutAmount,
+          otherCropsQtyKg: sales.otherCropsQtyKg,
+          otherCropsAmount: sales.otherCropsAmount,
+          programPurchasesAmount: purchasesAmount,
+          purchaseSharePercent: purchaseShare * 100,
+          estimatedPurchasePatronage: estimatedPurchasePatronage,
+          actualPurchasePatronage: existingRow?['actual_purchase_patronage'] != null
+              ? (existingRow!['actual_purchase_patronage'] as num).toDouble()
+              : null,
         );
       }).toList()
         ..sort((a, b) => b.estimatedTotal.compareTo(a.estimatedTotal));
@@ -135,6 +182,9 @@ class BalikTangkilikRepository {
         afsFinalized: settings?.afsFinalized ?? false,
         isDistributed: anyPaid,
         rows: rows,
+        totalProgramSales: totalProgramSales,
+        liveTotalProgramSales: liveTotalProgramSales,
+        distributableProgramSurplus: distributableProgramSurplus,
       );
     } catch (_) {
       return BalikTangkilikYearSummary.empty(year);
@@ -159,6 +209,10 @@ class BalikTangkilikRepository {
           'palay_sales_amount': r.palaySalesAmount,
           'peanut_sales_kg': r.peanutSalesKg,
           'peanut_sales_amount': r.peanutSalesAmount,
+          'other_crops_qty_kg': r.otherCropsQtyKg,
+          'other_crops_amount': r.otherCropsAmount,
+          'program_purchases_amount': r.programPurchasesAmount,
+          'estimated_purchase_patronage': r.estimatedPurchasePatronage,
         }).toList();
 
     if (toUpsert.isEmpty) return;
@@ -202,6 +256,11 @@ class BalikTangkilikRepository {
           'palay_sales_amount': r.palaySalesAmount,
           'peanut_sales_kg': r.peanutSalesKg,
           'peanut_sales_amount': r.peanutSalesAmount,
+          'other_crops_qty_kg': r.otherCropsQtyKg,
+          'other_crops_amount': r.otherCropsAmount,
+          'program_purchases_amount': r.programPurchasesAmount,
+          'estimated_purchase_patronage': r.estimatedPurchasePatronage,
+          'actual_purchase_patronage': r.estimatedPurchasePatronage,
         }).toList();
 
     await _client.from('member_contributions').upsert(toUpsert, onConflict: 'farmer_id,year');
@@ -213,7 +272,9 @@ class BalikTangkilikRepository {
     try {
       final rows = await _client
           .from('member_contributions')
-          .select('year, actual_balik_tangkilik, actual_interest_on_capital')
+          .select(
+            'year, actual_balik_tangkilik, actual_interest_on_capital, actual_purchase_patronage',
+          )
           .eq('status', 'paid');
 
       final byYear = <int, DistributionHistoryYear>{};
@@ -224,7 +285,13 @@ class BalikTangkilikRepository {
         final year = row['year'] as int;
         final bt = (row['actual_balik_tangkilik'] as num? ?? 0).toDouble();
         final interest = (row['actual_interest_on_capital'] as num? ?? 0).toDouble();
-        totals[year] = (totals[year] ?? 0) + bt + interest;
+        // Option B — was missing from this total: the per-farmer History
+        // detail sheet already included it (it reads full rows via
+        // fetchDistributionPreview()), but this list-level year total was
+        // computed independently and never widened, so it silently
+        // undercounted any year with Purchase Patronage activity.
+        final purchasePatronage = (row['actual_purchase_patronage'] as num? ?? 0).toDouble();
+        totals[year] = (totals[year] ?? 0) + bt + interest + purchasePatronage;
         counts[year] = (counts[year] ?? 0) + 1;
       }
 
@@ -282,6 +349,19 @@ class BalikTangkilikRepository {
     try {
       final totals = await fetchMemberSalesTotals(_client, year);
       return totals.values.fold<double>(0, (sum, t) => sum + t.totalAmount);
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Live sum of all confirmed Product Sales Program purchases for the
+  /// year, across every sales-purpose program — Option B's parallel to
+  /// fetchLiveTotalCoopSales() above. Same "reference suggestion only,
+  /// never auto-overwrites a saved value" usage.
+  Future<double> fetchLiveTotalProgramSales(int year) async {
+    try {
+      final totals = await fetchMemberProgramPurchaseTotals(_client, year);
+      return totals.values.fold<double>(0, (sum, amount) => sum + amount);
     } catch (_) {
       return 0;
     }

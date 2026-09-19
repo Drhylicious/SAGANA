@@ -26,6 +26,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../data/services/sync_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 
 class FarmerDashboardScreen extends StatefulWidget {
@@ -103,6 +104,13 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       ]);
       await _profileState.refresh();
       if (!mounted) return;
+      // AppLocalizations.of(context) must not be called before this
+      // widget's initState()/first build completes — _loadData() is
+      // invoked directly from initState(), so this lookup has to wait
+      // until after the first async gap above, not sit at the top of
+      // this method (that crashed with "dependOnInheritedWidgetOfExactType
+      // ... called before initState() completed").
+      final l10n = AppLocalizations.of(context);
 
       final summary = results[0] as DashboardSummaryModel;
       final fullActivity = results[2] as List<ActivityItem>;
@@ -117,6 +125,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
         _activity =
             fullActivity.where((a) => a.type != ActivityType.loan).toList();
         _priorityItems = _buildPriorityItems(
+          l10n: l10n,
           loans: loans,
           listings: listings,
           unsyncedCount: summary.unsyncedCount,
@@ -133,6 +142,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   /// Ranked by urgency: overdue loan → listing needs changes →
   /// loan due soon → unsynced records → recent cooperative announcement.
   List<PriorityItem> _buildPriorityItems({
+    required AppLocalizations l10n,
     required List<LoanModel> loans,
     required List<MarketplaceListingModel> listings,
     required int unsyncedCount,
@@ -144,9 +154,9 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
     for (final loan in loans.where((l) => l.isOverdue)) {
       items.add(PriorityItem(
-        title: 'Loan payment overdue',
-        subtitle:
-            '${loan.referenceNo} • ₱${loan.monthlyPayment.toStringAsFixed(0)} due',
+        title: l10n.farmerDashLoanOverdueTitle,
+        subtitle: l10n.farmerDashLoanOverdueSubtitle(
+            loan.referenceNo, loan.monthlyPayment.toStringAsFixed(0)),
         icon: Icons.warning_amber_rounded,
         severity: PrioritySeverity.critical,
         onTap: () => context.pushRoute(AppRoutes.myLoans),
@@ -155,8 +165,8 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
     for (final listing in listings.where((l) => l.status == 'changes_required')) {
       items.add(PriorityItem(
-        title: '${listing.cropName} listing needs changes',
-        subtitle: 'Cooperative requested an update before it can be listed',
+        title: l10n.farmerDashListingNeedsChanges(listing.cropName),
+        subtitle: l10n.farmerDashListingChangesSubtitle,
         icon: Icons.storefront_outlined,
         severity: PrioritySeverity.warning,
         onTap: () => context.goTab(AppRoutes.myListings),
@@ -168,9 +178,11 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     )) {
       if (loan.nextPaymentDate!.isBefore(dueSoonCutoff)) {
         items.add(PriorityItem(
-          title: 'Loan payment due soon',
-          subtitle:
-              '${loan.referenceNo} • ₱${loan.monthlyPayment.toStringAsFixed(0)} by ${DateFormat('MMM d').format(loan.nextPaymentDate!)}',
+          title: l10n.farmerDashLoanDueSoonTitle,
+          subtitle: l10n.farmerDashLoanDueSoonSubtitle(
+              loan.referenceNo,
+              loan.monthlyPayment.toStringAsFixed(0),
+              DateFormat('MMM d', l10n.localeName).format(loan.nextPaymentDate!)),
           icon: Icons.event_repeat_rounded,
           severity: PrioritySeverity.warning,
           onTap: () => context.pushRoute(AppRoutes.myLoans),
@@ -180,8 +192,10 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
     if (unsyncedCount > 0) {
       items.add(PriorityItem(
-        title: '$unsyncedCount harvest record${unsyncedCount == 1 ? '' : 's'} waiting to sync',
-        subtitle: 'Tap to sync now',
+        title: unsyncedCount == 1
+            ? l10n.farmerDashUnsyncedCountOne(unsyncedCount)
+            : l10n.farmerDashUnsyncedCountOther(unsyncedCount),
+        subtitle: l10n.farmerDashTapToSync,
         icon: Icons.sync_rounded,
         severity: PrioritySeverity.warning,
         onTap: _handleSync,
@@ -227,7 +241,8 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   }
 
   String get _formattedDate {
-    return DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now());
+    return DateFormat('EEEE, MMMM d, yyyy', AppLocalizations.of(context).localeName)
+        .format(DateTime.now());
   }
 
   @override
@@ -237,10 +252,35 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
+      drawer: AnimatedBuilder(
+        animation: FarmerProfileStateService.instance,
+        builder: (context, _) {
+          final profile = FarmerProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? l10n.defaultFarmerName,
+            contactEmail: profile?.contactEmail,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.farmerEditProfile);
+            },
+            onEditFarmDetails: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.editFarmDetails);
+            },
+            onSignOut: () => confirmFarmerSignOut(context),
+            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: Column(
         children: [
           if (!_isOnline)
-            const OfflineBanner(message: "You're offline — some information on this screen may not be up to date."),
+            OfflineBanner(message: l10n.farmerDashOfflineBanner),
           Expanded(
             child: Stack(
               children: [
@@ -364,6 +404,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
               onNotificationTap: () =>
                   context.pushRoute(AppRoutes.farmerNotifications),
+              enableMenu: true,
             ),
           ),
               ],
@@ -531,12 +572,13 @@ class _YieldCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total Yield',
+            l10n.reportsTotalYield,
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -560,7 +602,7 @@ class _YieldCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'kg',
+                      l10n.farmerDashKgUnit,
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: AppConstants.onSurfaceVariant,
@@ -581,13 +623,17 @@ class _YieldCard extends StatelessWidget {
                     : AppConstants.errorRed,
               ),
               const SizedBox(width: 4),
-              Text(
-                '${summary.yieldChangePercent.abs().toStringAsFixed(0)}% vs last month',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  color: summary.yieldTrendUp
-                      ? AppConstants.successGreen
-                      : AppConstants.errorRed,
+              Flexible(
+                child: Text(
+                  l10n.farmerDashVsLastMonth(summary.yieldChangePercent.abs().toStringAsFixed(0)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: summary.yieldTrendUp
+                        ? AppConstants.successGreen
+                        : AppConstants.errorRed,
+                  ),
                 ),
               ),
             ],
@@ -613,6 +659,7 @@ class _EarningsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,7 +670,7 @@ class _EarningsCard extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  'Total Earnings',
+                  l10n.farmerDashTotalEarnings,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
@@ -640,7 +687,7 @@ class _EarningsCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Goal ${summary.earningsGoalPercent}%',
+                  l10n.farmerDashGoalPercent('${summary.earningsGoalPercent}'),
                   style: GoogleFonts.poppins(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -710,6 +757,7 @@ class _SyncCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final hasUnsynced = summary.unsyncedCount > 0;
     return GlassCard(
       child: Row(
@@ -719,7 +767,7 @@ class _SyncCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Unsynced Records',
+                  l10n.farmerDashUnsyncedRecordsLabel,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -733,7 +781,9 @@ class _SyncCard extends StatelessWidget {
                         ? const _Shimmer(width: 60, height: 20)
                         : Flexible(
                             child: Text(
-                              '${summary.unsyncedCount} Item${summary.unsyncedCount != 1 ? 's' : ''}',
+                              summary.unsyncedCount == 1
+                                  ? l10n.farmerDashItemCountOne(summary.unsyncedCount)
+                                  : l10n.farmerDashItemCountOther(summary.unsyncedCount),
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
                                 fontSize: 18,
@@ -744,26 +794,30 @@ class _SyncCard extends StatelessWidget {
                           ),
                     const SizedBox(width: 8),
                     if (hasUnsynced)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.errorContainer.withValues(alpha: 0.70),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Requires Sync',
-                          style: GoogleFonts.poppins(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
                             color: Theme.of(
                               context,
-                            ).colorScheme.onErrorContainer,
-                            letterSpacing: 0.5,
+                            ).colorScheme.errorContainer.withValues(alpha: 0.70),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            l10n.farmerDashRequiresSync,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
@@ -782,6 +836,7 @@ class _SyncCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   isSyncing
                       ? const SizedBox(
@@ -800,12 +855,16 @@ class _SyncCard extends StatelessWidget {
                           color: AppConstants.onPrimaryContainer,
                         ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Sync Now',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppConstants.onPrimaryContainer,
+                  Flexible(
+                    child: Text(
+                      l10n.farmerDashSyncNow,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppConstants.onPrimaryContainer,
+                      ),
                     ),
                   ),
                 ],
@@ -837,24 +896,29 @@ class _MarketRatesCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Market Rates',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.charcoal,
+            Expanded(
+              child: Text(
+                l10n.farmerDashMarketRates,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.charcoal,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: onViewMarket,
               child: Text(
-                'View Market',
+                l10n.farmerDashViewMarket,
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -875,11 +939,13 @@ class _MarketRatesCarousel extends StatelessWidget {
                 Icon(Icons.storefront_outlined,
                     size: 16, color: AppConstants.outline),
                 const SizedBox(width: 8),
-                Text(
-                  'No market prices recorded yet',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppConstants.onSurfaceVariant,
+                Expanded(
+                  child: Text(
+                    l10n.farmerDashNoMarketPrices,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],
@@ -921,6 +987,7 @@ class _MarketRateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final color = MarketTypeDisplay.color(context, rate.priceType);
 
     return GestureDetector(
@@ -951,7 +1018,7 @@ class _MarketRateCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                MarketTypeDisplay.label(rate.priceType),
+                MarketTypeDisplay.label(l10n, rate.priceType),
                 style: GoogleFonts.inter(
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
@@ -981,7 +1048,7 @@ class _MarketRateCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Updated ${AppUtils.formatRelativeTime(rate.recordedAt)}',
+              l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
               style: GoogleFonts.inter(
                 fontSize: 10,
                 color: AppConstants.onSurfaceVariant,
@@ -1011,23 +1078,28 @@ class _RecentActivitySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Recent Activity',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.charcoal,
+            Expanded(
+              child: Text(
+                l10n.recentActivity,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.charcoal,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: onViewAll,
               child: Text(
-                'View All',
+                l10n.buyerActivityViewAll,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -1063,7 +1135,7 @@ class _RecentActivitySection extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'No recent activity',
+                    l10n.buyerActivityEmpty,
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: AppConstants.onSurfaceVariant,

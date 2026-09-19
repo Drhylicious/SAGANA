@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
@@ -45,6 +46,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final rate = widget.rate;
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
@@ -55,7 +57,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
             children: [
               SizedBox(height: 64 + MediaQuery.of(context).padding.top),
               if (!_isOnline)
-                const OfflineBanner(message: "You're offline — other price data on this screen may not be up to date."),
+                OfflineBanner(message: l10n.farmerMarketRateOfflineBanner),
               Expanded(
                 child: rate == null
                     ? _buildMissingState(context)
@@ -69,7 +71,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
             right: 0,
             child: FarmerTopBar(
               overlay: rate != null,
-              title: rate?.cropName ?? 'Market Rate Details',
+              title: rate?.cropName ?? l10n.farmerMarketRateDetailsTitle,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -100,6 +102,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   }
 
   Widget _buildMissingState(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -110,7 +113,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 size: 40, color: AppConstants.outline),
             const SizedBox(height: 16),
             Text(
-              'This market rate could not be loaded.',
+              l10n.farmerMarketRateNotLoaded,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                   fontSize: 13, color: AppConstants.onSurfaceVariant),
@@ -118,7 +121,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
             const SizedBox(height: 20),
             OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Go Back'),
+              child: Text(l10n.farmerDetailsGoBack),
             ),
           ],
         ),
@@ -127,6 +130,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   }
 
   Widget _buildDetails(BuildContext context, FarmerMarketRateModel rate) {
+    final l10n = AppLocalizations.of(context);
     final icon = FarmerCropModel.iconForCategory(rate.cropCategory);
 
     return SingleChildScrollView(
@@ -142,7 +146,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
           // top bar — a gradient here would reintroduce the scroll seam
           // described in _buildHeroBackground's comment above, since the
           // fixed strip can only ever show one flat color.
-          _buildHeroContent(rate, icon),
+          _buildHeroContent(context, rate, icon),
 
           Transform.translate(
             offset: const Offset(0, -16),
@@ -154,16 +158,16 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                   const SizedBox(height: 16),
 
                   // ─── Pricing card ───────────────────────────────────
-                  _buildPricingCard(rate),
+                  _buildPricingCard(context, rate),
                   const SizedBox(height: 16),
 
                   // ─── Details card (effective date, source) ─────────
-                  _buildDetailsCard(rate),
+                  _buildDetailsCard(context, rate),
 
                   if (_otherRates.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     _SectionLabel(
-                      text: 'OTHER PRICES FOR ${rate.cropName.toUpperCase()}',
+                      text: l10n.farmerMarketRateOtherPricesFor(rate.cropName.toUpperCase()),
                     ),
                     const SizedBox(height: 8),
                     ..._otherRates.map((other) => Padding(
@@ -173,14 +177,14 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                   ],
 
                   const SizedBox(height: 20),
-                  _SectionLabel(text: 'ABOUT ${rate.cropName.toUpperCase()}'),
+                  _SectionLabel(text: l10n.farmerMarketRateAboutCrop(rate.cropName.toUpperCase())),
                   const SizedBox(height: 8),
                   GlassCard(
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       rate.cropDescription?.trim().isNotEmpty == true
                           ? rate.cropDescription!
-                          : 'No additional information available for this crop yet.',
+                          : l10n.farmerMarketRateNoDescription,
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         height: 1.5,
@@ -210,8 +214,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Prices are set and updated by the cooperative to '
-                            'guide fair trading among local producers and buyers.',
+                            l10n.farmerMarketRateGuidanceNote,
                             style: GoogleFonts.inter(
                               fontSize: 12.5,
                               fontStyle: FontStyle.italic,
@@ -235,7 +238,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                             size: 14, color: AppConstants.outline),
                         const SizedBox(width: 6),
                         Text(
-                          'Updated ${AppUtils.formatRelativeTime(rate.recordedAt)}',
+                          l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: AppConstants.outline,
@@ -257,7 +260,8 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   // ─── Hero content: badge + icon + crop name, living directly in the
   // green hero (matches the reference's icon-and-title block inside the
   // gradient header) instead of a separate floating card. ───────────────
-  Widget _buildHeroContent(FarmerMarketRateModel rate, IconData icon) {
+  Widget _buildHeroContent(BuildContext context, FarmerMarketRateModel rate, IconData icon) {
+    final l10n = AppLocalizations.of(context);
     return ClipRRect(
       borderRadius: const BorderRadius.only(
         bottomLeft: Radius.circular(32),
@@ -292,7 +296,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      MarketTypeDisplay.label(rate.priceType),
+                      MarketTypeDisplay.label(l10n, rate.priceType),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -329,7 +333,8 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   }
 
   // ─── Pricing card: label, big price, trend pill ──────────────────────
-  Widget _buildPricingCard(FarmerMarketRateModel rate) {
+  Widget _buildPricingCard(BuildContext context, FarmerMarketRateModel rate) {
+    final l10n = AppLocalizations.of(context);
     final hasPreviousPrice = rate.price.previousPrice != null;
     // "Stable trend" means we compared against a previous price and it
     // didn't move. When there's no previous price at all, that's not the
@@ -349,12 +354,12 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 ? Icons.trending_down_rounded
                 : Icons.trending_flat_rounded;
     final trendLabel = !hasPreviousPrice
-        ? 'New rate'
+        ? l10n.farmerMarketRateTrendNew
         : rate.isUp
-            ? 'Up trend'
+            ? l10n.farmerMarketRateTrendUp
             : rate.isDown
-                ? 'Down trend'
-                : 'Stable trend';
+                ? l10n.farmerMarketRateTrendDown
+                : l10n.farmerMarketRateTrendStable;
 
     return GlassCard(
       padding: const EdgeInsets.all(20),
@@ -362,7 +367,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'CURRENT MARKET RATE',
+            l10n.farmerMarketRateCurrentLabel,
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -422,7 +427,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 if (hasPreviousPrice) ...[
                   const SizedBox(width: 6),
                   Text(
-                    '· ₱${rate.price.priceDifference!.abs().toStringAsFixed(2)} vs. previous',
+                    l10n.farmerMarketRateVsPrevious(rate.price.priceDifference!.abs().toStringAsFixed(2)),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -439,15 +444,16 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   }
 
   // ─── Details card: effective date + source, in matching icon-tile rows
-  Widget _buildDetailsCard(FarmerMarketRateModel rate) {
+  Widget _buildDetailsCard(BuildContext context, FarmerMarketRateModel rate) {
+    final l10n = AppLocalizations.of(context);
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Column(
         children: [
           _DetailRow(
             icon: Icons.calendar_today_rounded,
-            label: 'Effective Date',
-            value: AppUtils.formatDate(rate.recordedAt),
+            label: l10n.priceEffectiveDateLabel,
+            value: AppUtils.formatDate(rate.recordedAt, l10n.localeName),
           ),
           Divider(
             height: 1,
@@ -455,10 +461,10 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
           ),
           _DetailRow(
             icon: Icons.description_outlined,
-            label: 'Source / Reference',
+            label: l10n.priceSourceRefLabel,
             value: rate.source?.trim().isNotEmpty == true
                 ? rate.source!
-                : 'Not specified',
+                : l10n.commonNotSpecified,
           ),
         ],
       ),
@@ -557,6 +563,7 @@ class _OtherPriceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final color = MarketTypeDisplay.color(context, rate.priceType);
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -569,7 +576,7 @@ class _OtherPriceRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              MarketTypeDisplay.label(rate.priceType),
+              MarketTypeDisplay.label(l10n, rate.priceType),
               style: GoogleFonts.inter(
                 fontSize: 9,
                 fontWeight: FontWeight.w700,

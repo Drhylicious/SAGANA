@@ -1,17 +1,17 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
-import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/report_summary_widgets.dart' show ReportIconStatCard, ReportSectionCard;
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
@@ -69,12 +69,17 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
     return map;
   }
 
+  // Loan Item Catalog is view-only for pricing/notes — its purpose is
+  // determining loan eligibility, not editing the item itself. Unit Price
+  // and Notes are only editable from Inventory Management's own
+  // Publish/Update Catalog action (_showLoanCatalogSheet in
+  // admin_inventory_screen.dart), which already re-opens as "Update Loan
+  // Catalog" for an already-published item. This sheet now only lets the
+  // admin toggle eligibility, and passes the existing price/notes back
+  // unchanged rather than exposing them as editable fields here too.
   void _showLoanSettingsSheet(LoanCatalogItem existing) {
-    final formKey = GlobalKey<FormState>();
-    final notesCtrl = TextEditingController(text: existing.notes ?? '');
-    final priceCtrl = TextEditingController(
-      text: existing.unitPrice.toStringAsFixed(2),
-    );
+    final l10n = AppLocalizations.of(context);
+    final currency = existing.unitPrice.toStringAsFixed(2);
     bool isEligible = existing.isLoanEligible;
     bool isSaving = false;
 
@@ -83,90 +88,66 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
       builder: (ctx) {
         return StatefulBuilder(builder: (ctx, setSheet) {
           Future<void> submit() async {
-            if (!formKey.currentState!.validate()) return;
-            final price = double.tryParse(priceCtrl.text.trim()) ?? 0;
             setSheet(() => isSaving = true);
             final ok = await _repo.updateLoanCatalogRules(
               loanItemId: existing.loanItemId,
-              unitPrice: price,
+              unitPrice: existing.unitPrice,
               isLoanEligible: isEligible,
-              notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+              notes: existing.notes,
             );
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (ok) _load();
             ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
-              content: Text(ok ? 'Loan rules updated' : 'Failed. Try again.'),
+              content: Text(ok ? l10n.loanItemRulesUpdated : l10n.loanItemFailedTryAgain),
               backgroundColor: ok ? AppConstants.successGreen : AppConstants.errorRed,
               behavior: SnackBarBehavior.floating,
             ));
           }
 
           return ManagementModalShell(
-            title: 'Loan Settings',
+            title: l10n.loanItemSettingsTitle,
             subtitle: '${existing.itemName} · ${existing.unit}',
-            body: Form(
-              key: formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _readOnlyField('Item Name', existing.itemName, ctx),
-                  const SizedBox(height: 12),
-                  _readOnlyField('Category', existing.category, ctx),
-                  const SizedBox(height: 12),
-                  _readOnlyField('Unit', existing.unit, ctx),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Available in stock',
-                          style: GoogleFonts.inter(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-                      Text('${existing.quantityOnHand.toStringAsFixed(0)} ${existing.unit}',
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Available for loan issuance'),
-                    value: isEligible,
-                    onChanged: (v) => setSheet(() => isEligible = v),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: priceCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit Price (₱) *',
-                      hintText: '0.00',
-                      prefixText: '₱ ',
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                    ],
-                    validator: (value) {
-                      if ((value ?? '').trim().isEmpty) {
-                        return 'Unit price is required';
-                      }
-                      if (!isValidCurrencyValue(value)) return 'Enter a valid amount';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: notesCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes (optional)',
-                      hintText: 'Subsidy terms, eligibility notes',
-                    ),
-                    maxLines: 2,
-                  ),
-                ],
-              ),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _readOnlyField(l10n.loanItemNameLabel, existing.itemName, ctx),
+                const SizedBox(height: 12),
+                _readOnlyField(l10n.adminOrderDetailCategory, existing.category, ctx),
+                const SizedBox(height: 12),
+                _readOnlyField(l10n.loanItemUnitLabel, existing.unit, ctx),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(l10n.loanItemAvailableInStock,
+                        style: GoogleFonts.inter(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                    Text('${existing.quantityOnHand.toStringAsFixed(0)} ${existing.unit}',
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _readOnlyField(l10n.loanItemUnitPriceLabel, '₱$currency', ctx),
+                const SizedBox(height: 12),
+                _readOnlyField(l10n.issueLoanNotes,
+                    (existing.notes ?? '').isEmpty ? '—' : existing.notes!, ctx),
+                const SizedBox(height: 4),
+                Text(
+                  'Price and notes are set from Inventory Management — use its Publish action to change them.',
+                  style: GoogleFonts.inter(fontSize: 11, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.loanItemAvailableForIssuance),
+                  value: isEligible,
+                  onChanged: (v) => setSheet(() => isEligible = v),
+                ),
+              ],
             ),
             footer: ManagementModalActions(
-              primaryLabel: isSaving ? 'Saving…' : 'Save Changes',
+              primaryLabel: isSaving ? l10n.adminInvSaving : l10n.cropMgmtSaveChanges,
               isLoading: isSaving,
               onPrimary: submit,
             ),
@@ -188,7 +169,8 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.4)),
           ),
           child: Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
         ),
@@ -196,8 +178,27 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
     );
   }
 
+  // LoanCatalogItem.category is joined through cooperative_inventory
+  // (loan_items_master has no category column of its own — see
+  // publishToLoanCatalog()), so it shares the same admin-managed,
+  // open-ended vocabulary as Inventory Management. Same icon mapping and
+  // same accepted fallback for a category added after this list.
+  IconData _categoryIcon(String category) {
+    switch (category) {
+      case 'Fertilizer':             return Icons.eco_rounded;
+      case 'Seeds':                  return Icons.grass_rounded;
+      case 'Animal Feeds':           return Icons.pets_rounded;
+      case 'Pesticide':              return Icons.bug_report_rounded;
+      case 'Tools & Equipment':      return Icons.handyman_rounded;
+      case 'Harvest Stock':          return Icons.agriculture_rounded;
+      case 'Livestock':              return Icons.cruelty_free_rounded;
+      default:                       return Icons.inventory_2_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final grouped = _grouped;
@@ -229,7 +230,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                     ),
                     Expanded(
                       child: Text(
-                        'Loan Item Catalog',
+                        l10n.loanItemCatalogTitle,
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -258,40 +259,6 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
               ),
             ),
 
-          // Category filter chips
-          if (!_isLoading && _items.isNotEmpty)
-            Container(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    _CategoryChip(
-                      label: 'All',
-                      isSelected: _selectedCategory == null,
-                      onTap: () => setState(() => _selectedCategory = null),
-                      cs: cs,
-                      sagana: sagana,
-                    ),
-                    ...{for (final i in _items) i.category}.map(
-                      (cat) => Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: _CategoryChip(
-                          label: cat,
-                          isSelected: _selectedCategory == cat,
-                          onTap: () => setState(() => _selectedCategory = cat),
-                          cs: cs,
-                          sagana: sagana,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -300,56 +267,124 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
-                    child: _filtered.isEmpty
-                        ? ListView(
+                    // Single outer scrollable so the KPI cards and category
+                    // chips scroll away with the list below them, instead
+                    // of staying pinned as static siblings above it (per
+                    // your Item B request — matches Crop Management /
+                    // Price Management's own KPI-inside-the-list pattern).
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        AppConstants.spacingGutter,
+                        AppConstants.spacingSafeH,
+                        AppConstants.spacingSafeH,
+                      ),
+                      children: [
+                        if (_items.isNotEmpty) ...[
+                          // KPI cards (dashboard.md section 10) — grouped
+                          // inside the same outer titled container the
+                          // Report tab uses (Executive Snapshot etc.).
+                          ReportSectionCard(
+                            title: 'Catalog Overview',
+                            icon: Icons.inventory_2_rounded,
+                            accent: AppConstants.buyerBlue,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ReportIconStatCard(
+                                    icon: Icons.inventory_2_rounded,
+                                    accent: AppConstants.buyerBlue,
+                                    label: l10n.reportsTotalItems,
+                                    value: '${_items.length}',
+                                  ),
+                                ),
+                                const SizedBox(width: AppConstants.spacingSm),
+                                Expanded(
+                                  child: ReportIconStatCard(
+                                    icon: Icons.category_rounded,
+                                    accent: AppConstants.primaryGreen,
+                                    label: l10n.reportsCategories,
+                                    value:
+                                        '${{for (final i in _items) i.category}.length}',
+                                  ),
+                                ),
+                                const SizedBox(width: AppConstants.spacingSm),
+                                Expanded(
+                                  child: ReportIconStatCard(
+                                    icon: Icons.check_circle_rounded,
+                                    accent: AppConstants.successGreen,
+                                    // "Loan-Eligible" wrapped to 2 lines in
+                                    // this card's 1/3-width slot (unlike
+                                    // "Total Items"/"Categories", which fit
+                                    // on one), making this one card taller
+                                    // than its siblings — ReportIconStatCard
+                                    // sizes to its own content, so the fix
+                                    // is a label that reliably fits one
+                                    // line here too, not a layout change.
+                                    label: 'Eligible',
+                                    value:
+                                        '${_items.where((i) => i.isLoanEligible).length}',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Category filter chips
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            padding: EdgeInsets.zero,
+                            child: Row(
+                              children: [
+                                _CategoryChip(
+                                  label: 'All',
+                                  isSelected: _selectedCategory == null,
+                                  onTap: () => setState(() => _selectedCategory = null),
+                                  cs: cs,
+                                  sagana: sagana,
+                                ),
+                                ...{for (final i in _items) i.category}.map(
+                                  (cat) => Padding(
+                                    padding: const EdgeInsets.only(left: 8),
+                                    child: _CategoryChip(
+                                      label: cat,
+                                      isSelected: _selectedCategory == cat,
+                                      onTap: () => setState(() => _selectedCategory = cat),
+                                      cs: cs,
+                                      sagana: sagana,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        if (_filtered.isEmpty)
+                          Column(
                             children: [
-                              const SizedBox(height: 100),
+                              const SizedBox(height: 60),
                               Center(
                                 child: Column(
                                   children: [
                                     Icon(Icons.inventory_2_rounded, size: 48, color: cs.onSurfaceVariant),
                                     const SizedBox(height: 12),
                                     Text(
-                                      'No loanable items yet',
+                                      l10n.loanItemNoItemsYet,
                                       style: GoogleFonts.inter(fontSize: 14, color: cs.onSurfaceVariant),
                                     ),
                                     const SizedBox(height: 8),
                                     TextButton(
                                       onPressed: () => context.push(AppRoutes.adminInventory),
-                                      child: const Text('Publish from Inventory'),
+                                      child: Text(l10n.loanItemPublishFromInventory),
                                     ),
                                   ],
                                 ),
                               ),
                             ],
                           )
-                        : ListView(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppConstants.spacingSafeH,
-                              AppConstants.spacingGutter,
-                              AppConstants.spacingSafeH,
-                              AppConstants.spacingSafeH,
-                            ),
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: cs.primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.category_rounded, size: 16, color: cs.primary),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '${_filtered.length} item${_filtered.length == 1 ? '' : 's'} · ${grouped.keys.length} categor${grouped.keys.length == 1 ? 'y' : 'ies'}',
-                                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: cs.primary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              for (final category in grouped.keys) ...[
+                        else
+                          for (final category in grouped.keys) ...[
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8, top: 4),
                                   child: Text(
@@ -362,88 +397,103 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                                     ),
                                   ),
                                 ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: sagana.cardBackground,
-                                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                                    border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-                                    boxShadow: [
-                                      BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    children: grouped[category]!.asMap().entries.map((entry) {
-                                      final i = entry.key;
-                                      final item = entry.value;
-                                      final isLast = i == grouped[category]!.length - 1;
-                                      return Column(children: [
-                                        GestureDetector(
-                                          onTap: () => _showLoanSettingsSheet(item),
-                                          behavior: HitTestBehavior.opaque,
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                // Individual horizontal cards, one per item
+                                // — matches Marketplace All Listings'
+                                // _AllListingCard layout (image left,
+                                // rounded 68x68, info right), used here as
+                                // the direct visual reference, replacing
+                                // the previous shared-container-with-
+                                // dividers list and its generic category
+                                // icon.
+                                for (final item in grouped[category]!)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: GestureDetector(
+                                      onTap: () => _showLoanSettingsSheet(item),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: sagana.cardBackground,
+                                          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                                          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+                                          boxShadow: [
+                                            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                              child: SizedBox(
+                                                width: 68,
+                                                height: 68,
+                                                child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                                                    ? Image.network(
+                                                        item.imageUrl!,
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (_, __, ___) =>
+                                                            _CatalogThumb(cs: cs, icon: _categoryIcon(item.category)),
+                                                      )
+                                                    : _CatalogThumb(cs: cs, icon: _categoryIcon(item.category)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    item.itemName,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: cs.onSurface,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Row(
                                                     children: [
                                                       Text(
-                                                        item.itemName,
+                                                        '₱${item.unitPrice.toStringAsFixed(2)} / ${item.unit}',
                                                         style: GoogleFonts.poppins(
                                                           fontSize: 13,
-                                                          fontWeight: FontWeight.w600,
-                                                          color: cs.onSurface,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: cs.primary,
                                                         ),
                                                       ),
-                                                      const SizedBox(height: 4),
-                                                      Row(
-                                                        children: [
-                                                          Text(
-                                                            '₱${item.unitPrice.toStringAsFixed(2)} / ${item.unit}',
-                                                            style: GoogleFonts.poppins(
-                                                              fontSize: 13,
-                                                              fontWeight: FontWeight.w700,
-                                                              color: cs.primary,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(width: 8),
-                                                          Text(
-                                                            'Stock: ${item.quantityOnHand.toStringAsFixed(0)}',
-                                                            style: GoogleFonts.inter(
-                                                              fontSize: 11,
-                                                              color: cs.onSurfaceVariant,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      if (!item.isLoanEligible)
-                                                        Container(
-                                                          margin: const EdgeInsets.only(top: 4),
-                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                          decoration: BoxDecoration(
-                                                            color: AppConstants.warningAmber.withValues(alpha: 0.15),
-                                                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                                                          ),
-                                                          child: Text('NOT ELIGIBLE',
-                                                              style: GoogleFonts.inter(
-                                                                  fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.amber)),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        'Stock: ${item.quantityOnHand.toStringAsFixed(0)}',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 11,
+                                                          color: cs.onSurfaceVariant,
                                                         ),
+                                                      ),
                                                     ],
                                                   ),
-                                                ),
-                                                Icon(Icons.chevron_right_rounded, size: 20, color: cs.onSurfaceVariant),
-                                              ],
+                                                  if (!item.isLoanEligible)
+                                                    Container(
+                                                      margin: const EdgeInsets.only(top: 4),
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: AppConstants.warningAmber.withValues(alpha: 0.15),
+                                                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                                                      ),
+                                                      child: Text(l10n.loanItemNotEligibleBadge,
+                                                          style: GoogleFonts.inter(
+                                                              fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.amber)),
+                                                    ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
+                                            Icon(Icons.chevron_right_rounded, size: 20, color: cs.onSurfaceVariant),
+                                          ],
                                         ),
-                                        if (!isLast)
-                                          Divider(height: 1, indent: 14, endIndent: 14, color: cs.outline.withValues(alpha: 0.08)),
-                                      ]);
-                                    }).toList(),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 8),
                               ],
                             ],
                           ),
@@ -455,7 +505,22 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
   }
 }
 
-// ── Shared widgets ────────────────────────────────────────────────────────────
+// Fallback thumbnail when an item has no photo — same shape/role as
+// all_listings_screen.dart's own _Thumb, just parameterized by icon
+// instead of hardcoded to a crop icon.
+class _CatalogThumb extends StatelessWidget {
+  final ColorScheme cs;
+  final IconData icon;
+  const _CatalogThumb({required this.cs, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: cs.surfaceContainerHighest,
+      child: Center(child: Icon(icon, size: 26, color: cs.outline.withValues(alpha: 0.40))),
+    );
+  }
+}
 
 class _CategoryChip extends StatelessWidget {
   final String label;

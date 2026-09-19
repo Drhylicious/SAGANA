@@ -11,6 +11,7 @@ import '../../../data/repositories/broadcast_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/web_safe_blur_container.dart';
+import 'broadcast_history_screen.dart' show recipientTypeLabel, broadcastCategoryLabel;
 
 class NotificationBroadcastScreen extends StatefulWidget {
   /// When set, opens pre-targeted at a single buyer — reused by
@@ -176,25 +177,26 @@ class _NotificationBroadcastScreenState
   // ── Send ───────────────────────────────────────────────────────────────────
 
   Future<void> _send() async {
+    final l10n = AppLocalizations.of(context);
     final title = _titleCtrl.text.trim();
     final body  = _bodyCtrl.text.trim();
     if (title.isEmpty || body.isEmpty) {
-      _showSnack('Please fill in the title and message body.');
+      _showSnack(l10n.broadcastFillTitleBody);
       return;
     }
     if (_recipientType == RecipientType.specificCrop &&
         (_cropFilter == null || _cropFilter!.isEmpty)) {
-      _showSnack('Please select a crop for the specific crop filter.');
+      _showSnack(l10n.broadcastSelectCropFilter);
       return;
     }
     if (_recipientType == RecipientType.specificFarmer &&
         (_farmerFilter == null || _farmerFilter!.isEmpty)) {
-      _showSnack('Please select a farmer to send to.');
+      _showSnack(l10n.broadcastSelectFarmerFilter);
       return;
     }
     if (_recipientType == RecipientType.specificBuyer &&
         (_buyerFilter == null || _buyerFilter!.isEmpty)) {
-      _showSnack('Please select a buyer to send to.');
+      _showSnack(l10n.broadcastSelectBuyerFilter);
       return;
     }
 
@@ -215,13 +217,13 @@ class _NotificationBroadcastScreenState
       final recipientNoun =
           (_recipientType == RecipientType.allBuyers ||
                   _recipientType == RecipientType.specificBuyer)
-              ? 'buyer'
-              : 'member';
+              ? l10n.broadcastRecipientNounBuyer
+              : l10n.broadcastRecipientNounMember;
 
       _showSnack(
         _scheduleEnabled && _scheduledAt != null
-            ? 'Scheduled for ${_formatScheduleLabel(_scheduledAt!)} • $count recipients'
-            : 'Sent to $count $recipientNoun${count == 1 ? '' : 's'} successfully.',
+            ? l10n.broadcastScheduledFor(_formatScheduleLabel(_scheduledAt!), count)
+            : l10n.broadcastSentToRecipients(count, recipientNoun),
         isSuccess: true,
       );
 
@@ -240,9 +242,10 @@ class _NotificationBroadcastScreenState
       _refreshRecipientCount();
       await Future.delayed(const Duration(milliseconds: 400));
       if (mounted) _loadAll();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('NotificationBroadcastScreen._send failed: $e');
       setState(() => _isSending = false);
-      _showSnack('Failed to send. Please try again.');
+      _showSnack(l10n.broadcastSendFailed);
     }
   }
 
@@ -299,21 +302,33 @@ class _NotificationBroadcastScreenState
                         children: [
 
                           // ── Compose section header ──────────────────────
+                          // Expanded on the heading, not spaceBetween with
+                          // two unguarded children: "Gumamit ng Template"
+                          // (Use Template) is noticeably longer than the
+                          // English source, and together with "Bumuo ng
+                          // Mensahe" (Compose Message) the two used to
+                          // overflow this Row on the right. The trailing
+                          // action keeps its natural size; the heading
+                          // yields first via ellipsis if space is tight.
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                l10n.broadcastCompose,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  color: cs.onSurface,
+                              Expanded(
+                                child: Text(
+                                  l10n.broadcastCompose,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: cs.onSurface,
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               GestureDetector(
                                 onTap: _showTemplateSheet,
                                 child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
                                       Icons.history_edu_rounded,
@@ -387,10 +402,10 @@ class _NotificationBroadcastScreenState
                           const SizedBox(height: 8),
                           _LivePreview(
                             title: _titleCtrl.text.isEmpty
-                                ? 'Notification Title'
+                                ? l10n.broadcastNotificationTitlePlaceholder
                                 : _titleCtrl.text,
                             body: _bodyCtrl.text.isEmpty
-                                ? 'Your message will appear here...'
+                                ? l10n.broadcastMessagePlaceholder
                                 : _bodyCtrl.text,
                             cs: cs,
                             sagana: sagana,
@@ -418,6 +433,10 @@ class _NotificationBroadcastScreenState
                           // ── Send button ─────────────────────────────────
                           _SendButton(
                             recipientCount: _recipientCount,
+                            recipientNoun: (_recipientType == RecipientType.allBuyers ||
+                                    _recipientType == RecipientType.specificBuyer)
+                                ? l10n.broadcastRecipientNounBuyer
+                                : l10n.broadcastRecipientNounMember,
                             isSending:      _isSending,
                             isOnline:       _isOnline,
                             isScheduled:    _scheduleEnabled,
@@ -444,7 +463,7 @@ class _NotificationBroadcastScreenState
                               TextButton.icon(
                                 onPressed: () => context.push(AppRoutes.broadcastHistory),
                                 icon: const Icon(Icons.list_alt_rounded, size: 18),
-                                label: const Text('View All'),
+                                label: Text(l10n.broadcastViewAll),
                               ),
                             ],
                           ),
@@ -475,7 +494,7 @@ class _NotificationBroadcastScreenState
             left: 0,
             right: 0,
             child: _TopAppBar(
-              title: 'Broadcast Announcements',
+              title: l10n.broadcastAnnouncementsTitle,
               onBack: () => context.pop(),
               cs: cs,
               sagana: sagana,
@@ -589,14 +608,15 @@ class _ComposeCard extends StatelessWidget {
     required this.onBuyerFilterChanged,
   });
 
-  String _recipientNoun(RecipientType t) =>
+  String _recipientNoun(AppLocalizations l10n, RecipientType t) =>
       (t == RecipientType.allBuyers || t == RecipientType.specificBuyer)
-          ? 'buyer'
-          : 'member';
+          ? l10n.broadcastRecipientNounBuyer
+          : l10n.broadcastRecipientNounMember;
 
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -619,7 +639,7 @@ class _ComposeCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Recipients',
+                l10n.broadcastRecipientsLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -627,8 +647,7 @@ class _ComposeCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Sending to: $recipientCount ${_recipientNoun(recipientType)}'
-                '${recipientCount == 1 ? '' : 's'}',
+                l10n.broadcastSendingTo(recipientCount, _recipientNoun(l10n, recipientType)),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -649,7 +668,7 @@ class _ComposeCard extends StatelessWidget {
             items: RecipientType.values
                 .map((t) => DropdownMenuItem(
                       value: t,
-                      child: Text(t.label),
+                      child: Text(recipientTypeLabel(l10n, t)),
                     ))
                 .toList(),
             onChanged: (v) {
@@ -662,7 +681,7 @@ class _ComposeCard extends StatelessWidget {
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               initialValue: cropFilter,
-              hint: Text('Select crop',
+              hint: Text(l10n.broadcastSelectCrop,
                   style: GoogleFonts.inter(
                       fontSize: 14, color: cs.outline)),
               decoration: const InputDecoration(
@@ -686,7 +705,7 @@ class _ComposeCard extends StatelessWidget {
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               initialValue: farmerFilter,
-              hint: Text('Select farmer',
+              hint: Text(l10n.broadcastSelectFarmer,
                   style: GoogleFonts.inter(
                       fontSize: 14, color: cs.outline)),
               decoration: const InputDecoration(
@@ -710,7 +729,7 @@ class _ComposeCard extends StatelessWidget {
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               initialValue: buyerFilter,
-              hint: Text('Select buyer',
+              hint: Text(l10n.broadcastSelectBuyer,
                   style: GoogleFonts.inter(
                       fontSize: 14, color: cs.outline)),
               decoration: const InputDecoration(
@@ -732,7 +751,7 @@ class _ComposeCard extends StatelessWidget {
 
           // ── Category chips ────────────────────────────────────────────
           Text(
-            'Category',
+            l10n.broadcastCategoryLabel,
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -773,7 +792,7 @@ class _ComposeCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            cat.label,
+                            broadcastCategoryLabel(l10n, cat),
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: active
@@ -799,7 +818,7 @@ class _ComposeCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Notification Title',
+                l10n.broadcastNotificationTitleLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -824,7 +843,7 @@ class _ComposeCard extends StatelessWidget {
             buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
                 const SizedBox.shrink(),
             decoration: InputDecoration(
-              hintText: 'Enter title...',
+              hintText: l10n.broadcastEnterTitleHint,
               hintStyle: GoogleFonts.inter(
                   fontSize: 14, color: cs.outline),
               contentPadding: const EdgeInsets.symmetric(
@@ -840,7 +859,7 @@ class _ComposeCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Message Body',
+                l10n.broadcastMessageBodyLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -866,7 +885,7 @@ class _ComposeCard extends StatelessWidget {
             buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
                 const SizedBox.shrink(),
             decoration: InputDecoration(
-              hintText: 'Enter message...',
+              hintText: l10n.broadcastEnterMessageHint,
               hintStyle: GoogleFonts.inter(
                   fontSize: 14, color: cs.outline),
               contentPadding: const EdgeInsets.symmetric(
@@ -910,6 +929,7 @@ class _LivePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -924,7 +944,7 @@ class _LivePreview extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'LIVE PREVIEW',
+            l10n.broadcastLivePreview,
             style: GoogleFonts.inter(
               fontSize: 9,
               fontWeight: FontWeight.w800,
@@ -988,7 +1008,7 @@ class _LivePreview extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Just now',
+                            l10n.broadcastJustNow,
                             style: GoogleFonts.inter(
                               fontSize: 10,
                               color: AppConstants.outline,
@@ -1171,6 +1191,7 @@ class _ScheduleRow extends StatelessWidget {
 
 class _SendButton extends StatelessWidget {
   final int recipientCount;
+  final String recipientNoun;
   final bool isSending;
   final bool isOnline;
   final bool isScheduled;
@@ -1181,6 +1202,7 @@ class _SendButton extends StatelessWidget {
 
   const _SendButton({
     required this.recipientCount,
+    required this.recipientNoun,
     required this.isSending,
     required this.isOnline,
     required this.isScheduled,
@@ -1193,9 +1215,12 @@ class _SendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canSend = isOnline && !isSending;
+    final noun = recipientNoun.isEmpty
+        ? recipientNoun
+        : recipientNoun[0].toUpperCase() + recipientNoun.substring(1);
     final label   = isScheduled && scheduledAt != null
         ? 'Schedule for ${formatLabel(scheduledAt!)}'
-        : 'Send to $recipientCount Member${recipientCount == 1 ? '' : 's'}';
+        : 'Send to $recipientCount $noun${recipientCount == 1 ? '' : 's'}';
 
     return GestureDetector(
       onTap: canSend ? onSend : null,
@@ -1266,8 +1291,11 @@ class _BroadcastHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n  = AppLocalizations.of(context);
     final cfg   = _categoryConfig(broadcast.category, cs);
-    final time  = _timeLabel(broadcast.sentAt);
+    // fetchRecentBroadcasts() filters out sent_at IS NULL rows, so this is
+    // always populated here — pending/queued broadcasts never reach this card.
+    final time  = _timeLabel(l10n, broadcast.sentAt!);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1323,7 +1351,7 @@ class _BroadcastHistoryCard extends StatelessWidget {
                             AppConstants.radiusFull),
                       ),
                       child: Text(
-                        broadcast.category.label.toUpperCase(),
+                        broadcastCategoryLabel(l10n, broadcast.category).toUpperCase(),
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -1419,12 +1447,12 @@ class _BroadcastHistoryCard extends StatelessWidget {
     }
   }
 
-  String _timeLabel(DateTime dt) {
+  String _timeLabel(AppLocalizations l10n, DateTime dt) {
     final now  = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inMinutes < 60) return 'Today, ${_hhmm(dt)}';
-    if (diff.inDays == 0)    return 'Today, ${_hhmm(dt)}';
-    if (diff.inDays == 1)    return 'Yesterday, ${_hhmm(dt)}';
+    if (diff.inMinutes < 60) return '${l10n.broadcastToday}, ${_hhmm(dt)}';
+    if (diff.inDays == 0)    return '${l10n.broadcastToday}, ${_hhmm(dt)}';
+    if (diff.inDays == 1)    return '${l10n.buyerNotifTimeYesterday}, ${_hhmm(dt)}';
     const months = ['Jan','Feb','Mar','Apr','May','Jun',
                     'Jul','Aug','Sep','Oct','Nov','Dec'];
     return '${months[dt.month - 1]} ${dt.day}, ${_hhmm(dt)}';
@@ -1469,6 +1497,7 @@ class _TemplateSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
@@ -1494,7 +1523,7 @@ class _TemplateSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Quick Templates',
+            l10n.broadcastQuickTemplates,
             style: GoogleFonts.poppins(
               fontSize: 17,
               fontWeight: FontWeight.w700,
@@ -1503,7 +1532,7 @@ class _TemplateSheet extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Select a template to pre-fill the compose form',
+            l10n.broadcastSelectTemplateHint,
             style: GoogleFonts.inter(
               fontSize: 12,
               color: cs.onSurfaceVariant,
@@ -1556,7 +1585,7 @@ class _TemplateSheet extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                tpl.category.label,
+                                broadcastCategoryLabel(l10n, tpl.category),
                                 style: GoogleFonts.inter(
                                   fontSize: 11,
                                   color: cs.onSurfaceVariant,
@@ -1631,7 +1660,7 @@ class _EmptyHistory extends StatelessWidget {
                 color: cs.outline.withValues(alpha: 0.40)),
             const SizedBox(height: 10),
             Text(
-              'No broadcasts yet',
+              AppLocalizations.of(context).broadcastNoBroadcastsYet,
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

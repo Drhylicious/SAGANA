@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -11,16 +10,10 @@ import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
-
-// Local bypass — BuyerProfileModel.memberSinceLabel hardcodes English
-// month abbreviations, and the model is shared with Admin's
-// fetchAllBuyers()/fetchAdminView() paths, so it isn't modified directly.
-String _memberSinceLabel(DateTime memberSince, AppLocalizations l10n) {
-  return l10n.buyerMemberSince(DateFormat('MMM y', l10n.localeName).format(memberSince));
-}
 
 class BuyerAccountScreen extends StatefulWidget {
   const BuyerAccountScreen({super.key});
@@ -94,6 +87,21 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
+      drawer: AppNavigationDrawer(
+        photoUrl: _profile?.profilePhotoUrl,
+        displayName: _profile?.fullName ?? 'Buyer',
+        contactEmail: _profile?.contactEmail,
+        phoneNumber: _profile?.phoneNumber,
+        onEditProfile: () {
+          Navigator.pop(context);
+          context.push(AppRoutes.buyerEditProfile);
+        },
+        onSignOut: () => confirmBuyerSignOut(context),
+        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+      ),
       body: Stack(
         children: [
           Column(
@@ -134,7 +142,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                 await context.push(AppRoutes.buyerNotifications);
                 _loadUnreadCount();
               },
-              onSettingsTap: () => context.push(AppRoutes.buyerSettings),
+              enableMenu: true,
             ),
           ),
         ],
@@ -164,7 +172,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                     style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
                 const SizedBox(height: 2),
                 if (profile != null)
-                  Text(_memberSinceLabel(profile.memberSince, l10n),
+                  Text(buyerMemberSinceLabel(l10n, profile.memberSince),
                       style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
               ],
             ),

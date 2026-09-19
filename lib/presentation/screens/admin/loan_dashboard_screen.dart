@@ -9,12 +9,14 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
+import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/app_navigation_drawer.dart';
 
 /// Loan Management — Admin Dashboard.
 /// Shell tab (branch 3, adminLoansKey). No back button.
@@ -84,6 +86,27 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      drawer: AnimatedBuilder(
+        animation: AdminProfileStateService.instance,
+        builder: (context, _) {
+          final profile = AdminProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Admin',
+            contactEmail: profile?.contactEmail ?? profile?.email,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.push(AppRoutes.adminEditProfile);
+            },
+            onSignOut: () => confirmAdminSignOut(context),
+            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: Column(
         children: [
           if (!_isOnline) const OfflineBanner(),
@@ -92,6 +115,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
             onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
+            enableMenu: true,
           ),
           Expanded(
             child: RefreshIndicator(
@@ -316,17 +340,26 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppConstants.spacingMd,
       crossAxisSpacing: AppConstants.spacingMd,
-      childAspectRatio: 1.7,
+      // Shorter than the original 1.7 so the value row has room to render
+      // near its set size instead of a shallow card forcing the
+      // FittedBox(fit: scaleDown) to shrink it back down regardless of
+      // fontSize — 1.5 (vs. an earlier 1.35) keeps that room without the
+      // card reading as oversized.
+      childAspectRatio: 1.5,
       children: [
-        _kpiCard(l10n.loanDashActiveLoans, '${_stats.activeLoansCount}', AppConstants.successGreen, cs, sagana),
-        _kpiCard(l10n.loanDashTotalOutstanding, currency.format(_stats.totalOutstanding), AppConstants.buyerBlue, cs, sagana),
-        _kpiCard(l10n.loanDashOverdueLoans, '${_stats.overdueLoansCount}', AppConstants.errorRed, cs, sagana),
+        _kpiCard(l10n.loanDashActiveLoans, '${_stats.activeLoansCount}', AppConstants.successGreen, cs, sagana,
+            icon: Icons.check_circle_rounded),
+        _kpiCard(l10n.loanDashTotalOutstanding, currency.format(_stats.totalOutstanding), AppConstants.buyerBlue, cs, sagana,
+            icon: Icons.account_balance_wallet_rounded),
+        _kpiCard(l10n.loanDashOverdueLoans, '${_stats.overdueLoansCount}', AppConstants.errorRed, cs, sagana,
+            icon: Icons.warning_amber_rounded),
         _kpiCard(
           l10n.loanDashPaidThisMonth,
           '${_stats.paidThisMonthCount}',
           AppConstants.amber,
           cs,
           sagana,
+          icon: Icons.payments_rounded,
           delta: hasDelta ? deltaPercent : null,
         ),
       ],
@@ -339,15 +372,15 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     Color accent,
     ColorScheme cs,
     SaganaColors sagana, {
+    IconData icon = Icons.insights_rounded,
     double? delta,
   }) {
     return Container(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        color: accent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -357,9 +390,12 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                ),
+                child: Icon(icon, size: 16, color: accent),
               ),
               if (delta != null)
                 Row(
@@ -388,7 +424,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
               fit: BoxFit.scaleDown,
               child: Text(
                 value,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 20, color: cs.onSurface),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 21, color: cs.onSurface),
               ),
             ),
           ),
@@ -416,10 +452,19 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+        // Flexible + ellipsis: translated section titles ("Kasaysayan ng
+        // Pautang") run longer than the English source and this Row has
+        // no other slack next to the "See all" link — without this a
+        // long title overflows past the available width.
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+          ),
         ),
+        const SizedBox(width: 8),
         GestureDetector(
           onTap: onSeeAll,
           child: Text(
@@ -516,7 +561,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           height: 90,
           margin: const EdgeInsets.only(bottom: AppConstants.spacingMd),
           decoration: BoxDecoration(
-            color: Colors.grey.withValues(alpha: 0.1),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           ),
         ),
@@ -698,8 +743,9 @@ class _AdminLoanCard extends StatelessWidget {
   }
 
   Widget _statusBadge(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final color = loan.isOverdue ? AppConstants.errorRed : AppConstants.successGreen;
-    final label = loan.isOverdue ? 'OVERDUE' : 'ACTIVE';
+    final label = loan.isOverdue ? l10n.farmerMgmtOverdueBadge : l10n.farmerMgmtActiveBadge;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -744,6 +790,7 @@ class _SyncIssuesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
@@ -773,7 +820,7 @@ class _SyncIssuesCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Sync Issues',
+                  l10n.loanDashSyncIssues,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -788,7 +835,7 @@ class _SyncIssuesCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   ),
                   child: Text(
-                    '${issues.length} item${issues.length == 1 ? '' : 's'}',
+                    l10n.buyerCartItemCount(issues.length),
                     style: GoogleFonts.inter(
                         fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
                   ),
@@ -820,8 +867,8 @@ class _SyncIssuesCard extends StatelessWidget {
                             children: [
                               Text(
                                 isIssuance
-                                    ? 'Loan Issuance Failed to Sync'
-                                    : 'Payment Failed to Sync',
+                                    ? l10n.loanDashIssuanceFailedSync
+                                    : l10n.loanDashPaymentFailedSync,
                                 style: GoogleFonts.poppins(
                                     fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
                               ),
@@ -858,11 +905,12 @@ class _SyncIssueDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isIssuance = issue['type'] == 'issue';
     final failedAt = DateTime.tryParse(issue['failedAt'] as String? ?? '');
 
     return AlertDialog(
-      title: Text(isIssuance ? 'Loan Issuance Failed to Sync' : 'Payment Failed to Sync'),
+      title: Text(isIssuance ? l10n.loanDashIssuanceFailedSync : l10n.loanDashPaymentFailedSync),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -871,7 +919,7 @@ class _SyncIssueDetailDialog extends StatelessWidget {
           if (failedAt != null) ...[
             const SizedBox(height: 12),
             Text(
-              'Last attempted ${DateFormat('MMM d, h:mm a').format(failedAt)}',
+              l10n.loanDashLastAttempted(DateFormat('MMM d, h:mm a').format(failedAt)),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -880,7 +928,7 @@ class _SyncIssueDetailDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+          child: Text(l10n.close),
         ),
       ],
     );

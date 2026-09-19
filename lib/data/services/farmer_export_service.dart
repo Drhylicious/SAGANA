@@ -83,8 +83,15 @@ class FarmerExportService {
           await _contributionRepo.fetchMySalesForExport(start: start, end: end),
         );
       case ReportModuleType.harvest:
+        // Farmer Download Records has never exported batch/stock data —
+        // only harvest activity. InventoryReportData.empty() preserves
+        // that exact prior behavior (an empty "Batches & Stock" section)
+        // now that the two are serialized together (see
+        // report_csv_serializers.dart — the "Inventory Report" module was
+        // folded into Harvest Report's export on the Admin side).
         return serializeHarvestReportCsv(
           await _harvestRepo.fetchMyHarvestForExport(start: start, end: end),
+          InventoryReportData.empty(),
         );
       case ReportModuleType.expense:
         return serializeExpenseReportCsv(
@@ -101,7 +108,6 @@ class FarmerExportService {
           await _contributionRepo
               .fetchMyContributionForExport(contributionYear),
         );
-      case ReportModuleType.inventory:
       case ReportModuleType.coopStock:
         // Not farmer-relevant (confirmed Phase 0.3) — never included in
         // the fixed `modules` list above, so this branch is unreachable.

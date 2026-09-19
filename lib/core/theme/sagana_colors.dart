@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_constants.dart';
+import '../l10n/app_localizations.dart';
 
 /// Brand-specific tokens beyond Material [ColorScheme].
 @immutable
@@ -134,14 +135,14 @@ class MarketTypeDisplay {
     }
   }
 
-  static String label(String priceType) {
+  static String label(AppLocalizations l10n, String priceType) {
     switch (priceType) {
       case 'sp3_cooperative':
-        return 'Cooperative Market';
+        return l10n.priceCooperativeMarket;
       case 'da_amad_market':
-        return 'DA-AMAD Market';
+        return l10n.marketTypeDaAmad;
       default:
-        return 'Public Market';
+        return l10n.pricePublicMarket;
     }
   }
 }

@@ -1,5 +1,12 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/program_model.dart';
+import 'admin_activity_repository.dart';
+
+class ProgramDuplicateNameException implements Exception {
+  final String programName;
+  const ProgramDuplicateNameException(this.programName);
+}
 
 class ProgramRepository {
   final _client = Supabase.instance.client;
@@ -106,6 +113,27 @@ class ProgramRepository {
     } catch (_) { return []; }
   }
 
+  // Same bucket as uploadInventoryImage() (cooperative_inventory_images),
+  // under a program_images/ prefix — see
+  // supabase_schema_inventory_images_feature.sql. Upload-only, no camera
+  // capture: a program isn't a physical item.
+  Future<String?> uploadProgramImage(Uint8List bytes, String fileExtension) async {
+    try {
+      final uid = _client.auth.currentUser?.id;
+      if (uid == null) return null;
+      final path =
+          '$uid/program_images/${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      await _client.storage.from('cooperative_inventory_images').uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+      return _client.storage.from('cooperative_inventory_images').getPublicUrl(path);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<bool> createProgram({
     required String name,
     required String type,
@@ -114,19 +142,54 @@ class ProgramRepository {
     String? description,
     double? budget,
     String? distributionCategory,
+    String programPurpose = 'distribution',
+    String? imageUrl,
   }) async {
+    final trimmedName = name.trim();
+    // program_name already has a DB-level UNIQUE constraint (so a
+    // duplicate can never actually be saved regardless of this check) —
+    // this pre-check exists purely to give a specific "already exists"
+    // message instead of the generic "Failed. Try again." a raw
+    // unique-violation would otherwise fall through to. Applies to every
+    // program_purpose equally, since the constraint is on program_name
+    // alone — there is no (and should not be a) uniqueness rule on
+    // purpose itself, since multiple programs of the same purpose is the
+    // normal, expected case (e.g. multiple distribution programs already
+    // coexist: Crop Program, Peanut Program, Livestock Program, ...).
+    try {
+      final existing = await _client
+          .from('cooperative_programs')
+          .select('id')
+          .ilike('program_name', trimmedName)
+          .maybeSingle();
+      if (existing != null) {
+        throw ProgramDuplicateNameException(trimmedName);
+      }
+    } on ProgramDuplicateNameException {
+      rethrow;
+    } catch (_) {
+      // Pre-check failing (network, etc.) isn't fatal — fall through to
+      // the insert, which is still protected by the DB constraint.
+    }
     try {
       await _client.from('cooperative_programs').insert({
-        'program_name': name.trim(),
+        'program_name': trimmedName,
         'program_type': type,
         'benefit_type': benefitType,
         'expected_return_percent': expectedReturnPercent,
         'description': description?.trim(),
         'budget': budget,
         'distribution_category': distributionCategory,
+        'program_purpose': programPurpose,
+        'image_url': imageUrl,
         'season_year': DateTime.now().year,
         'created_by': _client.auth.currentUser?.id,
       });
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'created',
+        description: 'Created program "${name.trim()}".',
+      );
       return true;
     } catch (_) { return false; }
   }
@@ -141,6 +204,8 @@ class ProgramRepository {
     double? budget,
     required String status,
     String? distributionCategory,
+    String programPurpose = 'distribution',
+    String? imageUrl,
   }) async {
     try {
       await _client.from('cooperative_programs').update({
@@ -152,7 +217,15 @@ class ProgramRepository {
         'budget': budget,
         'status': status,
         'distribution_category': distributionCategory,
+        'program_purpose': programPurpose,
+        'image_url': imageUrl,
       }).eq('id', id);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'updated',
+        description: 'Updated program "${name.trim()}".',
+        referenceId: id,
+      );
       return true;
     } catch (_) { return false; }
   }
@@ -188,7 +261,17 @@ class ProgramRepository {
 
   Future<bool> deleteProgram(String programId) async {
     try {
+      final row = await _client
+          .from('cooperative_programs')
+          .select('program_name')
+          .eq('id', programId)
+          .maybeSingle();
       await _client.from('cooperative_programs').delete().eq('id', programId);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'deleted',
+        description: 'Deleted program "${row?['program_name'] ?? programId}".',
+      );
       return true;
     } catch (_) { return false; }
   }
@@ -224,6 +307,12 @@ class ProgramRepository {
         'program_id': programId,
         'farmer_id': farmerId,
       });
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'enrolled',
+        description: 'Enrolled a farmer into a program.',
+        referenceId: programId,
+      );
       return true;
     } catch (_) { return false; }
   }
@@ -270,6 +359,173 @@ class ProgramRepository {
       'p_quantity': quantity,
       'p_recorded_by': _client.auth.currentUser?.id,
     });
+  }
+
+  // ─── Sales program products (Cooperative Product Sales Program) ────────
+  // Admin-side product management for a 'sales'-purpose program — see
+  // program_products in supabase_schema_program_product_sales.sql.
+
+  Future<List<ProgramProduct>> fetchProgramProducts(String programId) async {
+    try {
+      final rows = await _client
+          .from('program_products')
+          .select('id, program_id, inventory_item_id, unit_price, is_available, '
+              'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)')
+          .eq('program_id', programId)
+          .order('created_at');
+      return rows.map((r) {
+        final inv = r['cooperative_inventory'] as Map<String, dynamic>?;
+        return ProgramProduct.fromMap({
+          ...r,
+          'item_name': inv?['item_name'],
+          'category': inv?['category'],
+          'unit': inv?['unit'],
+          'quantity_on_hand': inv?['quantity_on_hand'],
+          'image_url': inv?['image_url'],
+        });
+      }).toList();
+    } catch (_) { return []; }
+  }
+
+  /// Active inventory items not already published to the Loan Item
+  /// Catalog — a query-level exclusion (decision: keep cross-catalog
+  /// separation adjustable without a migration, see
+  /// supabase_schema_program_product_sales.sql), not a DB constraint.
+  Future<List<DistributionItem>> fetchEligibleInventoryForSaleProgram() async {
+    try {
+      final results = await Future.wait([
+        _client
+            .from('cooperative_inventory')
+            .select('id, item_name, category, unit, quantity_on_hand')
+            .eq('is_active', true)
+            .order('item_name'),
+        _client.from('loan_items_master').select('inventory_item_id'),
+      ]);
+      final invRows = results[0] as List;
+      final loanRows = results[1] as List;
+      final loanItemIds = loanRows
+          .map((r) => r['inventory_item_id'] as String?)
+          .whereType<String>()
+          .toSet();
+      return invRows
+          .where((r) => !loanItemIds.contains(r['id'] as String))
+          .map((r) => DistributionItem.fromMap(r))
+          .toList();
+    } catch (_) { return []; }
+  }
+
+  Future<bool> addProgramProduct({
+    required String programId,
+    required String inventoryItemId,
+    required double unitPrice,
+  }) async {
+    try {
+      await _client.from('program_products').insert({
+        'program_id': programId,
+        'inventory_item_id': inventoryItemId,
+        'unit_price': unitPrice,
+        'created_by': _client.auth.currentUser?.id,
+      });
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'product_added',
+        description: 'Added a product to a sales program.',
+        referenceId: programId,
+      );
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> updateProgramProduct({
+    required String productId,
+    required double unitPrice,
+    required bool isAvailable,
+  }) async {
+    try {
+      await _client.from('program_products').update({
+        'unit_price': unitPrice,
+        'is_available': isAvailable,
+      }).eq('id', productId);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> removeProgramProduct(String productId) async {
+    try {
+      await _client.from('program_products').delete().eq('id', productId);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  // ─── Purchase review (Cooperative Product Sales Program) ────────────────
+  // Admin-wide — spans every 'sales' program, not just one, since an admin
+  // reviewing payment confirmations wants one place to see all of them.
+
+  Future<List<ProgramPurchase>> fetchPurchasesByStatus(String status) async {
+    try {
+      final rows = await _client
+          .from('program_product_purchases')
+          .select('id, program_id, product_id, farmer_id, quantity, unit_price, '
+              'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
+              'cooperative_programs(program_name), '
+              'program_products(cooperative_inventory(item_name, unit, image_url))')
+          .eq('status', status)
+          .order('requested_at', ascending: status != 'pending');
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final infoRows = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', farmerIds);
+      final nameMap = {
+        for (final r in infoRows)
+          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown',
+      };
+
+      return rows.map((r) {
+        final program = r['cooperative_programs'] as Map<String, dynamic>?;
+        final product = r['program_products'] as Map<String, dynamic>?;
+        final inv = product?['cooperative_inventory'] as Map<String, dynamic>?;
+        return ProgramPurchase.fromMap({
+          ...r,
+          'program_name': program?['program_name'],
+          'item_name': inv?['item_name'],
+          'unit': inv?['unit'],
+          'image_url': inv?['image_url'],
+          'farmer_name': nameMap[r['farmer_id'] as String],
+        });
+      }).toList();
+    } catch (_) { return []; }
+  }
+
+  /// Moves a pending purchase to 'paid' and deducts stock — see
+  /// confirm_program_purchase() in supabase_schema_program_product_sales.sql.
+  /// Deliberately uncaught, same reasoning as issueLoan()/distributeBenefit():
+  /// a stock-moving, real-money write failing silently would let inventory
+  /// and the purchase record disagree.
+  Future<void> confirmPurchase(String purchaseId) async {
+    await _client.rpc('confirm_program_purchase', params: {'p_purchase_id': purchaseId});
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'purchase_confirmed',
+      description: 'Confirmed payment for a program product purchase.',
+      referenceId: purchaseId,
+    );
+  }
+
+  // p_reason has no default on the DB function (confirmed live:
+  // cancel_program_purchase(p_purchase_id uuid, p_reason text)), so it must
+  // always be supplied — omitting it previously meant PostgREST couldn't
+  // match the function overload and every cancellation silently failed.
+  Future<bool> cancelPurchase(String purchaseId, String reason) async {
+    try {
+      await _client.rpc('cancel_program_purchase', params: {
+        'p_purchase_id': purchaseId,
+        'p_reason': reason,
+      });
+      return true;
+    } catch (_) { return false; }
   }
 
   // ─── Revenue-share settlement ───────────────────────────────────────────

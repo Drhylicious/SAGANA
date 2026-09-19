@@ -10,6 +10,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/auth_visuals.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isForgotPasswordLoading = false;
   String? _errorMessage;
 
   late final AnimationController _entranceController;
@@ -115,24 +117,33 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _showForgotPassword() async {
-    // Admins, and any Farmer/Buyer who has promoted a real contact email,
-    // are eligible for the automated OTP reset; everyone else (including
-    // Officer, always) is routed to Admin-assisted reset. See
-    // can_use_otp_reset() — unifies this without special-casing by role.
-    final identifier = _identifierController.text.trim();
-    final canUseOtp = await AuthService.canUseOtpReset(identifier);
-    if (!mounted) return;
-    if (canUseOtp) {
-      _showAdminResetSheet(prefill: identifier);
-    } else {
-      _showContactAdminSheet();
+    // Guard against rapid/repeated taps stacking multiple Forgot Password
+    // sheets while the async eligibility check (and the sheet itself) is
+    // still in flight.
+    if (_isForgotPasswordLoading) return;
+    setState(() => _isForgotPasswordLoading = true);
+    try {
+      // Admins, and any Farmer/Buyer who has promoted a real contact email,
+      // are eligible for the automated OTP reset; everyone else (including
+      // Officer, always) is routed to Admin-assisted reset. See
+      // can_use_otp_reset() — unifies this without special-casing by role.
+      final identifier = _identifierController.text.trim();
+      final canUseOtp = await AuthService.canUseOtpReset(identifier);
+      if (!mounted) return;
+      if (canUseOtp) {
+        await _showAdminResetSheet(prefill: identifier);
+      } else {
+        await _showContactAdminSheet();
+      }
+    } finally {
+      if (mounted) setState(() => _isForgotPasswordLoading = false);
     }
   }
 
-  void _showAdminResetSheet({required String prefill}) {
+  Future<void> _showAdminResetSheet({required String prefill}) async {
     final emailController = TextEditingController(text: prefill);
 
-    AppBottomSheet.show(
+    await AppBottomSheet.show(
       context: context,
       builder: (context) => _ForgotPasswordSheet(
         emailController: emailController,
@@ -149,12 +160,11 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  void _showContactAdminSheet() {
-    AppBottomSheet.show(
+  Future<void> _showContactAdminSheet() async {
+    await AppBottomSheet.show(
       context: context,
-      builder: (context) => _ContactAdminSheet(
-        username: _identifierController.text.trim(),
-      ),
+      builder: (context) =>
+          _ContactAdminSheet(username: _identifierController.text.trim()),
     );
   }
 
@@ -166,43 +176,65 @@ class _LoginScreenState extends State<LoginScreen>
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          const _LoginBackground(),
+          const AuthBackground(),
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: SlideTransition(
                 position: _slideAnimation,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppConstants.spacingSafeH,
-                    vertical: AppConstants.spacingSectionV,
-                  ),
-                  child: Column(
-                    children: [
-                      StaggeredEntrance(index: 0, child: _LogoSection()),
-                      const SizedBox(height: 32),
-                      StaggeredEntrance(
-                        index: 1,
-                        child: _AuthCard(
-                          formKey: _formKey,
-                          identifierController: _identifierController,
-                          passwordController: _passwordController,
-                          obscurePassword: _obscurePassword,
-                          onTogglePassword: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                          errorMessage: _errorMessage,
-                          isLoading: _isLoading,
-                          onLogin: _handleLogin,
-                          onForgotPassword: _showForgotPassword,
-                          onRegister: () =>
-                              context.pushRoute(AppRoutes.register),
+                // Centering the content vertically (rather than letting it
+                // simply stack from the top, which on a normal-height phone
+                // leaves a large, visually unbalanced gap below the Admin
+                // note) — LayoutBuilder + a minHeight-constrained Column
+                // still scrolls normally on shorter viewports or once the
+                // keyboard is open, since SingleChildScrollView only kicks
+                // in when content actually exceeds the available height.
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppConstants.spacingSafeH,
+                        vertical: AppConstants.spacingSectionV,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight:
+                              (constraints.maxHeight -
+                                      2 * AppConstants.spacingSectionV)
+                                  .clamp(0, double.infinity),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            StaggeredEntrance(index: 0, child: _LogoSection()),
+                            const SizedBox(height: 32),
+                            StaggeredEntrance(
+                              index: 1,
+                              child: _AuthCard(
+                                formKey: _formKey,
+                                identifierController: _identifierController,
+                                passwordController: _passwordController,
+                                obscurePassword: _obscurePassword,
+                                onTogglePassword: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
+                                errorMessage: _errorMessage,
+                                isLoading: _isLoading,
+                                onLogin: _handleLogin,
+                                onForgotPassword: _showForgotPassword,
+                                isForgotPasswordLoading:
+                                    _isForgotPasswordLoading,
+                                onRegister: () =>
+                                    context.pushRoute(AppRoutes.register),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            StaggeredEntrance(index: 2, child: _AdminNote()),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      StaggeredEntrance(index: 2, child: _AdminNote()),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -216,57 +248,6 @@ class _LoginScreenState extends State<LoginScreen>
 // ─────────────────────────────────────────────────────────────────────────────
 // Background
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _LoginBackground extends StatelessWidget {
-  const _LoginBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE6F6FF), // surface-container-low
-            Color(0xFFF9FBF7), // background-off-white
-            Color(0xFFD5ECF8), // surface-container-high
-          ],
-        ),
-      ),
-      child: Stack(
-        children: [
-          // Top-left orb
-          Positioned(
-            top: -96,
-            left: -96,
-            child: Container(
-              width: 384,
-              height: 384,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppConstants.primaryGreen.withValues(alpha: 0.05),
-              ),
-            ),
-          ),
-          // Bottom-right orb
-          Positioned(
-            bottom: -96,
-            right: -96,
-            child: Container(
-              width: 384,
-              height: 384,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppConstants.secondaryContainer.withValues(alpha: 0.10),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Logo Section
@@ -339,6 +320,7 @@ class _AuthCard extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onLogin;
   final VoidCallback onForgotPassword;
+  final bool isForgotPasswordLoading;
   final VoidCallback onRegister;
 
   const _AuthCard({
@@ -351,6 +333,7 @@ class _AuthCard extends StatelessWidget {
     required this.isLoading,
     required this.onLogin,
     required this.onForgotPassword,
+    required this.isForgotPasswordLoading,
     required this.onRegister,
   });
 
@@ -406,7 +389,9 @@ class _AuthCard extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: onForgotPassword,
+                    onPressed: isForgotPasswordLoading
+                        ? null
+                        : onForgotPassword,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 4,
@@ -434,7 +419,16 @@ class _AuthCard extends StatelessWidget {
                 ],
 
                 // Sign in button
-                _SignInButton(isLoading: isLoading, onPressed: onLogin),
+                AuthGradientButton(
+                  label: 'Sign In',
+                  isLoading: isLoading,
+                  onPressed: onLogin,
+                  gradientColors: const [
+                    Color(0xFFFCAB28), // secondary-container / harvest
+                    Color(0xFF835400), // secondary
+                  ],
+                  glowColor: AppConstants.amber,
+                ),
 
                 const SizedBox(height: 20),
 
@@ -510,7 +504,7 @@ class _EmailField extends StatelessWidget {
           : TextInputType.emailAddress,
       autocorrect: false,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-      decoration: _fieldDecoration(
+      decoration: authFieldDecoration(
         hint: isUsername ? 'SP3-0001 or OFF-0001' : 'admin@sp3.coop',
         icon: isUsername ? Icons.badge_outlined : Icons.mail_outline_rounded,
       ),
@@ -545,7 +539,7 @@ class _PasswordField extends StatelessWidget {
       controller: controller,
       obscureText: obscureText,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-      decoration: _fieldDecoration(
+      decoration: authFieldDecoration(
         hint: '••••••••',
         icon: Icons.lock_outline_rounded,
         suffix: IconButton(
@@ -566,49 +560,6 @@ class _PasswordField extends StatelessWidget {
       },
     );
   }
-}
-
-InputDecoration _fieldDecoration({
-  required String hint,
-  required IconData icon,
-  Widget? suffix,
-}) {
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: GoogleFonts.inter(
-      fontSize: 14,
-      color: AppConstants.outline.withValues(alpha: 0.50),
-    ),
-    filled: true,
-    fillColor: Colors.white.withValues(alpha: 0.50),
-    prefixIcon: Icon(icon, size: 20, color: AppConstants.outline),
-    suffixIcon: suffix,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: BorderSide(
-        color: AppConstants.outline.withValues(alpha: 0.20),
-      ),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: BorderSide(
-        color: AppConstants.outline.withValues(alpha: 0.20),
-      ),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: const BorderSide(color: AppConstants.primaryGreen, width: 2),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: const BorderSide(color: AppConstants.errorRed),
-    ),
-    focusedErrorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      borderSide: const BorderSide(color: AppConstants.errorRed, width: 2),
-    ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -650,73 +601,6 @@ class _ErrorBanner extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sign In Button
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SignInButton extends StatelessWidget {
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  const _SignInButton({required this.isLoading, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFCAB28), // secondary-container / harvest
-              Color(0xFF835400), // secondary
-            ],
-          ),
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          boxShadow: [
-            BoxShadow(
-              color: AppConstants.amber.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            ),
-          ),
-          child: isLoading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : Text(
-                  'Sign In',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-        ),
       ),
     );
   }
@@ -865,7 +749,7 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
               controller: widget.emailController,
               keyboardType: TextInputType.emailAddress,
               style: GoogleFonts.inter(fontSize: 14),
-              decoration: _fieldDecoration(
+              decoration: authFieldDecoration(
                 hint: 'Your email address',
                 icon: Icons.mail_outline_rounded,
               ),
@@ -964,199 +848,260 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppConstants.outline.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              Container(
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: AppConstants.outline.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.support_agent_rounded,
+                  color: AppConstants.primaryGreen,
+                  size: 28,
                 ),
               ),
-            ),
 
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.support_agent_rounded,
-                color: AppConstants.primaryGreen,
-                size: 28,
-              ),
-            ),
+              const SizedBox(height: 16),
 
-            const SizedBox(height: 16),
-
-            Text(
-              'Need Help Signing In?',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.onSurface,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Farmer, Officer, and Buyer accounts sign in with a SAGANA '
-              'username instead of an email address, so we can\'t send an '
-              'automatic reset link. Please contact the '
-              '${AppConstants.cooperativeName} office for password '
-              'assistance.',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: AppConstants.onSurfaceVariant,
-                height: 1.5,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+              Text(
+                'Need Help Signing In?',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.onSurface,
                 ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+
+              const SizedBox(height: 8),
+
+              Text(
+                'Farmer, Officer, and Buyer accounts sign in with a SAGANA '
+                'username instead of an email address, so we can\'t send an '
+                'automatic reset link. Please contact the '
+                '${AppConstants.cooperativeName} office for password '
+                'assistance.',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppConstants.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  border: Border.all(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      color: AppConstants.primaryGreen,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        AppConstants.cooperativeLocation,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppConstants.onSurface,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Text(
+                'Option 1 — Contact SP3 Office',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
                 children: [
                   const Icon(
-                    Icons.location_on_outlined,
+                    Icons.phone_outlined,
                     color: AppConstants.primaryGreen,
-                    size: 18,
+                    size: 16,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+                  Text(
+                    '#0000000',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AppConstants.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              Text(
+                'Option 2 — Request Password Assistance',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'If you cannot remember your password, you may send a '
+                'temporary-password assistance request to the SP3 Admin.',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: AppConstants.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+
+              if (_requestSent) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppConstants.successGreen.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  child: Text(
+                    'Request sent. An SP3 Admin will assist you.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.successGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+
+              if (!_hasUsername) ...[
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: AppConstants.errorRed,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Please enter your username on the login screen first.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppConstants.errorRed,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              Row(
+                children: [
                   Expanded(
-                    child: Text(
-                      AppConstants.cooperativeLocation,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppConstants.onSurface,
-                        height: 1.4,
+                    child: OutlinedButton(
+                      onPressed: () => context.popRoute(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              'Option 1 — Contact SP3 Office',
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.phone_outlined, color: AppConstants.primaryGreen, size: 16),
-                const SizedBox(width: 8),
-                Text('#0000000', style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface)),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              'Option 2 — Request Password Assistance',
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'If you cannot remember your password, you may send a '
-              'temporary-password assistance request to the SP3 Admin.',
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.4),
-            ),
-
-            if (_requestSent) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppConstants.successGreen.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: Text(
-                  'Request sent. An SP3 Admin will assist you.',
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.successGreen, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-
-            if (!_hasUsername) ...[
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: 16, color: AppConstants.errorRed),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Please enter your username on the login screen first.',
-                      style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed:
+                          (_isSubmitting || _requestSent || !_hasUsername)
+                          ? null
+                          : _handleRequest,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppConstants.primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              _requestSent
+                                  ? 'Request Sent'
+                                  : 'Request Temporary Password',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
                 ],
               ),
             ],
-
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => context.popRoute(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-                    ),
-                    child: Text('Cancel', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: (_isSubmitting || _requestSent || !_hasUsername) ? null : _handleRequest,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppConstants.primaryGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-                    ),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
-                          )
-                        : Text(
-                            _requestSent ? 'Request Sent' : 'Request Temporary Password',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Future<void> _handleRequest() async {

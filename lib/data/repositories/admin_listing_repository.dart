@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
 
 // ─── Admin Listing Model ──────────────────────────────────────────────────────
@@ -642,5 +643,11 @@ class AdminListingRepository {
       'p_listing_id': listingId,
       'p_reason': reason.trim(),
     });
+    AdminActivityRepository().log(
+      module: 'listings',
+      actionType: 'rejected',
+      description: 'Rejected a marketplace listing.',
+      referenceId: listingId,
+    );
   }
 }

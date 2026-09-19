@@ -251,6 +251,7 @@ class LoanCatalogItem {
   final double unitPrice;
   final bool isLoanEligible;
   final String? notes;
+  final String? imageUrl;
 
   const LoanCatalogItem({
     required this.loanItemId,
@@ -262,6 +263,7 @@ class LoanCatalogItem {
     required this.unitPrice,
     this.isLoanEligible = true,
     this.notes,
+    this.imageUrl,
   });
 
   factory LoanCatalogItem.fromMap(Map<String, dynamic> map) {
@@ -276,6 +278,7 @@ class LoanCatalogItem {
       unitPrice: (map['unit_price'] as num).toDouble(),
       isLoanEligible: map['is_loan_eligible'] as bool? ?? true,
       notes: map['notes'] as String?,
+      imageUrl: inv['image_url'] as String?,
     );
   }
 }

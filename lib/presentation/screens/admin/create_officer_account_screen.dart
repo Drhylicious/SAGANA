@@ -7,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/repositories/account_management_repository.dart';
 import '../../../data/services/auth_service.dart';
 
@@ -38,6 +39,14 @@ class _CreateOfficerAccountScreenState
 
   bool _isSaving = false;
   bool _obscurePassword = true;
+  DateTime? _dateOfBirth;
+  String? _gender;
+
+  Map<String, String> _genderOptions(AppLocalizations l10n) => {
+        'male': l10n.registerGenderMale,
+        'female': l10n.registerGenderFemale,
+        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+      };
 
   // Temporary password — either auto-generated (AUTO button) or typed by
   // the Admin, matching the Create Farmer Account flow.
@@ -52,6 +61,20 @@ class _CreateOfficerAccountScreenState
       _passwordCtrl.text = buffer.toString();
       _obscurePassword = false;
     });
+  }
+
+  Future<void> _pickDateOfBirth() async {
+    final picked = await AppUtils.pickDateOfBirth(
+      context,
+      initialDate: _dateOfBirth,
+    );
+    if (picked == null) return;
+    if (!AppUtils.isAtLeast18(picked)) {
+      if (!mounted) return;
+      await AppUtils.showUnder18Dialog(context);
+      return;
+    }
+    setState(() => _dateOfBirth = picked);
   }
 
   // Registry gate (Decision D22)
@@ -159,6 +182,8 @@ class _CreateOfficerAccountScreenState
             _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         position:
             _positionCtrl.text.trim().isEmpty ? null : _positionCtrl.text.trim(),
+        dateOfBirth: _dateOfBirth,
+        gender: _gender,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -295,6 +320,64 @@ class _CreateOfficerAccountScreenState
                         InputDecoration(hintText: l10n.createOfficerPositionHint),
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _FieldLabel(label: l10n.addMemberDobLabel, cs: cs),
+                            InkWell(
+                              onTap: _pickDateOfBirth,
+                              child: InputDecorator(
+                                decoration: const InputDecoration(),
+                                child: Text(
+                                  _dateOfBirth == null
+                                      ? l10n.addMemberSelectHint
+                                      : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: _dateOfBirth == null
+                                        ? cs.outline
+                                        : cs.onSurface,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _FieldLabel(
+                                label: l10n.addMemberGenderLabel, cs: cs),
+                            DropdownButtonFormField<String>(
+                              initialValue: _gender,
+                              isExpanded: true,
+                              hint: Text(l10n.addMemberSelectHint,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13, color: cs.outline)),
+                              items: _genderOptions(l10n)
+                                  .entries
+                                  .map((e) => DropdownMenuItem(
+                                        value: e.key,
+                                        child: Text(e.value,
+                                            style: GoogleFonts.inter(
+                                                fontSize: 13)),
+                                      ))
+                                  .toList(),
+                              onChanged: (v) => setState(() => _gender = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   _FieldLabel(label: l10n.createOfficerEmployeeIdLabel, cs: cs),
                   TextFormField(
                     key: ValueKey(_empIdPreview),
@@ -369,7 +452,7 @@ class _CreateOfficerAccountScreenState
                                   borderRadius: BorderRadius.circular(
                                       AppConstants.radiusSm),
                                 ),
-                                child: Text('AUTO',
+                                child: Text(l10n.autoGeneratedBadge,
                                     style: GoogleFonts.inter(
                                         fontSize: 9,
                                         fontWeight: FontWeight.w800,
@@ -460,7 +543,14 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
+      // maxLines: 1 + ellipsis: same DOB/Gender side-by-side misalignment
+      // fix as add_new_member_screen.dart's _FieldLabel and
+      // admin_edit_profile_screen.dart's _LabeledDateField — the longer
+      // Tagalog "Petsa ng Kapanganakan" label could still wrap onto two
+      // lines next to one-line "Kasarian" without this.
       child: Text(label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,

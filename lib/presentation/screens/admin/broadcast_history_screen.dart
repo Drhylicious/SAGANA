@@ -2,10 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/broadcast_model.dart';
 import '../../../data/repositories/broadcast_repository.dart';
+
+String recipientTypeLabel(AppLocalizations l10n, RecipientType type) {
+  switch (type) {
+    case RecipientType.allMembers:       return l10n.recipientTypeAllMembers;
+    case RecipientType.allBuyers:        return l10n.recipientTypeAllBuyers;
+    case RecipientType.outstandingLoans: return l10n.recipientTypeOutstandingLoans;
+    case RecipientType.specificCrop:     return l10n.recipientTypeSpecificCrop;
+    case RecipientType.specificFarmer:   return l10n.recipientTypeSpecificFarmer;
+    case RecipientType.specificBuyer:    return l10n.recipientTypeSpecificBuyer;
+  }
+}
+
+String broadcastCategoryLabel(AppLocalizations l10n, BroadcastCategory cat) {
+  switch (cat) {
+    case BroadcastCategory.meeting:   return l10n.broadcastCategoryMeeting;
+    case BroadcastCategory.financial: return l10n.broadcastCategoryFinancial;
+    case BroadcastCategory.harvest:   return l10n.broadcastCategoryHarvest;
+    case BroadcastCategory.update:    return l10n.broadcastCategoryUpdate;
+    case BroadcastCategory.general:   return l10n.broadcastCategoryGeneral;
+  }
+}
 
 class BroadcastHistoryScreen extends StatefulWidget {
   const BroadcastHistoryScreen({super.key});
@@ -62,6 +84,7 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
 
@@ -73,7 +96,7 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Broadcast History',
+          l10n.broadcastHistoryTitle,
           style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
         ),
         centerTitle: false,
@@ -88,7 +111,7 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                 TextField(
                   controller: _searchCtrl,
                   decoration: InputDecoration(
-                    hintText: 'Search title, body, or recipients',
+                    hintText: l10n.broadcastHistorySearchHint,
                     prefixIcon: const Icon(Icons.search_rounded),
                     filled: true,
                     fillColor: sagana.cardBackground,
@@ -104,7 +127,7 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                 DropdownButtonFormField<BroadcastCategory?>(
                   initialValue: _selectedCategory,
                   decoration: InputDecoration(
-                    labelText: 'Category',
+                    labelText: l10n.broadcastHistoryCategoryLabel,
                     filled: true,
                     fillColor: sagana.cardBackground,
                     border: OutlineInputBorder(
@@ -115,14 +138,14 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                     ),
                   ),
                   items: [
-                    const DropdownMenuItem<BroadcastCategory?>(
+                    DropdownMenuItem<BroadcastCategory?>(
                       value: null,
-                      child: Text('All categories'),
+                      child: Text(l10n.broadcastHistoryAllCategories),
                     ),
                     ...BroadcastCategory.values.map(
                       (cat) => DropdownMenuItem<BroadcastCategory?>(
                         value: cat,
-                        child: Text(cat.label),
+                        child: Text(broadcastCategoryLabel(l10n, cat)),
                       ),
                     ),
                   ],
@@ -144,7 +167,7 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        'No broadcasts match your filters yet.',
+                        l10n.broadcastHistoryNoResults,
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontSize: 14,
@@ -159,7 +182,12 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final item = _filteredItems[index];
-                      final timeLabel = _formatTime(item.sentAt);
+                      final timeLabel = item.isPending
+                          ? l10n.broadcastScheduledFor(
+                              formatBroadcastSchedule(item.scheduledAt!),
+                              item.recipientCount,
+                            )
+                          : _formatTime(l10n, item.sentAt!);
                       return Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -258,18 +286,18 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
     );
   }
 
-  String _formatTime(DateTime value) {
+  String _formatTime(AppLocalizations l10n, DateTime value) {
     final now = DateTime.now();
     final diff = now.difference(value);
     if (diff.inDays > 0) {
-      return '${diff.inDays}d ago';
+      return l10n.buyerNotifTimeDaysAgo(diff.inDays);
     }
     if (diff.inHours > 0) {
-      return '${diff.inHours}h ago';
+      return l10n.buyerNotifTimeHoursAgo(diff.inHours);
     }
     if (diff.inMinutes > 0) {
-      return '${diff.inMinutes}m ago';
+      return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
     }
-    return 'Just now';
+    return l10n.broadcastJustNow;
   }
 }

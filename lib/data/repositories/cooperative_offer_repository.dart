@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/inventory_batch_model.dart';
 import '../models/cooperative_offer_model.dart';
+import 'admin_activity_repository.dart';
 import 'admin_listing_repository.dart';
 
 class CooperativeOfferRepository {
@@ -101,6 +102,85 @@ class CooperativeOfferRepository {
     }
   }
 
+  // ─── Admin: fetch one offer by id, with the extra detail-screen-only
+  //     fields fetchOffers() doesn't bother resolving (farmer phone/photo,
+  //     batch number, harvest date, category) — same multi-step resolution
+  //     pattern as AdminOrderRepository.fetchOrderById(). Used by
+  //     OfferDetailScreen, opened for a confirmed/declined offer.
+
+  Future<CooperativeOfferModel?> fetchOfferById(String offerId) async {
+    try {
+      final row = await _client
+          .from('cooperative_purchase_offers')
+          .select('id, farmer_id, crop_name, offered_quantity_kg, offered_at, '
+              'inventory_batch_id, status, confirmed_quantity_kg, confirmed_amount, '
+              'admin_notes, confirmed_at')
+          .eq('id', offerId)
+          .maybeSingle();
+      if (row == null) return null;
+
+      final farmerId = row['farmer_id'] as String;
+
+      String farmerName = 'Farmer';
+      String? farmerPhone, farmerPhotoUrl;
+      try {
+        final farmer = await _client
+            .from('user_information')
+            .select('full_name, phone_number, profile_photo_url')
+            .eq('user_id', farmerId)
+            .maybeSingle();
+        farmerName = farmer?['full_name'] as String? ?? 'Farmer';
+        farmerPhone = farmer?['phone_number'] as String?;
+        farmerPhotoUrl = farmer?['profile_photo_url'] as String?;
+      } catch (_) {}
+
+      String? batchNumber, category;
+      DateTime? harvestDate;
+      final batchId = row['inventory_batch_id'] as String?;
+      if (batchId != null) {
+        try {
+          final batch = await _client
+              .from('inventory_batches')
+              .select('batch_number, harvest_record_id')
+              .eq('id', batchId)
+              .maybeSingle();
+          batchNumber = batch?['batch_number'] as String?;
+          final harvestRecordId = batch?['harvest_record_id'] as String?;
+          if (harvestRecordId != null) {
+            final hr = await _client
+                .from('harvest_records')
+                .select('harvest_date')
+                .eq('id', harvestRecordId)
+                .maybeSingle();
+            if (hr?['harvest_date'] != null) {
+              harvestDate = DateTime.parse(hr!['harvest_date'] as String);
+            }
+          }
+        } catch (_) {}
+      }
+      try {
+        final crop = await _client
+            .from('crop_master')
+            .select('category')
+            .ilike('crop_name', row['crop_name'] as String? ?? '')
+            .maybeSingle();
+        category = crop?['category'] as String?;
+      } catch (_) {}
+
+      return CooperativeOfferModel.fromMap({
+        ...row,
+        'farmer_name': farmerName,
+        'farmer_phone': farmerPhone,
+        'farmer_photo_url': farmerPhotoUrl,
+        'batch_number': batchNumber,
+        'harvest_date': harvestDate?.toIso8601String(),
+        'category': category,
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── Admin: pending offers only — still used by MarketplaceDashboardScreen
   //     for the KPI count. Kept as its own method (rather than making the
   //     dashboard call fetchOffers(statusFilter: 'pending')) purely because
@@ -129,6 +209,12 @@ class CooperativeOfferRepository {
       'p_confirmed_amount': confirmedAmount,
       'p_admin_notes': adminNotes,
     });
+    AdminActivityRepository().log(
+      module: 'offers',
+      actionType: 'confirmed',
+      description: 'Confirmed a cooperative offer for ${confirmedQuantityKg.toStringAsFixed(1)}kg (₱${confirmedAmount.toStringAsFixed(2)}).',
+      referenceId: offerId,
+    );
     return result as String?;
   }
 
@@ -142,5 +228,11 @@ class CooperativeOfferRepository {
       'p_offer_id': offerId,
       'p_admin_notes': adminNotes,
     });
+    AdminActivityRepository().log(
+      module: 'offers',
+      actionType: 'declined',
+      description: 'Declined a cooperative offer.',
+      referenceId: offerId,
+    );
   }
 }

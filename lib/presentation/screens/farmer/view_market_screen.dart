@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
@@ -98,22 +99,23 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
           if (!_isOnline)
-            const OfflineBanner(message: "You're offline — some information on this screen may not be up to date."),
+            OfflineBanner(message: l10n.farmerDashOfflineBanner),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
-                    _buildSearchRow(),
-                    _buildMarketTypeChips(),
+                    _buildSearchRow(l10n),
+                    _buildMarketTypeChips(l10n),
                     const SizedBox(height: 8),
-                    Expanded(child: _buildResults()),
+                    Expanded(child: _buildResults(l10n)),
                   ],
                 ),
                 Positioned(
@@ -121,7 +123,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Market Rates',
+                    title: l10n.farmerDashMarketRates,
                     onBack: () => Navigator.of(context).pop(),
                     hideProfileAvatar: true,
                     onProfileTap: () {},
@@ -137,7 +139,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
     );
   }
 
-  Widget _buildSearchRow() {
+  Widget _buildSearchRow(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Row(
@@ -145,8 +147,8 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
           Expanded(
             child: AppTextField(
               controller: _searchController,
-              label: 'Search',
-              hint: 'Search crops...',
+              label: l10n.buyerPriceSearchLabel,
+              hint: l10n.buyerPriceSearchHint,
               prefixIcon: Icons.search,
               onChanged: (_) => _load(),
             ),
@@ -189,7 +191,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
     );
   }
 
-  Widget _buildMarketTypeChips() {
+  Widget _buildMarketTypeChips(AppLocalizations l10n) {
     const types = [
       null,
       'sp3_cooperative',
@@ -206,7 +208,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
           itemBuilder: (context, index) {
             final type = types[index];
             final selected = _marketType == type;
-            final label = type == null ? 'All' : MarketTypeDisplay.label(type);
+            final label = type == null ? l10n.buyerPriceFilterAll : MarketTypeDisplay.label(l10n, type);
             final color = type == null
                 ? AppConstants.primaryGreen
                 : MarketTypeDisplay.color(context, type);
@@ -230,7 +232,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
     );
   }
 
-  Widget _buildResults() {
+  Widget _buildResults(AppLocalizations l10n) {
     if (_isLoading) {
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
@@ -260,8 +262,8 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
               const SizedBox(height: 16),
               Text(
                 hasActiveFilter
-                    ? 'No market rates match your filters'
-                    : 'No market prices recorded yet',
+                    ? l10n.farmerViewMarketNoResults
+                    : l10n.farmerDashNoMarketPrices,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 13,
@@ -305,6 +307,7 @@ class _MarketRateListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final color = MarketTypeDisplay.color(context, rate.priceType);
     final imageUrl = rate.cropImageUrl;
     return GestureDetector(
@@ -347,7 +350,7 @@ class _MarketRateListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${MarketTypeDisplay.label(rate.priceType)} · Updated ${AppUtils.formatRelativeTime(rate.recordedAt)}',
+                    '${MarketTypeDisplay.label(l10n, rate.priceType)} · ${l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n))}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: AppConstants.onSurfaceVariant,
@@ -489,15 +492,16 @@ class _FilterPanelState extends State<_FilterPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     return ManagementModalShell(
-      title: 'Filter Market Rates',
-      subtitle: 'Refine the list by crop category or crop',
+      title: l10n.farmerMarketFilterTitle,
+      subtitle: l10n.buyerPriceFilterPanelSubtitle,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'CROP CATEGORY'.toUpperCase(),
+            l10n.buyerPriceFilterCategoryLabel,
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -532,7 +536,7 @@ class _FilterPanelState extends State<_FilterPanel> {
           ),
           const SizedBox(height: 20),
           Text(
-            'CROP'.toUpperCase(),
+            l10n.buyerPriceFilterCropLabel,
             style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -542,7 +546,7 @@ class _FilterPanelState extends State<_FilterPanel> {
           ),
           const SizedBox(height: 10),
           if (_cropsForCategory.isEmpty)
-            Text('No crops in this category',
+            Text(l10n.listingFilterNoCropsInCategory,
                 style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant))
           else
             Wrap(
@@ -575,7 +579,7 @@ class _FilterPanelState extends State<_FilterPanel> {
               onPressed: () =>
                   Navigator.of(context).pop(const _FilterResult()),
               child: Text(
-                'Reset All',
+                l10n.buyerPriceResetAll,
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface,
@@ -591,7 +595,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                 _FilterResult(cropCategory: _category, cropId: _cropId),
               ),
               child: Text(
-                'Apply Filters',
+                l10n.buyerPriceApplyFilters,
                 style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
               ),
             ),

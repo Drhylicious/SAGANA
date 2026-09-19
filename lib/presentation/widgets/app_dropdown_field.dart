@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/sagana_colors.dart';
 
 /// Custom compact dropdown matching the requested reference design —
 /// a bordered field with a visually separated arrow box on the right, and
@@ -18,9 +20,21 @@ import 'package:google_fonts/google_fonts.dart';
 /// Form + GlobalKey<FormState>.validate() pattern used everywhere a
 /// required dropdown blocks submission.
 class AppDropdownField<T> extends FormField<T> {
+  // Kept as a real field (not just an initialValue-only constructor param)
+  // so _AppDropdownFieldState.didUpdateWidget below can detect an external
+  // reset of the bound value — e.g. a caller doing
+  // setState(() => _selected = null) after a successful action. FormField's
+  // own initialValue is, per its name, initial-only: it's read once in
+  // initState and never re-applied on rebuild, so without this a caller
+  // resetting its value while simultaneously narrowing `items` (dropping
+  // the old selection) left this field's internal value stale and
+  // pointing at an item no longer in the list — itemLabel's typical
+  // items.firstWhere(...) then throws "Bad state: No element".
+  final T? value;
+
   AppDropdownField({
     super.key,
-    required T? value,
+    required this.value,
     required String hintText,
     String? labelText,
     String? helperText,
@@ -57,6 +71,22 @@ class AppDropdownField<T> extends FormField<T> {
             );
           },
         );
+
+  @override
+  FormFieldState<T> createState() => _AppDropdownFieldState<T>();
+}
+
+class _AppDropdownFieldState<T> extends FormFieldState<T> {
+  @override
+  AppDropdownField<T> get widget => super.widget as AppDropdownField<T>;
+
+  @override
+  void didUpdateWidget(covariant AppDropdownField<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != value) {
+      setValue(widget.value);
+    }
+  }
 }
 
 class _DropdownFieldBody<T> extends StatefulWidget {
@@ -129,6 +159,10 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
     final fieldWidth = renderBox.size.width;
     final fieldHeight = renderBox.size.height;
     final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final selectedBg = isDark ? Colors.blue.withValues(alpha: 0.28) : Colors.blue.withValues(alpha: 0.18);
+    final selectedText = isDark ? Colors.blue.shade100 : Colors.blue.shade900;
 
     _overlayEntry = OverlayEntry(
       builder: (overlayCtx) {
@@ -156,7 +190,7 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                     width: fieldWidth,
                     constraints: BoxConstraints(maxHeight: widget.maxMenuHeight),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: sagana.cardBackground,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
                     ),
@@ -170,7 +204,7 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 14),
                                   child: Text(
-                                    'No options yet',
+                                    AppLocalizations.of(context).noOptionsYet,
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       color: cs.onSurfaceVariant,
@@ -203,9 +237,7 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                                         },
                                         child: Container(
                                           width: double.infinity,
-                                          color: selected
-                                              ? Colors.blue.withValues(alpha: 0.18)
-                                              : Colors.transparent,
+                                          color: selected ? selectedBg : Colors.transparent,
                                           padding: const EdgeInsets.symmetric(
                                               horizontal: 14, vertical: 12),
                                           child: Text(
@@ -217,9 +249,7 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                                               fontWeight: selected
                                                   ? FontWeight.w600
                                                   : FontWeight.w400,
-                                              color: selected
-                                                  ? Colors.blue.shade900
-                                                  : cs.onSurface,
+                                              color: selected ? selectedText : cs.onSurface,
                                             ),
                                           ),
                                         ),
@@ -245,17 +275,20 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14, vertical: 12),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(Icons.add_circle_outline_rounded,
                                       size: 18, color: cs.primary),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    widget.addNewLabel ?? 'Add new',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: cs.primary,
+                                  Flexible(
+                                    child: Text(
+                                      widget.addNewLabel ?? AppLocalizations.of(context).genericAdd,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.primary,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -294,6 +327,8 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
         if (widget.labelText != null) ...[
           Text(
             widget.labelText!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
@@ -379,6 +414,7 @@ Future<String?> promptForNewOptionName(
   String hintText = 'Name',
 }) async {
   final controller = TextEditingController();
+  final l10n = AppLocalizations.of(context);
   final result = await showDialog<String>(
     context: context,
     builder: (dialogCtx) => AlertDialog(
@@ -392,11 +428,11 @@ Future<String?> promptForNewOptionName(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogCtx),
-          child: const Text('Cancel'),
+          child: Text(l10n.issueLoanCancel),
         ),
         TextButton(
           onPressed: () => Navigator.pop(dialogCtx, controller.text.trim()),
-          child: const Text('Add'),
+          child: Text(l10n.genericAdd),
         ),
       ],
     ),

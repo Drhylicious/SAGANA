@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
+import '../../widgets/listing_filter_modal.dart' show listingStatusLabel;
 import '../../widgets/management_modal.dart';
 
 class ListingReviewScreen extends StatefulWidget {
@@ -52,19 +54,19 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
   // ── Decision actions ────────────────────────────────────────────────────────
 
   Future<void> _confirmApprove() async {
+    final l10n = AppLocalizations.of(context);
     bool isSaving = false;
     await showManagementModal(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
         return ManagementModalShell(
-          title: 'Approve Listing',
-          subtitle: 'This makes the listing publicly visible to all buyers.',
-          body: const Text(
-            'Approving publishes this listing to the Marketplace immediately. '
-            'Buyers will be able to see it and place orders right away.',
+          title: l10n.listingReviewApproveTitle,
+          subtitle: l10n.listingReviewApproveSubtitle,
+          body: Text(
+            l10n.listingReviewApproveBody,
           ),
           footer: ManagementModalActions(
-            primaryLabel: 'Approve & Publish',
+            primaryLabel: l10n.listingReviewApprovePublishAction,
             isDestructive: false,
             isLoading: isSaving,
             onPrimary: () async {
@@ -76,13 +78,13 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
               } catch (e) {
                 error = e is PostgrestException && e.message.isNotEmpty
                     ? e.message
-                    : 'Failed to approve. Please try again.';
+                    : l10n.listingReviewApproveFailed;
               }
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
               if (error == null) {
-                _showSnack('Listing approved and published.', isSuccess: true);
+                _showSnack(l10n.listingReviewApprovedToast, isSuccess: true);
                 context.pop(true);
               } else {
                 setState(() => _isSaving = false);
@@ -96,32 +98,34 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
   }
 
   void _showRequestChangesSheet() {
+    final l10n = AppLocalizations.of(context);
     _showNoteModal(
-      title: 'Request Changes',
-      hint: 'Describe what the farmer needs to fix...',
-      actionLabel: 'Send Request',
+      title: l10n.listingReviewRequestChangesTitle,
+      hint: l10n.listingReviewRequestChangesHint,
+      actionLabel: l10n.listingReviewSendRequestAction,
       isDestructive: false,
       onConfirm: (note) => _repo.requestChanges(
         listingId: widget.listingId,
         notes: note,
       ),
-      successMessage: 'Changes requested. Farmer has been notified.',
-      failureMessage: 'Failed to send request. Please try again.',
+      successMessage: l10n.listingReviewChangesRequestedToast,
+      failureMessage: l10n.listingReviewSendRequestFailed,
     );
   }
 
   void _showRejectSheet() {
+    final l10n = AppLocalizations.of(context);
     _showNoteModal(
-      title: 'Reject Submission',
-      hint: 'Provide a reason for rejection...',
-      actionLabel: 'Confirm Rejection',
+      title: l10n.listingReviewRejectTitle,
+      hint: l10n.listingReviewRejectHint,
+      actionLabel: l10n.listingReviewConfirmRejectionAction,
       isDestructive: true,
       onConfirm: (reason) => _repo.rejectListing(
         listingId: widget.listingId,
         reason: reason,
       ),
-      successMessage: 'Listing rejected.',
-      failureMessage: 'Failed to reject. Please try again.',
+      successMessage: l10n.listingReviewRejectedToast,
+      failureMessage: l10n.listingReviewRejectFailed,
     );
   }
 
@@ -137,6 +141,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
     required String successMessage,
     required String failureMessage,
   }) async {
+    final l10n = AppLocalizations.of(context);
     final noteCtrl = TextEditingController();
     bool isSaving = false;
     await showManagementModal(
@@ -157,7 +162,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             onPrimary: () async {
               if (noteCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Please enter a note.')),
+                  SnackBar(content: Text(l10n.listingReviewEnterNote)),
                 );
                 return;
               }
@@ -204,6 +209,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
 
@@ -231,7 +237,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
               Icon(Icons.error_outline_rounded, size: 40, color: cs.outline),
               const SizedBox(height: 12),
               Text(
-                'Listing not found',
+                l10n.listingReviewNotFound,
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   color: cs.onSurfaceVariant,
@@ -266,7 +272,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
                     // ── Pricing Analysis ──────────────────────────────
                     _SectionCard(
                       icon: Icons.payments_outlined,
-                      title: 'Pricing Analysis',
+                      title: l10n.listingReviewPricingAnalysisTitle,
                       cs: cs,
                       sagana: sagana,
                       child: _PricingAnalysis(listing: listing, cs: cs),
@@ -276,7 +282,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
                     // ── Inventory Validation ──────────────────────────
                     _SectionCard(
                       icon: Icons.inventory_2_outlined,
-                      title: 'Inventory Validation',
+                      title: l10n.listingReviewInventoryValidationTitle,
                       cs: cs,
                       sagana: sagana,
                       child: _InventoryValidation(listing: listing, cs: cs),
@@ -286,7 +292,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
                     // ── Farmer Context ────────────────────────────────
                     _SectionCard(
                       icon: Icons.person_outlined,
-                      title: 'Farmer Context',
+                      title: l10n.listingReviewFarmerContextTitle,
                       cs: cs,
                       sagana: sagana,
                       child: _FarmerContext(listing: listing, cs: cs),
@@ -298,7 +304,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
                       const SizedBox(height: 14),
                       _SectionCard(
                         icon: Icons.sticky_note_2_outlined,
-                        title: 'Admin Notes',
+                        title: l10n.listingReviewAdminNotesTitle,
                         cs: cs,
                         sagana: sagana,
                         child: _AdminNotesCard(
@@ -319,9 +325,9 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             left: 0,
             right: 0,
             child: _TopAppBar(
-              title: 'Listing Review',
+              title: l10n.listingReviewTitle,
               status: listing.status,
-              statusLabel: listing.statusLabel,
+              statusLabel: listingStatusLabel(l10n, listing.status),
               onBack: () => context.pop(false),
               sagana: sagana,
               cs: cs,
@@ -418,7 +424,13 @@ class _TopAppBar extends StatelessWidget {
                   ),
                 ),
               ),
-              _StatusBadge(label: statusLabel, status: status, cs: cs),
+              // Flexible: without this, a long translated status label
+              // inside _StatusBadge has no width limit of its own and can
+              // overflow the bar once the title's Expanded shrinks to its
+              // minimum on narrow screens.
+              Flexible(
+                child: _StatusBadge(label: statusLabel, status: status, cs: cs),
+              ),
             ],
           ),
         ),
@@ -448,6 +460,14 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label.toUpperCase(),
+        // maxLines: 1 + ellipsis: this badge sits at the end of the top
+        // app bar's Row, after the title's Expanded — a long translated
+        // status label (e.g. "Kinakailangan ng Pagbabago" for
+        // changes_required) had no width guard of its own here and could
+        // still overflow the bar on narrow screens once the Expanded title
+        // shrinks to its minimum.
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: GoogleFonts.inter(
           fontSize: 9,
           fontWeight: FontWeight.w800,
@@ -713,6 +733,7 @@ class _PricingAnalysis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final hasRef = listing.marketRefPricePerKg != null;
     final pct = listing.priceDiffPercent;
 
@@ -722,7 +743,7 @@ class _PricingAnalysis extends StatelessWidget {
           children: [
             Expanded(
               child: _PriceBox(
-                label: "Farmer's Asking",
+                label: l10n.listingReviewFarmersAsking,
                 price: listing.pricePerKg,
                 cs: cs,
               ),
@@ -730,7 +751,7 @@ class _PricingAnalysis extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _PriceBox(
-                label: hasRef ? 'Market Ref (DA)' : 'No Market Ref',
+                label: hasRef ? l10n.listingReviewMarketRefDA : l10n.listingReviewNoMarketRef,
                 price: listing.marketRefPricePerKg,
                 cs: cs,
                 muted: !hasRef,
@@ -769,8 +790,8 @@ class _PricingAnalysis extends StatelessWidget {
                 Expanded(
                   child: Text(
                     listing.isPriceWithinMarketRange
-                        ? 'Within market range'
-                        : 'Price deviates significantly from market',
+                        ? l10n.listingReviewWithinMarketRange
+                        : l10n.listingReviewPriceDeviates,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -803,8 +824,7 @@ class _PricingAnalysis extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
             child: Text(
-              'No market reference price available for ${listing.cropName}. '
-              'Add a price record in Price Management.',
+              l10n.listingReviewNoMarketRefAvailable(listing.cropName),
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: cs.onSurfaceVariant,
@@ -889,23 +909,24 @@ class _InventoryValidation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final hasBatch = listing.batchAvailableKg != null;
     final hasWarning = listing.hasStockWarning;
 
     return Column(
       children: [
         _ValidationRow(
-          label: 'Listing Quantity',
+          label: l10n.listingReviewListingQuantity,
           value: '${listing.volumeKg.toStringAsFixed(0)} kg',
           cs: cs,
           valueColor: cs.onSurface,
         ),
         const SizedBox(height: 8),
         _ValidationRow(
-          label: 'Batch Available',
+          label: l10n.listingReviewBatchAvailable,
           value: hasBatch
               ? '${listing.batchAvailableKg!.toStringAsFixed(0)} kg'
-              : 'No batch linked',
+              : l10n.listingReviewNoBatchLinked,
           cs: cs,
           valueColor: hasWarning
               ? cs.error
@@ -946,8 +967,7 @@ class _InventoryValidation extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Listing quantity exceeds batch stock by '
-                    '${listing.stockSurplus.toStringAsFixed(0)} kg',
+                    l10n.listingReviewQuantityExceeds(listing.stockSurplus.toStringAsFixed(0)),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -978,12 +998,19 @@ class _InventoryValidation extends StatelessWidget {
                   size: 18,
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  'Quantity is within available batch stock',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppConstants.successGreen,
+                // Expanded, not a bare Text: the Tagalog sentence is ~20%
+                // longer than the English source and this Row had no width
+                // guard, so it overflowed horizontally instead of wrapping.
+                // Expanded (not Flexible+ellipsis) since this is a full
+                // status message the admin needs to read in full.
+                Expanded(
+                  child: Text(
+                    l10n.listingReviewQuantityWithinStock,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.successGreen,
+                    ),
                   ),
                 ),
               ],
@@ -1000,8 +1027,7 @@ class _InventoryValidation extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
             child: Text(
-              'No inventory batch is linked to this listing. '
-              'The farmer may not have recorded a harvest batch.',
+              l10n.listingReviewNoBatchLinkedNote,
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: cs.onSurfaceVariant,
@@ -1028,13 +1054,21 @@ class _ValidationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Flexible + ellipsis: translated labels ("Dami ng Listahan", "Available
+    // na Batch") run longer than the English source, and this Row (used
+    // for both validation lines) has no other slack next to the value.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
         ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: GoogleFonts.poppins(
@@ -1059,6 +1093,7 @@ class _FarmerContext extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         // Submission stats
@@ -1075,7 +1110,7 @@ class _FarmerContext extends StatelessWidget {
                   Expanded(
                     child: _StatCell(
                       value: '${listing.farmerTotalSubmissions}',
-                      label: 'Submissions',
+                      label: l10n.listingReviewSubmissions,
                       color: cs.onSurface,
                       cs: cs,
                     ),
@@ -1088,7 +1123,7 @@ class _FarmerContext extends StatelessWidget {
                   Expanded(
                     child: _StatCell(
                       value: '${listing.farmerApprovedCount}',
-                      label: 'Approved',
+                      label: l10n.buyerOrderDetailStepApproved,
                       color: AppConstants.successGreen,
                       cs: cs,
                     ),
@@ -1101,7 +1136,7 @@ class _FarmerContext extends StatelessWidget {
                   Expanded(
                     child: _StatCell(
                       value: '${listing.farmerRejectedCount}',
-                      label: 'Rejected',
+                      label: l10n.farmerMgmtStatusRejectedLabel,
                       color: cs.error,
                       cs: cs,
                     ),
@@ -1114,10 +1149,15 @@ class _FarmerContext extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Approval Rate',
-                    style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+                  Flexible(
+                    child: Text(
+                      l10n.listingReviewApprovalRate,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     '${listing.farmerApprovalRate}%',
                     style: GoogleFonts.poppins(
@@ -1149,14 +1189,19 @@ class _FarmerContext extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Outstanding Loan',
-                style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+              Flexible(
+                child: Text(
+                  l10n.listingReviewOutstandingLoan,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+                ),
               ),
+              const SizedBox(width: 8),
               Text(
                 listing.farmerOutstandingLoan > 0
                     ? '₱${listing.farmerOutstandingLoan.toStringAsFixed(2)}'
-                    : 'No loans',
+                    : l10n.farmerMgmtLoanNone,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -1258,6 +1303,7 @@ class _ReviewFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -1300,7 +1346,7 @@ class _ReviewFooter extends StatelessWidget {
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
-                                'Request Changes',
+                                l10n.listingReviewRequestChangesTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(
@@ -1367,7 +1413,7 @@ class _ReviewFooter extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
-                                      'Approve Listing',
+                                      l10n.listingReviewApproveTitle,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.poppins(
@@ -1396,12 +1442,16 @@ class _ReviewFooter extends StatelessWidget {
                     children: [
                       Icon(Icons.cancel_outlined, size: 16, color: cs.error),
                       const SizedBox(width: 6),
-                      Text(
-                        'Reject Submission',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: cs.error,
+                      Flexible(
+                        child: Text(
+                          l10n.listingReviewRejectTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: cs.error,
+                          ),
                         ),
                       ),
                     ],
@@ -1439,6 +1489,8 @@ class _ReadOnlyFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final statusLabel = listingStatusLabel(l10n, listing.status);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -1455,45 +1507,56 @@ class _ReadOnlyFooter extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: _statusColor(
-                    context,
-                    listing.status,
-                    cs,
-                  ).withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _statusIcon(listing.status),
-                      size: 16,
-                      color: _statusColor(context, listing.status, cs),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      listing.statusLabel,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+              // Flexible: some status labels ("Kinakailangan ng
+              // Pagbabago" for changes_required) run much longer than the
+              // English source and this pill previously had no width
+              // limit of its own — without this it can overflow this Row
+              // on its own before the trailing message even gets a turn.
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _statusColor(
+                      context,
+                      listing.status,
+                      cs,
+                    ).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _statusIcon(listing.status),
+                        size: 16,
                         color: _statusColor(context, listing.status, cs),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          statusLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _statusColor(context, listing.status, cs),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   forcedReadOnly
-                      ? 'Open this listing from Pending Review to approve, reject, or request changes.'
-                      : 'This listing is ${listing.statusLabel.toLowerCase()} — no action needed.',
+                      ? l10n.listingReviewOpenFromPending
+                      : l10n.listingReviewStatusNoAction(statusLabel.toLowerCase()),
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onSurfaceVariant,

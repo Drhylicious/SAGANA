@@ -1,9 +1,36 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/services/profile_state_service.dart';
+import '../../routes/app_routes.dart';
+import 'app_dialog.dart';
+import 'shared_widgets.dart';
+
+/// Shared Sign Out confirmation for every Farmer screen that hosts the
+/// Navigation Drawer — reproduces FarmerSettingsScreen's existing
+/// _showSignOutDialog content and flow exactly (including its current
+/// hardcoded English strings — bringing those under l10n is the
+/// dedicated localization phase's job, not this one) so the Drawer's
+/// Sign Out row behaves identically to the existing Settings screen.
+Future<void> confirmFarmerSignOut(BuildContext context) async {
+  final confirmed = await AppDialog.show<bool>(
+    context: context,
+    child: const ConfirmDialog(
+      title: 'Sign Out?',
+      message: 'You will be signed out of SAGANA. '
+          'Offline records will remain on this device.',
+      confirmLabel: 'Sign Out',
+    ),
+  );
+  if (confirmed == true) {
+    await AuthService.logout();
+    if (context.mounted) GoRouter.of(context).go(AppRoutes.login);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FarmerTopBar
@@ -25,6 +52,13 @@ class FarmerTopBar extends StatefulWidget {
   final List<Widget>? trailing;
   final bool hideProfileAvatar;
   final bool showNotificationButton;
+  // Opens the Navigation Drawer — only meaningful on root tabs (where
+  // onBack is null and the SAGANA icon renders instead of a back arrow).
+  // A bool, not a caller-supplied VoidCallback: Scaffold.of(context) must
+  // be called with a context that is a DESCENDANT of the Scaffold being
+  // opened, not the screen's own outer build context — so this is
+  // resolved from FarmerTopBar's own build context, not the caller's.
+  final bool enableMenu;
   // Renders transparent, unblurred, with white/light chrome — for screens
   // with their own dark hero background (e.g. a gradient) behind the bar,
   // instead of the default opaque light bar with dark-green icons.
@@ -43,6 +77,7 @@ class FarmerTopBar extends StatefulWidget {
     this.hideProfileAvatar = false,
     this.showNotificationButton = true,
     this.overlay = false,
+    this.enableMenu = false,
   });
 
   @override
@@ -117,24 +152,27 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
               ),
             )
           else
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.95),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  width: 1,
+            GestureDetector(
+              onTap: widget.enableMenu ? () => Scaffold.of(context).openDrawer() : null,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.95),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    width: 1,
+                  ),
                 ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ClipOval(
-                child: Image.asset(
-                  'assets/images/sagana_icon.png',
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
+                clipBehavior: Clip.antiAlias,
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/sagana_icon.png',
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
                 ),
               ),
             ),

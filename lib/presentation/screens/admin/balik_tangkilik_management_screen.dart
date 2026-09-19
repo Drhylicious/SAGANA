@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -136,6 +137,7 @@ class _MemberAmountRow extends StatelessWidget {
   final double totalAmount;
   final double balikTangkilikAmount;
   final double interestAmount;
+  final double purchasePatronageAmount;
   final bool isPaid;
 
   const _MemberAmountRow({
@@ -145,11 +147,13 @@ class _MemberAmountRow extends StatelessWidget {
     required this.totalAmount,
     required this.balikTangkilikAmount,
     required this.interestAmount,
+    this.purchasePatronageAmount = 0,
     required this.isPaid,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
     final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
@@ -188,7 +192,7 @@ class _MemberAmountRow extends StatelessWidget {
                 children: [
                   Text(currency.format(totalAmount), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
                   if (isPaid)
-                    Text('PAID', style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.successGreen)),
+                    Text(l10n.balikTangkilikPaidBadge, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.successGreen)),
                 ],
               ),
             ],
@@ -198,6 +202,10 @@ class _MemberAmountRow extends StatelessWidget {
             children: [
               Expanded(child: _stat('Balik-Tangkilik', currency.format(balikTangkilikAmount), cs)),
               Expanded(child: _stat('Interest', currency.format(interestAmount), cs)),
+              // Option B — only shown when non-zero, so a farmer with no
+              // Product Sales Program activity sees no change to this row.
+              if (purchasePatronageAmount > 0)
+                Expanded(child: _stat('Purchase Patronage', currency.format(purchasePatronageAmount), cs)),
             ],
           ),
         ],
@@ -230,17 +238,27 @@ class _SettingsTabState extends State<_SettingsTab> {
   final _totalCoopSalesController = TextEditingController();
   final _distributableSurplusController = TextEditingController();
   final _interestRateController = TextEditingController();
+  // Option B — Product Sales Program's own parallel settings. Never
+  // combined with the sales-side controllers above.
+  final _totalProgramSalesController = TextEditingController();
+  final _distributableProgramSurplusController = TextEditingController();
 
-  late int _year;
+  // Balik-Tangkilik is a once-a-year event (per the case study: distributed
+  // at the Annual General Assembly, within the first 90 days of the year,
+  // after the AFS is finalized) — Settings only ever needs to configure
+  // the current cycle. A year selector was removed here (and in
+  // Distribution) since History already covers reviewing past years.
+  final int _year = DateTime.now().year;
   bool _isLoading = true;
   bool _isSaving = false;
   bool _afsFinalized = false;
+  bool _isDistributed = false;
   double _liveTotalSales = 0;
+  double _liveTotalProgramSales = 0;
 
   @override
   void initState() {
     super.initState();
-    _year = DateTime.now().year;
     _load();
   }
 
@@ -249,6 +267,8 @@ class _SettingsTabState extends State<_SettingsTab> {
     _totalCoopSalesController.dispose();
     _distributableSurplusController.dispose();
     _interestRateController.dispose();
+    _totalProgramSalesController.dispose();
+    _distributableProgramSurplusController.dispose();
     super.dispose();
   }
 
@@ -257,45 +277,66 @@ class _SettingsTabState extends State<_SettingsTab> {
     final results = await Future.wait([
       _repo.fetchYearSettings(_year),
       _repo.fetchLiveTotalCoopSales(_year),
+      _repo.fetchDistributionPreview(_year),
+      _repo.fetchLiveTotalProgramSales(_year),
     ]);
     if (!mounted) return;
 
     final settings = results[0] as CoopAnnualTotal?;
     _liveTotalSales = results[1] as double;
+    _isDistributed = (results[2] as BalikTangkilikYearSummary).isDistributed;
+    _liveTotalProgramSales = results[3] as double;
 
     if (settings != null) {
       _totalCoopSalesController.text = settings.totalCoopSales.toStringAsFixed(2);
       _distributableSurplusController.text = settings.distributableSurplus.toStringAsFixed(2);
       _interestRateController.text = settings.interestRatePercent.toStringAsFixed(2);
       _afsFinalized = settings.afsFinalized;
+      _totalProgramSalesController.text = settings.totalProgramSales.toStringAsFixed(2);
+      _distributableProgramSurplusController.text =
+          settings.distributableProgramSurplus.toStringAsFixed(2);
     } else {
       _totalCoopSalesController.text = _liveTotalSales.toStringAsFixed(2);
       _distributableSurplusController.text = '0.00';
       _interestRateController.text = '7.00';
       _afsFinalized = false;
+      _totalProgramSalesController.text = _liveTotalProgramSales.toStringAsFixed(2);
+      _distributableProgramSurplusController.text = '0.00';
     }
 
     setState(() => _isLoading = false);
-  }
-
-  void _setYear(int year) {
-    setState(() => _year = year);
-    _load();
   }
 
   void _useLiveTotal() {
     setState(() => _totalCoopSalesController.text = _liveTotalSales.toStringAsFixed(2));
   }
 
+  void _useLiveProgramTotal() {
+    setState(() =>
+        _totalProgramSalesController.text = _liveTotalProgramSales.toStringAsFixed(2));
+  }
+
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
+    if (_isDistributed) {
+      _showSnack(l10n.balikTangkilikAlreadyDistributedBanner(_year), isError: true);
+      return;
+    }
     final totalCoopSales = double.tryParse(_totalCoopSalesController.text.trim());
     final distributableSurplus = double.tryParse(_distributableSurplusController.text.trim());
     final interestRate = double.tryParse(_interestRateController.text.trim());
+    // Option B fields default to 0 when left blank (a cooperative may not
+    // run a Product Sales program every year) rather than blocking the
+    // whole save — but an explicitly-entered negative is still rejected.
+    final totalProgramSales =
+        double.tryParse(_totalProgramSalesController.text.trim()) ?? 0;
+    final distributableProgramSurplus =
+        double.tryParse(_distributableProgramSurplusController.text.trim()) ?? 0;
 
     if (totalCoopSales == null || totalCoopSales < 0 ||
         distributableSurplus == null || distributableSurplus < 0 ||
-        interestRate == null || interestRate < 0) {
+        interestRate == null || interestRate < 0 ||
+        totalProgramSales < 0 || distributableProgramSurplus < 0) {
       _showSnack(l10n.balikTangkilikInvalidValues, isError: true);
       return;
     }
@@ -326,6 +367,8 @@ class _SettingsTabState extends State<_SettingsTab> {
         distributableSurplus: distributableSurplus,
         interestRatePercent: interestRate,
         afsFinalized: _afsFinalized,
+        totalProgramSales: totalProgramSales,
+        distributableProgramSurplus: distributableProgramSurplus,
       );
       if (!mounted) return;
       _showSnack(l10n.balikTangkilikSettingsSaved(_year));
@@ -365,8 +408,6 @@ class _SettingsTabState extends State<_SettingsTab> {
         32,
       ),
       children: [
-        _buildYearChips(cs),
-        const SizedBox(height: AppConstants.spacingSectionV),
         Container(
           padding: const EdgeInsets.all(AppConstants.spacingGutter),
           decoration: BoxDecoration(
@@ -377,6 +418,25 @@ class _SettingsTabState extends State<_SettingsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Matches the Product Sales Program card's icon+title+hint
+              // structure below, so both patronage sources follow the
+              // same visual hierarchy.
+              Row(
+                children: [
+                  const Icon(Icons.handshake_rounded, size: 16, color: AppConstants.primaryGreen),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.balikTangkilikSalesSectionTitle,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n.balikTangkilikSalesSectionHint,
+                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppConstants.spacingGutter),
               _fieldLabel(l10n.balikTangkilikTotalCoopSales, cs),
               _numberField(_totalCoopSalesController, cs, sagana),
               const SizedBox(height: 6),
@@ -453,6 +513,68 @@ class _SettingsTabState extends State<_SettingsTab> {
           ),
         ),
         const SizedBox(height: AppConstants.spacingSectionV),
+        // Option B — Product Sales Program's own settings card, kept
+        // visually separate from Cooperative Sales above so the two
+        // patronage sources are never confused for one combined pool.
+        Container(
+          padding: const EdgeInsets.all(AppConstants.spacingGutter),
+          decoration: BoxDecoration(
+            color: sagana.cardBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.storefront_rounded, size: 16, color: AppConstants.buyerBlue),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.balikTangkilikProgramSectionTitle,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n.balikTangkilikProgramSectionHint,
+                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppConstants.spacingGutter),
+              _fieldLabel(l10n.balikTangkilikTotalProgramSales, cs),
+              _numberField(_totalProgramSalesController, cs, sagana),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.balikTangkilikLiveProgramTotalHint(currency.format(_liveTotalProgramSales)),
+                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _useLiveProgramTotal,
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                    child: Text(
+                      l10n.balikTangkilikUseThisValue,
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.buyerBlue),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppConstants.spacingGutter),
+              _fieldLabel(l10n.balikTangkilikProgramPoolAmount, cs),
+              _numberField(_distributableProgramSurplusController, cs, sagana),
+              const SizedBox(height: 4),
+              Text(
+                l10n.balikTangkilikProgramPoolHint,
+                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppConstants.spacingSectionV),
         Container(
           padding: const EdgeInsets.all(AppConstants.spacingGutter),
           decoration: BoxDecoration(
@@ -498,31 +620,6 @@ class _SettingsTabState extends State<_SettingsTab> {
     );
   }
 
-  Widget _buildYearChips(ColorScheme cs) {
-    final currentYear = DateTime.now().year;
-    final years = List.generate(5, (i) => currentYear - i);
-
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: years.map((y) {
-          final active = _year == y;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('$y', style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setYear(y),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _fieldLabel(String label, ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -539,6 +636,12 @@ class _SettingsTabState extends State<_SettingsTab> {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        // Digits with at most one decimal point — these are always
+        // non-negative amounts/rates, unlike the capital-contribution
+        // ledger's manual_adjustment entries which allow a sign.
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+      ],
       style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15, color: cs.onSurface),
       decoration: InputDecoration(
         prefixText: suffix == null ? '₱ ' : null,
@@ -564,7 +667,10 @@ class _DistributionTab extends StatefulWidget {
 class _DistributionTabState extends State<_DistributionTab> {
   final _repo = BalikTangkilikRepository();
 
-  late int _year;
+  // See _SettingsTabState's _year comment — Balik-Tangkilik is a once-a-
+  // year event; Distribution always operates on the current cycle, and
+  // History covers reviewing past years.
+  final int _year = DateTime.now().year;
   bool _isLoading = true;
   bool _isRefreshing = false;
   bool _isDistributing = false;
@@ -573,7 +679,6 @@ class _DistributionTabState extends State<_DistributionTab> {
   @override
   void initState() {
     super.initState();
-    _year = DateTime.now().year;
     _load();
   }
 
@@ -585,11 +690,6 @@ class _DistributionTabState extends State<_DistributionTab> {
       _summary = summary;
       _isLoading = false;
     });
-  }
-
-  void _setYear(int year) {
-    setState(() => _year = year);
-    _load();
   }
 
   Future<void> _refreshEstimates() async {
@@ -703,8 +803,6 @@ class _DistributionTabState extends State<_DistributionTab> {
           32,
         ),
         children: [
-          _buildYearChips(cs),
-          const SizedBox(height: AppConstants.spacingGutter),
           if (!_summary.afsFinalized) _buildBlockingBanner(l10n.balikTangkilikAfsNotFinalizedWarning),
           if (_summary.afsFinalized && _summary.isDistributed) _buildDistributedBanner(l10n),
           const SizedBox(height: AppConstants.spacingSectionV),
@@ -730,6 +828,8 @@ class _DistributionTabState extends State<_DistributionTab> {
                   totalAmount: r.isPaid ? r.actualTotal : r.estimatedTotal,
                   balikTangkilikAmount: r.isPaid ? (r.actualBalikTangkilik ?? 0) : r.estimatedBalikTangkilik,
                   interestAmount: r.isPaid ? (r.actualInterest ?? 0) : r.estimatedInterest,
+                  purchasePatronageAmount:
+                      r.isPaid ? (r.actualPurchasePatronage ?? 0) : r.estimatedPurchasePatronage,
                   isPaid: r.isPaid,
                 )),
           const SizedBox(height: AppConstants.spacingSectionV),
@@ -741,30 +841,6 @@ class _DistributionTabState extends State<_DistributionTab> {
             onPressed: (!_summary.afsFinalized || _summary.isDistributed) ? null : _confirmAndDistribute,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildYearChips(ColorScheme cs) {
-    final currentYear = DateTime.now().year;
-    final years = List.generate(5, (i) => currentYear - i);
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: years.map((y) {
-          final active = _year == y;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('$y', style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setYear(y),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
@@ -844,6 +920,20 @@ class _DistributionTabState extends State<_DistributionTab> {
               Expanded(child: _summaryStat(l10n.reportsContributingMembers, '${_summary.contributingMemberCount} / ${_summary.rows.length}')),
             ],
           ),
+          // Option B — a separate row, only shown when the program pool is
+          // actually in use, so a year with no Product Sales activity
+          // looks exactly as it did before this feature existed.
+          if (_summary.distributableProgramSurplus > 0) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            Divider(color: Colors.white.withValues(alpha: 0.2), height: 1),
+            const SizedBox(height: AppConstants.spacingSm),
+            Row(
+              children: [
+                Expanded(child: _summaryStat(l10n.balikTangkilikProgramPoolAmount, currency.format(_summary.distributableProgramSurplus))),
+                Expanded(child: _summaryStat(l10n.balikTangkilikTotalProgramSales, currency.format(_summary.totalProgramSales))),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -1057,6 +1147,7 @@ class _HistoryYearDetailSheetState extends State<_HistoryYearDetailSheet> {
                               totalAmount: r.actualTotal,
                               balikTangkilikAmount: r.actualBalikTangkilik ?? 0,
                               interestAmount: r.actualInterest ?? 0,
+                              purchasePatronageAmount: r.actualPurchasePatronage ?? 0,
                               isPaid: true,
                             );
                           },

@@ -17,6 +17,15 @@ class CooperativeOfferModel {
   final double? confirmedQuantityKg;
   final double? confirmedAmount;
   final String? adminNotes;
+  final DateTime? confirmedAt;
+
+  // Detail-screen-only, same convention as AdminOrderModel — left null by
+  // fetchOffers()'s list query, populated only by fetchOfferById().
+  final String? farmerPhone;
+  final String? farmerPhotoUrl;
+  final String? batchNumber;
+  final DateTime? harvestDate;
+  final String? category;
 
   const CooperativeOfferModel({
     required this.id,
@@ -30,6 +39,12 @@ class CooperativeOfferModel {
     this.confirmedQuantityKg,
     this.confirmedAmount,
     this.adminNotes,
+    this.confirmedAt,
+    this.farmerPhone,
+    this.farmerPhotoUrl,
+    this.batchNumber,
+    this.harvestDate,
+    this.category,
   });
 
   bool get isPending => status == 'pending';
@@ -54,6 +69,14 @@ class CooperativeOfferModel {
     return 'Offered ${diff.inDays} days ago';
   }
 
+  String get harvestedLabel {
+    if (harvestDate == null) return '';
+    final diff = DateTime.now().difference(harvestDate!);
+    if (diff.inDays <= 0) return 'Harvested today';
+    if (diff.inDays == 1) return 'Harvested yesterday';
+    return 'Harvested ${diff.inDays} days ago';
+  }
+
   factory CooperativeOfferModel.fromMap(Map<String, dynamic> map) {
     return CooperativeOfferModel(
       id: map['id'] as String,
@@ -71,6 +94,16 @@ class CooperativeOfferModel {
           ? (map['confirmed_amount'] as num).toDouble()
           : null,
       adminNotes: map['admin_notes'] as String?,
+      confirmedAt: map['confirmed_at'] != null
+          ? DateTime.parse(map['confirmed_at'] as String)
+          : null,
+      farmerPhone: map['farmer_phone'] as String?,
+      farmerPhotoUrl: map['farmer_photo_url'] as String?,
+      batchNumber: map['batch_number'] as String?,
+      harvestDate: map['harvest_date'] != null
+          ? DateTime.parse(map['harvest_date'] as String)
+          : null,
+      category: map['category'] as String?,
     );
   }
 }

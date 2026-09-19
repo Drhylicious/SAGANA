@@ -9,7 +9,6 @@ import '../../../data/services/app_settings_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
-import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
 
 class BuyerSettingsScreen extends StatefulWidget {
@@ -47,109 +46,17 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
   String _themeLabel(AppLocalizations l10n) =>
       (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark ? l10n.themeDark : l10n.themeLight;
 
-  void _showLanguagePicker() {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (ctx) => ManagementModalShell(
-        title: l10n.selectLanguage,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _PickerTile(
-              label: l10n.languageEnglish,
-              selected: _prefs!.localeCode == AppConstants.localeEnglish,
-              onTap: () async {
-                await AppSettingsService.instance.setLocale(const Locale(AppConstants.localeEnglish));
-                if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: AppConstants.localeEnglish));
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-            ),
-            _PickerTile(
-              label: l10n.languageTagalog,
-              selected: _prefs!.localeCode == AppConstants.localeTagalog,
-              onTap: () async {
-                await AppSettingsService.instance.setLocale(const Locale(AppConstants.localeTagalog));
-                if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: AppConstants.localeTagalog));
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showThemePicker() {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (ctx) => ManagementModalShell(
-        title: l10n.selectAppearance,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _PickerTile(
-              label: l10n.themeLight,
-              selected: _prefs!.themeMode == ThemeMode.light,
-              onTap: () async {
-                await AppSettingsService.instance.setThemeMode(ThemeMode.light);
-                if (mounted) setState(() => _prefs = _prefs!.copyWith(themeMode: ThemeMode.light));
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-            ),
-            _PickerTile(
-              label: l10n.themeDark,
-              selected: _prefs!.themeMode == ThemeMode.dark,
-              onTap: () async {
-                await AppSettingsService.instance.setThemeMode(ThemeMode.dark);
-                if (mounted) setState(() => _prefs = _prefs!.copyWith(themeMode: ThemeMode.dark));
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showInfoDialog(String title, String content) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-        title: Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
-        content: SingleChildScrollView(
-          child: Text(content, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Close', style: GoogleFonts.poppins(color: AppConstants.primaryGreen)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmClearCache() async {
-    final l10n = AppLocalizations.of(context);
-    final confirmed = await AppDialog.show<bool>(
-      context: context,
-      child: ConfirmDialog(
-        title: l10n.clearCachedData,
-        message: l10n.clearCachedDataDescription,
-        confirmLabel: l10n.clearCachedData,
-      ),
-    );
-    if (confirmed == true) {
-      await _settingsRepo.clearCachedData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.adminProfileCacheCleared), backgroundColor: AppConstants.successGreen),
-        );
-      }
+  Future<void> _setDarkMode(bool isDark) async {
+    await AppSettingsService.instance.setThemeMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    if (mounted) {
+      setState(() => _prefs = _prefs!.copyWith(themeMode: isDark ? ThemeMode.dark : ThemeMode.light));
     }
+  }
+
+  Future<void> _setTagalog(bool isTagalog) async {
+    final code = isTagalog ? AppConstants.localeTagalog : AppConstants.localeEnglish;
+    await AppSettingsService.instance.setLocale(Locale(code));
+    if (mounted) setState(() => _prefs = _prefs!.copyWith(localeCode: code));
   }
 
   Future<void> _confirmLogout() async {
@@ -204,7 +111,11 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
               iconColor: AppConstants.primaryGreen,
               title: l10n.appearance,
               subtitle: _themeLabel(l10n),
-              onTap: _showThemePicker,
+              showChevron: false,
+              trailing: Switch(
+                value: (_prefs?.themeMode ?? ThemeMode.light) == ThemeMode.dark,
+                onChanged: _setDarkMode,
+              ),
             ),
             const SettingsDivider(),
             SettingsRow(
@@ -212,27 +123,11 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
               iconColor: AppConstants.buyerBlue,
               title: l10n.language,
               subtitle: _languageLabel(l10n),
-              onTap: _showLanguagePicker,
-            ),
-          ]),
-          const SizedBox(height: 20),
-
-          SectionLabel(label: l10n.sectionStorage),
-          SettingsCard(children: [
-            ToggleRow(
-              title: l10n.backgroundSync,
-              value: _prefs!.backgroundSync,
-              onChanged: (v) async {
-                await _settingsRepo.saveBackgroundSync(v, userId: AppSettingsService.instance.currentUserId);
-                setState(() => _prefs = _prefs!.copyWith(backgroundSync: v));
-              },
-            ),
-            const SettingsDivider(),
-            SettingsRow(
-              icon: Icons.cleaning_services_outlined,
-              iconColor: AppConstants.buyerBlue,
-              title: l10n.clearCachedData,
-              onTap: _confirmClearCache,
+              showChevron: false,
+              trailing: Switch(
+                value: (_prefs?.localeCode ?? AppConstants.localeEnglish) == AppConstants.localeTagalog,
+                onChanged: _setTagalog,
+              ),
             ),
           ]),
           const SizedBox(height: 20),
@@ -243,28 +138,28 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
               icon: Icons.info_outline_rounded,
               iconColor: AppConstants.primaryGreen,
               title: l10n.aboutSagana,
-              onTap: () => _showInfoDialog(l10n.aboutSagana, l10n.aboutSaganaBody),
+              onTap: () => context.push(AppRoutes.aboutSagana),
             ),
             const SettingsDivider(),
             SettingsRow(
               icon: Icons.support_agent_rounded,
               iconColor: AppConstants.tertiaryContainer,
-              title: l10n.contactSp3,
-              onTap: () => _showInfoDialog(l10n.contactSp3, l10n.contactSp3Body),
+              title: l10n.aboutCooperative,
+              onTap: () => context.push(AppRoutes.aboutCooperative),
             ),
             const SettingsDivider(),
             SettingsRow(
               icon: Icons.privacy_tip_outlined,
               iconColor: AppConstants.amber,
               title: l10n.privacyPolicy,
-              onTap: () => _showInfoDialog(l10n.privacyPolicy, l10n.privacyPolicyBody),
+              onTap: () => context.push(AppRoutes.privacyPolicy),
             ),
             const SettingsDivider(),
             SettingsRow(
               icon: Icons.gavel_rounded,
               iconColor: AppConstants.onSurfaceVariant,
               title: l10n.termsOfUse,
-              onTap: () => _showInfoDialog(l10n.termsOfUse, l10n.termsOfUseBody),
+              onTap: () => context.push(AppRoutes.termsOfUse),
             ),
           ]),
           const SizedBox(height: 28),
@@ -289,28 +184,6 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
 // _ConfirmDialog moved to shared_widgets.dart (ConfirmDialog) — no longer
 // duplicated here either.
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _PickerTile extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _PickerTile({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
-        trailing: selected
-            ? const Icon(Icons.check_circle_rounded, color: AppConstants.primaryGreen)
-            : Icon(Icons.circle_outlined, color: Theme.of(context).colorScheme.outline),
-        onTap: onTap,
-      ),
-    );
-  }
-}
 
 class _LogoutConfirmDialog extends StatelessWidget {
   const _LogoutConfirmDialog();

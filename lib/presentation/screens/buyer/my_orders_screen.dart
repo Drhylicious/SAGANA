@@ -5,10 +5,13 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_order_model.dart';
+import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
+import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -40,6 +43,8 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
   late final TabController _tabController;
   final _repository = BuyerOrderRepository();
   final _notificationRepo = NotificationRepository();
+  final _profileRepo = BuyerProfileRepository();
+  BuyerProfileModel? _buyerProfile;
 
   bool _isLoading = true;
   List<BuyerOrderModel> _allOrders = [];
@@ -50,7 +55,14 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
     _load();
+    _loadBuyerProfile();
     AppEventService.instance.addListener(_load);
+  }
+
+  Future<void> _loadBuyerProfile() async {
+    final profile = await _profileRepo.fetchProfile();
+    if (!mounted) return;
+    setState(() => _buyerProfile = profile);
   }
 
   @override
@@ -97,6 +109,21 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
+      drawer: AppNavigationDrawer(
+        photoUrl: _buyerProfile?.profilePhotoUrl,
+        displayName: _buyerProfile?.fullName ?? 'Buyer',
+        contactEmail: _buyerProfile?.contactEmail,
+        phoneNumber: _buyerProfile?.phoneNumber,
+        onEditProfile: () {
+          Navigator.pop(context);
+          context.push(AppRoutes.buyerEditProfile);
+        },
+        onSignOut: () => confirmBuyerSignOut(context),
+        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+      ),
       body: Stack(
         children: [
           Column(
@@ -150,6 +177,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                 await context.push(AppRoutes.buyerNotifications);
                 _loadUnreadCount();
               },
+              enableMenu: true,
             ),
           ),
         ],

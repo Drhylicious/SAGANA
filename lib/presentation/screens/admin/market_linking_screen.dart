@@ -4,11 +4,22 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
+
+String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
+  switch (s) {
+    case MarketLinkingStatus.submitted:  return l10n.marketLinkKpiSubmitted;
+    case MarketLinkingStatus.buyerFound: return l10n.marketLinkKpiBuyerFound;
+    case MarketLinkingStatus.completed:  return l10n.statCompleted;
+    case MarketLinkingStatus.cancelled:  return l10n.buyerActivityStatusCancelled;
+  }
+}
 
 class MarketLinkingScreen extends StatefulWidget {
   const MarketLinkingScreen({super.key});
@@ -86,18 +97,17 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
   }
 
   void _confirmStartNewRound(MarketLinkingModel entry) {
+    final l10n = AppLocalizations.of(context);
     showManagementModal(
       context: context,
       builder: (ctx) => ManagementModalShell(
-        title: 'Start New Round',
+        title: l10n.marketLinkStartNewRoundTitle,
         subtitle: entry.farmerName,
-        body: const Text(
-          'Enrolls this farmer in a fresh Ginger Market Linking round, '
-          'starting again from Submitted. The previous round stays on '
-          'record as history.',
+        body: Text(
+          l10n.marketLinkStartNewRoundBody,
         ),
         footer: ManagementModalActions(
-          primaryLabel: 'Start New Round',
+          primaryLabel: l10n.marketLinkStartNewRoundTitle,
           onPrimary: () async {
             Navigator.pop(ctx);
             await _repo.startNewRound(farmerId: entry.farmerId);
@@ -109,17 +119,17 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
   }
 
   void _confirmDelete(MarketLinkingModel entry) {
+    final l10n = AppLocalizations.of(context);
     showManagementModal(
       context: context,
       builder: (ctx) => ManagementModalShell(
-        title: 'Delete Record',
+        title: l10n.marketLinkDeleteRecordTitle,
         subtitle: entry.farmerName,
-        body: const Text(
-          'Permanently deletes this cancelled Market Linking record. This '
-          'cannot be undone.',
+        body: Text(
+          l10n.marketLinkDeleteRecordBody,
         ),
         footer: ManagementModalActions(
-          primaryLabel: 'Delete',
+          primaryLabel: l10n.commonDelete,
           isDestructive: true,
           onPrimary: () async {
             Navigator.pop(ctx);
@@ -179,15 +189,23 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 14, 20, 100),
                           children: [
                             // ── KPI strip ─────────────────────────────────
-                            _KpiStrip(
-                              enrolledFarmers: _enrolledFarmersCount,
-                              totalRounds: _totalRoundsCount,
-                              submitted: _submittedCount,
-                              buyerFound: _buyerFoundCount,
-                              completed: _completedCount,
-                              cancelled: _cancelledCount,
-                              cs: cs,
-                              sagana: sagana,
+                            // Grouped inside the same outer titled container
+                            // the Report tab uses (Executive Snapshot etc.),
+                            // not just individually restyled cards.
+                            ReportSectionCard(
+                              title: 'Market Linking Overview',
+                              icon: Icons.hub_rounded,
+                              accent: AppConstants.buyerBlue,
+                              child: _KpiStrip(
+                                enrolledFarmers: _enrolledFarmersCount,
+                                totalRounds: _totalRoundsCount,
+                                submitted: _submittedCount,
+                                buyerFound: _buyerFoundCount,
+                                completed: _completedCount,
+                                cancelled: _cancelledCount,
+                                cs: cs,
+                                sagana: sagana,
+                              ),
                             ),
                             const SizedBox(height: 16),
 
@@ -273,6 +291,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -294,10 +313,14 @@ class _TopAppBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Market Linking',
+                    Text(l10n.marketLinkTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(fontSize: 17,
                             fontWeight: FontWeight.w700, color: cs.primary)),
-                    Text('Ginger Program — DA-AMAD',
+                    Text(l10n.marketLinkSubtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
                   ],
                 ),
@@ -332,20 +355,26 @@ class _KpiStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tiles = [
       // Unique farmers in the program — NOT a count of rounds/records
       // (see "Total Rounds" below for that). Starting a new round for an
       // already-enrolled farmer must not move this number.
-      _KpiTile('Enrolled', '$enrolledFarmers', cs.primary, Icons.eco_rounded),
-      _KpiTile('Total Rounds', '$totalRounds', AppConstants.programPurple, Icons.repeat_rounded),
-      _KpiTile('Submitted', '$submitted', AppConstants.warningAmber, Icons.upload_file_rounded),
-      _KpiTile('Buyer Found', '$buyerFound', AppConstants.buyerBlue, Icons.handshake_outlined),
-      _KpiTile('Completed', '$completed', AppConstants.successGreen, Icons.check_circle_outline_rounded),
-      _KpiTile('Cancelled', '$cancelled', AppConstants.errorRed, Icons.cancel_outlined),
+      _KpiTile(l10n.marketLinkKpiEnrolled, '$enrolledFarmers', cs.primary, Icons.eco_rounded),
+      _KpiTile(l10n.marketLinkKpiTotalRounds, '$totalRounds', AppConstants.programPurple, Icons.repeat_rounded),
+      _KpiTile(l10n.marketLinkKpiSubmitted, '$submitted', AppConstants.warningAmber, Icons.upload_file_rounded),
+      _KpiTile(l10n.marketLinkKpiBuyerFound, '$buyerFound', AppConstants.buyerBlue, Icons.handshake_outlined),
+      _KpiTile(l10n.statCompleted, '$completed', AppConstants.successGreen, Icons.check_circle_outline_rounded),
+      _KpiTile(l10n.buyerActivityStatusCancelled, '$cancelled', AppConstants.errorRed, Icons.cancel_outlined),
     ];
 
     return SizedBox(
-      height: 88,
+      // Was 88 — too tight for icon-badge + label + value once this strip
+      // got the Report-tab-style reskin (previously just icon+label+value,
+      // no badge row), which is what caused the reported RenderFlex
+      // overflow. Matches Dashboard's own _KpiStrip height for the same
+      // content shape.
+      height: 104,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: tiles.length,
@@ -356,29 +385,31 @@ class _KpiStrip extends StatelessWidget {
             width: 108,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
-              ],
+              color: t.color.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: t.color.withValues(alpha: 0.18)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(children: [
-                  Icon(t.icon, size: 13, color: t.color),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(t.label,
-                        style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-                        overflow: TextOverflow.ellipsis),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: t.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                   ),
-                ]),
+                  child: Icon(t.icon, size: 14, color: t.color),
+                ),
+                const SizedBox(height: 6),
+                Text(t.label,
+                    maxLines: 1,
+                    style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
                 Text(t.value,
                     style: GoogleFonts.poppins(
-                        fontSize: 22, fontWeight: FontWeight.w800, color: t.color)),
+                        fontSize: 18, fontWeight: FontWeight.w800, color: cs.onSurface)),
               ],
             ),
           );
@@ -403,6 +434,7 @@ class _DaAmadInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (compact) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -420,7 +452,7 @@ class _DaAmadInfoCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'DA-AMAD Ginger Program — institutional export pricing, bypasses the open marketplace.',
+                l10n.marketLinkDaAmadCompact,
                 style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
               ),
             ),
@@ -448,15 +480,13 @@ class _DaAmadInfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'DA-AMAD Ginger Market Linking',
+                  l10n.marketLinkDaAmadTitle,
                   style: GoogleFonts.poppins(
                       fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface),
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Links SP3 Ginger farmers directly to DA-AMAD institutional '
-                  'buyers for premium export pricing. Farmers enrolled here '
-                  'bypass the open marketplace for their Ginger harvest.',
+                  l10n.marketLinkDaAmadBody,
                   style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant, height: 1.4),
                 ),
               ],
@@ -505,9 +535,11 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final statusColor = _statusColor(entry.status, cs);
     final isCancelled = entry.status == MarketLinkingStatus.cancelled;
     final stageIndex = _stages.indexOf(entry.status); // -1 if cancelled
+    final statusLabel = marketLinkingStatusLabel(l10n, entry.status);
 
     return Container(
       decoration: BoxDecoration(
@@ -560,6 +592,8 @@ class _EntryCard extends StatelessWidget {
                         children: [
                           Text(
                             entry.farmerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -569,6 +603,8 @@ class _EntryCard extends StatelessWidget {
                           if (entry.purok != null)
                             Text(
                               entry.purok!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 color: cs.onSurfaceVariant,
@@ -577,19 +613,29 @@ class _EntryCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                      ),
-                      child: Text(
-                        entry.status.label.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.4,
-                          color: statusColor,
+                    const SizedBox(width: 8),
+                    // Flexible + ellipsis: Tagalog status labels (e.g.
+                    // "Nakahanap ng Mamimili" for buyer_found) run
+                    // noticeably longer than the English source and this
+                    // pill previously assumed a short all-caps word would
+                    // always fit next to the name column above.
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        ),
+                        child: Text(
+                          statusLabel.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            color: statusColor,
+                          ),
                         ),
                       ),
                     ),
@@ -679,15 +725,28 @@ class _EntryCard extends StatelessWidget {
                     children: [
                       Icon(Icons.inventory_2_outlined, size: 13, color: cs.outline),
                       const SizedBox(width: 4),
-                      Text(
-                        'Linked to Batch #${entry.batchNumber}',
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      // Flexible + ellipsis: "Naka-link sa Batch #..." plus
+                      // the confirmed-volume suffix can run past the card
+                      // width once both segments are Tagalog on a narrow
+                      // screen.
+                      Flexible(
+                        child: Text(
+                          l10n.marketLinkLinkedToBatch(entry.batchNumber!),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        ),
                       ),
                       if (entry.confirmedVolumeKg != null) ...[
                         const SizedBox(width: 6),
-                        Text(
-                          '· ${entry.confirmedVolumeKg!.toStringAsFixed(0)} kg confirmed',
-                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        Flexible(
+                          child: Text(
+                            l10n.marketLinkConfirmedVolumeSuffix(
+                                entry.confirmedVolumeKg!.toStringAsFixed(0)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                          ),
                         ),
                       ],
                     ],
@@ -702,9 +761,13 @@ class _EntryCard extends StatelessWidget {
                   children: [
                     Icon(Icons.schedule_rounded, size: 12, color: cs.outline),
                     const SizedBox(width: 4),
-                    Text(
-                      _timelineLabel(entry),
-                      style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
+                    Flexible(
+                      child: Text(
+                        _timelineLabel(entry, l10n),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
+                      ),
                     ),
                   ],
                 ),
@@ -733,7 +796,7 @@ class _EntryCard extends StatelessWidget {
                   child: _ActionButton(
                     onTap: onEnterBuyerDetails,
                     icon: Icons.person_add_alt_1_rounded,
-                    label: 'Enter Buyer Details',
+                    label: l10n.marketLinkEnterBuyerDetails,
                     style: onEnterBuyerDetails != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
                     cs: cs,
                   ),
@@ -747,7 +810,7 @@ class _EntryCard extends StatelessWidget {
                         child: _ActionButton(
                           onTap: onCancel,
                           icon: Icons.close_rounded,
-                          label: 'Cancel',
+                          label: l10n.cancel,
                           style: onCancel != null ? _ActionStyle.outlineDestructive : _ActionStyle.disabled,
                           cs: cs,
                         ),
@@ -757,7 +820,7 @@ class _EntryCard extends StatelessWidget {
                         child: _ActionButton(
                           onTap: onComplete,
                           icon: Icons.handshake_rounded,
-                          label: 'Complete',
+                          label: l10n.marketLinkCompleteAction,
                           style: onComplete != null ? _ActionStyle.gradient : _ActionStyle.disabled,
                           cs: cs,
                         ),
@@ -771,7 +834,7 @@ class _EntryCard extends StatelessWidget {
                   child: _ActionButton(
                     onTap: onStartNewRound,
                     icon: Icons.refresh_rounded,
-                    label: 'Start New Round',
+                    label: l10n.marketLinkStartNewRoundTitle,
                     style: onStartNewRound != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
                     cs: cs,
                   ),
@@ -788,7 +851,7 @@ class _EntryCard extends StatelessWidget {
                         child: _ActionButton(
                           onTap: onDelete,
                           icon: Icons.delete_outline_rounded,
-                          label: 'Delete',
+                          label: l10n.commonDelete,
                           style: onDelete != null ? _ActionStyle.outlineDestructive : _ActionStyle.disabled,
                           cs: cs,
                         ),
@@ -798,7 +861,7 @@ class _EntryCard extends StatelessWidget {
                         child: _ActionButton(
                           onTap: onStartNewRound,
                           icon: Icons.refresh_rounded,
-                          label: 'Start New Round',
+                          label: l10n.marketLinkStartNewRoundTitle,
                           style: onStartNewRound != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
                           cs: cs,
                         ),
@@ -813,10 +876,10 @@ class _EntryCard extends StatelessWidget {
     );
   }
 
-  String _timelineLabel(MarketLinkingModel e) {
-    if (e.completedAt != null) return 'Completed ${_fmt(e.completedAt!)}';
-    if (e.buyerFoundAt != null) return 'Buyer found ${_fmt(e.buyerFoundAt!)}';
-    return 'Submitted ${_fmt(e.submittedAt)}';
+  String _timelineLabel(MarketLinkingModel e, AppLocalizations l10n) {
+    if (e.completedAt != null) return l10n.marketLinkTimelineCompleted(_fmt(e.completedAt!));
+    if (e.buyerFoundAt != null) return l10n.marketLinkTimelineBuyerFound(_fmt(e.buyerFoundAt!));
+    return l10n.marketLinkTimelineSubmitted(_fmt(e.submittedAt));
   }
 
   String _fmt(DateTime dt) {
@@ -898,9 +961,19 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon, size: 15, color: foreground),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: foreground),
+            // Flexible + ellipsis: this button sits inside an Expanded
+            // half-width slot (Cancel/Complete, Delete/Start New Round) and
+            // Tagalog labels like "Simulan ang Bagong Round" are much
+            // longer than their English source, so an unguarded Text here
+            // can overflow the button's own Row before Flutter even gets
+            // to the parent Row's width budget.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: foreground),
+              ),
             ),
           ],
         ),
@@ -918,6 +991,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -931,12 +1005,13 @@ class _EmptyState extends StatelessWidget {
           const Text('🌿', style: TextStyle(fontSize: 40)),
           const SizedBox(height: 14),
           Text(
-            hasFilter ? 'No farmers match this status' : 'No Ginger farmers enrolled yet',
+            hasFilter ? l10n.marketLinkNoFarmersFiltered : l10n.marketLinkNoFarmersYet,
+            textAlign: TextAlign.center,
             style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
           ),
           const SizedBox(height: 4),
           Text(
-            hasFilter ? 'Try a different filter' : 'Tap the + button to enroll a Ginger farmer',
+            hasFilter ? l10n.marketLinkTryDifferentFilter : l10n.marketLinkTapToEnroll,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
@@ -1069,32 +1144,35 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
       Navigator.pop(context);
       widget.onSaved();
     } catch (e) {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(
           e.toString().contains('exceeds')
-              ? 'Confirmed volume exceeds what\'s left in that batch.'
-              : 'Failed to update. Please try again.',
+              ? l10n.marketLinkVolumeExceedsError
+              : l10n.marketLinkUpdateFailed,
         )),
       );
     }
   }
 
-  String get _title {
+  String _title(AppLocalizations l10n) {
     switch (widget.targetStatus) {
-      case MarketLinkingStatus.buyerFound: return 'Enter Buyer Details';
-      case MarketLinkingStatus.completed: return 'Complete Sale';
-      case MarketLinkingStatus.cancelled: return 'Cancel Enrollment';
-      case MarketLinkingStatus.submitted: return 'Update';
+      case MarketLinkingStatus.buyerFound: return l10n.marketLinkEnterBuyerDetails;
+      case MarketLinkingStatus.completed: return l10n.marketLinkTitleCompleteSale;
+      case MarketLinkingStatus.cancelled: return l10n.marketLinkTitleCancelEnrollment;
+      case MarketLinkingStatus.submitted: return l10n.marketLinkTitleUpdate;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return ManagementModalShell(
-      title: _title,
+      title: _title(l10n),
       subtitle: widget.entry.farmerName,
       body: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1103,16 +1181,16 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
           // Cancelling needs nothing but an optional reason — no buyer,
           // price, quantity, or batch fields at all.
           if (!_isCancelling) ...[
-            _FieldLabel(label: 'Buyer Name', cs: cs),
+            _FieldLabel(label: l10n.marketLinkBuyerNameLabel, cs: cs),
             TextFormField(
               controller: _buyerNameCtrl,
               decoration: InputDecoration(
-                hintText: 'e.g. DA-AMAD Collector, Marinduque',
+                hintText: l10n.marketLinkBuyerNameHint,
                 hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
               ),
             ),
             const SizedBox(height: 12),
-            _FieldLabel(label: 'Agreed Price (₱/kg)', cs: cs),
+            _FieldLabel(label: l10n.marketLinkAgreedPriceLabel, cs: cs),
             TextFormField(
               controller: _priceCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1131,7 +1209,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
             // intent, distinct from Confirmed Volume below (which only
             // applies once completing against an actual batch).
             if (widget.targetStatus == MarketLinkingStatus.buyerFound) ...[
-              _FieldLabel(label: 'Quantity Buyer Wants to Purchase (kg)', cs: cs),
+              _FieldLabel(label: l10n.marketLinkQuantityBuyerWantsLabel, cs: cs),
               TextFormField(
                 controller: _requestedVolumeCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1149,7 +1227,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
             // Ginger Harvest Batch — always this farmer's own batch,
             // automatically, never a manual choice among several (this
             // program is one farmer, one harvest, one buyer at a time).
-            _FieldLabel(label: 'Ginger Harvest Batch', cs: cs),
+            _FieldLabel(label: l10n.marketLinkGingerBatchLabel, cs: cs),
             if (_loadingBatches)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
@@ -1169,7 +1247,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'No available Ginger harvest batch found for this farmer.',
+                        l10n.marketLinkNoBatchFound,
                         style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface),
                       ),
                     ),
@@ -1192,8 +1270,12 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Batch #${batch['batch_number']} — ${(batch['available_kg'] as num).toStringAsFixed(0)} kg available',
+                          l10n.marketLinkBatchAvailableLine(
+                            '${batch['batch_number']}',
+                            (batch['available_kg'] as num).toStringAsFixed(0),
+                          ),
                           style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1204,7 +1286,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
 
             if (_isCompleting && _selectedBatchId != null) ...[
               const SizedBox(height: 12),
-              _FieldLabel(label: 'Confirmed Volume (kg)', cs: cs),
+              _FieldLabel(label: l10n.marketLinkConfirmedVolumeLabel, cs: cs),
               TextFormField(
                 controller: _confirmedVolumeCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1221,7 +1303,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                     );
                     final avail = batch['available_kg'];
                     return avail != null
-                        ? 'Up to ${(avail as num).toStringAsFixed(0)} kg available in this batch'
+                        ? l10n.marketLinkUpToAvailable((avail as num).toStringAsFixed(0))
                         : null;
                   }(),
                 ),
@@ -1230,19 +1312,19 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
             const SizedBox(height: 12),
           ],
 
-          _FieldLabel(label: _isCancelling ? 'Reason (optional)' : 'Notes (optional)', cs: cs),
+          _FieldLabel(label: _isCancelling ? l10n.marketLinkReasonOptional : l10n.paymentNotes, cs: cs),
           TextFormField(
             controller: _notesCtrl,
             maxLines: 3,
             decoration: InputDecoration(
-              hintText: _isCancelling ? 'Why this enrollment is being cancelled...' : 'Additional notes...',
+              hintText: _isCancelling ? l10n.marketLinkWhyCancelled : l10n.marketLinkAdditionalNotes,
               hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
             ),
           ),
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: _isCancelling ? 'Confirm Cancellation' : 'Save Changes',
+        primaryLabel: _isCancelling ? l10n.marketLinkConfirmCancellation : l10n.saveChanges,
         isDestructive: _isCancelling,
         isLoading: _isSaving,
         // The harvest batch link is no longer optional (see M-marketplace-6)
@@ -1285,9 +1367,10 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
   }
 
   Future<void> _enroll() async {
+    final l10n = AppLocalizations.of(context);
     if (_selectedFarmerId == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please select a farmer.')));
+          .showSnackBar(SnackBar(content: Text(l10n.marketLinkSelectFarmerPrompt)));
       return;
     }
     setState(() => _isSaving = true);
@@ -1300,24 +1383,26 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
       Navigator.pop(context);
       widget.onSaved();
     } catch (_) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Failed to enroll. Try again.')));
+          .showSnackBar(SnackBar(content: Text(l10n.marketLinkEnrollFailed)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return ManagementModalShell(
-      title: 'Enroll Ginger Farmer',
-      subtitle: 'Add a farmer to the DA-AMAD program',
+      title: l10n.marketLinkEnrollTitle,
+      subtitle: l10n.marketLinkEnrollSubtitle,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _FieldLabel(label: 'Select Farmer', cs: cs),
+          _FieldLabel(label: l10n.marketLinkSelectFarmerLabel, cs: cs),
           widget.farmers.isEmpty
               ? Container(
                   width: double.infinity,
@@ -1339,11 +1424,8 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
                       Expanded(
                         child: Text(
                           widget.totalGingerFarmers == 0
-                              ? 'No farmers are registered as growing Ginger yet. '
-                                'Ginger must be added to a farmer\'s profile before '
-                                'they can be enrolled here.'
-                              : 'All ${widget.totalGingerFarmers} Ginger farmers are '
-                                'already enrolled this season.',
+                              ? l10n.marketLinkNoGingerFarmers
+                              : l10n.marketLinkAllEnrolled(widget.totalGingerFarmers),
                           style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
                         ),
                       ),
@@ -1354,7 +1436,7 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
                   initialValue: _selectedFarmerId,
                   isExpanded: true,
                   hint: Text(
-                    'Select a Ginger farmer',
+                    l10n.marketLinkSelectGingerFarmerHint,
                     style: GoogleFonts.inter(fontSize: 14, color: cs.outline),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1374,7 +1456,7 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
                   onChanged: (v) => setState(() => _selectedFarmerId = v),
                 ),
           const SizedBox(height: 14),
-          _FieldLabel(label: 'Committed Volume (kg) — optional', cs: cs),
+          _FieldLabel(label: l10n.marketLinkCommittedVolumeLabel, cs: cs),
           TextFormField(
             controller: _volumeCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1389,7 +1471,7 @@ class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
       footer: widget.farmers.isEmpty
           ? null
           : ManagementModalActions(
-              primaryLabel: 'Enroll in DA-AMAD Program',
+              primaryLabel: l10n.marketLinkEnrollInProgram,
               isLoading: _isSaving,
               onPrimary: _enroll,
             ),

@@ -91,7 +91,7 @@ class BroadcastModel {
   final String? recipientFilter; // crop name or farmer_id
   final int recipientCount;
   final DateTime? scheduledAt;
-  final DateTime sentAt;
+  final DateTime? sentAt;
   final String? createdBy;
   final DateTime createdAt;
 
@@ -104,12 +104,17 @@ class BroadcastModel {
     this.recipientFilter,
     required this.recipientCount,
     this.scheduledAt,
-    required this.sentAt,
+    this.sentAt,
     this.createdBy,
     required this.createdAt,
   });
 
   bool get isScheduled => scheduledAt != null;
+
+  /// True for a scheduled broadcast that's been queued but hasn't actually
+  /// gone out yet — sent_at is only populated once
+  /// process_scheduled_broadcasts() has processed it.
+  bool get isPending => sentAt == null;
 
   String get recipientLabel {
     switch (recipientType) {
@@ -144,11 +149,31 @@ class BroadcastModel {
       scheduledAt:     map['scheduled_at'] != null
                            ? DateTime.parse(map['scheduled_at'] as String)
                            : null,
-      sentAt:          DateTime.parse(map['sent_at'] as String),
+      sentAt:          map['sent_at'] != null
+                           ? DateTime.parse(map['sent_at'] as String)
+                           : null,
       createdBy:       map['created_by'] as String?,
       createdAt:       DateTime.parse(map['created_at'] as String),
     );
   }
+}
+
+/// Formats an absolute future date/time for a queued broadcast, e.g.
+/// "Sep 19, 2:30 PM". Shared by the Compose screen's recent-sends list and
+/// the Broadcast History screen for a still-pending (sent_at == null) item.
+String formatBroadcastSchedule(DateTime dt) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final h = dt.hour > 12
+      ? dt.hour - 12
+      : dt.hour == 0
+          ? 12
+          : dt.hour;
+  final min = dt.minute.toString().padLeft(2, '0');
+  final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+  return '${months[dt.month - 1]} ${dt.day}, $h:$min $ampm';
 }
 
 // ─── Broadcast Template ───────────────────────────────────────────────────────

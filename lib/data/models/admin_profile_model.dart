@@ -7,10 +7,13 @@ class AdminProfileModel {
   final String? phoneNumber;
   final String? profilePhotoUrl;
   final String? purok;
+  final String? contactEmail;
   final String? employeeId;
   final String? position;
   final String? department;
   final DateTime? adminSince;
+  final DateTime? dateOfBirth;
+  final String? gender;
 
   const AdminProfileModel({
     required this.userId,
@@ -19,10 +22,13 @@ class AdminProfileModel {
     this.phoneNumber,
     this.profilePhotoUrl,
     this.purok,
+    this.contactEmail,
     this.employeeId,
     this.position,
     this.department,
     this.adminSince,
+    this.dateOfBirth,
+    this.gender,
   });
 
   AdminProfileModel copyWith({
@@ -30,6 +36,8 @@ class AdminProfileModel {
     String? phoneNumber,
     String? profilePhotoUrl,
     String? purok,
+    DateTime? dateOfBirth,
+    String? gender,
   }) {
     return AdminProfileModel(
       userId: userId,
@@ -42,6 +50,8 @@ class AdminProfileModel {
       position: position,
       department: department,
       adminSince: adminSince,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      gender: gender ?? this.gender,
     );
   }
 }

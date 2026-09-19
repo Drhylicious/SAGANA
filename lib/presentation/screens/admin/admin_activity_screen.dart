@@ -3,11 +3,116 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../routes/app_routes.dart';
+
+// Builds the localized activity description from an item's raw
+// descKind + name/cropName/quantityKg/amount fields — the repository that
+// creates AdminActivityItem has no AppLocalizations access (see
+// admin_dashboard_model.dart), so the actual sentence is assembled here
+// instead. Shared by this screen and admin_dashboard_screen.dart's
+// Recent Activity preview (both display the same AdminActivityItem list).
+String adminActivityDescription(AppLocalizations l10n, AdminActivityItem item) {
+  if (item.plainDescription != null) return item.plainDescription!;
+  final name = item.name ?? l10n.defaultFarmerName;
+  switch (item.descKind!) {
+    case AdminActivityDescKind.harvest:
+      return l10n.adminActivityNewHarvest(name, item.quantityKg ?? '', item.cropName ?? '');
+    case AdminActivityDescKind.listingApproved:
+      return l10n.adminActivityListingApproved(item.cropName ?? '', name);
+    case AdminActivityDescKind.listingSubmitted:
+      return l10n.adminActivityListingSubmitted(name, item.cropName ?? '');
+    case AdminActivityDescKind.orderPlaced:
+      return l10n.adminActivityOrderPlaced(item.amount ?? '');
+    case AdminActivityDescKind.priceUpdated:
+      return l10n.adminActivityPriceUpdated(item.cropName ?? '', item.amount ?? '');
+    case AdminActivityDescKind.newMember:
+      return l10n.adminActivityNewMember(item.name ?? l10n.adminActivityNewMemberFallback);
+    case AdminActivityDescKind.cropRequested:
+      return l10n.adminActivityCropRequested(name, item.cropName ?? '');
+  }
+}
+
+// Module-keyed color/icon/label — the single lookup every activity item
+// (legacy 6-source AND admin_activity_log-backed) renders through, keyed
+// by AdminActivityItem.sourceModule rather than the closed
+// AdminActivityType enum. A new module (e.g. a future admin action logged
+// from a screen that doesn't exist yet) needs an entry added here to get
+// its own color/icon/label — everything else (filtering, rendering)
+// already works for it via the fallback case, no other code changes
+// needed. This is the fix for Recent Activity "not being fully adaptive".
+Color moduleColor(String? module, ColorScheme cs) {
+  switch (module) {
+    case 'harvest':        return AppConstants.primaryGreen;
+    case 'listings':       return cs.primary;
+    case 'orders':         return AppConstants.buyerBlue;
+    case 'prices':         return cs.outline;
+    case 'members':        return AppConstants.primaryGreen;
+    case 'crops':          return AppConstants.warningAmber;
+    case 'inventory':      return AppConstants.warningAmber;
+    case 'programs':       return AppConstants.programPurple;
+    case 'loans':          return AppConstants.errorRed;
+    case 'market_linking': return AppConstants.buyerBlue;
+    case 'offers':         return AppConstants.successGreen;
+    case 'broadcast':      return AppConstants.amber;
+    case 'profile':        return cs.outline;
+    default:                return cs.outline;
+  }
+}
+
+IconData moduleIcon(String? module) {
+  switch (module) {
+    case 'harvest':        return Icons.agriculture_rounded;
+    case 'listings':       return Icons.store_rounded;
+    case 'orders':         return Icons.shopping_bag_rounded;
+    case 'prices':         return Icons.sell_rounded;
+    case 'members':        return Icons.person_add_rounded;
+    case 'crops':          return Icons.eco_outlined;
+    case 'inventory':      return Icons.inventory_2_rounded;
+    case 'programs':       return Icons.star_rounded;
+    case 'loans':          return Icons.account_balance_rounded;
+    case 'market_linking': return Icons.hub_rounded;
+    case 'offers':         return Icons.handshake_rounded;
+    case 'broadcast':      return Icons.campaign_rounded;
+    case 'profile':        return Icons.person_rounded;
+    default:                return Icons.history_rounded;
+  }
+}
+
+String moduleLabel(AppLocalizations l10n, String? module) {
+  switch (module) {
+    case null:              return l10n.reportsAll;
+    case 'harvest':         return l10n.navHarvest;
+    case 'listings':        return l10n.adminNavListings;
+    case 'orders':          return l10n.statOrders;
+    case 'prices':          return l10n.buyerNavPrices;
+    case 'members':         return l10n.adminNavMembers;
+    case 'crops':           return l10n.cropMgmtTitle;
+    case 'inventory':       return l10n.adminInvManagementTitle;
+    case 'programs':        return l10n.programMgmtTitle;
+    case 'loans':           return l10n.loanItemCatalogTitle;
+    case 'market_linking':  return l10n.marketLinkTitle;
+    case 'offers':          return l10n.offerCoopTitle;
+    case 'broadcast':       return l10n.broadcastTitle;
+    case 'profile':         return l10n.adminProfileTitle;
+    default:                return module;
+  }
+}
+
+// Relative-time label computed from the item's bare timestamp at display
+// time (rather than a pre-baked English string from the repository) —
+// same relative-time phrasing already used by admin_notifications_screen.dart.
+String adminActivityTimeLabel(AppLocalizations l10n, DateTime timestamp) {
+  final diff = DateTime.now().difference(timestamp);
+  if (diff.inMinutes < 1) return l10n.broadcastJustNow;
+  if (diff.inMinutes < 60) return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
+  if (diff.inHours < 24) return l10n.buyerNotifTimeHoursAgo(diff.inHours);
+  return l10n.buyerNotifTimeDaysAgo(diff.inDays);
+}
 
 class AdminActivityScreen extends StatefulWidget {
   const AdminActivityScreen({super.key});
@@ -21,7 +126,12 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
 
   List<AdminActivityItem> _items = [];
   bool _isLoading = true;
-  AdminActivityType? _filter;
+  // Filtering is by nav-section category rather than the raw sourceModule —
+  // the per-module chip list (harvest/listings/orders/prices/members/crops/
+  // inventory/programs/loans/market_linking/offers/broadcast/profile) was
+  // too many chips to scan at a glance, so chips are consolidated down to
+  // the same 6 sections the bottom nav + drawer already use.
+  String? _filterCategory;
   int _page = 0;
   static const _pageSize = 30;
   bool _hasMore = true;
@@ -40,7 +150,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     final fetched = await _repo.fetchRecentActivity(
       limit: _pageSize,
       offset: _page * _pageSize,
-      typeFilter: _filter,
+      moduleFilters: _filterCategory == null ? null : _categoryModules[_filterCategory],
     );
     if (!mounted) return;
     setState(() {
@@ -50,8 +160,8 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     });
   }
 
-  void _onFilterTap(AdminActivityType? type) {
-    setState(() => _filter = type);
+  void _onFilterTap(String? category) {
+    setState(() => _filterCategory = category);
     _loadPage(reset: true);
   }
 
@@ -80,66 +190,58 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
         context.push(AppRoutes.programManagement);
       case AdminActivityType.cropRequest:
         context.push(AppRoutes.cropRequestApproval);
+      case AdminActivityType.logged:
+        switch (item.sourceModule) {
+          case 'inventory': context.push(AppRoutes.adminInventory);
+          case 'crops':     context.push(AppRoutes.cropManagement);
+          case 'programs':  context.push(AppRoutes.programManagement);
+          case 'loans':     context.push(AppRoutes.loanItemManagement);
+          case 'prices':    context.push(AppRoutes.priceManagement);
+          case 'market_linking': context.push(AppRoutes.marketLinking);
+          case 'offers':    context.push(AppRoutes.offerToCooperative);
+          case 'broadcast': context.push(AppRoutes.broadcastHistory);
+          case 'profile':   context.push(AppRoutes.adminProfile);
+          // 'members' and other future modules with no known destination
+          // simply aren't navigable — same as any item with no referenceId.
+        }
     }
   }
 
-  Color _typeColor(AdminActivityType type, ColorScheme cs) {
-    switch (type) {
-      case AdminActivityType.harvest:     return AppConstants.primaryGreen;
-      case AdminActivityType.listing:     return cs.primary;
-      case AdminActivityType.member:      return AppConstants.primaryGreen;
-      case AdminActivityType.order:       return AppConstants.buyerBlue;
-      case AdminActivityType.loan:        return AppConstants.errorRed;
-      case AdminActivityType.price:       return cs.outline;
-      case AdminActivityType.inventory:   return AppConstants.warningAmber;
-      case AdminActivityType.program:     return AppConstants.programPurple;
-      case AdminActivityType.cropRequest: return AppConstants.warningAmber;
+  // Chips are grouped into the same 6 sections the bottom nav + drawer use
+  // (Dashboard, Members, Marketplace, Loans, Reports, Profile) rather than
+  // one chip per raw sourceModule — each category maps to every module
+  // whose activity belongs under that section. "Reports" has no
+  // sourceModule of its own today (nothing logs an activity item for
+  // report generation), so it's included as a chip but currently always
+  // shows empty — kept for parity with the nav rather than omitted.
+  static const _categoryModules = {
+    'dashboard': ['prices', 'crops', 'inventory', 'programs', 'broadcast'],
+    'members': ['harvest', 'members'],
+    'marketplace': ['listings', 'orders', 'market_linking', 'offers'],
+    'loans': ['loans'],
+    'reports': <String>[],
+    'profile': ['profile'],
+  };
+  static const _filterCategories = [null, 'dashboard', 'members', 'marketplace', 'loans', 'reports', 'profile'];
+
+  String _categoryLabel(AppLocalizations l10n, String? category) {
+    switch (category) {
+      case null:          return l10n.reportsAll;
+      case 'dashboard':   return l10n.adminNavDashboard;
+      case 'members':     return l10n.adminNavMembers;
+      case 'marketplace': return l10n.navMarketplace;
+      case 'loans':       return l10n.adminNavLoans;
+      case 'reports':     return l10n.adminNavReports;
+      case 'profile':     return l10n.adminProfileTitle;
+      default:            return category;
     }
   }
-
-  IconData _typeIcon(AdminActivityType type) {
-    switch (type) {
-      case AdminActivityType.harvest:     return Icons.agriculture_rounded;
-      case AdminActivityType.listing:     return Icons.store_rounded;
-      case AdminActivityType.member:      return Icons.person_add_rounded;
-      case AdminActivityType.order:       return Icons.shopping_bag_rounded;
-      case AdminActivityType.loan:        return Icons.account_balance_rounded;
-      case AdminActivityType.price:       return Icons.sell_rounded;
-      case AdminActivityType.inventory:   return Icons.inventory_2_rounded;
-      case AdminActivityType.program:     return Icons.star_rounded;
-      case AdminActivityType.cropRequest: return Icons.eco_outlined;
-    }
-  }
-
-  String _typeLabel(AdminActivityType? type) {
-    if (type == null) return 'All';
-    switch (type) {
-      case AdminActivityType.harvest:     return 'Harvest';
-      case AdminActivityType.listing:     return 'Listings';
-      case AdminActivityType.member:      return 'Members';
-      case AdminActivityType.order:       return 'Orders';
-      case AdminActivityType.loan:        return 'Loans';
-      case AdminActivityType.price:       return 'Prices';
-      case AdminActivityType.inventory:   return 'Inventory';
-      case AdminActivityType.program:     return 'Programs';
-      case AdminActivityType.cropRequest: return 'Crop Requests';
-    }
-  }
-
-  static const _filterTypes = [
-    null,
-    AdminActivityType.harvest,
-    AdminActivityType.listing,
-    AdminActivityType.member,
-    AdminActivityType.loan,
-    AdminActivityType.order,
-    AdminActivityType.price,
-  ];
 
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -166,7 +268,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                       onPressed: () => context.pop(),
                     ),
                     Text(
-                      'Activity Log',
+                      l10n.adminActivityTitle,
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -187,12 +289,12 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
-                children: _filterTypes.map((type) {
-                  final isSelected = _filter == type;
+                children: _filterCategories.map((category) {
+                  final isSelected = _filterCategory == category;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
-                      onTap: () => _onFilterTap(type),
+                      onTap: () => _onFilterTap(category),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 7),
@@ -209,7 +311,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                           ),
                         ),
                         child: Text(
-                          _typeLabel(type),
+                          _categoryLabel(l10n, category),
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -246,7 +348,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                         color: cs.onSurfaceVariant),
                                     const SizedBox(height: 12),
                                     Text(
-                                      'No activity yet',
+                                      l10n.adminActivityNoActivityYet,
                                       style: GoogleFonts.inter(
                                           fontSize: 14,
                                           color: cs.onSurfaceVariant),
@@ -288,7 +390,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                           ),
                                         ),
                                         child: Text(
-                                          'Load more',
+                                          l10n.adminActivityLoadMore,
                                           style: GoogleFonts.poppins(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
@@ -302,14 +404,16 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                               }
 
                               final item = _items[i];
-                              final color = _typeColor(item.type, cs);
-                              final icon = _typeIcon(item.type);
+                              final color = moduleColor(item.sourceModule, cs);
+                              final icon = moduleIcon(item.sourceModule);
                               final isNavigable =
                                   item.referenceId != null ||
                                       item.type ==
                                           AdminActivityType.order ||
                                       item.type ==
-                                          AdminActivityType.price;
+                                          AdminActivityType.price ||
+                                      (item.type == AdminActivityType.logged &&
+                                          item.sourceModule != 'members');
 
                               return Padding(
                                 padding: const EdgeInsets.only(
@@ -358,7 +462,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                                     .start,
                                             children: [
                                               Text(
-                                                item.description,
+                                                adminActivityDescription(l10n, item),
                                                 style: GoogleFonts.inter(
                                                   fontSize: 13,
                                                   color: cs.onSurface,
@@ -367,47 +471,70 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                               const SizedBox(height: 3),
                                               Row(
                                                 children: [
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                    decoration:
-                                                        BoxDecoration(
-                                                      color: color
-                                                          .withValues(
-                                                              alpha: 0.10),
-                                                      borderRadius:
-                                                          BorderRadius
-                                                              .circular(
-                                                        AppConstants
-                                                            .radiusFull,
+                                                  // Flexible + ellipsis: some
+                                                  // translated category
+                                                  // labels ("Mga Kahilingan
+                                                  // sa Pananim" for Crop
+                                                  // Requests) run far longer
+                                                  // than their English
+                                                  // source, and this badge
+                                                  // previously had no width
+                                                  // limit of its own next to
+                                                  // the time label sharing
+                                                  // this Row.
+                                                  Flexible(
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets
+                                                              .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2,
                                                       ),
-                                                    ),
-                                                    child: Text(
-                                                      _typeLabel(
-                                                          item.type),
-                                                      style:
-                                                          GoogleFonts.inter(
-                                                        fontSize: 9,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color: color,
-                                                        letterSpacing: 0.3,
+                                                      decoration:
+                                                          BoxDecoration(
+                                                        color: color
+                                                            .withValues(
+                                                                alpha: 0.10),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          AppConstants
+                                                              .radiusFull,
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        moduleLabel(
+                                                            l10n, item.sourceModule),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style:
+                                                            GoogleFonts.inter(
+                                                          fontSize: 9,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: color,
+                                                          letterSpacing: 0.3,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
                                                   const SizedBox(
                                                       width: 6),
-                                                  Text(
-                                                    item.timeLabel,
-                                                    style:
-                                                        GoogleFonts.inter(
-                                                      fontSize: 11,
-                                                      color: cs
-                                                          .onSurfaceVariant,
+                                                  Flexible(
+                                                    child: Text(
+                                                      item.adminName != null
+                                                          ? '${adminActivityTimeLabel(l10n, item.timestamp)} · ${item.adminName}'
+                                                          : adminActivityTimeLabel(l10n, item.timestamp),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style:
+                                                          GoogleFonts.inter(
+                                                        fontSize: 11,
+                                                        color: cs
+                                                            .onSurfaceVariant,
+                                                      ),
                                                     ),
                                                   ),
                                                 ],

@@ -9,6 +9,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_analytics_model.dart';
 import '../../../data/models/admin_loan_model.dart';
+import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/repositories/admin_analytics_repository.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
@@ -53,6 +54,14 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   List<double> _collectionTrend = [];
   MemberParticipationSummary _participation = MemberParticipationSummary.empty();
 
+  // Scoped to Member Participation only — Top Harvested Crops and
+  // Planting Forecast read from crop_planting_forecast/top_harvested_crops,
+  // both explicitly fixed-window, period-independent SQL views by design
+  // (see supabase_schema_top_harvested_crops.sql), and Loan Health is
+  // deliberately all-time. Member Participation's fetchMemberParticipation
+  // already accepted an optional `since` that nothing on this screen used.
+  ReportPeriod _participationPeriod = ReportPeriod.thisMonth;
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +76,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       _analyticsRepo.fetchPriceCards(),
       _loanRepo.fetchAllTimeLoanSummary(),
       _loanRepo.fetchMonthlyCollectionTrend(),
-      _adminAnalyticsRepo.fetchMemberParticipation(),
+      _adminAnalyticsRepo.fetchMemberParticipation(
+        since: _participationPeriod.range().startDate,
+      ),
     ]);
     if (!mounted) return;
     setState(() {
@@ -81,10 +92,28 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     });
   }
 
-  List<CropPriceCard> get _topPriceMovers {
-    final withChange = _priceCards.where((c) => c.priceDiff != null).toList()
-      ..sort((a, b) => b.priceDiff!.abs().compareTo(a.priceDiff!.abs()));
-    return withChange.take(4).toList();
+  Future<void> _setParticipationPeriod(ReportPeriod period) async {
+    setState(() => _participationPeriod = period);
+    final participation = await _adminAnalyticsRepo.fetchMemberParticipation(
+      since: period.range().startDate,
+    );
+    if (!mounted) return;
+    setState(() => _participation = participation);
+  }
+
+  /// Price Snapshot shows the current price for up to 4 crops, movers
+  /// (a recorded price change) sorted first — but no longer hides every
+  /// card just because none of them have moved yet. Previously this
+  /// filtered to priceDiff != null only, which meant a crop with only one
+  /// price ever recorded (no previous price to diff against) was
+  /// invisible here even though its current price was real, on-file data.
+  List<CropPriceCard> get _priceSnapshotCards {
+    final sorted = [..._priceCards]..sort((a, b) {
+      final ad = a.priceDiff?.abs() ?? -1;
+      final bd = b.priceDiff?.abs() ?? -1;
+      return bd.compareTo(ad);
+    });
+    return sorted.take(4).toList();
   }
 
   /// Month abbreviations for fetchMonthlyCollectionTrend()'s trailing
@@ -123,11 +152,22 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                         32,
                       ),
                       children: [
+                        ReportSectionHeader(
+                          icon: Icons.insights_rounded,
+                          title: l10n.reportsAnalyticsOverview,
+                        ),
+                        const SizedBox(height: AppConstants.spacingMd),
+                        _buildParticipationPeriodSelector(cs),
+                        const SizedBox(height: AppConstants.spacingMd),
                         _buildParticipationCard(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
                         _buildLoanHealthCard(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
                         _buildPriceSnapshot(context, l10n, cs, sagana),
+                        if (_topCrops.isNotEmpty) ...[
+                          const SizedBox(height: AppConstants.spacingSectionV),
+                          TopHarvestedCropsChart(crops: _topCrops),
+                        ],
                         const SizedBox(height: AppConstants.spacingSectionV),
                         const PlantingForecastSectionHeader(),
                         const SizedBox(height: AppConstants.spacingMd),
@@ -138,8 +178,6 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                                 padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
                                 child: PlantingForecastCard(forecast: f),
                               )),
-                        const SizedBox(height: AppConstants.spacingSectionV),
-                        if (_topCrops.isNotEmpty) TopHarvestedCropsChart(crops: _topCrops),
                       ],
                     ),
                   ),
@@ -181,6 +219,59 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Segmented-pill period selector, visually mirroring Farmer Analytics'
+  /// own _PeriodSelector (farmer_analytics_screen.dart) at the user's
+  /// request — reuses the existing ReportPeriod enum already used
+  /// everywhere else in Admin Reports instead of introducing a third
+  /// period type. Scoped to Member Participation only; see the
+  /// _participationPeriod field doc comment for why nothing else on this
+  /// screen can meaningfully respond to a period filter.
+  Widget _buildParticipationPeriodSelector(ColorScheme cs) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+          ),
+          child: Row(
+            children: reportPeriodChipOrder.map((p) {
+              final isActive = p == _participationPeriod;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => _setParticipationPeriod(p),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isActive ? AppConstants.primaryGreen : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    ),
+                    child: Text(
+                      p.label,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isActive ? Colors.white : cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Applies to Member Participation only.',
+          style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
@@ -293,7 +384,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final movers = _topPriceMovers;
+    final cards = _priceSnapshotCards;
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -307,10 +398,10 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         children: [
           Text(l10n.analyticsPriceSnapshot, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
           const SizedBox(height: AppConstants.spacingSm),
-          if (movers.isEmpty)
+          if (cards.isEmpty)
             Text(l10n.reportsNotEnoughTrendData, style: GoogleFonts.inter(fontSize: 12, color: cs.outline))
           else
-            ...movers.map((c) => Padding(
+            ...cards.map((c) => Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

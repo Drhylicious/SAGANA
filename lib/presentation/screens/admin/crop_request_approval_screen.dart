@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/repositories/admin_activity_repository.dart';
 import '../../widgets/management_modal.dart';
 
 // ─── Model ─────────────────────────────────────────────────────────────────
@@ -163,6 +165,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
   }
 
   void _showReviewModal(CropRequestItem item) {
+    final l10n = AppLocalizations.of(context);
     final notesCtrl = TextEditingController();
     String selectedCropType = item.cropType;
     bool isSaving = false;
@@ -173,8 +176,8 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
         return StatefulBuilder(builder: (ctx, setSheet) {
           Future<void> respond(bool approve) async {
             if (!approve && notesCtrl.text.trim().isEmpty) {
-              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                content: Text('Please provide a reason so the farmer understands.'),
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                content: Text(l10n.cropRequestProvideReason),
                 backgroundColor: AppConstants.errorRed,
                 behavior: SnackBarBehavior.floating,
               ));
@@ -188,15 +191,25 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                         : notesCtrl.text.trim(),
                     cropType: selectedCropType)
                 : await _repo.reject(item.id, notesCtrl.text.trim());
+            if (ok) {
+              AdminActivityRepository().log(
+                module: 'crops',
+                actionType: approve ? 'approved' : 'rejected',
+                description: approve
+                    ? 'Approved ${item.farmerName}\'s crop request for "${item.requestedName}".'
+                    : 'Rejected ${item.farmerName}\'s crop request for "${item.requestedName}".',
+                referenceId: item.id,
+              );
+            }
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (ok) _load();
             ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
               content: Text(ok
                   ? (approve
-                      ? 'Crop approved and added to the catalog'
-                      : 'Request declined')
-                  : 'Failed. Try again.'),
+                      ? l10n.cropRequestApprovedToast
+                      : l10n.cropRequestDeclinedToast)
+                  : l10n.cropRequestFailedTryAgain),
               backgroundColor:
                   ok ? AppConstants.successGreen : AppConstants.errorRed,
               behavior: SnackBarBehavior.floating,
@@ -219,30 +232,29 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Approving adds this crop to the official catalog immediately — every farmer '
-                  'will be able to select it going forward.',
+                  l10n.cropRequestApprovingNote,
                   style: GoogleFonts.inter(
                       fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: selectedCropType,
-                  decoration: const InputDecoration(
-                    labelText: 'Crop Type *',
-                    helperText: 'Farmer-suggested — confirm or change before approving',
+                  decoration: InputDecoration(
+                    labelText: l10n.cropRequestCropTypeLabel,
+                    helperText: l10n.cropRequestCropTypeHelper,
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'sp3_cooperative', child: Text('Cooperative Market')),
-                    DropdownMenuItem(value: 'open_market', child: Text('Public Market')),
+                  items: [
+                    DropdownMenuItem(value: 'sp3_cooperative', child: Text(l10n.cropRequestCooperativeMarket)),
+                    DropdownMenuItem(value: 'open_market', child: Text(l10n.cropRequestPublicMarket)),
                   ],
                   onChanged: (v) => setSheet(() => selectedCropType = v!),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: notesCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes (required if declining)',
-                    hintText: 'Reason the farmer will see, or approval notes',
+                  decoration: InputDecoration(
+                    labelText: l10n.cropRequestNotesLabel,
+                    hintText: l10n.cropRequestNotesHint,
                   ),
                   maxLines: 3,
                 ),
@@ -257,7 +269,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                       foregroundColor: AppConstants.errorRed,
                       side: const BorderSide(color: AppConstants.errorRed),
                     ),
-                    child: const Text('Reject'),
+                    child: Text(l10n.commonReject),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -272,7 +284,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Approve'),
+                        : Text(l10n.farmerMgmtApproveAction),
                   ),
                 ),
               ],
@@ -285,6 +297,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
 
@@ -302,7 +315,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                     onPressed: () => context.pop(),
                   ),
                   Expanded(
-                    child: Text('Crop Requests',
+                    child: Text(l10n.cropRequestTitle,
                         style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w700,
                             fontSize: 18,
@@ -317,8 +330,8 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
               unselectedLabelColor: cs.onSurfaceVariant,
               indicatorColor: AppConstants.primaryGreen,
               tabs: [
-                Tab(text: 'Pending (${_pending.length})'),
-                const Tab(text: 'Reviewed'),
+                Tab(text: l10n.cropRequestPendingTab(_pending.length)),
+                Tab(text: l10n.cropRequestReviewedTab),
               ],
             ),
             Expanded(
@@ -342,10 +355,11 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
 
   Widget _buildList(List<CropRequestItem> items, ColorScheme cs, SaganaColors sagana,
       {required bool isPending}) {
+    final l10n = AppLocalizations.of(context);
     if (items.isEmpty) {
       return Center(
         child: Text(
-          isPending ? 'No pending crop requests' : 'No reviewed requests yet',
+          isPending ? l10n.cropRequestNoPending : l10n.cropRequestNoReviewed,
           style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
         ),
       );

@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_analytics_model.dart';
 import '../models/admin_loan_model.dart';
 import 'farmer_lookup.dart';
+import 'notification_repository.dart';
 
 /// Repository for Analytics Dashboard's genuinely-new pieces only —
 /// member participation tiers and the "Send Reminder" action. Everything
@@ -15,7 +16,23 @@ class AdminAnalyticsRepository {
   /// inactive within [since] (null = all time).
   Future<MemberParticipationSummary> fetchMemberParticipation({DateTime? since}) async {
     try {
-      final rosterRows = await _client.from('farmer_profiles').select('user_id, member_id');
+      // Active members only — see BalikTangkilikRepository.
+      // fetchDistributionPreview() for the full reasoning; this method
+      // shares the identical previously-unfiltered farmer_profiles bug,
+      // which was inflating the Inactive tier with draft/rejected/
+      // suspended accounts that never became real members.
+      final activeRoleRows = await _client
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'farmer')
+          .eq('status', 'active');
+      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      if (activeIds.isEmpty) return MemberParticipationSummary.empty();
+
+      final rosterRows = await _client
+          .from('farmer_profiles')
+          .select('user_id, member_id')
+          .inFilter('user_id', activeIds);
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       if (farmerIds.isEmpty) return MemberParticipationSummary.empty();
 
@@ -78,17 +95,16 @@ class AdminAnalyticsRepository {
     required String body,
   }) async {
     if (farmerIds.isEmpty) return;
-    await _client.from('notifications').insert(
-          farmerIds
-              .map((id) => {
-                    'user_id': id,
-                    'type': 'system',
-                    'title': title,
-                    'body': body,
-                    'is_read': false,
-                  })
-              .toList(),
-        );
+    await NotificationRepository().createNotifications(
+      farmerIds
+          .map((id) => NotificationDraft(
+                userId: id,
+                type: 'system',
+                title: title,
+                body: body,
+              ))
+          .toList(),
+    );
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;

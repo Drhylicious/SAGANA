@@ -1,3 +1,37 @@
+import 'package:intl/intl.dart';
+import '../../core/l10n/app_localizations.dart';
+
+// male/female/prefer_not_to_say → localized label, shared by the Buyer's
+// own Edit Profile gender dropdown and Admin's read-only Buyer Details
+// display — was previously a hardcoded-English static map/getter on
+// BuyerProfileModel; moved to a top-level function since display text
+// needs AppLocalizations, which the model itself has no access to.
+String? buyerGenderLabel(AppLocalizations l10n, String? gender) {
+  switch (gender) {
+    case 'male': return l10n.registerGenderMale;
+    case 'female': return l10n.registerGenderFemale;
+    case 'prefer_not_to_say': return l10n.registerGenderPreferNotToSay;
+    default: return null;
+  }
+}
+
+// Same reasoning as buyerGenderLabel above — BuyerProfileModel.
+// memberSinceLabel/joinedLabel used to hardcode an English 3-letter month
+// array ('Jan','Feb',...) and "Member since "/"Since " phrasing directly on
+// the model. Moved here as top-level functions; reuses the same
+// DateFormat('MMM y', l10n.localeName) + buyerMemberSince ARB key already
+// established in buyer_account_screen.dart's local _memberSinceLabel
+// bypass (removed now that this is the real fix).
+String buyerMemberSinceLabel(AppLocalizations l10n, DateTime memberSince) {
+  return l10n.buyerMemberSince(DateFormat('MMM y', l10n.localeName).format(memberSince));
+}
+
+/// Short form for admin-side cards ("Since Jun 2026") — buyerMemberSinceLabel
+/// above is worded for the buyer's own profile screen instead.
+String buyerJoinedLabel(AppLocalizations l10n, DateTime memberSince) {
+  return DateFormat('MMM y', l10n.localeName).format(memberSince);
+}
+
 class BuyerProfileModel {
   final String userId;
   final String fullName;
@@ -11,11 +45,13 @@ class BuyerProfileModel {
   final int completedOrders;
   final double totalSpent; // sum of total_price for completed orders
 
-  // Admin-view-only fields. Left at their defaults (null / 'active') when
-  // this model represents a buyer's own fetchProfile() — purok and account
-  // status are never shown on that screen. Populated for the admin-side
-  // fetchAllBuyers()/fetchAdminView() paths, where they're the whole point.
+  // purok: buyer-editable via Edit Profile (Admin-Profile & Settings
+  // consistency pass) — was previously only ever populated for the
+  // admin-side fetchAllBuyers()/fetchAdminView() paths; now also fetched/
+  // updated by the buyer's own fetchProfile()/updateProfile().
   final String? purok;
+  // accountStatus remains admin-view-only — left at its default ('active')
+  // when this model represents a buyer's own fetchProfile().
   final String accountStatus; // 'active' | 'suspended'
 
   // Admin-view-only, same convention as purok/accountStatus above — used
@@ -72,28 +108,6 @@ class BuyerProfileModel {
     }
     return fullName.isNotEmpty ? fullName[0].toUpperCase() : 'B';
   }
-
-  String get memberSinceLabel {
-    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return 'Member since ${m[memberSince.month - 1]} ${memberSince.year}';
-  }
-
-  /// Short form for admin-side cards ("Since Jun 2026") — memberSinceLabel
-  /// above is worded for the buyer's own profile screen instead.
-  String get joinedLabel {
-    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${m[memberSince.month - 1]} ${memberSince.year}';
-  }
-
-  static const Map<String, String> genderLabels = {
-    'male': 'Male',
-    'female': 'Female',
-    'prefer_not_to_say': 'Prefer not to say',
-  };
-
-  /// null when unset — Buyer Details renders its own placeholder ("–") for
-  /// that case, same convention as the phone/email fields there.
-  String? get genderLabel => gender != null ? genderLabels[gender] : null;
 
   String? get dateOfBirthLabel {
     if (dateOfBirth == null) return null;

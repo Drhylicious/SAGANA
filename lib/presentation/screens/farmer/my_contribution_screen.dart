@@ -64,6 +64,107 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
     });
   }
 
+  /// Prompts for an amount (up to what's still available), calls the
+  /// atomic reinvest_patronage_capital() RPC, and reloads on success.
+  /// Post-distribution, farmer-initiated, partial or full — per the
+  /// organization's explicit decision for this feature.
+  Future<void> _confirmAndReinvest(int year) async {
+    final contribution = _previous;
+    if (contribution == null) return;
+    final available = contribution.availableToReinvest;
+    if (available <= 0) return;
+
+    final controller = TextEditingController(
+      text: available.toStringAsFixed(2),
+    );
+    String? error;
+
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(
+            'Reinvest as Capital',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Move part or all of your $year payout into your capital '
+                'share instead of receiving it as cash.',
+                style: GoogleFonts.inter(fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Available to reinvest: ₱${NumberFormat('#,##0.00').format(available)}',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Amount (₱)',
+                  prefixText: '₱ ',
+                  errorText: error,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final entered = double.tryParse(controller.text.trim());
+                if (entered == null || entered <= 0) {
+                  setDialogState(() => error = 'Enter a valid amount.');
+                  return;
+                }
+                if (entered > available) {
+                  setDialogState(() => error = 'Cannot exceed the available amount.');
+                  return;
+                }
+                Navigator.of(dialogContext).pop(entered);
+              },
+              child: const Text('Reinvest'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (amount == null) return;
+
+    try {
+      await _repo.reinvestPatronageCapital(year: year, amount: amount);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '₱${NumberFormat('#,##0.00').format(amount)} reinvested as capital share.',
+          ),
+        ),
+      );
+      await _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reinvestment failed: $e')),
+      );
+    }
+  }
+
   double get _memberSharePercent {
     if (_current == null || _coopTotal == null) return 0;
     return _repo.computeMemberSharePercent(
@@ -150,6 +251,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                               child: _PreviousYearPayoutCard(
                                 contribution: _previous,
                                 year: prevYear,
+                                onReinvest: () => _confirmAndReinvest(prevYear),
                               ),
                             ),
                           ],
@@ -227,6 +329,8 @@ class _CurrentYearSalesCard extends StatelessWidget {
     final palayAmt = current?.palaySalesAmount ?? 0;
     final peanutKg = current?.peanutSalesKg ?? 0;
     final peanutAmt = current?.peanutSalesAmount ?? 0;
+    final otherCropsKg = current?.otherCropsQtyKg ?? 0;
+    final otherCropsAmt = current?.otherCropsAmount ?? 0;
 
     return Container(
       width: double.infinity,
@@ -298,6 +402,21 @@ class _CurrentYearSalesCard extends StatelessWidget {
                 kg: peanutKg,
                 bgColor: AppConstants.amber.withValues(alpha: 0.05),
               ),
+              // Any crop other than Palay/Peanut sold via Offer to
+              // Cooperative (Phase 9's any-crop widening) — only shown
+              // when non-zero, so farmers who only ever sold Palay/Peanut
+              // see no change to this card.
+              if (otherCropsAmt > 0) ...[
+                const SizedBox(height: 8),
+                _CropSalesRow(
+                  icon: Icons.spa_rounded,
+                  iconColor: AppConstants.buyerBlue,
+                  label: 'Other Crops',
+                  amount: otherCropsAmt,
+                  kg: otherCropsKg,
+                  bgColor: AppConstants.buyerBlue.withValues(alpha: 0.05),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,7 +691,10 @@ class _EstimatedDistributionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final estBT = current?.estimatedBalikTangkilik ?? 0;
     final estInterest = current?.estimatedInterestOnCapital ?? 0;
-    final estTotal = estBT + estInterest;
+    final estProductSales = current?.estimatedProductSalesTotal ?? 0;
+    final hasProductSales =
+        estProductSales > 0 || (current?.programPurchasesAmount ?? 0) > 0;
+    final estTotal = current?.estimatedGrandTotal ?? 0;
 
     return Container(
       width: double.infinity,
@@ -632,15 +754,32 @@ class _EstimatedDistributionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              _DistributionRow(
-                label: 'Estimated Balik-Tangkilik',
-                value: estBT,
+              const _PatronageSourceHeader(
+                icon: Icons.agriculture_rounded,
+                title: 'Cooperative Sales Patronage',
+                caption: 'Money back from crops you sold to the cooperative.',
               ),
               const SizedBox(height: 10),
+              _DistributionRow(label: 'Balik-Tangkilik', value: estBT),
+              const SizedBox(height: 8),
               _DistributionRow(
-                label: 'Estimated Interest on Capital Share',
+                label: 'Interest on Capital Share',
                 value: estInterest,
               ),
+              if (hasProductSales) ...[
+                const SizedBox(height: 16),
+                const _PatronageSourceHeader(
+                  icon: Icons.storefront_rounded,
+                  title: 'Product Sales Program Patronage',
+                  caption:
+                      'Money back from products you bought from the cooperative.',
+                ),
+                const SizedBox(height: 10),
+                _DistributionRow(
+                  label: 'Purchase Patronage',
+                  value: estProductSales,
+                ),
+              ],
               const SizedBox(height: 14),
               Container(height: 1, color: Colors.white.withValues(alpha: 0.20)),
               const SizedBox(height: 14),
@@ -701,6 +840,52 @@ class _EstimatedDistributionCard extends StatelessWidget {
   }
 }
 
+class _PatronageSourceHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String caption;
+
+  const _PatronageSourceHeader({
+    required this.icon,
+    required this.title,
+    required this.caption,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 15, color: Colors.white.withValues(alpha: 0.90)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          caption,
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontStyle: FontStyle.italic,
+            color: Colors.white.withValues(alpha: 0.75),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _DistributionRow extends StatelessWidget {
   final String label;
   final double value;
@@ -748,8 +933,15 @@ class _DistributionRow extends StatelessWidget {
 // Distribution Timeline
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DistributionTimeline extends StatelessWidget {
+class _DistributionTimeline extends StatefulWidget {
   const _DistributionTimeline();
+
+  @override
+  State<_DistributionTimeline> createState() => _DistributionTimelineState();
+}
+
+class _DistributionTimelineState extends State<_DistributionTimeline> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -770,14 +962,29 @@ class _DistributionTimeline extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Annual Distribution Cycle',
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppConstants.charcoal,
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'How does this work?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.charcoal,
+                  ),
+                ),
+                Icon(
+                  _expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: AppConstants.outline,
+                ),
+              ],
             ),
           ),
+          if (_expanded) ...[
           const SizedBox(height: 20),
           IntrinsicHeight(
             child: Row(
@@ -932,6 +1139,7 @@ class _DistributionTimeline extends StatelessWidget {
               ),
             ],
           ),
+          ],
         ],
       ),
     );
@@ -1252,19 +1460,23 @@ class _CapitalSharesCard extends StatelessWidget {
 class _PreviousYearPayoutCard extends StatelessWidget {
   final MemberContribution? contribution;
   final int year;
+  final VoidCallback? onReinvest;
 
   const _PreviousYearPayoutCard({
     required this.contribution,
     required this.year,
+    this.onReinvest,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bt = contribution?.actualBalikTangkilik ?? 0;
-    final interest = contribution?.actualInterestOnCapital ?? 0;
-    final total = bt + interest;
+    final offerToCoopTotal = contribution?.actualOfferToCoopTotal ?? 0;
+    final productSalesTotal = contribution?.actualProductSalesTotal ?? 0;
+    final total = contribution?.actualGrandTotal ?? 0;
     final isPaid = contribution?.isPaid ?? false;
     final payoutDate = contribution?.actualPayoutDate;
+    final reinvested = contribution?.reinvestedAmount ?? 0;
+    final available = contribution?.availableToReinvest ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1285,12 +1497,15 @@ class _PreviousYearPayoutCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '$year Actual Payout',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
+              Expanded(
+                child: Text(
+                  '$year Actual Payout',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.charcoal,
+                  ),
                 ),
               ),
               if (isPaid)
@@ -1332,9 +1547,17 @@ class _PreviousYearPayoutCard extends StatelessWidget {
               ),
             )
           else ...[
-            _PayoutRow(label: 'Balik-Tangkilik', value: bt),
-            const SizedBox(height: 8),
-            _PayoutRow(label: 'Interest on Capital', value: interest),
+            _PayoutRow(
+              label: 'Cooperative Sales Patronage',
+              value: offerToCoopTotal,
+            ),
+            if (productSalesTotal > 0) ...[
+              const SizedBox(height: 8),
+              _PayoutRow(
+                label: 'Product Sales Program Patronage',
+                value: productSalesTotal,
+              ),
+            ],
             const SizedBox(height: 10),
             Container(
               height: 1,
@@ -1383,6 +1606,36 @@ class _PreviousYearPayoutCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (reinvested > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '₱${NumberFormat('#,##0.00').format(reinvested)} already reinvested as capital',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                  color: AppConstants.outline,
+                ),
+              ),
+            ],
+            if (isPaid && available > 0) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onReinvest,
+                  icon: const Icon(Icons.savings_rounded, size: 16),
+                  label: Text(
+                    'Reinvest as Capital',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppConstants.primaryGreen,
+                    side: const BorderSide(color: AppConstants.primaryGreen),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),

@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
+import 'notification_repository.dart';
 
 // ─── Admin Order Model ─────────────────────────────────────────────────────
 
@@ -350,6 +352,13 @@ class AdminOrderRepository {
 
     if (row == null) return; // already moved on — nothing to notify
 
+    AdminActivityRepository().log(
+      module: 'orders',
+      actionType: 'approved',
+      description: 'Approved an order.',
+      referenceId: orderId,
+    );
+
     try {
       final listing = await _client
           .from('marketplace_listings')
@@ -358,14 +367,12 @@ class AdminOrderRepository {
           .maybeSingle();
       final cropName = listing?['crop_name'] as String? ?? 'produce';
 
-      await _client.from('notifications').insert({
-        'user_id': row['buyer_id'],
-        'type': 'order',
-        'title': 'Order Approved',
-        'body': 'Your order for $cropName has been approved and is being prepared.',
-        'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      await NotificationRepository().createNotification(
+        userId: row['buyer_id'] as String,
+        type: 'order',
+        title: 'Order Approved',
+        body: 'Your order for $cropName has been approved and is being prepared.',
+      );
     } catch (_) {
       // Notification failure is non-fatal — order was already approved.
     }
@@ -378,9 +385,21 @@ class AdminOrderRepository {
       'p_order_id': orderId,
       if (reason != null) 'p_reason': reason,
     });
+    AdminActivityRepository().log(
+      module: 'orders',
+      actionType: 'cancelled',
+      description: 'Cancelled an order.',
+      referenceId: orderId,
+    );
   }
 
   Future<void> completeOrder(String orderId) async {
     await _client.rpc('complete_order', params: {'p_order_id': orderId});
+    AdminActivityRepository().log(
+      module: 'orders',
+      actionType: 'completed',
+      description: 'Completed an order.',
+      referenceId: orderId,
+    );
   }
 }

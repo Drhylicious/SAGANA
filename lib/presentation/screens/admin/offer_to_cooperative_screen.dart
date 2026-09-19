@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cooperative_offer_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
+import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 
 /// Same UI structure as PendingApprovalsScreen, by explicit instruction —
@@ -80,17 +82,26 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
     return list.toList();
   }
 
-  void _openReviewSheet(CooperativeOfferModel offer) async {
-    if (!offer.isPending) return; // historical entries show their outcome inline, nothing to review
-    final acted = await showManagementModal<bool>(
-      context: context,
-      builder: (_) => _ReviewOfferSheet(repo: _repo, offer: offer),
-    );
-    if (acted == true) _loadAll();
+  // Pending offers keep the existing review-sheet flow (confirm/decline
+  // with the purchase-details form) unchanged. Approved (confirmed) and
+  // Rejected (declined) offers are terminal — nothing left to review — so
+  // tapping one now opens a dedicated, read-only Offer Details screen
+  // instead, mirroring how Order Management opens OrderDetailScreen.
+  void _openOffer(CooperativeOfferModel offer) async {
+    if (offer.isPending) {
+      final acted = await showManagementModal<bool>(
+        context: context,
+        builder: (_) => _ReviewOfferSheet(repo: _repo, offer: offer),
+      );
+      if (acted == true) _loadAll();
+    } else {
+      context.push(AppRoutes.offerDetail, extra: offer.id);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
 
@@ -113,7 +124,7 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
                         TextField(
                           controller: _searchCtrl,
                           decoration: InputDecoration(
-                            hintText: 'Search crop, farmer...',
+                            hintText: l10n.offerCoopSearchHint,
                             prefixIcon: const Icon(Icons.search_rounded),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
@@ -136,22 +147,22 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
                             scrollDirection: Axis.horizontal,
                             children: [
                               _FilterChip(
-                                label: 'All', active: _statusFilter == null, color: cs.primary,
+                                label: l10n.farmerMgmtAllFilter, active: _statusFilter == null, color: cs.primary,
                                 onTap: () => setState(() => _statusFilter = null), cs: cs,
                               ),
                               const SizedBox(width: 8),
                               _FilterChip(
-                                label: 'Pending', active: _statusFilter == 'pending', color: AppConstants.warningAmber,
+                                label: l10n.buyerOrderDetailPendingTimestamp, active: _statusFilter == 'pending', color: AppConstants.warningAmber,
                                 onTap: () => setState(() => _statusFilter = 'pending'), cs: cs,
                               ),
                               const SizedBox(width: 8),
                               _FilterChip(
-                                label: 'Approved', active: _statusFilter == 'confirmed', color: AppConstants.successGreen,
+                                label: l10n.buyerOrderDetailStepApproved, active: _statusFilter == 'confirmed', color: AppConstants.successGreen,
                                 onTap: () => setState(() => _statusFilter = 'confirmed'), cs: cs,
                               ),
                               const SizedBox(width: 8),
                               _FilterChip(
-                                label: 'Rejected', active: _statusFilter == 'declined', color: cs.error,
+                                label: l10n.farmerMgmtStatusRejectedLabel, active: _statusFilter == 'declined', color: cs.error,
                                 onTap: () => setState(() => _statusFilter = 'declined'), cs: cs,
                               ),
                             ],
@@ -173,7 +184,7 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
                                 offer: offer,
                                 cs: cs,
                                 sagana: sagana,
-                                onTap: () => _openReviewSheet(offer),
+                                onTap: () => _openOffer(offer),
                               ),
                             ),
                           ),
@@ -195,6 +206,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -210,10 +222,10 @@ class _TopBar extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.arrow_back_rounded, color: cs.primary, size: 24),
                 onPressed: () => context.pop(),
-                tooltip: 'Back',
+                tooltip: l10n.offerCoopBackTooltip,
               ),
               Expanded(
-                child: Text('Offer to Cooperative',
+                child: Text(l10n.offerCoopTitle,
                     style: GoogleFonts.poppins(
                         fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
               ),
@@ -286,8 +298,12 @@ class _OfferCard extends StatelessWidget {
     // color border can't coexist with borderRadius on the other uniform
     // sides — Flutter throws at paint time. The accent moves into its own
     // thin Container in a Row instead of a Border side.
+    //
+    // Every card is tappable now, regardless of status — pending opens the
+    // existing review sheet, confirmed/declined open the new read-only
+    // Offer Details screen (see _openOffer in the parent screen).
     return GestureDetector(
-      onTap: offer.isPending ? onTap : null,
+      onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -451,7 +467,7 @@ class _ReviewOfferSheetState extends State<_ReviewOfferSheet> {
     } catch (_) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to approve. Please try again.')),
+        SnackBar(content: Text(AppLocalizations.of(context).offerCoopApproveFailed)),
       );
     }
   }
@@ -468,28 +484,29 @@ class _ReviewOfferSheetState extends State<_ReviewOfferSheet> {
     } catch (_) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to reject. Please try again.')),
+        SnackBar(content: Text(AppLocalizations.of(context).offerCoopRejectFailed)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final offer = widget.offer;
 
     return ManagementModalShell(
-      title: '${offer.cropName} Offer',
+      title: l10n.offerCoopOfferTitle(offer.cropName),
       subtitle: offer.farmerName,
       body: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Offered: ${offer.offeredQuantityKg.toStringAsFixed(0)} kg',
+            Text(l10n.offerCoopOffered(offer.offeredQuantityKg.toStringAsFixed(0)),
                 style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
             const SizedBox(height: 14),
-            Text('Confirmed Quantity (kg)',
+            Text(l10n.offerCoopConfirmedQuantityLabel,
                 style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface)),
             const SizedBox(height: 6),
             TextFormField(
@@ -498,15 +515,15 @@ class _ReviewOfferSheetState extends State<_ReviewOfferSheet> {
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
               validator: (v) {
                 final n = double.tryParse(v?.trim() ?? '');
-                if (n == null || n <= 0) return 'Enter a valid quantity';
+                if (n == null || n <= 0) return l10n.offerCoopEnterValidQuantity;
                 if (n > offer.offeredQuantityKg) {
-                  return 'Cannot exceed the offered ${offer.offeredQuantityKg.toStringAsFixed(0)} kg';
+                  return l10n.offerCoopCannotExceedOffered(offer.offeredQuantityKg.toStringAsFixed(0));
                 }
                 return null;
               },
             ),
             const SizedBox(height: 12),
-            Text('Amount Paid (₱)',
+            Text(l10n.offerCoopAmountPaidLabel,
                 style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface)),
             const SizedBox(height: 6),
             TextFormField(
@@ -515,12 +532,12 @@ class _ReviewOfferSheetState extends State<_ReviewOfferSheet> {
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
               validator: (v) {
                 final n = double.tryParse(v?.trim() ?? '');
-                if (n == null || n <= 0) return 'Enter a valid amount';
+                if (n == null || n <= 0) return l10n.offerCoopEnterValidAmount;
                 return null;
               },
             ),
             const SizedBox(height: 12),
-            Text('Notes (optional)',
+            Text(l10n.issueLoanNotes,
                 style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface)),
             const SizedBox(height: 6),
             TextFormField(controller: _notesCtrl, maxLines: 2),
@@ -537,7 +554,7 @@ class _ReviewOfferSheetState extends State<_ReviewOfferSheet> {
                 side: BorderSide(color: cs.error),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: Text('Reject', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+              child: Text(l10n.commonReject, style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(width: 12),
@@ -547,7 +564,7 @@ class _ReviewOfferSheetState extends State<_ReviewOfferSheet> {
               onPressed: _isSaving ? null : _confirm,
               child: _isSaving
                   ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text('Approve', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                  : Text(l10n.farmerMgmtApproveAction, style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -565,6 +582,7 @@ class _EmptyOffersState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -581,13 +599,13 @@ class _EmptyOffersState extends StatelessWidget {
             color: (hasActiveFilter ? cs.outline : AppConstants.successGreen).withValues(alpha: 0.40),
           ),
           const SizedBox(height: 14),
-          Text(hasActiveFilter ? 'No offers match your filter' : 'No cooperative offers yet',
+          Text(hasActiveFilter ? l10n.offerCoopNoOffersFiltered : l10n.offerCoopNoOffersYet,
               style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
           const SizedBox(height: 4),
           Text(
             hasActiveFilter
-                ? 'Try a different search or filter.'
-                : 'Offers from farmers will appear here.',
+                ? l10n.offerCoopTryDifferentFilter
+                : l10n.offerCoopWillAppearHere,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ],

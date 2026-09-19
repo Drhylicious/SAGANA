@@ -7,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
@@ -1627,12 +1628,9 @@ class _ApplicantDetailsSheetState extends State<_ApplicantDetailsSheet> {
 
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_dob != null) {
-      final now = DateTime.now();
-      if (DateTime(_dob!.year + 18, _dob!.month, _dob!.day).isAfter(now)) {
-        setState(() => _error = AppLocalizations.of(context).pendingAgeError);
-        return;
-      }
+    if (_dob != null && !AppUtils.isAtLeast18(_dob!)) {
+      setState(() => _error = AppLocalizations.of(context).pendingAgeError);
+      return;
     }
     setState(() { _saving = true; _error = null; });
     try {
@@ -1712,15 +1710,17 @@ class _ApplicantDetailsSheetState extends State<_ApplicantDetailsSheet> {
                     const SizedBox(height: 10),
                     InkWell(
                       onTap: () async {
-                        final now = DateTime.now();
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _dob ?? DateTime(now.year - 25),
-                          firstDate: DateTime(1930),
-                          lastDate:
-                              DateTime(now.year - 18, now.month, now.day),
+                        final picked = await AppUtils.pickDateOfBirth(
+                          context,
+                          initialDate: _dob,
                         );
-                        if (picked != null) setState(() => _dob = picked);
+                        if (picked == null) return;
+                        if (!AppUtils.isAtLeast18(picked)) {
+                          if (!context.mounted) return;
+                          await AppUtils.showUnder18Dialog(context);
+                          return;
+                        }
+                        setState(() => _dob = picked);
                       },
                       child: InputDecorator(
                         decoration: InputDecoration(

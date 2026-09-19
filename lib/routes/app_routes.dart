@@ -104,12 +104,13 @@ class AppRoutes {
   static const String cropManagement      = '/admin/crops';
   static const String cropRequestApproval = '/admin/crops/requests';
   static const String programManagement   = '/admin/programs';
+  static const String programPurchaseReview = '/admin/programs/purchases';
+  static const String programProductCatalog = '/farmer/programs/products';
   static const String loanItemManagement  = '/admin/loan-items';
   static const String adminCalendar       = '/admin/calendar';
   static const String broadcastHistory    = '/admin/broadcast-history';
 
   // ─── Admin — Members sub-routes ──────────────────────────────────────────────
-  static const String createAdminAccount    = '/admin/members/add-admin';
   static const String manageFarmerAccounts  = '/admin/members/farmer-accounts';
   static const String manageAdminAccounts   = '/admin/members/admin-accounts';
   static const String memberPrograms        = '/admin/members/programs';
@@ -119,5 +120,14 @@ class AppRoutes {
   static const String adminOrders      = '/admin/marketplace/orders';
   static const String adminOrderDetail = '/admin/marketplace/orders/detail';
   static const String offerToCooperative = '/admin/marketplace/offer-to-cooperative';
+  static const String offerDetail = '/admin/marketplace/offer-to-cooperative/detail';
 
+  // ─── Support & Info — shared across all roles ────────────────────────────────
+  // Dedicated screens (Admin Profile & Settings Phase 7), replacing the
+  // dialog versions previously shown from each role's Settings screen and
+  // from the Navigation Drawer.
+  static const String aboutSagana      = '/support/about-sagana';
+  static const String aboutCooperative = '/support/about-cooperative';
+  static const String privacyPolicy    = '/support/privacy-policy';
+  static const String termsOfUse       = '/support/terms-of-use';
 }

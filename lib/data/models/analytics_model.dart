@@ -145,30 +145,11 @@ class PlantingForecast {
 
   bool get hasForecast => forecastNextCycleKg != null && trend != 'insufficient_data';
 
-  String get trendLabel {
-    switch (trend) {
-      case 'trending_up': return 'Trending Up';
-      case 'trending_down': return 'Trending Down';
-      case 'stable': return 'Stable';
-      default: return 'Not Enough Data';
-    }
-  }
-
-  String get explanation {
-    if (!hasForecast) {
-      return 'Not enough harvest history yet to forecast this crop. Needs at least 2 full harvest cycles cooperative-wide.';
-    }
-    final diff = forecastNextCycleKg! - mostRecentCycleKg;
-    final diffAbs = diff.abs().toStringAsFixed(0);
-    switch (trend) {
-      case 'trending_up':
-        return 'Projected to increase by ~$diffAbs kg next cycle based on recent harvest trends.';
-      case 'trending_down':
-        return 'Projected to decrease by ~$diffAbs kg next cycle based on recent harvest trends.';
-      default:
-        return 'Volume is expected to remain steady next cycle.';
-    }
-  }
+  // trendLabel/explanation used to live here as English-only getters. Moved
+  // to planting_forecast_card.dart (forecastTrendLabel/forecastExplanation)
+  // since display text needs AppLocalizations, which this data-layer model
+  // has no access to — trend/mostRecentCycleKg/forecastNextCycleKg above are
+  // the raw data the widget derives the localized text from.
 
   factory PlantingForecast.fromMap(Map<String, dynamic> map) {
     return PlantingForecast(

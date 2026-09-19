@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/price_record_model.dart';
+import 'admin_activity_repository.dart';
+import 'notification_repository.dart';
 
 class PriceManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -227,6 +229,12 @@ class PriceManagementRepository {
         'p_listing_id': listingId,
         'p_new_price': newPrice,
       });
+      AdminActivityRepository().log(
+        module: 'prices',
+        actionType: 'updated',
+        description: 'Updated a cooperative market listing price to ₱${newPrice.toStringAsFixed(2)}.',
+        referenceId: listingId,
+      );
       return true;
     } catch (_) {
       return false;
@@ -276,8 +284,8 @@ class PriceManagementRepository {
 
       if (recipients.isEmpty) return;
 
-      final now = DateTime.now().toIso8601String();
-      final notifications = recipients.map((r) {
+      final now = DateTime.now();
+      final notifDrafts = recipients.map((r) {
         final isBuyer = r['role'] == 'buyer';
         // Role-aware body: farmers have an Analytics tab, buyers have a
         // Prices tab — reusing one string for both would point buyers to
@@ -285,19 +293,17 @@ class PriceManagementRepository {
         final tabHint = isBuyer
             ? 'Check the Prices tab for the latest market rates.'
             : 'Check the Analytics tab for the latest market rates.';
-        return {
-          'user_id':    r['user_id'] as String,
-          'type':       'price',
-          'title':      'Price Update: $cropName',
-          'body':       'SP3 Admin updated the price of $cropName '
+        return NotificationDraft(
+          userId: r['user_id'] as String,
+          type: 'price',
+          title: 'Price Update: $cropName',
+          body: 'SP3 Admin updated the price of $cropName '
               'to ₱${newPrice.toStringAsFixed(2)}/$unit. $tabHint',
-          'is_read':    false,
-          'created_at': now,
-        };
+          createdAt: now,
+        );
       }).toList();
 
-      // Batch insert — Supabase accepts a list
-      await _client.from('notifications').insert(notifications);
+      await NotificationRepository().createNotifications(notifDrafts);
     } catch (_) {
       // Notification failure is non-fatal — price was already saved
     }

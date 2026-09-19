@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/repositories/add_member_repository.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/services/auth_service.dart';
@@ -265,10 +265,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
       _showSnack(l10n.addMemberSelectPurok);
       return;
     }
-    if (_dateOfBirth != null &&
-        _dateOfBirth!.isAfter(
-            DateTime(DateTime.now().year - 18, DateTime.now().month,
-                DateTime.now().day))) {
+    if (_dateOfBirth != null && !AppUtils.isAtLeast18(_dateOfBirth!)) {
       _showSnack(l10n.addMemberAgeRequirement);
       return;
     }
@@ -348,17 +345,25 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          Column(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(l10n.addMemberTitle,
+            style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface)),
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
-              const SizedBox(height: 64),
-              Expanded(
-                child: Form(
-                  key: _formKey,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
-                    children: [
 
                       // ── Admin notice ────────────────────────────────────
                       Container(
@@ -649,18 +654,19 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                         label: l10n.addMemberDobLabel, cs: cs),
                                     InkWell(
                                       onTap: () async {
-                                        final now = DateTime.now();
-                                        final picked = await showDatePicker(
-                                          context: context,
-                                          initialDate: _dateOfBirth ??
-                                              DateTime(now.year - 25),
-                                          firstDate: DateTime(1930),
-                                          lastDate: DateTime(
-                                              now.year - 18, now.month, now.day),
+                                        final picked =
+                                            await AppUtils.pickDateOfBirth(
+                                          context,
+                                          initialDate: _dateOfBirth,
                                         );
-                                        if (picked != null) {
-                                          setState(() => _dateOfBirth = picked);
+                                        if (picked == null) return;
+                                        if (!AppUtils.isAtLeast18(picked)) {
+                                          if (!context.mounted) return;
+                                          await AppUtils.showUnder18Dialog(
+                                              context);
+                                          return;
                                         }
+                                        setState(() => _dateOfBirth = picked);
                                       },
                                       child: InputDecorator(
                                         decoration: const InputDecoration(),
@@ -920,124 +926,18 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
-
-          // ── Top App Bar ─────────────────────────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _TopAppBar(
-              onBack: () => context.pop(),
-              onSave: _isSaving ? null : _save,
-              cs: cs,
-              sagana: sagana,
-              l10n: l10n,
-            ),
-          ),
-
-          // ── Bottom action ────────────────────────────────────────────────
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                MediaQuery.of(context).padding.bottom + 12,
-              ),
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .scaffoldBackgroundColor
-                    .withValues(alpha: 0.95),
-                border: Border(
-                  top: BorderSide(
-                      color: cs.outline.withValues(alpha: 0.10)),
-                ),
-              ),
-              child: PrimaryButton(
-                label: !_isOnline
-                    ? l10n.addMemberOffline
-                    : (_isSaving
-                        ? l10n.addMemberCreating
-                        : l10n.addMemberCreateButton),
-                isLoading: _isSaving,
-                onPressed: (!_isOnline || _isSaving) ? null : _save,
-                icon: Icons.person_add_alt_1_rounded,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Top App Bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TopAppBar extends StatelessWidget {
-  final VoidCallback onBack;
-  final VoidCallback? onSave;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-  final AppLocalizations l10n;
-
-  const _TopAppBar({
-    required this.onBack,
-    required this.onSave,
-    required this.cs,
-    required this.sagana,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(
-                  l10n.addMemberTitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: onSave,
-                child: Text(
-                  l10n.addMemberSave,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: onSave != null
-                        ? cs.primary
-                        : cs.outline.withValues(alpha: 0.50),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: PrimaryButton(
+            label: !_isOnline
+                ? l10n.addMemberOffline
+                : (_isSaving
+                    ? l10n.addMemberCreating
+                    : l10n.addMemberCreateButton),
+            isLoading: _isSaving,
+            onPressed: (!_isOnline || _isSaving) ? null : _save,
+            icon: Icons.person_add_alt_1_rounded,
           ),
         ),
       ),
@@ -1083,23 +983,38 @@ class _FormSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(icon, color: cs.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface,
+              // Expanded, not spaceBetween with two unguarded children:
+              // some section titles ("Paunang mga Pananim") and the
+              // trailing pill's own label ("Magdagdag ng Pananim", for the
+              // Initial Crops section) are both markedly longer in Tagalog
+              // than their English source, and together used to overflow
+              // this Row on the right. The title yields first via ellipsis;
+              // the trailing pill (usually short) keeps its natural size.
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(icon, color: cs.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              if (trailing != null) trailing!,
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
             ],
           ),
           const SizedBox(height: 14),
@@ -1120,8 +1035,16 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
+      // maxLines: 1 + ellipsis: "Petsa ng Kapanganakan" (DOB) sits
+      // beside "Kasarian" (Gender) in two equal-width Expanded columns —
+      // the longer Tagalog DOB label used to wrap onto a second line while
+      // Gender's stayed on one, misaligning the two fields' inputs below
+      // them. Same fix already applied to admin_edit_profile_screen.dart's
+      // _LabeledDateField and AppDropdownField's label.
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: GoogleFonts.poppins(
           fontSize: 12,
           fontWeight: FontWeight.w500,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
+import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/harvest_repository.dart';
 import '../../widgets/harvest_log_widgets.dart';
@@ -59,9 +61,11 @@ class _AdminFarmerHarvestHistoryScreenState extends State<AdminFarmerHarvestHist
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: sagana.scaffoldBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -74,7 +78,7 @@ class _AdminFarmerHarvestHistoryScreenState extends State<AdminFarmerHarvestHist
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   Expanded(
-                    child: Text('Harvest History',
+                    child: Text(l10n.farmerHarvestHistoryTitle,
                         style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w700, fontSize: 18, color: cs.onSurface)),
                   ),
@@ -83,7 +87,7 @@ class _AdminFarmerHarvestHistoryScreenState extends State<AdminFarmerHarvestHist
             ),
             Expanded(
               child: widget.farmerId == null
-                  ? const Center(child: Text('No farmer selected.'))
+                  ? Center(child: Text(l10n.farmerHarvestHistoryNoFarmerSelected))
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView(
@@ -91,10 +95,10 @@ class _AdminFarmerHarvestHistoryScreenState extends State<AdminFarmerHarvestHist
                         children: [
                           TextField(
                             decoration: InputDecoration(
-                              hintText: 'Search by crop',
+                              hintText: l10n.farmerHarvestHistorySearchHint,
                               prefixIcon: const Icon(Icons.search_rounded, size: 20),
                               filled: true,
-                              fillColor: Colors.white,
+                              fillColor: sagana.cardBackground,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                                 borderSide: BorderSide.none,
@@ -121,8 +125,8 @@ class _AdminFarmerHarvestHistoryScreenState extends State<AdminFarmerHarvestHist
                             Padding(
                               padding: const EdgeInsets.only(top: 40),
                               child: Center(
-                                child: Text('No harvest records found',
-                                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+                                child: Text(l10n.farmerHarvestHistoryNoRecords,
+                                    style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
                               ),
                             )
                           else

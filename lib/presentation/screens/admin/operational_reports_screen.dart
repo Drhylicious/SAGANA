@@ -7,17 +7,16 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/app_navigation_drawer.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
+import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_analytics_model.dart';
-import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/repositories/admin_analytics_repository.dart';
 import '../../widgets/report_summary_widgets.dart';
-import '../../widgets/app_dialog.dart';
 
 /// Operational Reports — Admin hub.
 /// Shell tab landing screen (branch 4, adminReportsKey). No back button.
@@ -34,18 +33,15 @@ class OperationalReportsScreen extends StatefulWidget {
 
 class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   final _repo = AdminReportsRepository();
-  final _loanRepo = AdminLoanRepository();
   final _analyticsRepo = AdminAnalyticsRepository();
 
   ReportPeriod _period = ReportPeriod.thisMonth;
   bool _isLoading = true;
-  bool _isSendingReminders = false;
   PerformanceSummary _summary = PerformanceSummary.empty();
   PerformanceSummary _previousSummary = PerformanceSummary.empty();
   QuickInsights _insights = QuickInsights.empty();
   int _lowStockCount = 0;
   List<ExportHistoryEntry> _recentExports = [];
-  LoanDashboardStats _loanStats = LoanDashboardStats.empty();
   MemberParticipationSummary _participation = MemberParticipationSummary.empty();
 
   @override
@@ -62,7 +58,6 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       _repo.fetchQuickInsights(_period),
       Future.value(HiveService.getExportHistory()),
       _repo.fetchLowStockCount(),
-      _loanRepo.fetchDashboardStats(),
       _analyticsRepo.fetchMemberParticipation(),
     ]);
     if (!mounted) return;
@@ -74,63 +69,9 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           .map(ExportHistoryEntry.fromMap)
           .toList();
       _lowStockCount = results[4] as int;
-      _loanStats = results[5] as LoanDashboardStats;
-      _participation = results[6] as MemberParticipationSummary;
+      _participation = results[5] as MemberParticipationSummary;
       _isLoading = false;
     });
-  }
-
-  Future<void> _confirmAndSendReminders(AppLocalizations l10n) async {
-    final count = _participation.inactiveCount;
-    if (count == 0) return;
-
-    final confirmed = await AppDialog.show<bool>(
-      context: context,
-      child: AlertDialog(
-        title: Text(
-          l10n.analyticsSendReminderTitle,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
-        ),
-        content: Text(
-          l10n.analyticsSendReminderMessage(count),
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.issueLoanCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              l10n.analyticsSendReminderConfirm,
-              style: const TextStyle(color: AppConstants.primaryGreen),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _isSendingReminders = true);
-    try {
-      await _analyticsRepo.sendReminders(
-        farmerIds: _participation.inactiveFarmers.map((f) => f.id).toList(),
-        title: l10n.analyticsReminderNotifTitle,
-        body: l10n.analyticsReminderNotifBody,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.analyticsReminderSent(count))),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.analyticsReminderError)),
-      );
-    } finally {
-      if (mounted) setState(() => _isSendingReminders = false);
-    }
   }
 
   void _setPeriod(ReportPeriod period) {
@@ -146,6 +87,27 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      drawer: AnimatedBuilder(
+        animation: AdminProfileStateService.instance,
+        builder: (context, _) {
+          final profile = AdminProfileStateService.instance.profile;
+          return AppNavigationDrawer(
+            photoUrl: profile?.profilePhotoUrl,
+            displayName: profile?.fullName ?? 'Admin',
+            contactEmail: profile?.contactEmail ?? profile?.email,
+            phoneNumber: profile?.phoneNumber,
+            onEditProfile: () {
+              Navigator.pop(context);
+              context.push(AppRoutes.adminEditProfile);
+            },
+            onSignOut: () => confirmAdminSignOut(context),
+            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
+            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
+            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
+            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
+          );
+        },
+      ),
       body: Column(
         children: [
           AdminTopBar(
@@ -154,6 +116,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
             onNotificationTap: () =>
                 context.push(AppRoutes.adminNotifications).then((_) => _load()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
+            enableMenu: true,
           ),
           Expanded(
             child: RefreshIndicator(
@@ -170,23 +133,21 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                   const SizedBox(height: AppConstants.spacingGutter),
                   _buildExecutiveSnapshot(context, l10n, cs),
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildSectionTitle(l10n.reportsNeedsAttention, cs),
-                  const SizedBox(height: AppConstants.spacingSm),
-                  _buildNeedsAttention(context, l10n, cs, sagana),
-                  const SizedBox(height: AppConstants.spacingSectionV),
                   _buildQuickInsights(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
                   _buildSectionTitle(l10n.reportsDetailedReports, cs),
                   const SizedBox(height: AppConstants.spacingSm),
                   _buildDetailedReportsGrid(context, l10n, cs, sagana),
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildSectionTitle(l10n.reportsReportingTools, cs),
+                  // Renamed from "Reporting Tools" (Phase 14) — that name
+                  // didn't fit a section containing Analytics, Balik-
+                  // Tangkilik Management, and Export Center. Reuses the
+                  // pre-existing reportsManagementTools l10n key, which
+                  // already had both English and Tagalog strings defined
+                  // but was never wired up to any screen.
+                  _buildSectionTitle(l10n.reportsManagementTools, cs),
                   const SizedBox(height: AppConstants.spacingSm),
                   _buildReportingToolsRow(context, l10n, cs, sagana),
-                  const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildSectionTitle(l10n.reportsExportHistory, cs),
-                  const SizedBox(height: AppConstants.spacingSm),
-                  _buildExportHistory(context, l10n, cs),
                 ],
               ),
             ),
@@ -209,6 +170,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   ];
 
   Widget _buildPeriodChips(BuildContext context, ColorScheme cs) {
+    final l10n = AppLocalizations.of(context);
     return SizedBox(
       height: 34,
       child: ListView(
@@ -218,7 +180,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(p.label, style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
@@ -252,12 +214,16 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           value: currency.format(_summary.coopSalesAmount),
           current: _summary.coopSalesAmount,
           previous: _previousSummary.coopSalesAmount,
+          icon: Icons.storefront_rounded,
+          accent: AppConstants.primaryGreen,
         ),
         ReportHeroStat(
           label: l10n.reportsTotalHarvest,
           value: '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
           current: _summary.totalHarvestKg,
           previous: _previousSummary.totalHarvestKg,
+          icon: Icons.agriculture_rounded,
+          accent: AppConstants.successGreen,
         ),
       ],
       secondaryStats: [
@@ -266,138 +232,34 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           value: currency.format(_summary.marketplaceRevenue),
           current: _summary.marketplaceRevenue,
           previous: _previousSummary.marketplaceRevenue,
+          icon: Icons.point_of_sale_rounded,
+          accent: AppConstants.buyerBlue,
         ),
         ReportHeroStat(
           label: l10n.reportsActiveLoans,
           value: currency.format(_summary.activeLoanOutstanding),
           current: _summary.activeLoanOutstanding,
           previous: _previousSummary.activeLoanOutstanding,
+          icon: Icons.request_page_rounded,
+          accent: AppConstants.errorRed,
         ),
         ReportHeroStat(
           label: l10n.reportsTotalExpenses,
           value: currency.format(_summary.totalExpenses),
           current: _summary.totalExpenses,
           previous: _previousSummary.totalExpenses,
+          icon: Icons.receipt_long_rounded,
+          accent: AppConstants.amber,
         ),
         ReportHeroStat(
           label: l10n.reportsMemberParticipation,
           value: '${_summary.memberParticipationPercent.toStringAsFixed(0)}%',
           current: _summary.memberParticipationPercent,
           previous: _previousSummary.memberParticipationPercent,
+          icon: Icons.groups_rounded,
+          accent: AppConstants.warningAmber,
         ),
       ],
-    );
-  }
-
-  /// Needs Attention — pulls together signals already computed elsewhere
-  /// (low stock, overdue loans, inactive members) so an admin sees "where
-  /// do I look first" without opening three separate screens.
-  Widget _buildNeedsAttention(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 0,
-    );
-    final items = <_AttentionItem>[];
-
-    if (_lowStockCount > 0) {
-      items.add(_AttentionItem(
-        icon: Icons.inventory_2_rounded,
-        label: l10n.reportsLowStockItems,
-        value: '$_lowStockCount',
-        color: AppConstants.errorRed,
-        onTap: () => context.push(AppRoutes.coopStockReport),
-      ));
-    }
-    if (_loanStats.overdueLoansCount > 0) {
-      items.add(_AttentionItem(
-        icon: Icons.request_page_rounded,
-        label: l10n.reportsOverdueLoans,
-        value:
-            '${_loanStats.overdueLoansCount} • ${currency.format(_loanStats.totalOverdueAmount)}',
-        color: AppConstants.errorRed,
-        onTap: () => context.push(AppRoutes.loanReport),
-      ));
-    }
-    if (_participation.inactiveCount > 0) {
-      items.add(_AttentionItem(
-        icon: Icons.person_off_rounded,
-        label: l10n.reportsInactiveMembers,
-        value: '${_participation.inactiveCount}',
-        color: AppConstants.warningAmber,
-        trailingAction: TextButton(
-          onPressed: _isSendingReminders
-              ? null
-              : () => _confirmAndSendReminders(l10n),
-          child: _isSendingReminders
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(
-                  l10n.analyticsSendReminder(_participation.inactiveCount),
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-        ),
-      ));
-    }
-
-    if (items.isEmpty) {
-      return ReportEmptyState(message: l10n.reportsAllClear);
-    }
-    return Column(children: items.map((i) => _attentionRow(i, cs, sagana)).toList());
-  }
-
-  Widget _attentionRow(_AttentionItem item, ColorScheme cs, SaganaColors sagana) {
-    return GestureDetector(
-      onTap: item.onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-        padding: const EdgeInsets.all(AppConstants.spacingMd),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(color: item.color.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          children: [
-            Icon(item.icon, size: 18, color: item.color),
-            const SizedBox(width: AppConstants.spacingMd),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.label,
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-                  ),
-                  Text(
-                    item.value,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (item.trailingAction != null)
-              item.trailingAction!
-            else if (item.onTap != null)
-              Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
-          ],
-        ),
-      ),
     );
   }
 
@@ -663,84 +525,27 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         l10n.reportsExportCenter,
         Icons.file_download_rounded,
         AppRoutes.exportCenter,
-        previewLabel: l10n.reportsLastExport,
-        previewValue: _recentExports.isEmpty
-            ? l10n.reportsNoExportsYet
-            : DateFormat('MMM d').format(_recentExports.first.generatedAt),
+        // A simple export count instead of a long "No exports yet..."
+        // sentence when empty — the card is small, and Export Center's
+        // own screen already shows the fuller history/date detail.
+        previewLabel: l10n.reportsExportCount,
+        previewValue: '${_recentExports.length}',
       ),
     ];
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < tools.length; i++) ...[
-          if (i > 0) const SizedBox(width: AppConstants.spacingMd),
-          Expanded(child: _reportCard(context, tools[i], cs, sagana)),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildExportHistory(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    final recent = _recentExports.take(3).toList();
-    if (recent.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppConstants.spacingGutter),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Text(
-          l10n.reportsNoExportsYet,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        ...recent.map((entry) => _recentExportRow(entry, cs)),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: () => context.push(AppRoutes.exportCenter),
-            child: Text(l10n.reportsViewAllExports, style: GoogleFonts.inter(fontSize: 12)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _recentExportRow(ExportHistoryEntry entry, ColorScheme cs) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            entry.fileName,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${entry.periodLabel} • ${DateFormat('MMM d, h:mm a').format(entry.generatedAt)}',
-            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
+          for (var i = 0; i < tools.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppConstants.spacingSm),
+            Expanded(child: _reportCard(context, tools[i], cs, sagana)),
+          ],
         ],
       ),
     );
   }
+
 }
 
 class _ReportCardData {
@@ -757,22 +562,5 @@ class _ReportCardData {
     this.previewLabel,
     this.previewValue,
     this.accent,
-  });
-}
-
-class _AttentionItem {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback? onTap;
-  final Widget? trailingAction;
-  const _AttentionItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    this.onTap,
-    this.trailingAction,
   });
 }

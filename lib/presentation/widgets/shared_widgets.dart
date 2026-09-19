@@ -688,9 +688,12 @@ class SettingsRow extends StatelessWidget {
   final Color iconColor;
   final String title;
   final String? subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color? titleColor;
   final bool showChevron;
+  // Overrides the chevron with a custom control (e.g. a Switch) for rows
+  // that toggle a setting directly rather than navigating/opening a picker.
+  final Widget? trailing;
 
   const SettingsRow({
     super.key,
@@ -698,9 +701,10 @@ class SettingsRow extends StatelessWidget {
     required this.iconColor,
     required this.title,
     this.subtitle,
-    required this.onTap,
+    this.onTap,
     this.titleColor,
     this.showChevron = true,
+    this.trailing,
   });
 
   @override
@@ -722,7 +726,7 @@ class SettingsRow extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(subtitle!, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant))
           : null,
-      trailing: showChevron ? Icon(Icons.chevron_right_rounded, color: cs.outline, size: 18) : null,
+      trailing: trailing ?? (showChevron ? Icon(Icons.chevron_right_rounded, color: cs.outline, size: 18) : null),
     );
   }
 }

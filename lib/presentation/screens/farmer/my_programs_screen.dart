@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
+import '../../../routes/app_routes.dart';
 import '../../widgets/farmer_top_bar.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
@@ -126,7 +128,7 @@ class _ProgramCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.85),
@@ -144,11 +146,26 @@ class _ProgramCard extends StatelessWidget {
               Container(
                 width: 36, height: 36,
                 decoration: BoxDecoration(
-                  color: AppConstants.programPurple.withValues(alpha: 0.12),
+                  color: (entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple)
+                      .withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.volunteer_activism_rounded,
-                    color: AppConstants.programPurple, size: 18),
+                clipBehavior: Clip.antiAlias,
+                child: (entry.programImageUrl != null && entry.programImageUrl!.isNotEmpty)
+                    ? Image.network(
+                        entry.programImageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                          entry.isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
+                          color: entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple,
+                          size: 18,
+                        ),
+                      )
+                    : Icon(
+                        entry.isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
+                        color: entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple,
+                        size: 18,
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -168,15 +185,56 @@ class _ProgramCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          if (!entry.isDistributed)
+          if (entry.isSalesProgram) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Tap to view available products',
+                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                const Icon(Icons.chevron_right_rounded, color: AppConstants.onSurfaceVariant, size: 18),
+              ],
+            ),
+          ] else if (!entry.isDistributed)
             Text('Awaiting distribution',
                 style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant))
           else ...[
-            Text(
-              'Received ${entry.quantityGiven?.toStringAsFixed(1)}'
-              '${entry.itemUnit != null ? ' ${entry.itemUnit}' : ''}'
-              '${entry.itemName != null ? ' ${entry.itemName}' : ''} on ${formatDate(entry.distributedAt!)}',
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurface),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // The actual distributed item's photo (from Inventory
+                // Management, via the existing cooperative_inventory join)
+                // — not a separate upload, per the cross-module image reuse
+                // rule.
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: (entry.itemImageUrl != null && entry.itemImageUrl!.isNotEmpty)
+                      ? Image.network(
+                          entry.itemImageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 16,
+                              color: AppConstants.primaryGreen),
+                        )
+                      : const Icon(Icons.inventory_2_outlined,
+                          size: 16, color: AppConstants.primaryGreen),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Received ${entry.quantityGiven?.toStringAsFixed(1)}'
+                    '${entry.itemUnit != null ? ' ${entry.itemUnit}' : ''}'
+                    '${entry.itemName != null ? ' ${entry.itemName}' : ''} on ${formatDate(entry.distributedAt!)}',
+                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurface),
+                  ),
+                ),
+              ],
             ),
             if (entry.isRevenueShare) ...[
               const SizedBox(height: 6),
@@ -197,6 +255,16 @@ class _ProgramCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+
+    if (!entry.isSalesProgram || entry.enrollmentStatus != 'active') return card;
+
+    return GestureDetector(
+      onTap: () => context.push(
+        AppRoutes.programProductCatalog,
+        extra: {'programId': entry.programId, 'programName': entry.programName},
+      ),
+      child: card,
     );
   }
 }

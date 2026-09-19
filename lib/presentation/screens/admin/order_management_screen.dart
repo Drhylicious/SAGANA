@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
+import '../../widgets/management_modal.dart' show adminOrderStatusLabel;
 import '../../widgets/web_safe_blur_container.dart';
 
 class OrderManagementScreen extends StatefulWidget {
@@ -74,18 +76,19 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
     return list.toList();
   }
 
-  String get _emptyMessage {
+  String _emptyMessage(AppLocalizations l10n) {
     switch (_statusFilter) {
-      case 'pending': return 'No pending orders';
-      case 'approved': return 'No approved orders';
-      case 'completed': return 'No completed orders';
-      case 'cancelled': return 'No cancelled orders';
-      default: return 'No orders yet';
+      case 'pending': return l10n.buyerOrderHistoryNoPending;
+      case 'approved': return l10n.buyerOrderHistoryNoApproved;
+      case 'completed': return l10n.buyerOrderHistoryNoCompleted;
+      case 'cancelled': return l10n.buyerOrderHistoryNoCancelled;
+      default: return l10n.buyerOrderHistoryNoOrdersYet;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final visible = _byStatus(_statusFilter);
 
@@ -94,16 +97,18 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
       body: Column(
         children: [
           _TopAppBar(
-            title: widget.buyerName != null ? '${widget.buyerName}\'s Orders' : 'Order Management',
+            title: widget.buyerName != null
+                ? l10n.orderMgmtTitleFor(widget.buyerName!)
+                : l10n.orderMgmtTitleGeneric,
             onBack: () => context.pop(),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: TextField(
               controller: _searchCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Search buyer, crop, or order #...',
-                prefixIcon: Icon(Icons.search_rounded),
+              decoration: InputDecoration(
+                hintText: l10n.orderMgmtSearchHint,
+                prefixIcon: const Icon(Icons.search_rounded),
               ),
             ),
           ),
@@ -119,27 +124,27 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
                 // switching behavior this screen already had is unchanged,
                 // only the chip's own look changed.
                 ListingStatusFilterChip(
-                  label: 'All', active: _statusFilter == null,
+                  label: l10n.farmerMgmtAllFilter, active: _statusFilter == null,
                   color: cs.primary, onTap: () => setState(() => _statusFilter = null), cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: 'Pending', active: _statusFilter == 'pending',
+                  label: adminOrderStatusLabel(l10n, 'pending'), active: _statusFilter == 'pending',
                   color: AppConstants.warningAmber, onTap: () => setState(() => _statusFilter = 'pending'), cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: 'Approved', active: _statusFilter == 'approved',
+                  label: adminOrderStatusLabel(l10n, 'approved'), active: _statusFilter == 'approved',
                   color: AppConstants.successGreen, onTap: () => setState(() => _statusFilter = 'approved'), cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: 'Completed', active: _statusFilter == 'completed',
+                  label: adminOrderStatusLabel(l10n, 'completed'), active: _statusFilter == 'completed',
                   color: AppConstants.primaryGreen, onTap: () => setState(() => _statusFilter = 'completed'), cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: 'Cancelled', active: _statusFilter == 'cancelled',
+                  label: adminOrderStatusLabel(l10n, 'cancelled'), active: _statusFilter == 'cancelled',
                   color: AppConstants.errorRed, onTap: () => setState(() => _statusFilter = 'cancelled'), cs: cs,
                 ),
               ],
@@ -149,7 +154,7 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _buildList(visible, _emptyMessage),
+                : _buildList(visible, _emptyMessage(l10n)),
           ),
         ],
       ),
@@ -159,7 +164,8 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   Widget _buildList(List<AdminOrderModel> orders, String emptyMessage) {
     if (orders.isEmpty) {
       return Center(
-        child: Text(emptyMessage, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+        child: Text(emptyMessage,
+            style: GoogleFonts.inter(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
       );
     }
     return RefreshIndicator(
@@ -194,12 +200,15 @@ class _OrderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final sagana = context.saganaColors;
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border(left: BorderSide(color: _statusColor, width: 4)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
@@ -211,10 +220,10 @@ class _OrderRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(order.orderReference,
-                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant)),
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
                   Text(order.buyerName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
                   Text('${order.displayName} · ${order.quantityKg.toStringAsFixed(0)} kg',
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
                 ],
               ),
             ),
@@ -227,7 +236,7 @@ class _OrderRow extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                  child: Text(order.statusLabel.toUpperCase(),
+                  child: Text(adminOrderStatusLabel(l10n, order.status).toUpperCase(),
                       style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: _statusColor)),
                 ),
               ],

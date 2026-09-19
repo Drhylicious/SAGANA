@@ -96,6 +96,29 @@ class ContributionRepository {
     }
   }
 
+  // ─── Patronage refund reinvestment ─────────────────────────────────────────
+
+  /// Reinvests [amount] of the farmer's own finalized [year] Balik-Tangkilik
+  /// payout as additional capital share, via the atomic
+  /// reinvest_patronage_capital() RPC. Throws on failure (insufficient
+  /// remaining amount, year not yet finalized, etc.) — same convention as
+  /// CapitalContributionRepository's write methods, since this changes
+  /// money-adjacent state and a swallowed failure would leave the farmer
+  /// believing the reinvestment went through when it didn't.
+  ///
+  /// Returns the amount still available to reinvest for that year after
+  /// this call.
+  Future<double> reinvestPatronageCapital({
+    required int year,
+    required double amount,
+  }) async {
+    final result = await _client.rpc('reinvest_patronage_capital', params: {
+      'p_year': year,
+      'p_amount': amount,
+    });
+    return (result as num).toDouble();
+  }
+
   // ─── Member share percentage ──────────────────────────────────────────────
 
   double computeMemberSharePercent({
@@ -144,16 +167,17 @@ class ContributionRepository {
           amount: (row['amount'] as num).toDouble(),
           saleDate: DateTime.parse(row['sale_date'] as String),
           referenceNo: row['reference_no'] as String?,
+          // Farmer Download Records only ever reads member_sales_
+          // transactions (this farmer's own Offer-to-Cooperative sales) —
+          // the other three Selling Types aren't part of this export.
+          sellingType: 'offer_to_cooperative',
         );
       }).toList();
 
       return SalesReportData(
         totalRevenue: 0,
-        marketplaceRevenue: 0,
         totalQuantityKg: 0,
         transactionCount: transactions.length,
-        palayAmount: 0,
-        peanutAmount: 0,
         monthlyTrend: const [],
         transactions: transactions,
       );
@@ -178,19 +202,29 @@ class ContributionRepository {
           .gte('sale_date', '$year-01-01')
           .lte('sale_date', '$year-12-31');
 
+      // Palay/Peanut keep their own dedicated fields; any other crop — now
+      // possible here as of Phase 9's any-crop Offer-to-Cooperative
+      // widening — rolls into otherCrops (Phase 11 addition), rather than
+      // being silently miscounted as Palay (this loop's previous implicit
+      // "else" branch) or left out of the exported breakdown entirely.
       double palayQtyKg = 0, palayAmount = 0, peanutQtyKg = 0, peanutAmount = 0;
+      double otherCropsQtyKg = 0, otherCropsAmount = 0;
       for (final row in rows) {
         final qty = (row['quantity_kg'] as num).toDouble();
         final amount = (row['amount'] as num).toDouble();
-        if (row['crop_type'] == 'peanut') {
+        final cropType = row['crop_type'] as String?;
+        if (cropType == 'palay') {
+          palayQtyKg += qty;
+          palayAmount += amount;
+        } else if (cropType == 'peanut') {
           peanutQtyKg += qty;
           peanutAmount += amount;
         } else {
-          palayQtyKg += qty;
-          palayAmount += amount;
+          otherCropsQtyKg += qty;
+          otherCropsAmount += amount;
         }
       }
-      final totalAmount = palayAmount + peanutAmount;
+      final totalAmount = palayAmount + peanutAmount + otherCropsAmount;
 
       final coopTotal = await fetchCoopTotal(year);
       final sharePercent = coopTotal == null
@@ -218,6 +252,8 @@ class ContributionRepository {
             peanutAmount: peanutAmount,
             totalAmount: totalAmount,
             sharePercent: sharePercent,
+            otherCropsQtyKg: otherCropsQtyKg,
+            otherCropsAmount: otherCropsAmount,
           ),
         ],
       );
