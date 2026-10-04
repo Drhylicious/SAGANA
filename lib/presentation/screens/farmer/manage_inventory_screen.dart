@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/inventory_batch_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
 import '../../../data/repositories/informal_sale_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
+import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
@@ -17,6 +18,7 @@ import '../../../data/repositories/crop_repository.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/report_summary_widgets.dart';
 
 class ManageInventoryScreen extends StatefulWidget {
   const ManageInventoryScreen({super.key});
@@ -29,17 +31,20 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   final _repo = InventoryRepository();
   final _cropRepo = CropRepository();
   final _offerRepo = CooperativeOfferRepository();
+  final _marketLinkingRepo = MarketLinkingRepository();
   final _searchController = TextEditingController();
 
   List<InventoryBatchModel> _allBatches = [];
   List<InventoryBatchModel> _filtered = [];
   Map<String, double> _summary = {'available': 0, 'reserved': 0, 'sold': 0};
+  Map<String, FarmerCropModel> _cropsById = {};
   bool _hasCrops = true; // assume true until loaded, avoids an empty-state flash
   Set<String> _pendingOfferBatchIds = {};
+  Set<String> _activeMarketLinkingBatchIds = {};
+  DaAmadEnrollmentStatus? _gingerEnrollmentStatus; // null = never enrolled
 
-  bool _showSold = false;
+  String _activeStatusFilter = _StatusFilterRow.all;
   bool _isLoading = true;
-  bool _isDeleting = false;
   bool _isOnline = true;
   String _searchQuery = '';
 
@@ -79,13 +84,19 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       _repo.fetchSummary(),
       _cropRepo.fetchCrops(),
       _offerRepo.fetchBatchIdsWithPendingOffers(),
+      _marketLinkingRepo.fetchMyActiveSubmissionBatchIds(),
+      _marketLinkingRepo.fetchMyEnrollment(),
     ]);
     if (!mounted) return;
+    final crops = results[2] as List<FarmerCropModel>;
     setState(() {
       _allBatches = results[0] as List<InventoryBatchModel>;
       _summary = results[1] as Map<String, double>;
-      _hasCrops = (results[2] as List<FarmerCropModel>).isNotEmpty;
+      _hasCrops = crops.isNotEmpty;
+      _cropsById = {for (final c in crops) c.id: c};
       _pendingOfferBatchIds = results[3] as Set<String>;
+      _activeMarketLinkingBatchIds = results[4] as Set<String>;
+      _gingerEnrollmentStatus = (results[5] as DaAmadEnrollmentModel?)?.status;
       _applyFilters();
       _isLoading = false;
     });
@@ -98,9 +109,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     });
   }
 
-  void _toggleShowSold() {
+  void _setStatusFilter(String filter) {
     setState(() {
-      _showSold = !_showSold;
+      _activeStatusFilter = filter;
       _applyFilters();
     });
   }
@@ -108,14 +119,27 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   void _applyFilters() {
     final q = _searchQuery.trim().toLowerCase();
     _filtered = _allBatches.where((b) {
-      // Apply sold filter: binary toggle
-      // When _showSold is TRUE: show ONLY sold/withdrawn batches
-      // When _showSold is FALSE: show ONLY available batches
-      final isSold = b.isSoldOut || b.isWithdrawn;
-      final shouldDisplay = _showSold ? isSold : !isSold;
-      if (!shouldDisplay) return false;
+      switch (_activeStatusFilter) {
+        case _StatusFilterRow.available:
+          if (b.status != 'available') return false;
+          break;
+        case _StatusFilterRow.reserved:
+          if (b.status != 'reserved') return false;
+          break;
+        // Folds 'withdrawn' into "Sold" — both represent inventory no
+        // longer available to dispose of, matching the old Show-Sold
+        // toggle's own grouping; withdrawn batches are rare enough not to
+        // warrant a 6th chip nobody asked for.
+        case _StatusFilterRow.sold:
+          if (!(b.isSoldOut || b.isWithdrawn)) return false;
+          break;
+        case _StatusFilterRow.lowStock:
+          if (b.status != 'low_stock') return false;
+          break;
+        default: // All — no status filter
+          break;
+      }
 
-      // Apply search filter
       if (q.isEmpty) return true;
       return b.cropName.toLowerCase().contains(q) ||
           b.batchNumber.toLowerCase().contains(q);
@@ -123,27 +147,6 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
-
-  void _showBatchMenu(InventoryBatchModel batch) {
-    showManagementModal(
-      context: context,
-      builder: (_) => _BatchActionSheet(
-        batch: batch,
-        onUpdateQuantity: () {
-          Navigator.pop(context);
-          _showUpdateQuantityDialog(batch);
-        },
-        onViewHarvestRecord: () {
-          Navigator.pop(context);
-          context.pushRoute(AppRoutes.harvestHistory, extra: batch.cropName);
-        },
-        onDelete: () {
-          Navigator.pop(context);
-          _confirmDelete(batch);
-        },
-      ),
-    );
-  }
 
   void _showUpdateQuantityDialog(InventoryBatchModel batch) {
     final controller = TextEditingController(
@@ -247,77 +250,40 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     );
   }
 
-  void _confirmDelete(InventoryBatchModel batch) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        ),
-        title: Text(
-          'Delete Batch?',
-          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'This will permanently delete Batch #${batch.batchNumber}. This action cannot be undone.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              if (!mounted) return;
-              setState(() => _isDeleting = true);
-              try {
-                await _repo.deleteBatch(batch.id);
-                if (!mounted) return;
-                await _loadData();
-              } catch (e) {
-                if (!mounted) return;
-                final message = e is PostgrestException && e.message.isNotEmpty
-                    ? e.message
-                    : 'Failed to delete batch #${batch.batchNumber}. Please try again.';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      message,
-                      style: GoogleFonts.inter(fontSize: 13),
-                    ),
-                    backgroundColor: AppConstants.errorRed,
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              } finally {
-                if (mounted) {
-                  setState(() => _isDeleting = false);
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.errorRed,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-            ),
-            child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _handleBatchAction(InventoryBatchModel batch) async {
+    // Ginger (DA-AMAD-exclusive) batches never go through the generic
+    // Marketplace/Cooperative/Informal disposal flow below — Market
+    // Linking is their only path. Intercepted here, before the
+    // isAvailable branching, because Market Linking never reserves the
+    // batch (available_kg is only touched at admin completion) — a
+    // Ginger batch with an active submission still reads as plain
+    // 'available' and would otherwise fall into the wrong branch.
+    if (batch.cropType == 'da_amad_market') {
+      if (_activeMarketLinkingBatchIds.contains(batch.id)) {
+        context.pushRoute(AppRoutes.myMarketLinking);
+      } else if (_gingerEnrollmentStatus != DaAmadEnrollmentStatus.approved) {
+        // Not yet an approved Market Linking participant — route to the
+        // enrollment flow instead of the sale dialog. Covers "never
+        // enrolled," "pending," and "rejected" alike; MyMarketLinkingScreen
+        // shows the right state for each on its own.
+        context.pushRoute(AppRoutes.myMarketLinking).then((_) => _loadData());
+      } else {
+        if (!_isOnline) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'This action requires an internet connection. Please try again once you\'re back online.'),
+              backgroundColor: AppConstants.warningAmber,
+            ),
+          );
+          return;
+        }
+        final result = await showSubmitToSellDialog(context, batch: batch);
+        if (result == true) _loadData();
+      }
+      return;
+    }
+
     if (!batch.isAvailable) {
       // Reserved batches now branch on which disposal path actually
       // claimed them, rather than assuming 'reserved' always means a
@@ -352,6 +318,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       cropName: batch.cropName,
       availableKg: batch.availableKg,
       isCoopEligible: batch.isCoopEligible,
+      cropType: batch.cropType,
     );
     if (action == null || !mounted) return;
 
@@ -415,7 +382,11 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                    // No FAB or bottom nav under this pushed (non-tab)
+                    // screen to clear — 100px of bottom padding was
+                    // leaving genuinely dead space at the end of the
+                    // scroll, not reserved space for anything.
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                     children: [
                       // Summary metrics
                       _SummaryMetrics(summary: _summary, isLoading: _isLoading),
@@ -425,10 +396,11 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                       _SearchBar(controller: _searchController),
                       const SizedBox(height: 12),
 
-                      // Filter row
-                      _FilterRow(
-                        showSold: _showSold,
-                        onToggleShowSold: _toggleShowSold,
+                      // Status filter chips (replaces the old binary
+                      // Show-Sold toggle)
+                      _StatusFilterRow(
+                        active: _activeStatusFilter,
+                        onSelected: _setStatusFilter,
                       ),
                       const SizedBox(height: 20),
 
@@ -455,7 +427,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                       else if (_filtered.isEmpty)
                         _InventoryEmptyState(
                           hasCrops: _hasCrops,
-                          hasFilter: _searchQuery.isNotEmpty || _showSold,
+                          hasFilter: _searchQuery.isNotEmpty ||
+                              _activeStatusFilter != _StatusFilterRow.all,
                           onGoToMyCrops: () =>
                               context.pushRoute(AppRoutes.cropListing),
                           onRecordHarvest: () =>
@@ -467,8 +440,14 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _BatchCard(
                               batch: b,
+                              crop: _cropsById[b.cropId],
                               hasPendingOffer: _pendingOfferBatchIds.contains(b.id),
-                              onMenuTap: () => _showBatchMenu(b),
+                              hasActiveMarketLinking: _activeMarketLinkingBatchIds.contains(b.id),
+                              gingerEnrollmentApproved:
+                                  _gingerEnrollmentStatus == DaAmadEnrollmentStatus.approved,
+                              onUpdateQuantity: () => _showUpdateQuantityDialog(b),
+                              onViewHarvestRecord: () => context
+                                  .pushRoute(AppRoutes.harvestHistory, extra: b.cropName),
                               onActionTap: () => _handleBatchAction(b),
                             ),
                           ),
@@ -492,18 +471,6 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               showNotificationButton: false,
             ),
           ),
-          // Deleting overlay
-          if (_isDeleting)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Colors.black12,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
-                  ),
-                ),
-              ),
-            ),
               ],
             ),
           ),
@@ -514,7 +481,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Summary Metrics
+// Summary Metrics — built on the shared ReportIconStatCard (the same KPI
+// tile Admin's Reports module uses), per the redesign's request to match
+// Admin's KPI card pattern rather than this screen's own bespoke style.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SummaryMetrics extends StatelessWidget {
@@ -528,29 +497,29 @@ class _SummaryMetrics extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _MetricCard(
-            value: isLoading ? '—' : _fmt(summary['available'] ?? 0),
+          child: ReportIconStatCard(
+            icon: Icons.check_circle_outline_rounded,
+            accent: AppConstants.successGreen,
             label: 'Available',
-            valueColor: AppConstants.primaryGreen,
-            dotColor: AppConstants.successGreen,
+            value: isLoading ? '—' : '${_fmt(summary['available'] ?? 0)} kg',
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MetricCard(
-            value: isLoading ? '—' : _fmt(summary['reserved'] ?? 0),
+          child: ReportIconStatCard(
+            icon: Icons.hourglass_top_rounded,
+            accent: AppConstants.warningAmber,
             label: 'Reserved',
-            valueColor: AppConstants.amber,
-            dotColor: AppConstants.warningAmber,
+            value: isLoading ? '—' : '${_fmt(summary['reserved'] ?? 0)} kg',
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MetricCard(
-            value: isLoading ? '—' : _fmt(summary['sold'] ?? 0),
+          child: ReportIconStatCard(
+            icon: Icons.sell_outlined,
+            accent: AppConstants.primaryGreen,
             label: 'Sold',
-            valueColor: AppConstants.successGreen,
-            dotColor: AppConstants.primaryGreen,
+            value: isLoading ? '—' : '${_fmt(summary['sold'] ?? 0)} kg',
           ),
         ),
       ],
@@ -559,82 +528,6 @@ class _SummaryMetrics extends StatelessWidget {
 
   String _fmt(double v) =>
       v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
-}
-
-class _MetricCard extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color valueColor;
-  final Color dotColor;
-
-  const _MetricCard({
-    required this.value,
-    required this.label,
-    required this.valueColor,
-    required this.dotColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [
-              BoxShadow(
-                color: AppConstants.infoBlueFg.withValues(alpha: 0.05),
-                blurRadius: 12,
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Text(
-                    value,
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: valueColor,
-                    ),
-                  ),
-                  Positioned(
-                    top: -2,
-                    right: -8,
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: dotColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 9,
-                  color: AppConstants.outline,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -688,79 +581,62 @@ class _SearchBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Filter Row
+// Status Filter Row — replaces the old binary Show-Sold toggle with real
+// filter chips over InventoryBatchModel.status, same visual pattern as
+// CropCategoryChips elsewhere in this redesign round.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FilterRow extends StatelessWidget {
-  final bool showSold;
-  final VoidCallback onToggleShowSold;
+class _StatusFilterRow extends StatelessWidget {
+  static const all = 'All';
+  static const available = 'Available';
+  static const reserved = 'Reserved';
+  static const sold = 'Sold';
+  static const lowStock = 'Low Stock';
+  static const _options = [all, available, reserved, sold, lowStock];
 
-  const _FilterRow({
-    required this.showSold,
-    required this.onToggleShowSold,
-  });
+  final String active;
+  final ValueChanged<String> onSelected;
+
+  const _StatusFilterRow({required this.active, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: [
-          // Show Sold toggle
-          GestureDetector(
-            onTap: onToggleShowSold,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFD5ECF8),
-                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Show Sold',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.onSurfaceVariant,
-                    ),
+        children: _options.map((option) {
+          final isActive = option == active;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => onSelected(option),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppConstants.primaryContainer.withValues(alpha: 0.12)
+                      : sagana.cardBackground,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  border: isActive
+                      ? Border.all(
+                          color: AppConstants.primaryContainer.withValues(alpha: 0.30))
+                      : null,
+                ),
+                child: Text(
+                  option,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isActive ? AppConstants.primaryContainer : cs.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 6),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 32,
-                    height: 18,
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: showSold
-                          ? AppConstants.primaryGreen
-                          : AppConstants.outline.withValues(alpha: 0.30),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: AnimatedAlign(
-                      duration: const Duration(milliseconds: 150),
-                      alignment: showSold
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+          );
+        }).toList(),
       ),
     );
   }
@@ -770,16 +646,39 @@ class _FilterRow extends StatelessWidget {
 // Batch Card
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Icon+label row for a PopupMenuItem — matches Admin Inventory
+/// Management's own menu-row pattern (admin_inventory_screen.dart's
+/// _menuRow), used as the reference for how this screen's 3-dot menu
+/// should behave.
+Widget _batchMenuRow(IconData icon, String label, Color color) {
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 18, color: color),
+      const SizedBox(width: 10),
+      Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+    ],
+  );
+}
+
 class _BatchCard extends StatelessWidget {
   final InventoryBatchModel batch;
+  final FarmerCropModel? crop;
   final bool hasPendingOffer;
-  final VoidCallback onMenuTap;
+  final bool hasActiveMarketLinking;
+  final bool gingerEnrollmentApproved;
+  final VoidCallback onUpdateQuantity;
+  final VoidCallback onViewHarvestRecord;
   final VoidCallback onActionTap;
 
   const _BatchCard({
     required this.batch,
+    this.crop,
     this.hasPendingOffer = false,
-    required this.onMenuTap,
+    this.hasActiveMarketLinking = false,
+    this.gingerEnrollmentApproved = false,
+    required this.onUpdateQuantity,
+    required this.onViewHarvestRecord,
     required this.onActionTap,
   });
 
@@ -813,21 +712,7 @@ class _BatchCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: statusInfo.bg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: statusInfo.border),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _emojiForCrop(batch.cropName),
-                        style: const TextStyle(fontSize: 28),
-                      ),
-                    ),
-                  ),
+                  _BatchCropImage(crop: crop, category: crop?.category ?? ''),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -860,17 +745,48 @@ class _BatchCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: onMenuTap,
+                  PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
                     icon: const Icon(
                       Icons.more_vert_rounded,
                       size: 20,
                       color: AppConstants.outline,
                     ),
-                    style: IconButton.styleFrom(
-                      shape: const CircleBorder(),
-                      padding: const EdgeInsets.all(4),
-                    ),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'update':
+                          onUpdateQuantity();
+                          break;
+                        case 'history':
+                          onViewHarvestRecord();
+                          break;
+                      }
+                    },
+                    // "Delete Batch" removed — a batch can already carry
+                    // real selling/transaction history (listings, coop
+                    // offers, informal sales, market linking), and
+                    // deleting it would erase that record. Historical
+                    // records are preserved, not deletable, same
+                    // reasoning already applied to Crop Roster's crops.
+                    itemBuilder: (context) => [
+                      if (!batch.isSoldOut)
+                        PopupMenuItem(
+                          value: 'update',
+                          child: _batchMenuRow(
+                            Icons.edit_outlined,
+                            'Update Quantity',
+                            AppConstants.onSurface,
+                          ),
+                        ),
+                      PopupMenuItem(
+                        value: 'history',
+                        child: _batchMenuRow(
+                          Icons.receipt_long_outlined,
+                          'View Harvest Record',
+                          AppConstants.onSurface,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -949,7 +865,14 @@ class _BatchCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    _ActionButton(status: batch.status, hasPendingOffer: hasPendingOffer, onTap: onActionTap),
+                    _ActionButton(
+                      status: batch.status,
+                      hasPendingOffer: hasPendingOffer,
+                      isDaAmadExclusive: batch.cropType == 'da_amad_market',
+                      hasActiveMarketLinking: hasActiveMarketLinking,
+                      gingerEnrollmentApproved: gingerEnrollmentApproved,
+                      onTap: onActionTap,
+                    ),
                   ],
                 ),
               ),
@@ -960,66 +883,77 @@ class _BatchCard extends StatelessWidget {
     );
   }
 
-  String _emojiForCrop(String cropName) {
-    final lower = cropName.toLowerCase();
-    if (lower.contains('banana')) return '🍌';
-    if (lower.contains('peanut') || lower.contains('mani')) return '🥜';
-    if (lower.contains('copra') || lower.contains('coconut')) return '🥥';
-    if (lower.contains('rice') || lower.contains('palay')) return '🌾';
-    if (lower.contains('corn') || lower.contains('mais')) return '🌽';
-    if (lower.contains('ginger') || lower.contains('luya')) return '🫚';
-    if (lower.contains('mango') || lower.contains('mangga')) return '🥭';
-    if (lower.contains('papaya')) return '🍈';
-    if (lower.contains('cassava') || lower.contains('kamoteng kahoy')) {
-      return '🍠';
-    }
-    if (lower.contains('kamote')) return '🍠';
-    if (lower.contains('garlic') || lower.contains('bawang')) return '🧄';
-    if (lower.contains('onion') || lower.contains('sibuyas')) return '🧅';
-    return '📦';
-  }
-
   _StatusInfo _statusInfo(String status) {
     switch (status) {
       case 'available':
-        return _StatusInfo(
-          bg: const Color(0xFFFFF7E0),
-          border: const Color(0xFFFFE9B3),
-          accent: AppConstants.successGreen,
-        );
+        return _StatusInfo(accent: AppConstants.successGreen);
       case 'low_stock':
-        return _StatusInfo(
-          bg: const Color(0xFFFFF3E0),
-          border: const Color(0xFFFFE0B2),
-          accent: AppConstants.warningAmber,
-        );
+        return _StatusInfo(accent: AppConstants.warningAmber);
       case 'reserved':
-        return _StatusInfo(
-          bg: const Color(0xFFFFF3E0),
-          border: const Color(0xFFFFE0B2),
-          accent: AppConstants.warningAmber,
-        );
+        return _StatusInfo(accent: AppConstants.warningAmber);
       case 'sold_out':
-        return _StatusInfo(
-          bg: const Color(0xFFF1F5F9),
-          border: const Color(0xFFE2E8F0),
-          accent: AppConstants.outline,
-        );
+        return _StatusInfo(accent: AppConstants.outline);
       default:
-        return _StatusInfo(
-          bg: const Color(0xFFF1F5F9),
-          border: const Color(0xFFE2E8F0),
-          accent: AppConstants.outline,
-        );
+        return _StatusInfo(accent: AppConstants.outline);
     }
   }
 }
 
 class _StatusInfo {
-  final Color bg;
-  final Color border;
   final Color accent;
-  _StatusInfo({required this.bg, required this.border, required this.accent});
+  _StatusInfo({required this.accent});
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Batch Crop Image — the shared-image system: Crop Roster's Edit Crop
+// (Revision D) is the one place a farmer sets a crop's photo, and every
+// other context (this card, Record New Harvest, Harvest History) reads
+// the exact same FarmerCropModel.displayImageUrl, never a separate copy.
+// Neutral background (matching Crop Roster/Select Crop's own fallback),
+// not status-tinted, so a real photo isn't fighting an amber/green box
+// behind it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BatchCropImage extends StatelessWidget {
+  final FarmerCropModel? crop;
+  final String category;
+
+  const _BatchCropImage({required this.crop, required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      child: crop?.hasDisplayImage == true
+          ? Image.network(
+              crop!.displayImageUrl!,
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _BatchCropFallbackIcon(category: category),
+            )
+          : _BatchCropFallbackIcon(category: category),
+    );
+  }
+}
+
+class _BatchCropFallbackIcon extends StatelessWidget {
+  final String category;
+  const _BatchCropFallbackIcon({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: const BoxDecoration(color: Color(0xFFDBF1FE)),
+      child: Icon(
+        FarmerCropModel.iconForCategory(category),
+        color: AppConstants.primaryGreen,
+        size: 28,
+      ),
+    );
+  }
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -1077,29 +1011,65 @@ class _StatusBadge extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final String status;
   final bool hasPendingOffer;
+  final bool isDaAmadExclusive;
+  final bool hasActiveMarketLinking;
+  final bool gingerEnrollmentApproved;
   final VoidCallback onTap;
 
-  const _ActionButton({required this.status, this.hasPendingOffer = false, required this.onTap});
+  const _ActionButton({
+    required this.status,
+    this.hasPendingOffer = false,
+    this.isDaAmadExclusive = false,
+    this.hasActiveMarketLinking = false,
+    this.gingerEnrollmentApproved = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     String label;
     bool isOutlined = false;
-    switch (status) {
-      case 'available':
-      case 'low_stock':
-        label = 'Create Listing';
-        break;
-      case 'reserved':
-        label = hasPendingOffer ? 'Offer Status' : 'View Order';
-        break;
-      default:
-        label = 'View History';
-        isOutlined = true;
+    if (isDaAmadExclusive && (status == 'available' || status == 'low_stock')) {
+      // Ginger's only path — never "Create Listing", which would imply
+      // the Marketplace/Cooperative/Informal flow that doesn't apply here.
+      // A farmer who isn't an approved Market Linking participant yet is
+      // guided to enroll first, rather than straight to a sale dialog
+      // that would just fail server-side.
+      label = hasActiveMarketLinking
+          ? 'See Progress'
+          : gingerEnrollmentApproved
+              ? 'Submit to Sell'
+              : 'Enroll to Sell';
+    } else {
+      switch (status) {
+        case 'available':
+        case 'low_stock':
+          label = 'Create Listing';
+          break;
+        case 'reserved':
+          // Not "View Order" — a reserved batch with no pending cooperative
+          // offer means it's tied to a Marketplace listing, not an order;
+          // this switches to the My Listings tab, there's no per-order
+          // screen in this path.
+          label = hasPendingOffer ? 'Offer Status' : 'View Listing';
+          break;
+        default:
+          label = 'View History';
+          isOutlined = true;
+      }
     }
 
+    // Fixed width (not IntrinsicWidth) — this button's label changes with
+    // batch status ("Create Listing" / "View Listing" / "Offer Status" /
+    // "Submit to Sell" / "See Progress" / "View History"), and hugging each
+    // label's own text made the button visibly change size card-to-card.
+    // Sized to fit the longest label; text stays on one line, shrinking
+    // to fit if needed rather than wrapping and changing card height.
+    const buttonWidth = 136.0;
+
     if (isOutlined) {
-      return IntrinsicWidth(
+      return SizedBox(
+        width: buttonWidth,
         child: OutlinedButton(
           onPressed: onTap,
           style: OutlinedButton.styleFrom(
@@ -1107,121 +1077,50 @@ class _ActionButton extends StatelessWidget {
             side: BorderSide(
               color: AppConstants.outline.withValues(alpha: 0.30),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
           ),
-          child: Text(label, style: GoogleFonts.poppins(fontSize: 12)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                maxLines: 1, style: GoogleFonts.poppins(fontSize: 12)),
+          ),
         ),
       );
     }
 
-    return IntrinsicWidth(
+    return SizedBox(
+      width: buttonWidth,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppConstants.primaryGreen,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
           ),
           elevation: 0,
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Batch Action Sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BatchActionSheet extends StatelessWidget {
-  final InventoryBatchModel batch;
-  final VoidCallback onUpdateQuantity;
-  final VoidCallback onViewHarvestRecord;
-  final VoidCallback onDelete;
-
-  const _BatchActionSheet({
-    required this.batch,
-    required this.onUpdateQuantity,
-    required this.onViewHarvestRecord,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ManagementModalShell(
-      title: '${batch.cropName} — Batch #${batch.batchNumber}',
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!batch.isSoldOut)
-            _MenuOption(
-              icon: Icons.edit_outlined,
-              label: 'Update Quantity',
-              onTap: onUpdateQuantity,
-            ),
-          _MenuOption(
-            icon: Icons.receipt_long_outlined,
-            label: 'View Harvest Record',
-            onTap: onViewHarvestRecord,
-          ),
-          _MenuOption(
-            icon: Icons.delete_outline_rounded,
-            label: 'Delete Batch',
-            color: AppConstants.errorRed,
-            onTap: onDelete,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MenuOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-  final VoidCallback onTap;
-
-  const _MenuOption({
-    required this.icon,
-    required this.label,
-    this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        tileColor: Colors.transparent,
-        leading: Icon(
-          icon,
-          color: color ?? AppConstants.onSurfaceVariant,
-          size: 22,
-        ),
-        title: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: color ?? AppConstants.onSurface,
-          ),
-        ),
-        onTap: onTap,
-      ),
-    );
-  }
-}
+// _BatchActionSheet and _MenuOption removed — the batch action menu is now
+// a PopupMenuButton rendered directly in _BatchCard's header (see
+// _batchMenuRow above), matching Admin Inventory Management's own 3-dot
+// menu pattern instead of the app's centered ManagementModalShell dialog.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Empty State
@@ -1338,7 +1237,7 @@ class _InventoryEmptyState extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Go to My Crops',
+                'Go to Crop Roster',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -1507,6 +1406,104 @@ class _BatchShimmerState extends State<_BatchShimmer>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Submit to Sell Dialog (Ginger / Market Linking)
+// Ginger's only disposal path — submits a farmer-initiated Market Linking
+// request tied to this specific batch (supabase_schema_market_linking_
+// farmer_requests.sql), pending admin approval. Mirrors
+// _OfferToCooperativeDialog's shape (volume input, pre-filled from
+// available stock).
+// ─────────────────────────────────────────────────────────────────────────────
+
+Future<bool?> showSubmitToSellDialog(
+  BuildContext context, {
+  required InventoryBatchModel batch,
+}) {
+  return showManagementModal<bool>(
+    context: context,
+    builder: (_) => _SubmitToSellDialog(batch: batch),
+  );
+}
+
+class _SubmitToSellDialog extends StatefulWidget {
+  final InventoryBatchModel batch;
+  const _SubmitToSellDialog({required this.batch});
+
+  @override
+  State<_SubmitToSellDialog> createState() => _SubmitToSellDialogState();
+}
+
+class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
+  late final TextEditingController _qtyController;
+  final _repo = MarketLinkingRepository();
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _qtyController = TextEditingController(
+      text: widget.batch.availableKg.toStringAsFixed(0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final qty = double.tryParse(_qtyController.text.trim());
+    if (qty == null || qty <= 0 || qty > widget.batch.availableKg) {
+      setState(() => _error =
+          'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.');
+      return;
+    }
+
+    setState(() { _isSubmitting = true; _error = null; });
+    try {
+      await _repo.submitGingerForSale(
+        inventoryBatchId: widget.batch.id,
+        volumeKg: qty,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _error = 'Could not submit. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ManagementModalShell(
+      title: 'Submit to Sell',
+      subtitle: 'SP3 will review this and find a DA-AMAD buyer for this batch. '
+          'You can track progress in My Market Linking.',
+      body: TextField(
+        controller: _qtyController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+        ],
+        decoration: InputDecoration(
+          labelText: 'Quantity to submit (kg)',
+          errorText: _error,
+        ),
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: 'Submit Request',
+        isLoading: _isSubmitting,
+        onPrimary: _submit,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Offer to Cooperative Dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1514,7 +1511,7 @@ Future<bool?> showOfferToCooperativeDialog(
   BuildContext context, {
   required InventoryBatchModel batch,
 }) {
-  return showDialog<bool>(
+  return showManagementModal<bool>(
     context: context,
     builder: (_) => _OfferToCooperativeDialog(batch: batch),
   );
@@ -1532,7 +1529,8 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   late final TextEditingController _qtyController;
   final _repo = CooperativeOfferRepository();
   bool _isSubmitting = false;
-  String? _error;
+  String? _qtyError;
+  String? _submitError;
 
   @override
   void initState() {
@@ -1550,21 +1548,24 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
 
   Future<void> _submit() async {
     final qty = double.tryParse(_qtyController.text.trim());
-    if (qty == null || qty <= 0 || qty > widget.batch.availableKg) {
-      setState(() => _error =
-          'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.');
-      return;
-    }
 
-    setState(() { _isSubmitting = true; _error = null; });
+    setState(() {
+      _qtyError = (qty == null || qty <= 0 || qty > widget.batch.availableKg)
+          ? 'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.'
+          : null;
+      _submitError = null;
+    });
+    if (_qtyError != null) return;
+
+    setState(() => _isSubmitting = true);
     try {
-      await _repo.offerToCooperative(batch: widget.batch, quantityKg: qty);
+      await _repo.offerToCooperative(batch: widget.batch, quantityKg: qty!);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _error = 'Could not submit offer. Please try again.';
+          _submitError = 'Could not submit offer. Please try again.';
         });
       }
     }
@@ -1572,50 +1573,52 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-      title: Text('Offer to Cooperative',
-          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
+    final cs = Theme.of(context).colorScheme;
+    final enteredQty = double.tryParse(_qtyController.text.trim());
+    final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
+
+    return ManagementModalShell(
+      title: 'Offer to Cooperative',
+      subtitle: 'SP3 will confirm the actual weighed quantity and price when they pick this up.',
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'SP3 will confirm the actual weighed quantity and price when they pick this up.',
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          TextField(
+          _FieldLabel(label: 'Quantity to offer (kg)', cs: cs),
+          TextFormField(
             controller: _qtyController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
             ],
-            decoration: InputDecoration(
-              labelText: 'Quantity to offer (kg)',
-              errorText: _error,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(hintText: '0.00', errorText: _qtyError),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            exceedsAvailable
+                ? 'Only ${widget.batch.availableKg.toStringAsFixed(0)} kg available — reduce the quantity.'
+                : '${widget.batch.availableKg.toStringAsFixed(0)} kg available',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: exceedsAvailable ? FontWeight.w600 : FontWeight.w400,
+              color: exceedsAvailable ? AppConstants.errorRed : cs.onSurfaceVariant,
             ),
           ),
+          if (_submitError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _submitError!,
+              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+            ),
+          ],
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
-        ),
-        ElevatedButton(
-          onPressed: _isSubmitting ? null : _submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppConstants.primaryGreen,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-          ),
-          child: _isSubmitting
-              ? const SizedBox(width: 16, height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text('Submit Offer', style: GoogleFonts.poppins(fontSize: 14)),
-        ),
-      ],
+      footer: ManagementModalActions(
+        primaryLabel: 'Submit Offer',
+        isLoading: _isSubmitting,
+        onPrimary: _submit,
+      ),
     );
   }
 }
@@ -1628,7 +1631,7 @@ Future<bool?> showRecordInformalSaleDialog(
   BuildContext context, {
   required InventoryBatchModel batch,
 }) {
-  return showDialog<bool>(
+  return showManagementModal<bool>(
     context: context,
     builder: (_) => _RecordInformalSaleDialog(batch: batch),
   );
@@ -1646,10 +1649,12 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
   late final TextEditingController _qtyController;
   final _buyerController = TextEditingController();
   final _amountController = TextEditingController();
-  final _notesController = TextEditingController();
   final _repo = InformalSaleRepository();
   bool _isSubmitting = false;
-  String? _error;
+  String? _qtyError;
+  String? _buyerError;
+  String? _amountError;
+  String? _submitError;
 
   @override
   void initState() {
@@ -1664,33 +1669,39 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
     _qtyController.dispose();
     _buyerController.dispose();
     _amountController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     final qty = double.tryParse(_qtyController.text.trim());
-    if (qty == null || qty <= 0 || qty > widget.batch.availableKg) {
-      setState(() => _error =
-          'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.');
-      return;
-    }
+    final buyer = _buyerController.text.trim();
+    final amount = double.tryParse(_amountController.text.trim());
 
-    setState(() { _isSubmitting = true; _error = null; });
+    setState(() {
+      _qtyError = (qty == null || qty <= 0 || qty > widget.batch.availableKg)
+          ? 'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.'
+          : null;
+      _buyerError = buyer.isEmpty ? 'Buyer name is required.' : null;
+      _amountError =
+          (amount == null || amount <= 0) ? 'Amount received is required.' : null;
+      _submitError = null;
+    });
+    if (_qtyError != null || _buyerError != null || _amountError != null) return;
+
+    setState(() => _isSubmitting = true);
     try {
       await _repo.recordInformalSale(
         batch: widget.batch,
-        quantityKg: qty,
-        buyerName: _buyerController.text.trim().isEmpty ? null : _buyerController.text.trim(),
-        amount: double.tryParse(_amountController.text.trim()),
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        quantityKg: qty!,
+        buyerName: buyer,
+        amount: amount,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _error = 'Could not record sale. Please try again.';
+          _submitError = 'Could not record sale. Please try again.';
         });
       }
     }
@@ -1698,64 +1709,94 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-      title: Text('Record Informal Sale',
-          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _qtyController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-              ],
-              decoration: InputDecoration(labelText: 'Quantity sold (kg)', errorText: _error),
+    final cs = Theme.of(context).colorScheme;
+    final enteredQty = double.tryParse(_qtyController.text.trim());
+    final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
+
+    return ManagementModalShell(
+      title: 'Record Informal Sale',
+      subtitle: 'For a sale made outside the app — to a neighbor, local buyer, or for personal use.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _FieldLabel(label: 'Quantity sold (kg)', cs: cs),
+          TextFormField(
+            controller: _qtyController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(hintText: '0.00', errorText: _qtyError),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            exceedsAvailable
+                ? 'Only ${widget.batch.availableKg.toStringAsFixed(0)} kg available — reduce the quantity.'
+                : '${widget.batch.availableKg.toStringAsFixed(0)} kg available',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: exceedsAvailable ? FontWeight.w600 : FontWeight.w400,
+              color: exceedsAvailable ? AppConstants.errorRed : cs.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _buyerController,
-              decoration: const InputDecoration(labelText: 'Buyer name (optional)'),
+          ),
+          const SizedBox(height: 16),
+          _FieldLabel(label: 'Buyer name', cs: cs),
+          TextFormField(
+            controller: _buyerController,
+            decoration: InputDecoration(hintText: 'Who bought it?', errorText: _buyerError),
+          ),
+          const SizedBox(height: 16),
+          _FieldLabel(label: 'Amount received (₱)', cs: cs),
+          TextFormField(
+            controller: _amountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
+            decoration: InputDecoration(
+              prefixText: '₱ ',
+              hintText: '0.00',
+              errorText: _amountError,
             ),
+          ),
+          if (_submitError != null) ...[
             const SizedBox(height: 12),
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-              ],
-              decoration: const InputDecoration(labelText: 'Amount received (optional)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Notes (optional)'),
+            Text(
+              _submitError!,
+              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
             ),
           ],
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: 'Save',
+        isLoading: _isSubmitting,
+        onPrimary: _submit,
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String label;
+  final ColorScheme cs;
+
+  const _FieldLabel({required this.label, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: cs.onSurface,
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
-        ),
-        ElevatedButton(
-          onPressed: _isSubmitting ? null : _submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppConstants.primaryGreen,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-          ),
-          child: _isSubmitting
-              ? const SizedBox(width: 16, height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text('Save', style: GoogleFonts.poppins(fontSize: 14)),
-        ),
-      ],
     );
   }
 }

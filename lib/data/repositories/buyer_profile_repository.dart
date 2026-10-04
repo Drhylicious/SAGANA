@@ -2,7 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_profile_model.dart';
 import '../models/buyer_activity_model.dart';
-import 'notification_repository.dart';
+import 'admin_activity_repository.dart';
 
 class BuyerProfileRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -12,7 +12,7 @@ class BuyerProfileRepository {
     try {
       final info = await _client
           .from('user_information')
-          .select('full_name, phone_number, profile_photo_url, contact_email, purok')
+          .select('full_name, phone_number, profile_photo_url, contact_email')
           .eq('user_id', _userId)
           .maybeSingle();
 
@@ -33,7 +33,9 @@ class BuyerProfileRepository {
         }
         gender = buyerRow?['gender'] as String?;
       } catch (e) {
-        debugPrint('BuyerProfileRepository.fetchProfile: buyer_profiles lookup failed: $e');
+        debugPrint(
+          'BuyerProfileRepository.fetchProfile: buyer_profiles lookup failed: $e',
+        );
       }
 
       // Purchase stats — still summed client-side, same convention as
@@ -63,7 +65,9 @@ class BuyerProfileRepository {
           totalSpent += (o['total_price'] as num).toDouble();
         }
       } catch (e) {
-        debugPrint('BuyerProfileRepository.fetchProfile: order stats failed: $e');
+        debugPrint(
+          'BuyerProfileRepository.fetchProfile: order stats failed: $e',
+        );
       }
 
       return BuyerProfileModel(
@@ -73,7 +77,6 @@ class BuyerProfileRepository {
         profilePhotoUrl: info?['profile_photo_url'] as String?,
         email: _client.auth.currentUser?.email ?? '',
         contactEmail: info?['contact_email'] as String?,
-        purok: info?['purok'] as String?,
         memberSince: memberSince,
         totalOrders: totalOrders,
         completedOrders: completedOrders,
@@ -96,35 +99,54 @@ class BuyerProfileRepository {
     String? phoneNumber,
     String? photoUrl,
     String? contactEmail,
-    String? purok,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
     // Fetched before the update so _logProfileActivity() can tell what
-    // actually changed — user_information only ever carries current
-    // state, so this is the only point where that comparison is possible.
-    Map<String, dynamic>? before;
+    // actually changed — user_information/buyer_profiles only ever carry
+    // current state, so this is the only point where that comparison is
+    // possible. Covers every field this method can write (previously only
+    // name/phone/photo were diffed, silently missing email/DOB/
+    // gender edits entirely).
+    Map<String, dynamic>? beforeInfo;
+    Map<String, dynamic>? beforeBuyer;
     try {
-      before = await _client
+      final results = await Future.wait([
+        _client
           .from('user_information')
-          .select('full_name, phone_number, profile_photo_url')
+            .select('full_name, phone_number, profile_photo_url, contact_email')
           .eq('user_id', _userId)
-          .maybeSingle();
+            .maybeSingle(),
+        _client
+            .from('buyer_profiles')
+            .select('date_of_birth, gender')
+            .eq('user_id', _userId)
+            .maybeSingle(),
+      ]);
+      beforeInfo = results[0];
+      beforeBuyer = results[1];
     } catch (e) {
-      debugPrint('BuyerProfileRepository.updateProfile: could not fetch prior '
-          'values for activity log: $e');
+      debugPrint(
+        'BuyerProfileRepository.updateProfile: could not fetch prior '
+        'values for activity log: $e',
+      );
     }
 
-    await _client.from('user_information').update({
+    await _client
+        .from('user_information')
+        .update({
       'full_name': fullName.trim(),
       if (phoneNumber != null) 'phone_number': phoneNumber.trim(),
       if (photoUrl != null) 'profile_photo_url': photoUrl,
-      if (purok != null) 'purok': purok,
-    }).eq('user_id', _userId);
+        })
+        .eq('user_id', _userId);
 
     if (contactEmail != null) {
       try {
-        await _client.rpc('promote_contact_email', params: {'p_email': contactEmail.trim()});
+        await _client.rpc(
+          'promote_contact_email',
+          params: {'p_email': contactEmail.trim()},
+        );
       } on PostgrestException catch (e) {
         throw Exception(e.message);
       }
@@ -134,46 +156,75 @@ class BuyerProfileRepository {
     // FarmerProfileRepository uses between user_information and
     // farmer_profiles.
     if (dateOfBirth != null || gender != null) {
-      await _client.from('buyer_profiles').update({
+      await _client
+          .from('buyer_profiles')
+          .update({
         if (dateOfBirth != null)
           'date_of_birth': dateOfBirth.toIso8601String().split('T').first,
         if (gender != null) 'gender': gender,
-      }).eq('user_id', _userId);
+          })
+          .eq('user_id', _userId);
     }
 
-    await _logProfileActivity(before, fullName, phoneNumber, photoUrl);
+    await _logProfileActivity(
+      beforeInfo: beforeInfo,
+      beforeBuyer: beforeBuyer,
+      newName: fullName,
+      newPhone: phoneNumber,
+      newPhotoUrl: photoUrl,
+      newContactEmail: contactEmail,
+      newDateOfBirth: dateOfBirth,
+      newGender: gender,
+    );
   }
 
   // Only logs when something genuinely changed — a Save tap with no actual
   // edits (e.g. buyer opens Edit Profile and immediately taps Save) writes
-  // nothing, matching "meaningful action, not passive interaction."
-  Future<void> _logProfileActivity(
-    Map<String, dynamic>? before,
-    String newName,
+  // nothing, matching "meaningful action, not passive interaction." Diffs
+  // every field updateProfile() can write, not just name/phone/photo.
+  Future<void> _logProfileActivity({
+    required Map<String, dynamic>? beforeInfo,
+    required Map<String, dynamic>? beforeBuyer,
+    required String newName,
     String? newPhone,
     String? newPhotoUrl,
-  ) async {
+    String? newContactEmail,
+    DateTime? newDateOfBirth,
+    String? newGender,
+  }) async {
     final changes = <String>[];
-    if (before != null) {
-      if ((before['full_name'] as String?) != newName.trim()) changes.add('name');
-      if (newPhone != null && (before['phone_number'] as String?) != newPhone.trim()) {
+    if (beforeInfo != null) {
+      if ((beforeInfo['full_name'] as String?) != newName.trim())
+        changes.add('name');
+      if (newPhone != null &&
+          (beforeInfo['phone_number'] as String?) != newPhone.trim()) {
         changes.add('phone number');
       }
-      if (newPhotoUrl != null && (before['profile_photo_url'] as String?) != newPhotoUrl) {
+      if (newPhotoUrl != null &&
+          (beforeInfo['profile_photo_url'] as String?) != newPhotoUrl) {
         changes.add('profile photo');
+      }
+      if (newContactEmail != null &&
+          (beforeInfo['contact_email'] as String?) != newContactEmail.trim()) {
+        changes.add('email');
+      }
+    }
+    if (beforeBuyer != null) {
+      if (newDateOfBirth != null) {
+        final newDob = newDateOfBirth.toIso8601String().split('T').first;
+        final beforeDob = (beforeBuyer['date_of_birth'] as String?)
+            ?.split('T')
+            .first;
+        if (beforeDob != newDob) changes.add('date of birth');
+      }
+      if (newGender != null &&
+          (beforeBuyer['gender'] as String?) != newGender) {
+        changes.add('gender');
       }
     }
     if (changes.isEmpty) return;
 
-    try {
-      await _client.from('buyer_profile_activity').insert({
-        'buyer_id': _userId,
-        'description': 'Updated ${changes.join(', ')}',
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      debugPrint('BuyerProfileRepository._logProfileActivity failed: $e');
-    }
+    await logActivity('Updated ${changes.join(', ')}');
   }
 
   // ─── Recent Activity (profile-derived entries) ─────────────────────────────
@@ -185,13 +236,17 @@ class BuyerProfileRepository {
           .eq('buyer_id', _userId)
           .order('created_at', ascending: false)
           .limit(limit);
-      return rows.map((r) => BuyerActivityItem(
+      return rows
+          .map(
+            (r) => BuyerActivityItem(
             id: r['id'] as String,
             type: BuyerActivityType.profile,
             title: r['description'] as String,
             subtitle: 'Profile',
             timestamp: DateTime.parse(r['created_at'] as String),
-          )).toList();
+            ),
+          )
+          .toList();
     } catch (e) {
       debugPrint('BuyerProfileRepository.fetchProfileActivity failed: $e');
       return [];
@@ -200,6 +255,29 @@ class BuyerProfileRepository {
 
   Future<List<BuyerActivityItem>> fetchRecentProfileActivity({int limit = 3}) =>
       fetchProfileActivity(limit: limit);
+
+  // Generic entry point for buyer actions that have no natural
+  // business-state row of their own to derive an activity entry from
+  // (address changes, password changes) — same buyer_profile_activity
+  // table _logProfileActivity's diff-based version writes to, just
+  // without the diffing. BuyerAddressRepository calls this directly
+  // rather than duplicating the insert.
+  Future<void> logActivity(String description) async {
+    try {
+      await _client.from('buyer_profile_activity').insert({
+        'buyer_id': _userId,
+        'description': description,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('BuyerProfileRepository.logActivity failed: $e');
+    }
+  }
+
+  // Mirrors FarmerProfileRepository.logPasswordChanged — same
+  // ChangePasswordDialog(onSuccess: ...) hook, wired from
+  // buyer_edit_profile_screen.dart.
+  Future<void> logPasswordChanged() => logActivity('Changed password');
 
   // ─── Admin: fetch any buyer's profile by ID ────────────────────────────────
   // Separate from fetchProfile() above, which is scoped to the signed-in
@@ -210,7 +288,9 @@ class BuyerProfileRepository {
     try {
       final info = await _client
           .from('user_information')
-          .select('full_name, phone_number, profile_photo_url, purok, contact_email, last_active_at')
+          .select(
+            'full_name, phone_number, profile_photo_url, contact_email, last_active_at',
+          )
           .eq('user_id', buyerId)
           .maybeSingle();
       if (info == null) return null;
@@ -228,7 +308,9 @@ class BuyerProfileRepository {
         }
         gender = buyerRow?['gender'] as String?;
       } catch (e) {
-        debugPrint('BuyerProfileRepository.fetchAdminView: buyer_profiles lookup failed: $e');
+        debugPrint(
+          'BuyerProfileRepository.fetchAdminView: buyer_profiles lookup failed: $e',
+        );
       }
 
       String status = 'active';
@@ -247,7 +329,9 @@ class BuyerProfileRepository {
           }
         }
       } catch (e) {
-        debugPrint('BuyerProfileRepository.fetchAdminView: user_roles lookup failed: $e');
+        debugPrint(
+          'BuyerProfileRepository.fetchAdminView: user_roles lookup failed: $e',
+        );
       }
 
       int totalOrders = 0, completedOrders = 0;
@@ -269,14 +353,15 @@ class BuyerProfileRepository {
           totalSpent += (o['total_price'] as num).toDouble();
         }
       } catch (e) {
-        debugPrint('BuyerProfileRepository.fetchAdminView: order stats failed: $e');
+        debugPrint(
+          'BuyerProfileRepository.fetchAdminView: order stats failed: $e',
+        );
       }
 
       return BuyerProfileModel(
         userId: buyerId,
         fullName: info['full_name'] as String? ?? 'Buyer',
         phoneNumber: info['phone_number'] as String?,
-        purok: info['purok'] as String?,
         profilePhotoUrl: info['profile_photo_url'] as String?,
         email: '', // synthetic auth address — BuyerDetailsScreen never shows it
         contactEmail: info['contact_email'] as String?,
@@ -315,7 +400,9 @@ class BuyerProfileRepository {
 
       final infoRows = await _client
           .from('user_information')
-          .select('user_id, full_name, phone_number, purok, profile_photo_url, last_active_at')
+          .select(
+            'user_id, full_name, phone_number, profile_photo_url, contact_email, last_active_at',
+          )
           .inFilter('user_id', userIds);
       final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
@@ -341,7 +428,8 @@ class BuyerProfileRepository {
         orderCountMap[id] = (orderCountMap[id] ?? 0) + 1;
         if (r['status'] == 'completed') {
           completedCountMap[id] = (completedCountMap[id] ?? 0) + 1;
-          orderSpentMap[id] = (orderSpentMap[id] ?? 0) + (r['total_price'] as num).toDouble();
+          orderSpentMap[id] =
+              (orderSpentMap[id] ?? 0) + (r['total_price'] as num).toDouble();
         }
       }
 
@@ -352,9 +440,10 @@ class BuyerProfileRepository {
           userId: uid,
           fullName: info['full_name'] as String? ?? 'Buyer',
           phoneNumber: info['phone_number'] as String?,
-          purok: info['purok'] as String?,
           profilePhotoUrl: info['profile_photo_url'] as String?,
-          email: '', // not fetched for the list view — no card shows it
+          email:
+              '', // synthetic auth address — the card shows contactEmail instead
+          contactEmail: info['contact_email'] as String?,
           accountStatus: role['status'] as String? ?? 'active',
           totalOrders: orderCountMap[uid] ?? 0,
           completedOrders: completedCountMap[uid] ?? 0,
@@ -364,59 +453,62 @@ class BuyerProfileRepository {
               ? DateTime.tryParse(info['last_active_at'] as String)
               : null,
         );
-      }).toList()
-        ..sort((a, b) => b.totalOrders.compareTo(a.totalOrders));
+      }).toList()..sort((a, b) => b.totalOrders.compareTo(a.totalOrders));
     } catch (e) {
       debugPrint('BuyerProfileRepository.fetchAllBuyers failed: $e');
       return [];
     }
   }
 
+  // Routed through the same suspend_member/reactivate_member RPCs Farmer
+  // suspension already uses (see FarmerDetailsRepository.setFarmerStatus)
+  // rather than a raw user_roles.update() — despite the "member" naming,
+  // both RPCs operate on any user_roles row by user_id with no role
+  // filter, so they work unchanged for a buyer. Switching to them gets
+  // Buyer suspension the same reason storage (user_roles.suspension_reason,
+  // required — the RPC itself rejects an empty reason), audit trail
+  // (member_status_events), and login-blocking guard (see
+  // AuthService.login) that Farmer suspension already had; the old
+  // version here only ever flipped a status column with no reason and no
+  // actual access-control effect. The RPC sends its own notification, so
+  // no separate NotificationRepository call is needed here.
   Future<void> setBuyerStatus({
     required String buyerId,
-    required String status,
+    required String status, // 'active' | 'suspended'
+    String? reason,
   }) async {
-    // .neq('status', status) guards against a duplicate notification on a
-    // double-tap or two racing admin sessions — mirrors the same no-op
-    // guard AdminOrderRepository.approveOrder() already uses
-    // (.eq('status', 'pending') there; .neq() here since this isn't a
-    // single fixed prior state like pending→approved is). row is null
-    // when the buyer was already in the target status — nothing changed,
-    // so nothing to notify.
-    final row = await _client
-        .from('user_roles')
-        .update({'status': status})
-        .eq('user_id', buyerId)
-        .eq('role', 'buyer')
-        .neq('status', status)
-        .select('user_id')
-        .maybeSingle();
-
-    if (row == null) return;
-
-    try {
-      final isActive = status == 'active';
-      await NotificationRepository().createNotification(
-        userId: buyerId,
-        // notifications.type is a fixed CHECK ('order','listing','loan',
-        // 'price','sync','system') — 'system' is the closest existing fit
-        // for an account-level event; not an order/listing/loan/price/sync.
-        type: 'system',
-        title: isActive ? 'Account Reactivated' : 'Account Suspended',
-        body: isActive
-            ? 'Your buyer account has been reactivated. You can resume placing orders.'
-            : 'Your buyer account has been suspended by the SP3 Administrator. Please contact the cooperative for assistance.',
+    if (status == 'suspended') {
+      await _client.rpc(
+        'suspend_member',
+        params: {
+          'p_user_id': buyerId,
+          'p_reason': (reason == null || reason.trim().isEmpty)
+              ? 'Suspended by administrator'
+              : reason.trim(),
+        },
       );
-    } catch (e) {
-      debugPrint('BuyerProfileRepository.setBuyerStatus: notification insert failed: $e');
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'suspended',
+        description: 'Suspended a buyer account.',
+        referenceId: buyerId,
+      );
+    } else {
+      await _client.rpc('reactivate_member', params: {'p_user_id': buyerId});
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'reactivated',
+        description: 'Reactivated a buyer account.',
+        referenceId: buyerId,
+      );
     }
   }
 
   // ─── Admin: total buyer count for dashboard KPI ────────────────────────────
-  // Deliberately just a count. The full buyer list — with order stats, purok,
-  // status — is still fetched separately inside BuyerManagementScreen's own
-  // local repository; that duplication is tracked to be resolved when we
-  // redesign Buyer Management itself, not smuggled in here.
+  // Deliberately just a count, for the Admin dashboard's own KPI tile.
+  // Buyer Management's full list (order stats, status, etc.) now
+  // also goes through this same repository via fetchAllBuyers() above —
+  // no separate/duplicated local repository remains.
   Future<int> fetchBuyerCount() async {
     try {
       final rows = await _client

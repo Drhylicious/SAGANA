@@ -10,8 +10,10 @@ import '../../../data/models/broadcast_model.dart';
 import '../../../data/repositories/broadcast_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/web_safe_blur_container.dart';
-import 'broadcast_history_screen.dart' show recipientTypeLabel, broadcastCategoryLabel;
+import 'broadcast_history_screen.dart'
+    show recipientTypeLabel, broadcastCategoryLabel;
 
 class NotificationBroadcastScreen extends StatefulWidget {
   /// When set, opens pre-targeted at a single buyer — reused by
@@ -68,7 +70,8 @@ class _NotificationBroadcastScreenState
     super.initState();
     AppTheme.applySystemOverlay(context);
     _isOnline = ConnectivityService.instance.isOnline;
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
     if (widget.initialBuyerId != null) {
@@ -114,10 +117,14 @@ class _NotificationBroadcastScreenState
 
   String? get _currentRecipientFilter {
     switch (_recipientType) {
-      case RecipientType.specificCrop:   return _cropFilter;
-      case RecipientType.specificFarmer: return _farmerFilter;
-      case RecipientType.specificBuyer:  return _buyerFilter;
-      default:                           return null;
+      case RecipientType.specificCrop:
+        return _cropFilter;
+      case RecipientType.specificFarmer:
+        return _farmerFilter;
+      case RecipientType.specificBuyer:
+        return _buyerFilter;
+      default:
+        return null;
     }
   }
 
@@ -169,7 +176,11 @@ class _NotificationBroadcastScreenState
     if (time == null || !mounted) return;
     setState(() {
       _scheduledAt = DateTime(
-        date.year, date.month, date.day, time.hour, time.minute,
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
       );
     });
   }
@@ -220,9 +231,21 @@ class _NotificationBroadcastScreenState
               ? l10n.broadcastRecipientNounBuyer
               : l10n.broadcastRecipientNounMember;
 
+      // Mirrors sendBroadcast()'s own isDeferred check — picking a date of
+      // "today" lets the time picker return a time earlier than now (it has
+      // no awareness of the selected date), so _scheduleEnabled alone isn't
+      // enough to know whether this actually queued or sent immediately.
+      final wasDeferred =
+          _scheduleEnabled &&
+          _scheduledAt != null &&
+          _scheduledAt!.isAfter(DateTime.now());
+
       _showSnack(
-        _scheduleEnabled && _scheduledAt != null
-            ? l10n.broadcastScheduledFor(_formatScheduleLabel(_scheduledAt!), count)
+        wasDeferred
+            ? l10n.broadcastScheduledFor(
+                _formatScheduleLabel(_scheduledAt!),
+                count,
+              )
             : l10n.broadcastSentToRecipients(count, recipientNoun),
         isSuccess: true,
       );
@@ -254,8 +277,9 @@ class _NotificationBroadcastScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor:
-            isSuccess ? AppConstants.successGreen : AppConstants.charcoal,
+        backgroundColor: isSuccess
+            ? AppConstants.successGreen
+            : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -266,10 +290,24 @@ class _NotificationBroadcastScreenState
 
   String _formatScheduleLabel(DateTime dt) {
     const months = [
-      'Jan','Feb','Mar','Apr','May','Jun',
-      'Jul','Aug','Sep','Oct','Nov','Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-    final h   = dt.hour > 12 ? dt.hour - 12 : dt.hour == 0 ? 12 : dt.hour;
+    final h = dt.hour > 12
+        ? dt.hour - 12
+        : dt.hour == 0
+        ? 12
+        : dt.hour;
     final min = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     return '${months[dt.month - 1]} ${dt.day}, $h:$min $ampm';
@@ -297,10 +335,8 @@ class _NotificationBroadcastScreenState
                       )
                     : ListView(
                         controller: _scrollCtrl,
-                        padding:
-                            const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
                         children: [
-
                           // ── Compose section header ──────────────────────
                           // Expanded on the heading, not spaceBetween with
                           // two unguarded children: "Gumamit ng Template"
@@ -395,10 +431,7 @@ class _NotificationBroadcastScreenState
                           const SizedBox(height: 16),
 
                           // ── Live preview ────────────────────────────────
-                          _SectionLabel(
-                            label: l10n.broadcastPreview,
-                            cs: cs,
-                          ),
+                          _SectionLabel(label: l10n.broadcastPreview, cs: cs),
                           const SizedBox(height: 8),
                           _LivePreview(
                             title: _titleCtrl.text.isEmpty
@@ -433,8 +466,10 @@ class _NotificationBroadcastScreenState
                           // ── Send button ─────────────────────────────────
                           _SendButton(
                             recipientCount: _recipientCount,
-                            recipientNoun: (_recipientType == RecipientType.allBuyers ||
-                                    _recipientType == RecipientType.specificBuyer)
+                            recipientNoun:
+                                (_recipientType == RecipientType.allBuyers ||
+                                    _recipientType ==
+                                        RecipientType.specificBuyer)
                                 ? l10n.broadcastRecipientNounBuyer
                                 : l10n.broadcastRecipientNounMember,
                             isSending:      _isSending,
@@ -449,8 +484,7 @@ class _NotificationBroadcastScreenState
 
                           // ── Recent broadcasts ───────────────────────────
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 l10n.broadcastRecent,
@@ -461,8 +495,12 @@ class _NotificationBroadcastScreenState
                                 ),
                               ),
                               TextButton.icon(
-                                onPressed: () => context.push(AppRoutes.broadcastHistory),
-                                icon: const Icon(Icons.list_alt_rounded, size: 18),
+                                onPressed: () =>
+                                    context.push(AppRoutes.broadcastHistory),
+                                icon: const Icon(
+                                  Icons.list_alt_rounded,
+                                  size: 18,
+                                ),
                                 label: Text(l10n.broadcastViewAll),
                               ),
                             ],
@@ -473,15 +511,16 @@ class _NotificationBroadcastScreenState
                           else
                             ..._history
                                 .take(10)
-                                .map((b) => Padding(
-                                      padding: const EdgeInsets.only(
-                                          bottom: 10),
+                                .map(
+                                  (b) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
                                       child: _BroadcastHistoryCard(
                                         broadcast: b,
                                         cs:        cs,
                                         sagana:    sagana,
                                       ),
-                                    )),
+                                  ),
+                                ),
                         ],
                       ),
               ),
@@ -528,9 +567,7 @@ class _TopAppBar extends StatelessWidget {
     return WebSafeBlurContainer(
       decoration: BoxDecoration(
         color: sagana.glassBackground,
-        border: Border(
-          bottom: BorderSide(color: sagana.glassBorder),
-        ),
+        border: Border(bottom: BorderSide(color: sagana.glassBorder)),
       ),
       child: SizedBox(
         height: 64,
@@ -613,7 +650,6 @@ class _ComposeCard extends StatelessWidget {
           ? l10n.broadcastRecipientNounBuyer
           : l10n.broadcastRecipientNounMember;
 
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -624,16 +660,12 @@ class _ComposeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           // ── Recipients ────────────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -647,7 +679,10 @@ class _ComposeCard extends StatelessWidget {
                 ),
               ),
               Text(
-                l10n.broadcastSendingTo(recipientCount, _recipientNoun(l10n, recipientType)),
+                l10n.broadcastSendingTo(
+                  recipientCount,
+                  _recipientNoun(l10n, recipientType),
+                ),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -657,20 +692,11 @@ class _ComposeCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<RecipientType>(
-            initialValue: recipientType,
-            decoration: const InputDecoration(
-              contentPadding: EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
-            ),
-            style: GoogleFonts.inter(
-                fontSize: 14, color: cs.onSurface),
-            items: RecipientType.values
-                .map((t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(recipientTypeLabel(l10n, t)),
-                    ))
-                .toList(),
+          AppDropdownField<RecipientType>(
+            value: recipientType,
+            hintText: l10n.broadcastRecipientsLabel,
+            items: RecipientType.values,
+            itemLabel: (t) => recipientTypeLabel(l10n, t),
             onChanged: (v) {
               if (v != null) onRecipientChanged(v);
             },
@@ -679,23 +705,11 @@ class _ComposeCard extends StatelessWidget {
           // ── Crop filter (visible only for specificCrop) ───────────────
           if (recipientType == RecipientType.specificCrop) ...[
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: cropFilter,
-              hint: Text(l10n.broadcastSelectCrop,
-                  style: GoogleFonts.inter(
-                      fontSize: 14, color: cs.outline)),
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-              ),
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: cs.onSurface),
-              items: cropNames
-                  .map((c) => DropdownMenuItem(
-                        value: c,
-                        child: Text(c),
-                      ))
-                  .toList(),
+            AppDropdownField<String>(
+              value: cropFilter,
+              hintText: l10n.broadcastSelectCrop,
+              items: cropNames,
+              itemLabel: (c) => c,
               onChanged: onCropFilterChanged,
             ),
           ],
@@ -703,23 +717,16 @@ class _ComposeCard extends StatelessWidget {
           // ── Farmer filter (visible only for specificFarmer) ───────────
           if (recipientType == RecipientType.specificFarmer) ...[
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: farmerFilter,
-              hint: Text(l10n.broadcastSelectFarmer,
-                  style: GoogleFonts.inter(
-                      fontSize: 14, color: cs.outline)),
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-              ),
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: cs.onSurface),
-              items: farmers
-                  .map((f) => DropdownMenuItem(
-                        value: f['id'],
-                        child: Text(f['name'] ?? ''),
-                      ))
-                  .toList(),
+            AppDropdownField<String>(
+              value: farmerFilter,
+              hintText: l10n.broadcastSelectFarmer,
+              items: farmers.map((f) => f['id'] ?? '').toList(),
+              itemLabel: (id) =>
+                  farmers.firstWhere(
+                    (f) => f['id'] == id,
+                    orElse: () => const {},
+                  )['name'] ??
+                  '',
               onChanged: onFarmerFilterChanged,
             ),
           ],
@@ -727,23 +734,16 @@ class _ComposeCard extends StatelessWidget {
           // ── Buyer filter (visible only for specificBuyer) ─────────────
           if (recipientType == RecipientType.specificBuyer) ...[
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: buyerFilter,
-              hint: Text(l10n.broadcastSelectBuyer,
-                  style: GoogleFonts.inter(
-                      fontSize: 14, color: cs.outline)),
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-              ),
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: cs.onSurface),
-              items: buyers
-                  .map((b) => DropdownMenuItem(
-                        value: b['id'],
-                        child: Text(b['name'] ?? ''),
-                      ))
-                  .toList(),
+            AppDropdownField<String>(
+              value: buyerFilter,
+              hintText: l10n.broadcastSelectBuyer,
+              items: buyers.map((b) => b['id'] ?? '').toList(),
+              itemLabel: (id) =>
+                  buyers.firstWhere(
+                    (b) => b['id'] == id,
+                    orElse: () => const {},
+                  )['name'] ??
+                  '',
               onChanged: onBuyerFilterChanged,
             ),
           ],
@@ -772,13 +772,14 @@ class _ComposeCard extends StatelessWidget {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: active
-                            ? cs.primary
-                            : cs.surfaceContainerHighest,
+                        color: active ? cs.primary : cs.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull),
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -786,9 +787,7 @@ class _ComposeCard extends StatelessWidget {
                           Icon(
                             _categoryIcon(cat),
                             size: 14,
-                            color: active
-                                ? Colors.white
-                                : cs.onSurfaceVariant,
+                            color: active ? Colors.white : cs.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -840,17 +839,18 @@ class _ComposeCard extends StatelessWidget {
           TextFormField(
             controller: titleCtrl,
             maxLength: maxTitle,
-            buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+            buildCounter:
+                (_, {required currentLength, required isFocused, maxLength}) =>
                 const SizedBox.shrink(),
             decoration: InputDecoration(
               hintText: l10n.broadcastEnterTitleHint,
-              hintStyle: GoogleFonts.inter(
-                  fontSize: 14, color: cs.outline),
+              hintStyle: GoogleFonts.inter(fontSize: 14, color: cs.outline),
               contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
+                horizontal: 14,
+                vertical: 12,
             ),
-            style: GoogleFonts.inter(
-                fontSize: 14, color: cs.onSurface),
+            ),
+            style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
           ),
           const SizedBox(height: 14),
 
@@ -870,9 +870,7 @@ class _ComposeCard extends StatelessWidget {
                 '${bodyCtrl.text.length}/$maxBody',
                 style: GoogleFonts.inter(
                   fontSize: 10,
-                  color: bodyCtrl.text.length > maxBody
-                      ? cs.error
-                      : cs.outline,
+                  color: bodyCtrl.text.length > maxBody ? cs.error : cs.outline,
                 ),
               ),
             ],
@@ -882,17 +880,18 @@ class _ComposeCard extends StatelessWidget {
             controller: bodyCtrl,
             maxLength: maxBody,
             maxLines: 5,
-            buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+            buildCounter:
+                (_, {required currentLength, required isFocused, maxLength}) =>
                 const SizedBox.shrink(),
             decoration: InputDecoration(
               hintText: l10n.broadcastEnterMessageHint,
-              hintStyle: GoogleFonts.inter(
-                  fontSize: 14, color: cs.outline),
+              hintStyle: GoogleFonts.inter(fontSize: 14, color: cs.outline),
               contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
+                horizontal: 14,
+                vertical: 12,
             ),
-            style: GoogleFonts.inter(
-                fontSize: 14, color: cs.onSurface),
+            ),
+            style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
           ),
         ],
       ),
@@ -901,11 +900,16 @@ class _ComposeCard extends StatelessWidget {
 
   IconData _categoryIcon(BroadcastCategory cat) {
     switch (cat) {
-      case BroadcastCategory.meeting:   return Icons.calendar_today_rounded;
-      case BroadcastCategory.financial: return Icons.payments_outlined;
-      case BroadcastCategory.harvest:   return Icons.eco_outlined;
-      case BroadcastCategory.update:    return Icons.sync_rounded;
-      case BroadcastCategory.general:   return Icons.campaign_outlined;
+      case BroadcastCategory.meeting:
+        return Icons.calendar_today_rounded;
+      case BroadcastCategory.financial:
+        return Icons.payments_outlined;
+      case BroadcastCategory.harvest:
+        return Icons.eco_outlined;
+      case BroadcastCategory.update:
+        return Icons.sync_rounded;
+      case BroadcastCategory.general:
+        return Icons.campaign_outlined;
     }
   }
 }
@@ -975,8 +979,7 @@ class _LivePreview extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     color: AppConstants.primaryGreen,
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   child: Center(
                     child: Text(
@@ -995,8 +998,7 @@ class _LivePreview extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'SAGANA',
@@ -1084,10 +1086,7 @@ class _ScheduleRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -1098,8 +1097,9 @@ class _ScheduleRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppConstants.secondaryContainer
-                      .withValues(alpha: 0.15),
+                  color: AppConstants.secondaryContainer.withValues(
+                    alpha: 0.15,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -1149,19 +1149,21 @@ class _ScheduleRow extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: cs.primary.withValues(alpha: 0.06),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(
-                    color: cs.primary.withValues(alpha: 0.20),
-                  ),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  border: Border.all(color: cs.primary.withValues(alpha: 0.20)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_month_rounded,
-                        size: 16, color: cs.primary),
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      size: 16,
+                      color: cs.primary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       scheduledAt != null
@@ -1169,9 +1171,7 @@ class _ScheduleRow extends StatelessWidget {
                           : 'Tap to pick date & time',
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: scheduledAt != null
-                            ? cs.onSurface
-                            : cs.outline,
+                        color: scheduledAt != null ? cs.onSurface : cs.outline,
                       ),
                     ),
                   ],
@@ -1241,8 +1241,7 @@ class _SendButton extends StatelessWidget {
           boxShadow: canSend
               ? [
                   BoxShadow(
-                    color: AppConstants.primaryGreen
-                        .withValues(alpha: 0.30),
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.30),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1304,10 +1303,7 @@ class _BroadcastHistoryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
         ],
       ),
       child: Row(
@@ -1344,14 +1340,20 @@ class _BroadcastHistoryCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: cfg.bg,
                         borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull),
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Text(
-                        broadcastCategoryLabel(l10n, broadcast.category).toUpperCase(),
+                        broadcastCategoryLabel(
+                          l10n,
+                          broadcast.category,
+                        ).toUpperCase(),
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -1411,8 +1413,7 @@ class _BroadcastHistoryCard extends StatelessWidget {
     );
   }
 
-  _CategoryConfig _categoryConfig(
-      BroadcastCategory cat, ColorScheme cs) {
+  _CategoryConfig _categoryConfig(BroadcastCategory cat, ColorScheme cs) {
     switch (cat) {
       case BroadcastCategory.meeting:
         return _CategoryConfig(
@@ -1452,9 +1453,22 @@ class _BroadcastHistoryCard extends StatelessWidget {
     final diff = now.difference(dt);
     if (diff.inMinutes < 60) return '${l10n.broadcastToday}, ${_hhmm(dt)}';
     if (diff.inDays == 0)    return '${l10n.broadcastToday}, ${_hhmm(dt)}';
-    if (diff.inDays == 1)    return '${l10n.buyerNotifTimeYesterday}, ${_hhmm(dt)}';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (diff.inDays == 1)
+      return '${l10n.buyerNotifTimeYesterday}, ${_hhmm(dt)}';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${_hhmm(dt)}';
   }
 
@@ -1474,8 +1488,11 @@ class _CategoryConfig {
   final IconData icon;
   final Color bg;
   final Color fg;
-  const _CategoryConfig(
-      {required this.icon, required this.bg, required this.fg});
+  const _CategoryConfig({
+    required this.icon,
+    required this.bg,
+    required this.fg,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1516,8 +1533,7 @@ class _TemplateSheet extends StatelessWidget {
               height: 4,
               decoration: BoxDecoration(
                 color: cs.outline.withValues(alpha: 0.30),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusFull),
+                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
               ),
             ),
           ),
@@ -1533,13 +1549,11 @@ class _TemplateSheet extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             l10n.broadcastSelectTemplateHint,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: cs.onSurfaceVariant,
-            ),
+            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
-          ...templates.map((tpl) => Padding(
+          ...templates.map(
+            (tpl) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: GestureDetector(
                   onTap: () {
@@ -1550,8 +1564,7 @@ class _TemplateSheet extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest,
-                      borderRadius:
-                          BorderRadius.circular(AppConstants.radiusLg),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                       border: Border.all(
                         color: cs.outline.withValues(alpha: 0.10),
                       ),
@@ -1594,13 +1607,17 @@ class _TemplateSheet extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Icon(Icons.chevron_right_rounded,
-                            color: cs.outline, size: 18),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: cs.outline,
+                        size: 18,
+                      ),
                       ],
                     ),
                   ),
                 ),
-              )),
+            ),
+          ),
         ],
       ),
     );
@@ -1608,11 +1625,16 @@ class _TemplateSheet extends StatelessWidget {
 
   IconData _templateIcon(BroadcastCategory cat) {
     switch (cat) {
-      case BroadcastCategory.meeting:   return Icons.calendar_today_rounded;
-      case BroadcastCategory.financial: return Icons.payments_outlined;
-      case BroadcastCategory.harvest:   return Icons.eco_outlined;
-      case BroadcastCategory.update:    return Icons.sync_rounded;
-      case BroadcastCategory.general:   return Icons.campaign_outlined;
+      case BroadcastCategory.meeting:
+        return Icons.calendar_today_rounded;
+      case BroadcastCategory.financial:
+        return Icons.payments_outlined;
+      case BroadcastCategory.harvest:
+        return Icons.eco_outlined;
+      case BroadcastCategory.update:
+        return Icons.sync_rounded;
+      case BroadcastCategory.general:
+        return Icons.campaign_outlined;
     }
   }
 }
@@ -1655,9 +1677,11 @@ class _EmptyHistory extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           children: [
-            Icon(Icons.campaign_outlined,
+            Icon(
+              Icons.campaign_outlined,
                 size: 40,
-                color: cs.outline.withValues(alpha: 0.40)),
+              color: cs.outline.withValues(alpha: 0.40),
+            ),
             const SizedBox(height: 10),
             Text(
               AppLocalizations.of(context).broadcastNoBroadcastsYet,

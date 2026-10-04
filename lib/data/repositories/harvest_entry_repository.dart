@@ -16,7 +16,6 @@ class HarvestEntryRepository {
     required String batchNumber,
     String? variety,
     String? storageLocation,
-    String? notes,
   }) async {
     final isOnline = await ConnectivityService.instance.checkConnectivity();
 
@@ -30,7 +29,6 @@ class HarvestEntryRepository {
         'batch_number': batchNumber,
         'variety': variety,
         'storage_location': storageLocation,
-        'notes': notes,
       });
 
       // Locally-constructed, unsynced representation — shown immediately
@@ -45,10 +43,8 @@ class HarvestEntryRepository {
         variety: variety,
         batchNumber: batchNumber,
         storageLocation: storageLocation,
-        notes: notes,
         harvestDate: harvestDate,
         isSynced: false,
-        submittedToCooperative: false,
         createdAt: DateTime.now(),
       );
     }
@@ -62,7 +58,6 @@ class HarvestEntryRepository {
       batchNumber: batchNumber,
       variety: variety,
       storageLocation: storageLocation,
-      notes: notes,
     );
   }
 
@@ -79,7 +74,6 @@ class HarvestEntryRepository {
     required String batchNumber,
     String? variety,
     String? storageLocation,
-    String? notes,
   }) async {
     final harvestResponse = await _client
         .from('harvest_records')
@@ -93,7 +87,6 @@ class HarvestEntryRepository {
           'batch_number': batchNumber,
           'variety': variety,
           'storage_location': storageLocation,
-          'notes': notes,
           'is_synced': true,
         })
         .select()
@@ -101,10 +94,12 @@ class HarvestEntryRepository {
 
     final harvest = HarvestModel.fromMap(harvestResponse);
 
-    // Look up cooperative eligibility once, at harvest time, via the crop's
-    // catalog link — denormalized onto the batch so Inventory never needs
-    // to join through farmer_crops → crop_master at render time.
+    // Look up cooperative eligibility and market type once, at harvest
+    // time, via the crop's catalog link — denormalized onto the batch so
+    // Inventory (and every downstream disposal path) never needs to join
+    // through farmer_crops → crop_master at render time.
     bool isCoopEligible = false;
+    String? cropType;
     try {
       final cropRow = await _client
           .from('farmer_crops')
@@ -115,14 +110,17 @@ class HarvestEntryRepository {
       if (cropMasterId != null) {
         final catalogRow = await _client
             .from('crop_master')
-            .select('is_cooperative_eligible')
+            .select('is_cooperative_eligible, crop_type')
             .eq('id', cropMasterId)
             .single();
-        isCoopEligible = catalogRow['is_cooperative_eligible'] as bool? ?? false;
+        isCoopEligible =
+            catalogRow['is_cooperative_eligible'] as bool? ?? false;
+        cropType = catalogRow['crop_type'] as String?;
       }
     } catch (_) {
-      // Unlinked or unresolved crop — defaults to not eligible, matches
-      // the "pending approval crops can't yet be offered to the coop" rule.
+      // Unlinked or unresolved crop — defaults to not eligible / unknown
+      // market type, matches the "pending approval crops can't yet be
+      // offered to the coop" rule.
     }
 
     // Auto-create inventory batch — required for this harvest to ever be
@@ -142,6 +140,7 @@ class HarvestEntryRepository {
         'sold_kg': 0,
         'status': 'available',
         'is_coop_eligible': isCoopEligible,
+        'crop_type': cropType,
       });
     } catch (e) {
       try {
@@ -151,7 +150,8 @@ class HarvestEntryRepository {
         // exception thrown below is still what reaches the caller.
       }
       throw Exception(
-          'Failed to create an inventory batch for this harvest. Nothing was saved — please try again.');
+        'Failed to create an inventory batch for this harvest. Nothing was saved — please try again.',
+      );
     }
 
     return harvest;
@@ -169,7 +169,6 @@ class HarvestEntryRepository {
       batchNumber: payload['batch_number'] as String,
       variety: payload['variety'] as String?,
       storageLocation: payload['storage_location'] as String?,
-      notes: payload['notes'] as String?,
     );
   }
 }

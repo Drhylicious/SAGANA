@@ -2,12 +2,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
-import '../../../data/repositories/admin_dashboard_repository.dart';
+import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../routes/app_routes.dart';
 
 // Builds the localized activity description from an item's raw
@@ -21,7 +22,11 @@ String adminActivityDescription(AppLocalizations l10n, AdminActivityItem item) {
   final name = item.name ?? l10n.defaultFarmerName;
   switch (item.descKind!) {
     case AdminActivityDescKind.harvest:
-      return l10n.adminActivityNewHarvest(name, item.quantityKg ?? '', item.cropName ?? '');
+      return l10n.adminActivityNewHarvest(
+        name,
+        item.quantityKg ?? '',
+        item.cropName ?? '',
+      );
     case AdminActivityDescKind.listingApproved:
       return l10n.adminActivityListingApproved(item.cropName ?? '', name);
     case AdminActivityDescKind.listingSubmitted:
@@ -29,9 +34,14 @@ String adminActivityDescription(AppLocalizations l10n, AdminActivityItem item) {
     case AdminActivityDescKind.orderPlaced:
       return l10n.adminActivityOrderPlaced(item.amount ?? '');
     case AdminActivityDescKind.priceUpdated:
-      return l10n.adminActivityPriceUpdated(item.cropName ?? '', item.amount ?? '');
+      return l10n.adminActivityPriceUpdated(
+        item.cropName ?? '',
+        item.amount ?? '',
+      );
     case AdminActivityDescKind.newMember:
-      return l10n.adminActivityNewMember(item.name ?? l10n.adminActivityNewMemberFallback);
+      return l10n.adminActivityNewMember(
+        item.name ?? l10n.adminActivityNewMemberFallback,
+      );
     case AdminActivityDescKind.cropRequested:
       return l10n.adminActivityCropRequested(name, item.cropName ?? '');
   }
@@ -47,59 +57,108 @@ String adminActivityDescription(AppLocalizations l10n, AdminActivityItem item) {
 // needed. This is the fix for Recent Activity "not being fully adaptive".
 Color moduleColor(String? module, ColorScheme cs) {
   switch (module) {
-    case 'harvest':        return AppConstants.primaryGreen;
-    case 'listings':       return cs.primary;
-    case 'orders':         return AppConstants.buyerBlue;
-    case 'prices':         return cs.outline;
-    case 'members':        return AppConstants.primaryGreen;
-    case 'crops':          return AppConstants.warningAmber;
-    case 'inventory':      return AppConstants.warningAmber;
-    case 'programs':       return AppConstants.programPurple;
-    case 'loans':          return AppConstants.errorRed;
-    case 'market_linking': return AppConstants.buyerBlue;
-    case 'offers':         return AppConstants.successGreen;
-    case 'broadcast':      return AppConstants.amber;
-    case 'profile':        return cs.outline;
-    default:                return cs.outline;
+    case 'harvest':
+      return AppConstants.primaryGreen;
+    case 'listings':
+      return cs.primary;
+    case 'orders':
+      return AppConstants.buyerBlue;
+    case 'prices':
+      return cs.outline;
+    case 'members':
+      return AppConstants.primaryGreen;
+    case 'crops':
+      return AppConstants.warningAmber;
+    case 'inventory':
+      return AppConstants.warningAmber;
+    case 'programs':
+      return AppConstants.programPurple;
+    case 'loans':
+      return AppConstants.errorRed;
+    case 'reports':
+      return AppConstants.buyerBlue;
+    case 'market_linking':
+      return AppConstants.buyerBlue;
+    case 'offers':
+      return AppConstants.successGreen;
+    case 'broadcast':
+      return AppConstants.amber;
+    case 'profile':
+      return cs.outline;
+    default:
+      return cs.outline;
   }
 }
 
 IconData moduleIcon(String? module) {
   switch (module) {
-    case 'harvest':        return Icons.agriculture_rounded;
-    case 'listings':       return Icons.store_rounded;
-    case 'orders':         return Icons.shopping_bag_rounded;
-    case 'prices':         return Icons.sell_rounded;
-    case 'members':        return Icons.person_add_rounded;
-    case 'crops':          return Icons.eco_outlined;
-    case 'inventory':      return Icons.inventory_2_rounded;
-    case 'programs':       return Icons.star_rounded;
-    case 'loans':          return Icons.account_balance_rounded;
-    case 'market_linking': return Icons.hub_rounded;
-    case 'offers':         return Icons.handshake_rounded;
-    case 'broadcast':      return Icons.campaign_rounded;
-    case 'profile':        return Icons.person_rounded;
-    default:                return Icons.history_rounded;
+    case 'harvest':
+      return Icons.agriculture_rounded;
+    case 'listings':
+      return Icons.store_rounded;
+    case 'orders':
+      return Icons.shopping_bag_rounded;
+    case 'prices':
+      return Icons.sell_rounded;
+    case 'members':
+      return Icons.person_add_rounded;
+    case 'crops':
+      return Icons.eco_outlined;
+    case 'inventory':
+      return Icons.inventory_2_rounded;
+    case 'programs':
+      return Icons.star_rounded;
+    case 'loans':
+      return Icons.account_balance_rounded;
+    case 'reports':
+      return Icons.summarize_rounded;
+    case 'market_linking':
+      return Icons.hub_rounded;
+    case 'offers':
+      return Icons.handshake_rounded;
+    case 'broadcast':
+      return Icons.campaign_rounded;
+    case 'profile':
+      return Icons.person_rounded;
+    default:
+      return Icons.history_rounded;
   }
 }
 
 String moduleLabel(AppLocalizations l10n, String? module) {
   switch (module) {
-    case null:              return l10n.reportsAll;
-    case 'harvest':         return l10n.navHarvest;
-    case 'listings':        return l10n.adminNavListings;
-    case 'orders':          return l10n.statOrders;
-    case 'prices':          return l10n.buyerNavPrices;
-    case 'members':         return l10n.adminNavMembers;
-    case 'crops':           return l10n.cropMgmtTitle;
-    case 'inventory':       return l10n.adminInvManagementTitle;
-    case 'programs':        return l10n.programMgmtTitle;
-    case 'loans':           return l10n.loanItemCatalogTitle;
-    case 'market_linking':  return l10n.marketLinkTitle;
-    case 'offers':          return l10n.offerCoopTitle;
-    case 'broadcast':       return l10n.broadcastTitle;
-    case 'profile':         return l10n.adminProfileTitle;
-    default:                return module;
+    case null:
+      return l10n.reportsAll;
+    case 'harvest':
+      return l10n.navHarvest;
+    case 'listings':
+      return l10n.adminNavListings;
+    case 'orders':
+      return l10n.statOrders;
+    case 'prices':
+      return l10n.buyerNavPrices;
+    case 'members':
+      return l10n.adminNavMembers;
+    case 'crops':
+      return l10n.cropMgmtTitle;
+    case 'inventory':
+      return l10n.adminInvManagementTitle;
+    case 'programs':
+      return l10n.programMgmtTitle;
+    case 'loans':
+      return l10n.loanItemCatalogTitle;
+    case 'reports':
+      return l10n.adminNavReports;
+    case 'market_linking':
+      return l10n.marketLinkTitle;
+    case 'offers':
+      return l10n.offerCoopTitle;
+    case 'broadcast':
+      return l10n.broadcastTitle;
+    case 'profile':
+      return l10n.adminProfileTitle;
+    default:
+      return module;
   }
 }
 
@@ -122,12 +181,20 @@ class AdminActivityScreen extends StatefulWidget {
 }
 
 class _AdminActivityScreenState extends State<AdminActivityScreen> {
-  final _repo = AdminDashboardRepository();
+  // admin_activity_log only — deliberately NOT AdminDashboardRepository,
+  // whose fetchRecentActivity() additionally polls 6 other tables
+  // (harvests, orders, listing submissions, new members, crop requests,
+  // price records) to build the Dashboard's separate "what's happening"
+  // preview. Those are farmer/buyer-initiated events, not admin actions,
+  // and the Dashboard preview keeps that broader mix intentionally — this
+  // screen (the admin's own action log) now shows admin-performed actions
+  // only.
+  final _repo = AdminActivityRepository();
 
   List<AdminActivityItem> _items = [];
   bool _isLoading = true;
   // Filtering is by nav-section category rather than the raw sourceModule —
-  // the per-module chip list (harvest/listings/orders/prices/members/crops/
+  // the per-module chip list (listings/orders/prices/members/crops/
   // inventory/programs/loans/market_linking/offers/broadcast/profile) was
   // too many chips to scan at a glance, so chips are consolidated down to
   // the same 6 sections the bottom nav + drawer already use.
@@ -136,21 +203,40 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
   static const _pageSize = 30;
   bool _hasMore = true;
 
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
     _loadPage(reset: true);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPage({bool reset = false}) async {
     if (reset) {
-      setState(() { _page = 0; _items = []; _hasMore = true; _isLoading = true; });
+      setState(() {
+        _page = 0;
+        _items = [];
+        _hasMore = true;
+        _isLoading = true;
+      });
     }
-    final fetched = await _repo.fetchRecentActivity(
+    final fetched = await _repo.fetchActivity(
       limit: _pageSize,
       offset: _page * _pageSize,
-      moduleFilters: _filterCategory == null ? null : _categoryModules[_filterCategory],
+      moduleFilters: _filterCategory == null
+          ? null
+          : _categoryModules[_filterCategory],
     );
     if (!mounted) return;
     setState(() {
@@ -163,6 +249,49 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
   void _onFilterTap(String? category) {
     setState(() => _filterCategory = category);
     _loadPage(reset: true);
+  }
+
+  // Search is client-side over whatever's already loaded (same as Farmer's
+  // Recent Activity) — it doesn't trigger a new fetch or reset pagination.
+  List<AdminActivityItem> get _filteredItems {
+    if (_searchQuery.isEmpty) return _items;
+    return _items
+        .where(
+          (item) => adminActivityDescription(
+            AppLocalizations.of(context),
+            item,
+          ).toLowerCase().contains(_searchQuery),
+        )
+        .toList();
+  }
+
+  // Mirrors Farmer's Recent Activity _groupByDate() exactly — same Today/
+  // Yesterday/named-date logic, same calendar-day (not 24h-rolling) equality.
+  Map<String, List<AdminActivityItem>> _groupByDate(
+    List<AdminActivityItem> items,
+  ) {
+    final Map<String, List<AdminActivityItem>> groups = {};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    for (final item in items) {
+      final itemDate = DateTime(
+        item.timestamp.year,
+        item.timestamp.month,
+        item.timestamp.day,
+      );
+      String label;
+      if (itemDate == today) {
+        label = 'Today';
+      } else if (itemDate == yesterday) {
+        label = 'Yesterday';
+      } else {
+        label = DateFormat('MMMM d').format(item.timestamp);
+      }
+      groups.putIfAbsent(label, () => []).add(item);
+    }
+    return groups;
   }
 
   void _onItemTap(AdminActivityItem item) {
@@ -192,15 +321,24 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
         context.push(AppRoutes.cropRequestApproval);
       case AdminActivityType.logged:
         switch (item.sourceModule) {
-          case 'inventory': context.push(AppRoutes.adminInventory);
-          case 'crops':     context.push(AppRoutes.cropManagement);
-          case 'programs':  context.push(AppRoutes.programManagement);
-          case 'loans':     context.push(AppRoutes.loanItemManagement);
-          case 'prices':    context.push(AppRoutes.priceManagement);
-          case 'market_linking': context.push(AppRoutes.marketLinking);
-          case 'offers':    context.push(AppRoutes.offerToCooperative);
-          case 'broadcast': context.push(AppRoutes.broadcastHistory);
-          case 'profile':   context.push(AppRoutes.adminProfile);
+          case 'inventory':
+            context.push(AppRoutes.adminInventory);
+          case 'crops':
+            context.push(AppRoutes.cropManagement);
+          case 'programs':
+            context.push(AppRoutes.programManagement);
+          case 'loans':
+            context.push(AppRoutes.loanItemManagement);
+          case 'prices':
+            context.push(AppRoutes.priceManagement);
+          case 'market_linking':
+            context.push(AppRoutes.marketLinking);
+          case 'offers':
+            context.push(AppRoutes.offerToCooperative);
+          case 'broadcast':
+            context.push(AppRoutes.broadcastHistory);
+          case 'profile':
+            context.push(AppRoutes.adminProfile);
           // 'members' and other future modules with no known destination
           // simply aren't navigable — same as any item with no referenceId.
         }
@@ -214,26 +352,45 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
   // sourceModule of its own today (nothing logs an activity item for
   // report generation), so it's included as a chip but currently always
   // shows empty — kept for parity with the nav rather than omitted.
+  // 'harvest' removed from 'members' — harvests are farmer-performed, never
+  // an admin action, so that module value never appears in
+  // admin_activity_log (only ever the 6-source Dashboard preview feed).
   static const _categoryModules = {
     'dashboard': ['prices', 'crops', 'inventory', 'programs', 'broadcast'],
-    'members': ['harvest', 'members'],
+    'members': ['members'],
     'marketplace': ['listings', 'orders', 'market_linking', 'offers'],
     'loans': ['loans'],
-    'reports': <String>[],
+    'reports': ['reports'],
     'profile': ['profile'],
   };
-  static const _filterCategories = [null, 'dashboard', 'members', 'marketplace', 'loans', 'reports', 'profile'];
+  static const _filterCategories = [
+    null,
+    'dashboard',
+    'members',
+    'marketplace',
+    'loans',
+    'reports',
+    'profile',
+  ];
 
   String _categoryLabel(AppLocalizations l10n, String? category) {
     switch (category) {
-      case null:          return l10n.reportsAll;
-      case 'dashboard':   return l10n.adminNavDashboard;
-      case 'members':     return l10n.adminNavMembers;
-      case 'marketplace': return l10n.navMarketplace;
-      case 'loans':       return l10n.adminNavLoans;
-      case 'reports':     return l10n.adminNavReports;
-      case 'profile':     return l10n.adminProfileTitle;
-      default:            return category;
+      case null:
+        return l10n.reportsAll;
+      case 'dashboard':
+        return l10n.adminNavDashboard;
+      case 'members':
+        return l10n.adminNavMembers;
+      case 'marketplace':
+        return l10n.navMarketplace;
+      case 'loans':
+        return l10n.adminNavLoans;
+      case 'reports':
+        return l10n.adminNavReports;
+      case 'profile':
+        return l10n.adminProfileTitle;
+      default:
+        return category;
     }
   }
 
@@ -255,7 +412,8 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                 height: 64 + MediaQuery.of(context).padding.top,
                 padding: EdgeInsets.only(
                   top: MediaQuery.of(context).padding.top,
-                  left: 8, right: 20,
+                  left: 8,
+                  right: 20,
                 ),
                 decoration: BoxDecoration(
                   color: sagana.glassBackground,
@@ -281,6 +439,25 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
             ),
           ),
 
+          // Search bar
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: l10n.adminActivitySearchHint,
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: sagana.cardBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+
           // Filter chips
           Container(
             color: Theme.of(context).scaffoldBackgroundColor,
@@ -297,13 +474,16 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                       onTap: () => _onFilterTap(category),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 7),
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? cs.primary
                               : sagana.cardBackground,
                           borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull),
+                            AppConstants.radiusFull,
+                          ),
                           border: Border.all(
                             color: isSelected
                                 ? cs.primary
@@ -332,26 +512,46 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen, strokeWidth: 2))
-                : RefreshIndicator(
+                      color: AppConstants.primaryGreen,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Builder(
+                    builder: (_) {
+                      final filtered = _filteredItems;
+                      final grouped = _groupByDate(filtered);
+                      // Flattened row list: a date-header marker (String)
+                      // followed by that date's items (AdminActivityItem),
+                      // repeated per group — lets the single ListView.builder
+                      // below render headers and cards without a nested
+                      // scrollable per group.
+                      final rows = <Object>[];
+                      for (final key in grouped.keys) {
+                        rows.add(key);
+                        rows.addAll(grouped[key]!);
+                      }
+                      return RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: () => _loadPage(reset: true),
-                    child: _items.isEmpty
+                        child: filtered.isEmpty
                         ? ListView(
                             children: [
                               const SizedBox(height: 120),
                               Center(
                                 child: Column(
                                   children: [
-                                    Icon(Icons.history_rounded,
+                                        Icon(
+                                          Icons.history_rounded,
                                         size: 48,
-                                        color: cs.onSurfaceVariant),
+                                          color: cs.onSurfaceVariant,
+                                        ),
                                     const SizedBox(height: 12),
                                     Text(
                                       l10n.adminActivityNoActivityYet,
                                       style: GoogleFonts.inter(
                                           fontSize: 14,
-                                          color: cs.onSurfaceVariant),
+                                            color: cs.onSurfaceVariant,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -360,14 +560,18 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.fromLTRB(
-                                20, 8, 20, 40),
-                            itemCount:
-                                _items.length + (_hasMore ? 1 : 0),
+                                  20,
+                                  8,
+                                  20,
+                                  40,
+                                ),
+                                itemCount: rows.length + (_hasMore ? 1 : 0),
                             itemBuilder: (_, i) {
-                              if (i == _items.length) {
+                                  if (i == rows.length) {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      vertical: 16),
+                                        vertical: 16,
+                                      ),
                                   child: Center(
                                     child: GestureDetector(
                                       onTap: () {
@@ -375,18 +579,20 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                         _loadPage();
                                       },
                                       child: Container(
-                                        padding:
-                                            const EdgeInsets.symmetric(
+                                            padding: const EdgeInsets.symmetric(
                                                 horizontal: 20,
-                                                vertical: 10),
+                                              vertical: 10,
+                                            ),
                                         decoration: BoxDecoration(
                                           color: sagana.cardBackground,
                                           borderRadius:
                                               BorderRadius.circular(
-                                                  AppConstants.radiusFull),
+                                                    AppConstants.radiusFull,
+                                                  ),
                                           border: Border.all(
-                                            color: cs.outline
-                                                .withValues(alpha: 0.20),
+                                                color: cs.outline.withValues(
+                                                  alpha: 0.20,
+                                                ),
                                           ),
                                         ),
                                         child: Text(
@@ -403,21 +609,40 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                 );
                               }
 
-                              final item = _items[i];
-                              final color = moduleColor(item.sourceModule, cs);
+                                  final row = rows[i];
+                                  if (row is String) {
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        top: i == 0 ? 0 : 16,
+                                        bottom: 10,
+                                      ),
+                                      child: Text(
+                                        row.toUpperCase(),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.5,
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final item = row as AdminActivityItem;
+                                  final color = moduleColor(
+                                    item.sourceModule,
+                                    cs,
+                                  );
                               final icon = moduleIcon(item.sourceModule);
                               final isNavigable =
                                   item.referenceId != null ||
-                                      item.type ==
-                                          AdminActivityType.order ||
-                                      item.type ==
-                                          AdminActivityType.price ||
+                                      item.type == AdminActivityType.order ||
+                                      item.type == AdminActivityType.price ||
                                       (item.type == AdminActivityType.logged &&
                                           item.sourceModule != 'members');
 
                               return Padding(
-                                padding: const EdgeInsets.only(
-                                    bottom: 10),
+                                    padding: const EdgeInsets.only(bottom: 10),
                                 child: GestureDetector(
                                   onTap: isNavigable
                                       ? () => _onItemTap(item)
@@ -426,17 +651,19 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                     padding: const EdgeInsets.all(14),
                                     decoration: BoxDecoration(
                                       color: sagana.cardBackground,
-                                      borderRadius:
-                                          BorderRadius.circular(
-                                              AppConstants.radiusLg),
+                                          borderRadius: BorderRadius.circular(
+                                            AppConstants.radiusLg,
+                                          ),
                                       border: Border.all(
-                                        color: cs.outline
-                                            .withValues(alpha: 0.10),
+                                            color: cs.outline.withValues(
+                                              alpha: 0.10,
+                                            ),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.03),
+                                              color: Colors.black.withValues(
+                                                alpha: 0.03,
+                                              ),
                                           blurRadius: 6,
                                         ),
                                       ],
@@ -448,21 +675,27 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                           height: 42,
                                           decoration: BoxDecoration(
                                             color: color.withValues(
-                                                alpha: 0.12),
+                                                  alpha: 0.12,
+                                                ),
                                             shape: BoxShape.circle,
                                           ),
-                                          child: Icon(icon,
-                                              color: color, size: 20),
+                                              child: Icon(
+                                                icon,
+                                                color: color,
+                                                size: 20,
+                                              ),
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
-                                                CrossAxisAlignment
-                                                    .start,
+                                                    CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                adminActivityDescription(l10n, item),
+                                                    adminActivityDescription(
+                                                      l10n,
+                                                      item,
+                                                    ),
                                                 style: GoogleFonts.inter(
                                                   fontSize: 13,
                                                   color: cs.onSurface,
@@ -485,52 +718,56 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                                                   Flexible(
                                                     child: Container(
                                                       padding:
-                                                          const EdgeInsets
-                                                              .symmetric(
+                                                              const EdgeInsets.symmetric(
                                                         horizontal: 6,
                                                         vertical: 2,
                                                       ),
-                                                      decoration:
-                                                          BoxDecoration(
+                                                          decoration: BoxDecoration(
                                                         color: color
                                                             .withValues(
-                                                                alpha: 0.10),
+                                                                  alpha: 0.10,
+                                                                ),
                                                         borderRadius:
-                                                            BorderRadius
-                                                                .circular(
+                                                                BorderRadius.circular(
                                                           AppConstants
                                                               .radiusFull,
                                                         ),
                                                       ),
                                                       child: Text(
                                                         moduleLabel(
-                                                            l10n, item.sourceModule),
+                                                              l10n,
+                                                              item.sourceModule,
+                                                            ),
                                                         maxLines: 1,
-                                                        overflow: TextOverflow
+                                                            overflow:
+                                                                TextOverflow
                                                             .ellipsis,
                                                         style:
                                                             GoogleFonts.inter(
                                                           fontSize: 9,
                                                           fontWeight:
-                                                              FontWeight.w700,
+                                                                      FontWeight
+                                                                          .w700,
                                                           color: color,
-                                                          letterSpacing: 0.3,
+                                                                  letterSpacing:
+                                                                      0.3,
                                                         ),
                                                       ),
                                                     ),
                                                   ),
-                                                  const SizedBox(
-                                                      width: 6),
+                                                      const SizedBox(width: 6),
                                                   Flexible(
                                                     child: Text(
                                                       item.adminName != null
                                                           ? '${adminActivityTimeLabel(l10n, item.timestamp)} · ${item.adminName}'
-                                                          : adminActivityTimeLabel(l10n, item.timestamp),
+                                                              : adminActivityTimeLabel(
+                                                                  l10n,
+                                                                  item.timestamp,
+                                                                ),
                                                       maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style:
-                                                          GoogleFonts.inter(
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: GoogleFonts.inter(
                                                         fontSize: 11,
                                                         color: cs
                                                             .onSurfaceVariant,
@@ -555,6 +792,8 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                               );
                             },
                           ),
+                      );
+                    },
                   ),
           ),
         ],

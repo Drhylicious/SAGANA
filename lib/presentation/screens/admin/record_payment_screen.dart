@@ -98,14 +98,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     if (_isOnline) {
       final roster = await _repo.fetchFarmerRoster();
       if (roster.isNotEmpty) {
-        await HiveService.cacheFarmerRoster(roster.map((f) => f.toMap()).toList());
+        await HiveService.cacheFarmerRoster(
+          roster.map((f) => f.toMap()).toList(),
+        );
         if (mounted) setState(() => _farmerRoster = roster);
         return;
       }
     }
     final cached = HiveService.getCachedFarmerRoster();
     if (mounted) {
-      setState(() => _farmerRoster = cached.map(FarmerPickerResult.fromMap).toList());
+      setState(
+        () => _farmerRoster = cached.map(FarmerPickerResult.fromMap).toList(),
+      );
     }
   }
 
@@ -113,14 +117,20 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     if (_isOnline) {
       final loans = await _repo.fetchAllActiveAndOverdueLoans();
       if (loans.isNotEmpty) {
-        await HiveService.cacheActiveLoans(loans.map((l) => l.toCacheMap()).toList());
+        await HiveService.cacheActiveLoans(
+          loans.map((l) => l.toCacheMap()).toList(),
+        );
         if (mounted) setState(() => _allActiveLoans = loans);
         return;
       }
     }
     final cached = HiveService.getCachedActiveLoans();
     if (mounted) {
-      setState(() => _allActiveLoans = cached.map(AdminLoanSummary.fromCacheMap).toList());
+      setState(
+        () => _allActiveLoans = cached
+            .map(AdminLoanSummary.fromCacheMap)
+            .toList(),
+      );
     }
   }
 
@@ -139,11 +149,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     for (final loan in _allActiveLoans) {
       byId.putIfAbsent(
         loan.farmerId,
-        () => FarmerPickerResult(
-          id: loan.farmerId,
-          fullName: loan.farmerName,
-          memberId: loan.memberId,
-        ),
+        () => FarmerPickerResult(id: loan.farmerId, fullName: loan.farmerName),
       );
     }
     return byId.values.toList();
@@ -163,8 +169,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
     if (loan == null) return;
 
-    final farmer = _farmerRoster.where((f) => f.id == loan!.farmerId).firstOrNull ??
-        FarmerPickerResult(id: loan.farmerId, fullName: loan.farmerName, memberId: loan.memberId);
+    final farmer =
+        _farmerRoster.where((f) => f.id == loan!.farmerId).firstOrNull ??
+        FarmerPickerResult(id: loan.farmerId, fullName: loan.farmerName);
 
     setState(() {
       _selectedFarmer = farmer;
@@ -177,13 +184,17 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   // ─── Farmer / loan selection ────────────────────────────────────────────
 
   void _selectFarmer(FarmerPickerResult farmer) {
-    final loans = _allActiveLoans.where((l) => l.farmerId == farmer.id).toList();
+    final loans = _allActiveLoans
+        .where((l) => l.farmerId == farmer.id)
+        .toList();
     setState(() {
       _selectedFarmer = farmer;
       _farmerLoans = loans;
       _selectedLoan = loans.length == 1 ? loans.first : null;
       if (_selectedLoan != null) {
-        _amountController.text = _defaultAmountFor(_selectedLoan!).toStringAsFixed(0);
+        _amountController.text = _defaultAmountFor(
+          _selectedLoan!,
+        ).toStringAsFixed(0);
       }
     });
   }
@@ -293,7 +304,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     }
 
     setState(() => _isSubmitting = true);
-    final notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    final notes = _notesController.text.trim().isEmpty
+        ? null
+        : _notesController.text.trim();
 
     try {
       if (_isOnline) {
@@ -356,7 +369,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       );
     });
 
-    _showSnack(synced ? l10n.paymentSuccess(farmer.fullName) : l10n.paymentQueuedOffline);
+    _showSnack(
+      synced ? l10n.paymentSuccess(farmer.fullName) : l10n.paymentQueuedOffline,
+    );
 
     if (_directLoanMode) {
       context.pop(true);
@@ -366,12 +381,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
+        backgroundColor: isError
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+      ),
+    );
   }
 
   // ─── Build ──────────────────────────────────────────────────────────────
@@ -407,14 +428,20 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildTopBar(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     final sagana = context.saganaColors;
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -431,7 +458,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       ? l10n.paymentContextualTitle(_selectedFarmer!.fullName)
                       : l10n.paymentTitle,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
             ],
@@ -453,12 +484,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     final filtered = _searchQuery.isEmpty
         ? roster
         : roster
-            .where((f) =>
-                f.fullName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                f.memberId.toLowerCase().contains(_searchQuery.toLowerCase()))
+              .where(
+                (f) => f.fullName.toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ),
+              )
             .toList();
 
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
 
     return Column(
       children: [
@@ -474,20 +511,28 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             children: [
               Text(
                 l10n.issueLoanSelectFarmer,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
               ),
               const SizedBox(height: AppConstants.spacingSm),
               _buildSearchField(context, l10n, cs),
             ],
           ),
         ),
-        if (_sessionPayments.isNotEmpty) _buildSessionSummary(context, l10n, cs, sagana),
+        if (_sessionPayments.isNotEmpty)
+          _buildSessionSummary(context, l10n, cs, sagana),
         Expanded(
           child: filtered.isEmpty
               ? Center(
                   child: Text(
                     l10n.paymentNoFarmersFound,
-                    style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -507,9 +552,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       padding: const EdgeInsets.all(AppConstants.spacingMd),
                       decoration: BoxDecoration(
                         color: sagana.cardBackground,
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
+                        border: Border.all(
+                          color: cs.outline.withValues(alpha: 0.10),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                       child: Opacity(
                         opacity: hasActiveLoans ? 1.0 : 0.55,
@@ -527,11 +581,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                                 children: [
                                   Text(
                                     farmer.fullName,
-                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: cs.onSurface,
                                   ),
-                                  Text(
-                                    farmer.memberId,
-                                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
                                   ),
                                 ],
                               ),
@@ -539,11 +593,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                             hasActiveLoans
                                 ? Text(
                                     currency.format(outstanding),
-                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: AppConstants.primaryGreen),
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      color: AppConstants.primaryGreen,
+                                    ),
                                   )
                                 : Text(
                                     l10n.paymentNoActiveLoans,
-                                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: cs.onSurfaceVariant,
+                                    ),
                                   ),
                           ],
                         ),
@@ -551,9 +612,14 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     );
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                      padding: const EdgeInsets.only(
+                        bottom: AppConstants.spacingSm,
+                      ),
                       child: hasActiveLoans
-                          ? AnimatedPressable(onTap: () => _selectFarmer(farmer), child: row)
+                          ? AnimatedPressable(
+                              onTap: () => _selectFarmer(farmer),
+                              child: row,
+                            )
                           : row,
                     );
                   },
@@ -563,7 +629,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     );
   }
 
-  Widget _buildSearchField(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildSearchField(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     return TextField(
       controller: _searchController,
       autofocus: true,
@@ -592,7 +662,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     final total = _sessionPayments.fold<double>(0, (sum, p) => sum + p.amount);
 
     return Container(
@@ -606,22 +680,36 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       decoration: BoxDecoration(
         color: AppConstants.successGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppConstants.successGreen.withValues(alpha: 0.25),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n.paymentSessionSummary(_sessionPayments.length, currency.format(total)),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12, color: AppConstants.successGreen),
+            l10n.paymentSessionSummary(
+              _sessionPayments.length,
+              currency.format(total),
+            ),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              color: AppConstants.successGreen,
+            ),
           ),
           const SizedBox(height: 4),
-          ..._sessionPayments.take(3).map((p) => Padding(
+          ..._sessionPayments
+              .take(3)
+              .map(
+                (p) => Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Row(
                   children: [
                     Icon(
-                      p.fullyPaid ? Icons.celebration_rounded : Icons.check_circle_outline_rounded,
+                        p.fullyPaid
+                            ? Icons.celebration_rounded
+                            : Icons.check_circle_outline_rounded,
                       size: 14,
                       color: AppConstants.successGreen,
                     ),
@@ -629,13 +717,17 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     Expanded(
                       child: Text(
                         '${p.farmerName} — ${currency.format(p.amount)}${p.synced ? '' : ' (${l10n.paymentQueuedTag})'}',
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant,
+                          ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-              )),
+                ),
+              ),
         ],
       ),
     );
@@ -682,7 +774,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6),
+        ],
       ),
       child: Row(
         children: [
@@ -698,11 +792,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               children: [
                 Text(
                   farmer.fullName,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: cs.onSurface,
                 ),
-                Text(
-                  farmer.memberId,
-                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -712,7 +806,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     );
   }
 
-  Widget _buildEmptyLoansState(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildEmptyLoansState(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingGutter),
@@ -722,7 +820,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       ),
       child: Column(
         children: [
-          Icon(Icons.info_outline_rounded, color: cs.onSurfaceVariant, size: 22),
+          Icon(
+            Icons.info_outline_rounded,
+            color: cs.onSurfaceVariant,
+            size: 22,
+          ),
           const SizedBox(height: AppConstants.spacingSm),
           Text(
             l10n.paymentNoActiveLoans,
@@ -740,16 +842,25 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           l10n.paymentSelectLoan,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
-        ..._farmerLoans.map((loan) => Padding(
+        ..._farmerLoans.map(
+          (loan) => Padding(
               padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
               child: AnimatedPressable(
                 onTap: () => _selectLoan(loan),
@@ -759,9 +870,16 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     color: sagana.cardBackground,
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                     border: Border.all(
-                      color: loan.isOverdue ? AppConstants.errorRed.withValues(alpha: 0.4) : cs.outline.withValues(alpha: 0.10),
+                    color: loan.isOverdue
+                        ? AppConstants.errorRed.withValues(alpha: 0.4)
+                        : cs.outline.withValues(alpha: 0.10),
                     ),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                    ),
+                  ],
                   ),
                   child: Row(
                     children: [
@@ -771,34 +889,54 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                           children: [
                             Text(
                               loan.referenceNo,
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: cs.onSurface,
+                            ),
                             ),
                             Text(
                               '${l10n.loanDashBalance}: ${currency.format(loan.remainingBalance)}',
-                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
                             ),
                           ],
                         ),
                       ),
                       if (loan.isOverdue)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                           decoration: BoxDecoration(
                             color: AppConstants.errorRed.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
                           ),
                           child: Text(
                             l10n.farmerMgmtOverdueBadge,
-                            style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.errorRed),
+                          style: GoogleFonts.poppins(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: AppConstants.errorRed,
+                          ),
                           ),
                         ),
                       const SizedBox(width: AppConstants.spacingSm),
-                      Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: cs.onSurfaceVariant,
+                    ),
                     ],
                   ),
                 ),
               ),
-            )),
+          ),
+        ),
       ],
     );
   }
@@ -810,9 +948,16 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     SaganaColors sagana,
   ) {
     final loan = _selectedLoan!;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    final remainingAfter = (loan.remainingBalance - amount).clamp(0, double.infinity);
+    final remainingAfter = (loan.remainingBalance - amount).clamp(
+      0,
+      double.infinity,
+    );
     final isOverpayment = amount > loan.remainingBalance;
 
     return Column(
@@ -832,17 +977,38 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Flexible(
-                    child: Text(loan.referenceNo,
+                    child: Text(
+                      loan.referenceNo,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                   if (loan.isOverdue) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                      child: Text(l10n.farmerMgmtOverdueBadge, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
+                      ),
+                      child: Text(
+                        l10n.farmerMgmtOverdueBadge,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ],
                 ],
@@ -850,7 +1016,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               const SizedBox(height: 6),
               Text(
                 '${l10n.loanDashBalance}: ${currency.format(loan.remainingBalance)}',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 20, color: Colors.white),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -869,29 +1039,54 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             children: [
               Text(
                 l10n.paymentDetailsSectionTitle,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
               ),
               const SizedBox(height: AppConstants.spacingMd),
-              Text(l10n.paymentAmountReceived, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+              Text(
+                l10n.paymentAmountReceived,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 6),
               TextField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
                 onChanged: (_) => setState(() {}),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 22, color: cs.onSurface),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  color: cs.onSurface,
+                ),
                 decoration: const InputDecoration(prefixText: '₱ '),
               ),
               if (isOverpayment) ...[
                 const SizedBox(height: AppConstants.spacingSm),
                 Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 16, color: AppConstants.warningAmber),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 16,
+                      color: AppConstants.warningAmber,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         l10n.paymentOverpaymentNotice,
-                        style: GoogleFonts.inter(fontSize: 11, color: AppConstants.warningAmber),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppConstants.warningAmber,
+                        ),
                       ),
                     ),
                   ],
@@ -902,33 +1097,59 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Flexible(
-                    child: Text(l10n.paymentRemainingAfter,
+                    child: Text(
+                      l10n.paymentRemainingAfter,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     currency.format(remainingAfter),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ],
               ),
-              Divider(height: AppConstants.spacingSectionV * 1.5, color: cs.outline.withValues(alpha: 0.10)),
+              Divider(
+                height: AppConstants.spacingSectionV * 1.5,
+                color: cs.outline.withValues(alpha: 0.10),
+              ),
               GestureDetector(
                 onTap: _pickPaymentDate,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(l10n.paymentDate, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                    Text(
+                      l10n.paymentDate,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                     Row(
                       children: [
                         Text(
                           DateFormat('MMMM d, yyyy').format(_paymentDate),
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: cs.onSurface,
+                          ),
                         ),
                         const SizedBox(width: 6),
-                        Icon(Icons.calendar_today_rounded, size: 14, color: cs.onSurfaceVariant),
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          size: 14,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ],
                     ),
                   ],
@@ -938,7 +1159,10 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           ),
         ),
         const SizedBox(height: AppConstants.spacingSectionV),
-        Text(l10n.paymentNotes, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+        Text(
+          l10n.paymentNotes,
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 6),
         TextField(
           controller: _notesController,
@@ -947,7 +1171,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           decoration: InputDecoration(
             filled: true,
             fillColor: sagana.cardBackground,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
           ),
         ),
         const SizedBox(height: AppConstants.spacingSectionV),
@@ -996,11 +1222,18 @@ class _OverpaymentDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     final excess = amount - remainingBalance;
 
     return AlertDialog(
-      title: Text(l10n.paymentOverpaymentTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
+      title: Text(
+        l10n.paymentOverpaymentTitle,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
+      ),
       content: Text(
         l10n.paymentOverpaymentMessage(currency.format(excess)),
         style: GoogleFonts.inter(fontSize: 13),
@@ -1012,7 +1245,10 @@ class _OverpaymentDialog extends StatelessWidget {
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: Text(l10n.paymentOverpaymentConfirm, style: const TextStyle(color: AppConstants.primaryGreen)),
+          child: Text(
+            l10n.paymentOverpaymentConfirm,
+            style: const TextStyle(color: AppConstants.primaryGreen),
+          ),
         ),
       ],
     );

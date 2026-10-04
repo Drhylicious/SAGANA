@@ -11,25 +11,21 @@ class SupplyChainRepository {
       // Fetch farmer_profiles with coordinates
       final profileRows = await _client
           .from('farmer_profiles')
-          .select(
-              'user_id, member_id, farm_latitude, farm_longitude, is_verified')
+          .select('user_id, farm_latitude, farm_longitude, is_verified')
           .not('farm_latitude', 'is', null)
           .not('farm_longitude', 'is', null);
 
       if (profileRows.isEmpty) return [];
 
-      final userIds =
-          profileRows.map((r) => r['user_id'] as String).toList();
+      final userIds = profileRows.map((r) => r['user_id'] as String).toList();
 
       // Fetch user_information for names and photos
       final infoRows = await _client
           .from('user_information')
-          .select('user_id, full_name, purok, profile_photo_url')
+          .select('user_id, full_name, profile_photo_url')
           .inFilter('user_id', userIds);
 
-      final infoMap = {
-        for (final r in infoRows) r['user_id'] as String: r,
-      };
+      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
       // Fetch crops per farmer
       final cropRows = await _client
@@ -50,8 +46,6 @@ class SupplyChainRepository {
         return SupplyChainFarmerModel.fromMap({
           'user_id':            uid,
           'full_name':          info['full_name'] as String? ?? 'Farmer',
-          'member_id':          p['member_id'] as String?,
-          'purok':              info['purok'] as String?,
           'profile_photo_url':  info['profile_photo_url'] as String?,
           'farm_latitude':      p['farm_latitude'],
           'farm_longitude':     p['farm_longitude'],
@@ -91,9 +85,7 @@ class SupplyChainRepository {
     } catch (_) {}
 
     try {
-      final cropRows = await _client
-          .from('farmer_crops')
-          .select('crop_name');
+      final cropRows = await _client.from('farmer_crops').select('crop_name');
       for (final r in cropRows) {
         final name = r['crop_name'] as String;
         cropCounts[name] = (cropCounts[name] ?? 0) + 1;
@@ -111,8 +103,7 @@ class SupplyChainRepository {
 
     final stats = primaryCrops.map((pair) {
       final count = cropCounts.entries
-          .where((e) =>
-              e.key.toLowerCase().contains(pair.$1.toLowerCase()))
+          .where((e) => e.key.toLowerCase().contains(pair.$1.toLowerCase()))
           .fold<int>(0, (s, e) => s + e.value);
       return CropMapStat(
         cropName:     pair.$1,
@@ -184,20 +175,20 @@ class SupplyChainRepository {
 
       final info = await _client
           .from('user_information')
-          .select('user_id, full_name, purok')
+          .select('user_id, full_name')
           .inFilter('user_id', unmappedIds);
 
       return info
-          .map((r) => UnmappedMemberEntry(
+          .map(
+            (r) => UnmappedMemberEntry(
                 userId: r['user_id'] as String,
                 fullName: r['full_name'] as String? ?? 'Unknown',
-                purok: r['purok'] as String?,
-              ))
+            ),
+          )
           .toList()
         ..sort((a, b) => a.fullName.compareTo(b.fullName));
     } catch (_) {
       return [];
     }
   }
-
 }

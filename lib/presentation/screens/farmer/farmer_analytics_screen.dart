@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
+import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/repositories/analytics_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
@@ -14,9 +17,29 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/planting_forecast_card.dart';
+import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/top_harvested_crops_chart.dart';
 import '../../widgets/trend_chart_painter.dart';
+
+// Period labels live on AnalyticsPeriod as plain English
+// (analytics_model.dart) since the model has no AppLocalizations access —
+// same reasoning PlantingForecast's own trend label/explanation were moved
+// out to their widget for (see planting_forecast_card.dart). Shared by the
+// period selector pills and the Price History chart's period badge, so
+// both sections can never show a differently-worded period label.
+String _periodLabel(AppLocalizations l10n, AnalyticsPeriod p) {
+  switch (p) {
+    case AnalyticsPeriod.thisMonth:
+      return l10n.farmerAnalyticsPeriodThisMonth;
+    case AnalyticsPeriod.thisSeason:
+      return l10n.farmerAnalyticsPeriodThisSeason;
+    case AnalyticsPeriod.thisYear:
+      return l10n.farmerAnalyticsPeriodThisYear;
+    case AnalyticsPeriod.allTime:
+      return l10n.farmerAnalyticsPeriodAllTime;
+  }
+}
 
 class FarmerAnalyticsScreen extends StatefulWidget {
   const FarmerAnalyticsScreen({super.key});
@@ -29,7 +52,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   final _repo = AnalyticsRepository();
   final _notifRepo = NotificationRepository();
 
-  AnalyticsPeriod _period = AnalyticsPeriod.thisSeason;
+  AnalyticsPeriod _period = AnalyticsPeriod.thisMonth;
   FarmPerformanceSummary _performance = FarmPerformanceSummary.empty;
   List<TransactionRecord> _transactions = [];
   List<CropPriceCard> _priceCards = [];
@@ -41,6 +64,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   CropPriceCard? _selectedPriceCard;
   bool _isLoading = true;
   bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySubscription;
 
   @override
   void initState() {
@@ -53,7 +77,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       ),
     );
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+    _connectivitySubscription = ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
     _loadAll();
@@ -62,6 +86,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   @override
   void dispose() {
     AppEventService.instance.removeListener(_onDataChanged);
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -73,7 +98,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchFarmPerformance(_period),
-      _repo.fetchRecentTransactions(),
+      _repo.fetchRecentTransactions(startDate: _period.startDate),
       _repo.fetchPriceCards(),
       _repo.fetchPlantingForecasts(),
       _repo.fetchTopSellingCrops(),
@@ -115,6 +140,11 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     setState(() => _period = p);
     final results = await Future.wait([
       _repo.fetchFarmPerformance(p),
+      // Recent Transactions previously ignored the period filter entirely
+      // — found during live-testing verification, since a farmer could
+      // see a transaction from outside the selected period sitting right
+      // under a Total Revenue figure that correctly excluded it.
+      _repo.fetchRecentTransactions(startDate: p.startDate),
       // Re-fetch history for whichever crop is currently selected too —
       // previously this chart never responded to the period selector at
       // all, contradicting the screen's own "Applies to Farm Performance
@@ -129,16 +159,18 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     if (!mounted) return;
     setState(() {
       _performance = results[0] as FarmPerformanceSummary;
+      _transactions = results[1] as List<TransactionRecord>;
       if (_selectedPriceCard != null) {
-        _priceHistory = results[1] as List<PriceHistoryPoint>;
+        _priceHistory = results[2] as List<PriceHistoryPoint>;
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: AnimatedBuilder(
         animation: FarmerProfileStateService.instance,
         builder: (context, _) {
@@ -155,6 +187,10 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
             onEditFarmDetails: () {
               Navigator.pop(context);
               context.pushRoute(AppRoutes.editFarmDetails);
+            },
+            onMyAddresses: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.myAddresses);
             },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
@@ -176,24 +212,36 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                     const SizedBox(height: 72),
                     Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
+                  color: Theme.of(context).colorScheme.primary,
                   onRefresh: _loadAll,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                    // 72 clears the floating bottom nav bar (64px tall,
+                    // farmer_bottom_nav.dart) with a small margin. Found
+                    // during Phase 9 verification at 10, which is less than
+                    // the nav bar's own height — the last visible card
+                    // would sit partially behind it. 72 was the last known
+                    // value confirmed safe before this regressed; if it was
+                    // changed again to fight the "gap below the last
+                    // forecast card" complaint, that gap needs a different
+                    // fix than shrinking clearance below the nav bar.
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                     children: [
                       // Period selector
                       _PeriodSelector(
                         active: _period,
                         onChanged: _onPeriodChanged,
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: AppConstants.spacingSectionV),
 
                       // ── Section 1: Farm Performance ──────────────────────
-                      const _SectionTitle('My Farm Performance'),
-                      const SizedBox(height: 12),
+                      ReportSectionHeader(
+                        icon: Icons.agriculture_rounded,
+                        title: l10n.farmerAnalyticsFarmPerformanceTitle,
+                      ),
+                      const SizedBox(height: AppConstants.spacingMd),
                       _isLoading
                           ? _PerformanceShimmer()
-                          : _PerformanceGrid(summary: _performance),
+                          : _PerformanceKpiStrip(summary: _performance),
                       const SizedBox(height: 14),
                       if (!_isLoading)
                         _HarvestBreakdownCard(
@@ -205,20 +253,23 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                       const SizedBox(height: 28),
 
                       // ── Section 2: Price Monitoring ──────────────────────
-                      const _SectionTitle('Price Monitoring'),
-                      const SizedBox(height: 12),
+                      ReportSectionHeader(
+                        icon: Icons.payments_rounded,
+                        title: l10n.farmerAnalyticsPriceMonitoringTitle,
+                      ),
+                      const SizedBox(height: AppConstants.spacingMd),
                       _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 130,
                               child: Center(
                                 child: CircularProgressIndicator(
-                                  color: AppConstants.primaryGreen,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                             )
                           : _priceCards.isEmpty
-                          ? const _NoDataNotice(
-                              message: 'No market prices available yet.',
+                          ? ReportEmptyState(
+                              message: l10n.farmerAnalyticsNoPricesAvailable,
                             )
                           : _PriceCardsRow(
                               cards: _priceCards,
@@ -230,13 +281,35 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                         _PriceHistoryChart(
                           cropName: _selectedPriceCard!.cropName,
                           points: _priceHistory,
-                          periodLabel: _period.label,
+                          periodLabel: _periodLabel(l10n, _period),
                         ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: AppConstants.spacingSectionV),
+
+                      // ── Top Harvested Crops ──────────────────────────────
+                      // Positioned here, between Price History and Planting
+                      // Forecast, to match Admin Analytics Dashboard's own
+                      // section order exactly (Price Snapshot -> Top
+                      // Harvested Crops -> Planting Forecast) — previously
+                      // this sat after the forecast cards instead. Shared
+                      // with Admin, already theme-aware; only its `title` is
+                      // overridden here for localization (a plain default
+                      // parameter, not touched in the shared widget file).
+                      if (!_isLoading && _topSelling.isNotEmpty) ...[
+                        TopHarvestedCropsChart(
+                          crops: _topSelling,
+                          title: l10n.farmerAnalyticsTopHarvestedCropsTitle,
+                        ),
+                        const SizedBox(height: AppConstants.spacingSectionV),
+                      ],
 
                       // ── Section 3: Planting Forecast ─────────────────────
+                      // PlantingForecastSectionHeader and PlantingForecastCard
+                      // are shared with Admin's Analytics Dashboard and were
+                      // already fully theme-aware and localized — verified by
+                      // direct read, not restyled here, per the reviewed
+                      // finding that neither needed a change.
                       const PlantingForecastSectionHeader(),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppConstants.spacingMd),
                       _isLoading
                           ? Column(
                               children: List.generate(
@@ -248,10 +321,11 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                               ),
                             )
                           : _forecasts.isEmpty
-                          ? const _NoDataNotice(
-                              message:
-                                  'Forecasts will appear once enough cooperative-wide harvest history is recorded.',
-                            )
+                          // Reuses Admin's existing analyticsNoForecastsYet
+                          // key — identical English text, same feature,
+                          // same ReportEmptyState widget Admin's own
+                          // dashboard uses for this exact empty state.
+                          ? ReportEmptyState(message: l10n.analyticsNoForecastsYet)
                           : Column(
                               children: _forecasts
                                   .map(
@@ -264,9 +338,6 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                                   )
                                   .toList(),
                             ),
-                      const SizedBox(height: 20),
-                      if (!_isLoading && _topSelling.isNotEmpty)
-                        TopHarvestedCropsChart(crops: _topSelling),
                     ],
                   ),
                 ),
@@ -308,16 +379,18 @@ class _PeriodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: const Color(0xFFDBF1FE),
+            color: AppConstants.primaryGreen.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(AppConstants.radiusFull),
           ),
           child: Row(
-            children: AnalyticsPeriod.values.map((p) {
+            children: analyticsPeriodChipOrder.map((p) {
               final isActive = p == active;
               return Expanded(
                 child: GestureDetector(
@@ -334,14 +407,12 @@ class _PeriodSelector extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      p.label,
+                      _periodLabel(l10n, p),
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: isActive
-                            ? Colors.white
-                            : AppConstants.onSurfaceVariant,
+                        color: isActive ? Colors.white : cs.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -352,31 +423,10 @@ class _PeriodSelector extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Applies to Farm Performance and Price History only.',
-          style: GoogleFonts.inter(fontSize: 9, color: AppConstants.outline),
+          l10n.farmerAnalyticsPeriodCaption,
+          style: GoogleFonts.inter(fontSize: 9, color: cs.outline),
         ),
       ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Title
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionTitle extends StatelessWidget {
-  final String text;
-  const _SectionTitle(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.poppins(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        color: AppConstants.charcoal,
-      ),
     );
   }
 }
@@ -385,42 +435,81 @@ class _SectionTitle extends StatelessWidget {
 // Performance Grid (4 cards)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PerformanceGrid extends StatelessWidget {
+// Tile styling (color-tinted background/border, icon badge, typography)
+// mirrors Admin Marketplace tab's _KpiStrip/_KpiTile exactly
+// (marketplace_dashboard_screen.dart), per explicit request. Layout is a
+// 2x2 grid rather than Marketplace's horizontal-scrolling strip — with
+// exactly 4 tiles (an even number, all visible without scrolling), a
+// fixed grid reads better than a scrollable row per follow-up request.
+// Only the icon badge/border/label-adjacent tint carries each tile's
+// semantic color; the value text itself is uniformly `cs.onSurface`,
+// matching Marketplace's own convention exactly (color signals category,
+// not magnitude — Marketplace doesn't color-code a value green/red
+// either).
+class _PerformanceKpiStrip extends StatelessWidget {
   final FarmPerformanceSummary summary;
-  const _PerformanceGrid({required this.summary});
+  const _PerformanceKpiStrip({required this.summary});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final tiles = [
+      _KpiTile(l10n.farmerAnalyticsTotalYield, '${_fmt(summary.totalYieldKg)} kg', AppConstants.successGreen, Icons.grass_rounded),
+      _KpiTile(l10n.farmerAnalyticsTotalRevenue, '₱${_fmt(summary.totalRevenue)}', cs.primary, Icons.payments_rounded),
+      _KpiTile(l10n.farmerAnalyticsTotalExpenses, '₱${_fmt(summary.totalExpenses)}', AppConstants.errorRed, Icons.receipt_long_rounded),
+      _KpiTile(l10n.farmerAnalyticsNetProfit, '₱${_fmt(summary.netProfit)}', AppConstants.midGreen, Icons.trending_up_rounded),
+    ];
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 2.0,
-      children: [
-        _MetricCard(
-          label: 'Total Yield',
-          value: '${_fmt(summary.totalYieldKg)} kg',
-          valueColor: AppConstants.successGreen,
-        ),
-        _MetricCard(
-          label: 'Total Revenue',
-          value: '₱${_fmt(summary.totalRevenue)}',
-          valueColor: AppConstants.charcoal,
-        ),
-        _MetricCard(
-          label: 'Total Expenses',
-          value: '₱${_fmt(summary.totalExpenses)}',
-          valueColor: AppConstants.errorRed,
-        ),
-        _MetricCard(
-          label: 'Net Profit',
-          value: '₱${_fmt(summary.netProfit)}',
-          valueColor: AppConstants.successGreen,
-          accentBorder: true,
-        ),
-      ],
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      // 1.7 overflowed by ~7px when a label wrapped to its full 2 lines
+      // (confirmed live) — 1.4 gives enough vertical room for icon badge +
+      // 2-line label + value with margin, matching the same "generous
+      // fixed height beats width-derived height" lesson Admin Reports'
+      // own KPI-card overflow fix already documented (report_tab.md 4.15).
+      childAspectRatio: 1.4,
+      children: tiles.map((t) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: t.color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            border: Border.all(color: t.color.withValues(alpha: 0.18)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: t.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                ),
+                child: Icon(t.icon, size: 14, color: t.color),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t.label,
+                style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant, height: 1.2),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                t.value,
+                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: cs.onSurface),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -432,77 +521,12 @@ class _PerformanceGrid extends StatelessWidget {
   }
 }
 
-class _MetricCard extends StatelessWidget {
+class _KpiTile {
   final String label;
   final String value;
-  final Color valueColor;
-  final bool accentBorder;
-
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-    this.accentBorder = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              if (accentBorder)
-                Container(width: 4, color: AppConstants.successGreen),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        label.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.outline,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        value,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: valueColor,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  final Color color;
+  final IconData icon;
+  const _KpiTile(this.label, this.value, this.color, this.icon);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,6 +539,9 @@ class _HarvestBreakdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -522,9 +549,9 @@ class _HarvestBreakdownCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+            border: Border.all(color: sagana.glassBorder),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF455A64).withValues(alpha: 0.05),
@@ -536,11 +563,11 @@ class _HarvestBreakdownCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'HARVEST BY CROP',
+                l10n.farmerAnalyticsHarvestByCropTitle.toUpperCase(),
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppConstants.outline.withValues(alpha: 0.70),
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.70),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -550,10 +577,10 @@ class _HarvestBreakdownCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Center(
                     child: Text(
-                      'No harvest data for this period.',
+                      l10n.farmerAnalyticsNoHarvestData,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppConstants.outline,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -573,7 +600,7 @@ class _HarvestBreakdownCard extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: AppConstants.onSurface,
+                                color: cs.onSurface,
                               ),
                             ),
                             Text(
@@ -581,7 +608,7 @@ class _HarvestBreakdownCard extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: AppConstants.onSurface,
+                                color: cs.onSurface,
                               ),
                             ),
                           ],
@@ -592,7 +619,7 @@ class _HarvestBreakdownCard extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: b.percentOfMax,
                             minHeight: 7,
-                            backgroundColor: const Color(0xFFD5ECF8),
+                            backgroundColor: cs.outline.withValues(alpha: 0.2),
                             valueColor: const AlwaysStoppedAnimation(
                               AppConstants.successGreen,
                             ),
@@ -618,8 +645,28 @@ class _TransactionsCard extends StatelessWidget {
   final List<TransactionRecord> transactions;
   const _TransactionsCard({required this.transactions});
 
+  // Visual distinction between the three revenue channels a transaction
+  // can come from — previously only distinguishable by reading the
+  // ORD-/COOP-/INF- text prefix in the reference. Colors reuse tokens
+  // already meaningful elsewhere in this app rather than inventing new
+  // ones: buyerBlue for a Buyer marketplace order, primaryGreen for a
+  // cooperative purchase (the cooperative's own brand color), gold for
+  // an informal farm-gate sale (a distinct, warm "outside the system"
+  // tone matching AppConstants.gold's existing use elsewhere).
+  static (IconData, Color) _sourceMeta(String reference) {
+    if (reference.startsWith('ORD-')) {
+      return (Icons.storefront_rounded, AppConstants.buyerBlue);
+    } else if (reference.startsWith('COOP-')) {
+      return (Icons.groups_rounded, AppConstants.primaryGreen);
+    }
+    return (Icons.handshake_rounded, AppConstants.gold);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -627,9 +674,9 @@ class _TransactionsCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+            border: Border.all(color: sagana.glassBorder),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF455A64).withValues(alpha: 0.05),
@@ -641,11 +688,11 @@ class _TransactionsCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Recent Transactions',
+                l10n.farmerAnalyticsRecentTransactionsTitle,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(height: 10),
@@ -654,10 +701,10 @@ class _TransactionsCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Center(
                     child: Text(
-                      'No transactions yet.',
+                      l10n.farmerAnalyticsNoTransactions,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppConstants.outline,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -666,20 +713,29 @@ class _TransactionsCard extends StatelessWidget {
                 ...transactions.asMap().entries.map((entry) {
                   final t = entry.value;
                   final isLast = entry.key == transactions.length - 1;
+                  final (sourceIcon, sourceColor) = _sourceMeta(t.reference);
                   return Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       border: isLast
                           ? null
                           : Border(
-                              bottom: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.40),
-                              ),
+                              bottom: BorderSide(color: sagana.glassBorder),
                             ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(
+                            color: sourceColor.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(sourceIcon, size: 14, color: sourceColor),
+                        ),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -689,14 +745,18 @@ class _TransactionsCard extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
-                                  color: AppConstants.onSurface,
+                                  color: cs.onSurface,
                                 ),
                               ),
                               Text(
-                                '${DateFormat('MMM d, yyyy').format(t.date)} • ${t.quantityKg.toStringAsFixed(0)} kg • REF: #${t.reference}',
+                                l10n.farmerAnalyticsTransactionMeta(
+                                  DateFormat('MMM d, yyyy').format(t.date),
+                                  t.quantityKg.toStringAsFixed(0),
+                                  t.reference,
+                                ),
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
-                                  color: AppConstants.outline,
+                                  color: cs.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -707,7 +767,7 @@ class _TransactionsCard extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: AppConstants.onSurface,
+                            color: cs.onSurface,
                           ),
                         ),
                       ],
@@ -739,8 +799,23 @@ class _PriceCardsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    // 170 fits the image (90) + name + price. Also has to clear
+    // Container's own automatic border-width inset — BoxDecoration.border
+    // adds implicit padding equal to its own width (so the active card's
+    // 2px border quietly ate 4px of the Column's available height, and
+    // even the inactive 1px border ate 2px), which is exactly why 160
+    // overflowed by 2-4px depending on active state. The Margin/kg row
+    // below adds its own height only when it renders — and today it never
+    // does, since fetchPriceCards() never populates CropPriceCard.costPerKg
+    // anywhere in the codebase, so marginPerKg is always null. If a future
+    // cost-basis feature wires that field up, this fixed height will need
+    // to grow back to fit that row too (was 216 before the first fix,
+    // sized for exactly that case).
     return SizedBox(
-      height: 138,
+      height: 170,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
@@ -748,21 +823,26 @@ class _PriceCardsRow extends StatelessWidget {
         itemBuilder: (context, i) {
           final c = cards[i];
           final isActive = c.cropName == selected?.cropName && c.priceType == selected?.priceType;
+          final marketColor = MarketTypeDisplay.color(context, c.priceType);
+          final hasImage = c.imageUrl != null && c.imageUrl!.isNotEmpty;
+          // Same larger horizontal card layout as Home's Market Rates
+          // carousel (_MarketRateCard, farmer_dashboard_screen.dart) —
+          // image filling the card's upper portion with the market-type
+          // badge overlaid top-left, crop identity and price below.
+          // Structure/proportions mirrored exactly; colors kept
+          // theme-aware (sagana.glassBackground/glassBorder) rather than
+          // Market Rate's own fixed white, consistent with the rest of
+          // this screen's Dark Mode support.
           return GestureDetector(
             onTap: () => onSelected(c),
             child: Container(
-              width: 170,
-              padding: const EdgeInsets.all(14),
+              width: 180,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.70),
+                color: sagana.glassBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                border: Border(
-                  bottom: BorderSide(
-                    color: isActive
-                        ? AppConstants.primaryGreen
-                        : Colors.transparent,
-                    width: 4,
-                  ),
+                border: Border.all(
+                  color: isActive ? AppConstants.primaryGreen : sagana.glassBorder,
+                  width: isActive ? 2 : 1,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -771,90 +851,151 @@ class _PriceCardsRow extends StatelessWidget {
                   ),
                 ],
               ),
+              clipBehavior: Clip.antiAlias,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          c.cropName,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isActive
-                                ? AppConstants.primaryGreen
-                                : AppConstants.charcoal,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (c.priceDiff != null)
-                        Text(
-                          '${c.isUp ? '↑' : '↓'} ₱${c.priceDiff!.abs().toStringAsFixed(2)}',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: c.isUp
-                                ? AppConstants.successGreen
-                                : AppConstants.errorRed,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '₱${c.currentPrice.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.onSurface,
-                        ),
-                      ),
-                      Text(
-                        '/kg',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: AppConstants.outline,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  if (c.marginPerKg != null) ...[
-                    Container(
-                      height: 1,
-                      color: Colors.white.withValues(alpha: 0.50),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  SizedBox(
+                    height: 90,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text(
-                          'Margin/kg:',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            color: AppConstants.outline,
+                        hasImage
+                            ? Image.network(
+                                c.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: marketColor.withValues(alpha: 0.12),
+                                  child: Icon(Icons.eco_rounded, size: 32, color: marketColor),
+                                ),
+                              )
+                            : Container(
+                                color: marketColor.withValues(alpha: 0.12),
+                                child: Icon(Icons.eco_rounded, size: 32, color: marketColor),
+                              ),
+                        // price_type badge — previously the only thing
+                        // telling two cards apart when the same crop has
+                        // both a cooperative and an open-market price was
+                        // the crop name text alone (see
+                        // analytics_repository.dart's (crop_name,
+                        // price_type) dedup key comment). Reuses
+                        // MarketTypeDisplay, the same shared color+label
+                        // lookup Home/Market Rate Details/View Market
+                        // already use for this exact field.
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: marketColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              MarketTypeDisplay.label(l10n, c.priceType),
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
-                        Text(
-                          '${c.hasPositiveMargin ? '+' : ''}₱${c.marginPerKg!.toStringAsFixed(2)}',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: c.hasPositiveMargin
-                                ? AppConstants.successGreen
-                                : AppConstants.errorRed,
+                        if (c.priceDiff != null)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: (c.isUp ? AppConstants.successGreen : AppConstants.errorRed)
+                                    .withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${c.isUp ? '↑' : '↓'} ₱${c.priceDiff!.abs().toStringAsFixed(2)}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
                       ],
                     ),
-                  ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          c.cropName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isActive ? AppConstants.primaryGreen : cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '₱${c.currentPrice.toStringAsFixed(2)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '/kg',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (c.marginPerKg != null) ...[
+                          const SizedBox(height: 8),
+                          Container(height: 1, color: sagana.glassBorder),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                l10n.farmerAnalyticsMarginPerKg,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                              Text(
+                                '${c.hasPositiveMargin ? '+' : ''}₱${c.marginPerKg!.toStringAsFixed(2)}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.hasPositiveMargin
+                                      ? AppConstants.successGreen
+                                      : AppConstants.errorRed,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -882,6 +1023,9 @@ class _PriceHistoryChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       child: BackdropFilter(
@@ -889,9 +1033,9 @@ class _PriceHistoryChart extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: sagana.glassBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
+            border: Border.all(color: sagana.glassBorder),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF455A64).withValues(alpha: 0.05),
@@ -907,11 +1051,11 @@ class _PriceHistoryChart extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Price History: $cropName',
+                      l10n.farmerAnalyticsPriceHistoryTitle(cropName),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: AppConstants.charcoal,
+                        color: cs.onSurface,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -945,10 +1089,10 @@ class _PriceHistoryChart extends StatelessWidget {
                 child: points.length < 2
                     ? Center(
                         child: Text(
-                          'Not enough price history yet.',
+                          l10n.farmerAnalyticsNoPriceHistory,
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: AppConstants.outline,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       )
@@ -961,8 +1105,8 @@ class _PriceHistoryChart extends StatelessWidget {
                                 size: Size(constraints.maxWidth, 130),
                                 painter: TrendChartPainter(
                                   values: values,
-                                  lineColor: AppConstants.primaryGreen,
-                                  gradientColor: AppConstants.primaryGreen,
+                                  lineColor: cs.primary,
+                                  gradientColor: cs.primary,
                                 ),
                               ),
                               // Endpoint dot — TrendChartPainter (shared,
@@ -986,8 +1130,8 @@ class _PriceHistoryChart extends StatelessWidget {
                                   child: Container(
                                     width: 8,
                                     height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: AppConstants.primaryGreen,
+                                    decoration: BoxDecoration(
+                                      color: cs.primary,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -1007,14 +1151,14 @@ class _PriceHistoryChart extends StatelessWidget {
                       DateFormat('MMM d').format(points.first.date),
                       style: GoogleFonts.inter(
                         fontSize: 9,
-                        color: AppConstants.outline,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                     Text(
-                      'Today',
+                      l10n.farmerAnalyticsToday,
                       style: GoogleFonts.inter(
                         fontSize: 9,
-                        color: AppConstants.outline,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1022,12 +1166,12 @@ class _PriceHistoryChart extends StatelessWidget {
               ],
               const SizedBox(height: 10),
               Text(
-                'Market prices are updated by SP3 Cooperative admin.',
+                l10n.farmerAnalyticsPriceFooterNote,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 9,
                   fontStyle: FontStyle.italic,
-                  color: AppConstants.outline,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             ],
@@ -1038,51 +1182,32 @@ class _PriceHistoryChart extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _NoDataNotice extends StatelessWidget {
-  final String message;
-  const _NoDataNotice({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.60),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
-      ),
-      child: Center(
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
-        ),
-      ),
-    );
-  }
-}
 
 class _PerformanceShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final sagana = context.saganaColors;
+    // Matches _PerformanceKpiStrip's own 2x2 grid dimensions (10px gaps,
+    // 1.7 aspect ratio) so the loading state doesn't jump when real data
+    // replaces it.
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 2.0,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      // 1.7 overflowed by ~7px when a label wrapped to its full 2 lines
+      // (confirmed live) — 1.4 gives enough vertical room for icon badge +
+      // 2-line label + value with margin, matching the same "generous
+      // fixed height beats width-derived height" lesson Admin Reports'
+      // own KPI-card overflow fix already documented (report_tab.md 4.15).
+      childAspectRatio: 1.4,
       children: List.generate(
         4,
         (_) => Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.50),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            color: sagana.glassBackground,
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
           ),
         ),
       ),

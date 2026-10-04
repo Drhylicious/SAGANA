@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/balik_tangkilik_model.dart';
 import '../models/contribution_model.dart';
+import 'admin_activity_repository.dart';
 import 'farmer_lookup.dart';
 import 'member_sales_aggregation.dart';
+import 'notification_repository.dart';
 
 /// Repository for Balik-Tangkilik Management. Reuses fetchMemberSalesTotals
 /// (shared with AdminReportsRepository's Member Contribution Report) so
@@ -51,7 +53,9 @@ class BalikTangkilikRepository {
     };
     if (afsFinalized != null) payload['afs_finalized'] = afsFinalized;
 
-    await _client.from('cooperative_annual_totals').upsert(payload, onConflict: 'year');
+    await _client
+        .from('cooperative_annual_totals')
+        .upsert(payload, onConflict: 'year');
   }
 
   // ─── Distribution preview / estimate refresh ────────────────────────────
@@ -74,12 +78,14 @@ class BalikTangkilikRepository {
           .select('user_id')
           .eq('role', 'farmer')
           .eq('status', 'active');
-      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      final activeIds = activeRoleRows
+          .map((r) => r['user_id'] as String)
+          .toList();
       if (activeIds.isEmpty) return BalikTangkilikYearSummary.empty(year);
 
       final rosterRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id')
+          .select('user_id')
           .inFilter('user_id', activeIds);
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       if (farmerIds.isEmpty) return BalikTangkilikYearSummary.empty(year);
@@ -98,18 +104,24 @@ class BalikTangkilikRepository {
       final existing = results[3] as Map<String, Map<String, dynamic>>;
       final purchaseTotals = results[4] as Map<String, double>;
 
-      final liveTotalCoopSales =
-          salesTotals.values.fold<double>(0, (sum, t) => sum + t.totalAmount);
+      final liveTotalCoopSales = salesTotals.values.fold<double>(
+        0,
+        (sum, t) => sum + t.totalAmount,
+      );
       final totalCoopSales = settings?.totalCoopSales ?? liveTotalCoopSales;
       final distributableSurplus = settings?.distributableSurplus ?? 0;
       final interestRate = settings?.interestRatePercent ?? 7.0;
 
       // Option B — Product Sales Program's own parallel pool. Never
       // blended with the sales-side figures above.
-      final liveTotalProgramSales =
-          purchaseTotals.values.fold<double>(0, (sum, amount) => sum + amount);
-      final totalProgramSales = settings?.totalProgramSales ?? liveTotalProgramSales;
-      final distributableProgramSurplus = settings?.distributableProgramSurplus ?? 0;
+      final liveTotalProgramSales = purchaseTotals.values.fold<double>(
+        0,
+        (sum, amount) => sum + amount,
+      );
+      final totalProgramSales =
+          settings?.totalProgramSales ?? liveTotalProgramSales;
+      final distributableProgramSurplus =
+          settings?.distributableProgramSurplus ?? 0;
 
       bool anyPaid = false;
       final rows = farmerIds.map((farmerId) {
@@ -118,21 +130,27 @@ class BalikTangkilikRepository {
         final shares = capitalShares[farmerId];
         final existingRow = existing[farmerId];
 
-        final sharePercent = totalCoopSales > 0 ? (sales.totalAmount / totalCoopSales) : 0.0;
+        final sharePercent = totalCoopSales > 0
+            ? (sales.totalAmount / totalCoopSales)
+            : 0.0;
         final estimatedBT = distributableSurplus * sharePercent;
         // Interest accrues only on fully-completed ₱2,000 shares
         // (Decision D1f) — totalShares is already floor(contribution /
         // shareValue), so any partial amount is excluded here.
-        final capitalValue = ((shares?.totalShares ?? 0) * (shares?.shareValuePerUnit ?? 2000)).toDouble();
+        final capitalValue =
+            ((shares?.totalShares ?? 0) * (shares?.shareValuePerUnit ?? 2000))
+                .toDouble();
         final estimatedInterest = capitalValue * (interestRate / 100);
 
         // Option B — computed identically to the sales-side share/estimate
         // above, but against the Product Sales Program's own pool. Never
         // blended into sharePercent/estimatedBT.
         final purchasesAmount = purchaseTotals[farmerId] ?? 0;
-        final purchaseShare =
-            totalProgramSales > 0 ? (purchasesAmount / totalProgramSales) : 0.0;
-        final estimatedPurchasePatronage = distributableProgramSurplus * purchaseShare;
+        final purchaseShare = totalProgramSales > 0
+            ? (purchasesAmount / totalProgramSales)
+            : 0.0;
+        final estimatedPurchasePatronage =
+            distributableProgramSurplus * purchaseShare;
 
         final status = existingRow?['status'] as String? ?? 'not_yet_computed';
         if (status == 'paid') anyPaid = true;
@@ -140,7 +158,6 @@ class BalikTangkilikRepository {
         return MemberDistributionRow(
           farmerId: farmerId,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           totalSalesAmount: sales.totalAmount,
           sharePercent: sharePercent * 100,
           totalShares: shares?.totalShares ?? 0,
@@ -166,12 +183,16 @@ class BalikTangkilikRepository {
           programPurchasesAmount: purchasesAmount,
           purchaseSharePercent: purchaseShare * 100,
           estimatedPurchasePatronage: estimatedPurchasePatronage,
-          actualPurchasePatronage: existingRow?['actual_purchase_patronage'] != null
+          actualPurchasePatronage:
+              existingRow?['actual_purchase_patronage'] != null
               ? (existingRow!['actual_purchase_patronage'] as num).toDouble()
               : null,
+          payoutDecision: existingRow?['payout_decision'] as String?,
+          payoutDecisionAmount: existingRow?['payout_decision_amount'] != null
+              ? (existingRow!['payout_decision_amount'] as num).toDouble()
+              : null,
         );
-      }).toList()
-        ..sort((a, b) => b.estimatedTotal.compareTo(a.estimatedTotal));
+      }).toList()..sort((a, b) => b.estimatedTotal.compareTo(a.estimatedTotal));
 
       return BalikTangkilikYearSummary(
         year: year,
@@ -198,7 +219,10 @@ class BalikTangkilikRepository {
   /// their own dashboard throughout the year, ahead of final distribution.
   Future<void> refreshEstimates(int year) async {
     final preview = await fetchDistributionPreview(year);
-    final toUpsert = preview.rows.where((r) => !r.isPaid).map((r) => {
+    final toUpsert = preview.rows
+        .where((r) => !r.isPaid)
+        .map(
+          (r) => {
           'farmer_id': r.farmerId,
           'year': year,
           'total_sales_amount': r.totalSalesAmount,
@@ -213,10 +237,14 @@ class BalikTangkilikRepository {
           'other_crops_amount': r.otherCropsAmount,
           'program_purchases_amount': r.programPurchasesAmount,
           'estimated_purchase_patronage': r.estimatedPurchasePatronage,
-        }).toList();
+          },
+        )
+        .toList();
 
     if (toUpsert.isEmpty) return;
-    await _client.from('member_contributions').upsert(toUpsert, onConflict: 'farmer_id,year');
+    await _client
+        .from('member_contributions')
+        .upsert(toUpsert, onConflict: 'farmer_id,year');
   }
 
   // ─── Final distribution ─────────────────────────────────────────────────
@@ -233,7 +261,9 @@ class BalikTangkilikRepository {
   Future<void> recordDistribution(int year) async {
     final settings = await fetchYearSettings(year);
     if (settings == null || !settings.afsFinalized) {
-      throw StateError('AFS must be finalized before distribution can be recorded.');
+      throw StateError(
+        'AFS must be finalized before distribution can be recorded.',
+      );
     }
 
     final preview = await fetchDistributionPreview(year);
@@ -242,7 +272,9 @@ class BalikTangkilikRepository {
     }
 
     final today = DateTime.now().toIso8601String().split('T').first;
-    final toUpsert = preview.rows.map((r) => {
+    final toUpsert = preview.rows
+        .map(
+          (r) => {
           'farmer_id': r.farmerId,
           'year': year,
           'total_sales_amount': r.totalSalesAmount,
@@ -261,9 +293,33 @@ class BalikTangkilikRepository {
           'program_purchases_amount': r.programPurchasesAmount,
           'estimated_purchase_patronage': r.estimatedPurchasePatronage,
           'actual_purchase_patronage': r.estimatedPurchasePatronage,
-        }).toList();
+          },
+        )
+        .toList();
 
-    await _client.from('member_contributions').upsert(toUpsert, onConflict: 'farmer_id,year');
+    await _client
+        .from('member_contributions')
+        .upsert(toUpsert, onConflict: 'farmer_id,year');
+
+    // Notification delivery is best-effort, unlike the write above — a
+    // farmer not hearing about their payout doesn't undo the fact that
+    // it was recorded, so this doesn't rethrow.
+    try {
+      final notifDrafts = preview.rows
+          .where((r) => r.estimatedTotal > 0)
+          .map(
+            (r) => NotificationDraft(
+              userId: r.farmerId,
+              type: 'capital',
+              title: 'Balik-Tangkilik Payout Recorded',
+              body:
+                  'Your Balik-Tangkilik payout for $year of ₱${r.estimatedTotal.toStringAsFixed(2)} has been recorded.',
+              routeOnTap: '/farmer/profile/contribution',
+            ),
+          )
+          .toList();
+      await NotificationRepository().createNotifications(notifDrafts);
+    } catch (_) {}
   }
 
   // ─── History ─────────────────────────────────────────────────────────────
@@ -284,13 +340,15 @@ class BalikTangkilikRepository {
       for (final row in rows) {
         final year = row['year'] as int;
         final bt = (row['actual_balik_tangkilik'] as num? ?? 0).toDouble();
-        final interest = (row['actual_interest_on_capital'] as num? ?? 0).toDouble();
+        final interest = (row['actual_interest_on_capital'] as num? ?? 0)
+            .toDouble();
         // Option B — was missing from this total: the per-farmer History
         // detail sheet already included it (it reads full rows via
         // fetchDistributionPreview()), but this list-level year total was
         // computed independently and never widened, so it silently
         // undercounted any year with Purchase Patronage activity.
-        final purchasePatronage = (row['actual_purchase_patronage'] as num? ?? 0).toDouble();
+        final purchasePatronage =
+            (row['actual_purchase_patronage'] as num? ?? 0).toDouble();
         totals[year] = (totals[year] ?? 0) + bt + interest + purchasePatronage;
         counts[year] = (counts[year] ?? 0) + 1;
       }
@@ -303,11 +361,55 @@ class BalikTangkilikRepository {
         );
       }
 
-      final list = byYear.values.toList()..sort((a, b) => b.year.compareTo(a.year));
+      final list = byYear.values.toList()
+        ..sort((a, b) => b.year.compareTo(a.year));
       return list;
     } catch (_) {
       return [];
     }
+  }
+
+  // ─── Payout decision confirmation (admin) ───────────────────────────────
+  // A farmer's "Keep as Cash" / "Add to Capital Share" choice is submitted
+  // as a pending request (request_payout_decision(), called from the
+  // farmer's own My Contribution screen) and only takes real effect once
+  // an admin confirms it here — mirrors confirm_program_purchase()/
+  // confirm_cooperative_offer()'s existing request-then-confirm shape.
+  // Write methods throw (real-money-adjacent), matching this repository's
+  // other write methods.
+
+  Future<void> confirmPayoutDecision({
+    required String farmerId,
+    required int year,
+  }) async {
+    await _client.rpc(
+      'confirm_payout_decision',
+      params: {'p_farmer_id': farmerId, 'p_year': year},
+    );
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'payout_confirmed',
+      description: 'Confirmed a $year Balik Tangkilik payout decision.',
+      referenceId: farmerId,
+    );
+  }
+
+  /// Clears a still-pending decision so the farmer can submit a corrected
+  /// one — has no effect on an already-confirmed decision.
+  Future<void> rejectPayoutDecision({
+    required String farmerId,
+    required int year,
+  }) async {
+    await _client.rpc(
+      'reject_payout_decision',
+      params: {'p_farmer_id': farmerId, 'p_year': year},
+    );
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'payout_rejected',
+      description: 'Rejected a $year Balik Tangkilik payout decision.',
+      referenceId: farmerId,
+    );
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────────

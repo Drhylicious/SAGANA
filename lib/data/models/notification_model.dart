@@ -25,52 +25,93 @@ enum NotificationType {
   cropRequest,
   cooperativeOffer,
   program,
+  capital,
 }
 
 extension NotificationTypeExt on NotificationType {
   String get value {
     switch (this) {
-      case NotificationType.order:             return 'order';
-      case NotificationType.listing:            return 'listing';
-      case NotificationType.loan:               return 'loan';
-      case NotificationType.price:              return 'price';
-      case NotificationType.sync:               return 'sync';
-      case NotificationType.system:             return 'system';
-      case NotificationType.listingSubmitted:   return 'listing_submitted';
-      case NotificationType.loanOverdue:        return 'loan_overdue';
-      case NotificationType.memberPending:      return 'member_pending';
-      case NotificationType.memberRegistered:   return 'member_registered';
-      case NotificationType.memberUpdated:      return 'member_updated';
-      case NotificationType.memberApproved:     return 'member_approved';
-      case NotificationType.memberRejected:     return 'member_rejected';
-      case NotificationType.lowStock:           return 'low_stock';
-      case NotificationType.stockDepleted:      return 'stock_depleted';
-      case NotificationType.cropRequest:        return 'crop_request';
-      case NotificationType.cooperativeOffer:   return 'cooperative_offer';
-      case NotificationType.program:            return 'program';
+      case NotificationType.order:
+        return 'order';
+      case NotificationType.listing:
+        return 'listing';
+      case NotificationType.loan:
+        return 'loan';
+      case NotificationType.price:
+        return 'price';
+      case NotificationType.sync:
+        return 'sync';
+      case NotificationType.system:
+        return 'system';
+      case NotificationType.listingSubmitted:
+        return 'listing_submitted';
+      case NotificationType.loanOverdue:
+        return 'loan_overdue';
+      case NotificationType.memberPending:
+        return 'member_pending';
+      case NotificationType.memberRegistered:
+        return 'member_registered';
+      case NotificationType.memberUpdated:
+        return 'member_updated';
+      case NotificationType.memberApproved:
+        return 'member_approved';
+      case NotificationType.memberRejected:
+        return 'member_rejected';
+      case NotificationType.lowStock:
+        return 'low_stock';
+      case NotificationType.stockDepleted:
+        return 'stock_depleted';
+      case NotificationType.cropRequest:
+        return 'crop_request';
+      case NotificationType.cooperativeOffer:
+        return 'cooperative_offer';
+      case NotificationType.program:
+        return 'program';
+      case NotificationType.capital:
+        return 'capital';
     }
   }
 
   static NotificationType fromString(String? value) {
     switch (value) {
-      case 'order':              return NotificationType.order;
-      case 'listing':             return NotificationType.listing;
-      case 'loan':                return NotificationType.loan;
-      case 'price':               return NotificationType.price;
-      case 'sync':                return NotificationType.sync;
-      case 'listing_submitted':   return NotificationType.listingSubmitted;
-      case 'loan_overdue':        return NotificationType.loanOverdue;
-      case 'member_pending':      return NotificationType.memberPending;
-      case 'member_registered':   return NotificationType.memberRegistered;
-      case 'member_updated':      return NotificationType.memberUpdated;
-      case 'member_approved':     return NotificationType.memberApproved;
-      case 'member_rejected':     return NotificationType.memberRejected;
-      case 'low_stock':           return NotificationType.lowStock;
-      case 'stock_depleted':      return NotificationType.stockDepleted;
-      case 'crop_request':        return NotificationType.cropRequest;
-      case 'cooperative_offer':   return NotificationType.cooperativeOffer;
-      case 'program':             return NotificationType.program;
-      default:                    return NotificationType.system;
+      case 'order':
+        return NotificationType.order;
+      case 'listing':
+        return NotificationType.listing;
+      case 'loan':
+        return NotificationType.loan;
+      case 'price':
+        return NotificationType.price;
+      case 'sync':
+        return NotificationType.sync;
+      case 'listing_submitted':
+        return NotificationType.listingSubmitted;
+      case 'loan_overdue':
+        return NotificationType.loanOverdue;
+      case 'member_pending':
+        return NotificationType.memberPending;
+      case 'member_registered':
+        return NotificationType.memberRegistered;
+      case 'member_updated':
+        return NotificationType.memberUpdated;
+      case 'member_approved':
+        return NotificationType.memberApproved;
+      case 'member_rejected':
+        return NotificationType.memberRejected;
+      case 'low_stock':
+        return NotificationType.lowStock;
+      case 'stock_depleted':
+        return NotificationType.stockDepleted;
+      case 'crop_request':
+        return NotificationType.cropRequest;
+      case 'cooperative_offer':
+        return NotificationType.cooperativeOffer;
+      case 'program':
+        return NotificationType.program;
+      case 'capital':
+        return NotificationType.capital;
+      default:
+        return NotificationType.system;
     }
   }
 }
@@ -90,19 +131,30 @@ enum NotificationFilter {
   loans,
   programs,
   prices,
+  capital,
 }
 
 extension NotificationFilterExt on NotificationFilter {
   String get label {
     switch (this) {
-      case NotificationFilter.all:               return 'All';
-      case NotificationFilter.orders:             return 'Orders';
-      case NotificationFilter.listings:           return 'Listings';
-      case NotificationFilter.cropRequests:       return 'Crop Requests';
-      case NotificationFilter.cooperativeOffers:  return 'Cooperative Offers';
-      case NotificationFilter.loans:              return 'Loans';
-      case NotificationFilter.programs:           return 'Programs';
-      case NotificationFilter.prices:             return 'Prices';
+      case NotificationFilter.all:
+        return 'All';
+      case NotificationFilter.orders:
+        return 'Orders';
+      case NotificationFilter.listings:
+        return 'Listings';
+      case NotificationFilter.cropRequests:
+        return 'Crop Requests';
+      case NotificationFilter.cooperativeOffers:
+        return 'Cooperative Offers';
+      case NotificationFilter.loans:
+        return 'Loans';
+      case NotificationFilter.programs:
+        return 'Programs';
+      case NotificationFilter.prices:
+        return 'Prices';
+      case NotificationFilter.capital:
+        return 'Capital';
     }
   }
 
@@ -124,6 +176,8 @@ extension NotificationFilterExt on NotificationFilter {
         return n.type == NotificationType.program;
       case NotificationFilter.prices:
         return n.type == NotificationType.price;
+      case NotificationFilter.capital:
+        return n.type == NotificationType.capital;
     }
   }
 }
@@ -138,6 +192,8 @@ class NotificationModel {
   final String body;
   final bool isRead;
   final DateTime createdAt;
+  final String? routeOnTap;
+  final String? routeExtra;
 
   const NotificationModel({
     required this.id,
@@ -147,6 +203,8 @@ class NotificationModel {
     required this.body,
     required this.isRead,
     required this.createdAt,
+    this.routeOnTap,
+    this.routeExtra,
   });
 
   // ─── Computed helpers ─────────────────────────────────────────────────────
@@ -172,6 +230,8 @@ class NotificationModel {
       body:      map['body'] as String,
       isRead:    map['is_read'] as bool? ?? false,
       createdAt: DateTime.parse(map['created_at'] as String),
+      routeOnTap: map['route_on_tap'] as String?,
+      routeExtra: map['route_extra'] as String?,
     );
   }
 
@@ -184,6 +244,8 @@ class NotificationModel {
       'body':       body,
       'is_read':    isRead,
       'created_at': createdAt.toIso8601String(),
+      'route_on_tap': routeOnTap,
+      'route_extra': routeExtra,
     };
   }
 
@@ -196,6 +258,8 @@ class NotificationModel {
       body:      body,
       isRead:    isRead ?? this.isRead,
       createdAt: createdAt,
+      routeOnTap: routeOnTap,
+      routeExtra: routeExtra,
     );
   }
 }

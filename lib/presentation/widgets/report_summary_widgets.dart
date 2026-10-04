@@ -542,6 +542,8 @@ class ReportIconStatCard extends StatelessWidget {
           const SizedBox(height: AppConstants.spacingSm),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 2),

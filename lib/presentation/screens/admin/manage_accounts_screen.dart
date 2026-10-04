@@ -13,16 +13,14 @@ import '../../widgets/temp_password_dialog.dart';
 class ManageAccountsScreen extends StatefulWidget {
   final String initialTab;
 
-  const ManageAccountsScreen({
-    super.key,
-    this.initialTab = 'farmer',
-  });
+  const ManageAccountsScreen({super.key, this.initialTab = 'farmer'});
 
   @override
   State<ManageAccountsScreen> createState() => _ManageAccountsScreenState();
 }
 
-class _ManageAccountsScreenState extends State<ManageAccountsScreen> with TickerProviderStateMixin {
+class _ManageAccountsScreenState extends State<ManageAccountsScreen>
+    with TickerProviderStateMixin {
   final _repo = AccountManagementRepository();
   List<AccountEntry> _farmers = [];
   List<AccountEntry> _officers = [];
@@ -35,7 +33,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
     super.initState();
     AppTheme.applySystemOverlay(context);
     final initialIndex = widget.initialTab == 'officer' ? 1 : 0;
-    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
     _loadAccounts();
   }
 
@@ -80,7 +82,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).manageAccountsResolveError),
+          content: Text(
+            AppLocalizations.of(context).manageAccountsResolveError,
+          ),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -93,7 +97,6 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
       context: context,
       builder: (_) => ManagementModalShell(
         title: account.name,
-        subtitle: account.username,
         body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,14 +108,23 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
               },
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 4,
+                ),
                 child: Row(
                   children: [
-                    const Icon(Icons.lock_reset_rounded, color: AppConstants.primaryGreen),
+                    const Icon(
+                      Icons.lock_reset_rounded,
+                      color: AppConstants.primaryGreen,
+                    ),
                     const SizedBox(width: 12),
                     Text(
                       l10n.farmerMgmtActionResetPassword,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -137,7 +149,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).farmerMgmtResetPasswordError),
+          content: Text(
+            AppLocalizations.of(context).farmerMgmtResetPasswordError,
+          ),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -161,7 +175,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
         ),
         title: Text(
           l10n.manageAccountsTitle,
-          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.onSurface),
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -170,20 +188,41 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> with Ticker
           tabs: [
             const Tab(text: 'Farmers'),
             const Tab(text: 'Officer'),
-            Tab(text: _requests.isEmpty
+            Tab(
+              text: _requests.isEmpty
                 ? l10n.manageAccountsRequestsTab
-                : l10n.manageAccountsRequestsTabCount(_requests.length)),
+                  : l10n.manageAccountsRequestsTabCount(_requests.length),
+            ),
           ],
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppConstants.primaryGreen,
+              ),
+            )
           : TabBarView(
               controller: _tabController,
               children: [
-                _AccountList(accounts: _farmers, cs: cs, sagana: sagana, onTap: _showAccountActions),
-                _AccountList(accounts: _officers, cs: cs, sagana: sagana, onTap: _showAccountActions),
-                _PasswordRequestsList(requests: _requests, cs: cs, sagana: sagana, onResolve: _resolveRequest),
+                _AccountList(
+                  accounts: _farmers,
+                  cs: cs,
+                  sagana: sagana,
+                  onTap: _showAccountActions,
+                ),
+                _AccountList(
+                  accounts: _officers,
+                  cs: cs,
+                  sagana: sagana,
+                  onTap: _showAccountActions,
+                ),
+                _PasswordRequestsList(
+                  requests: _requests,
+                  cs: cs,
+                  sagana: sagana,
+                  onResolve: _resolveRequest,
+                ),
               ],
             ),
     );
@@ -247,25 +286,37 @@ class _AccountList extends StatelessWidget {
                   children: [
                     Text(
                       account.name,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      account.username,
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                 decoration: BoxDecoration(
-                  color: account.status == 'active' ? AppConstants.successGreen.withValues(alpha: 0.12) : cs.outline.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    color: account.status == 'active'
+                        ? AppConstants.successGreen.withValues(alpha: 0.12)
+                        : cs.outline.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                 ),
                 child: Text(
                   account.role,
-                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: account.status == 'active' ? AppConstants.successGreen : cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: account.status == 'active'
+                          ? AppConstants.successGreen
+                          : cs.onSurfaceVariant,
+                    ),
                 ),
               ),
             ],
@@ -325,11 +376,14 @@ class _PasswordRequestsList extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(request.fullName,
-                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface)),
-                    const SizedBox(height: 2),
-                    Text(request.username,
-                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                    Text(
+                      request.fullName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -341,7 +395,9 @@ class _PasswordRequestsList extends StatelessWidget {
                   minimumSize: const Size(0, 40),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
-                child: Text(AppLocalizations.of(context).manageAccountsResolveAction),
+                child: Text(
+                  AppLocalizations.of(context).manageAccountsResolveAction,
+                ),
               ),
             ],
           ),

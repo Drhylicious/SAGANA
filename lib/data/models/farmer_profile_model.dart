@@ -7,8 +7,6 @@ class FarmerProfileModel {
   final String? contactEmail; // optional real email, entered by the farmer
   final String? phoneNumber;
   final String? profilePhotoUrl;
-  final String? purok;
-  final String? memberId;
 
   // Farm basics
   final String? farmName;
@@ -21,7 +19,13 @@ class FarmerProfileModel {
   final double? farmLongitude;
 
   // Agricultural characteristics
-  final String? farmOwnershipType; // owned | leased | communal
+  // farmOwnershipType now stores the human-readable name directly (e.g.
+  // 'Owned'), sourced from the farm_ownership_types lookup table — see
+  // supabase_schema_farm_ownership_types.sql — not the old lowercase
+  // codes. soilType/waterSource remain the original lowercase codes;
+  // their edit UI was removed (Farm Characteristics → Primary Crops) but
+  // the columns and any existing values are untouched.
+  final String? farmOwnershipType;
   final String? soilType;          // sandy | clay | loam | volcanic | mixed
   final String? waterSource;       // rain_fed | irrigated | well | river | mixed
 
@@ -30,7 +34,8 @@ class FarmerProfileModel {
   final String? gender;        // male | female | prefer_not_to_say
   final DateTime? memberSince;
   final bool isVerified;
-  final String accountStatus; // raw user_roles.status — 'active'|'suspended'|'pending'|'rejected'|'draft'
+  final String
+  accountStatus; // raw user_roles.status — 'active'|'suspended'|'pending'|'rejected'|'draft'
   final DateTime? lastActiveAt; // for the derived Inactive indicator (Issue 5)
   final String? rejectionReason;
   final String? suspensionReason;
@@ -43,8 +48,6 @@ class FarmerProfileModel {
     this.contactEmail,
     this.phoneNumber,
     this.profilePhotoUrl,
-    this.purok,
-    this.memberId,
     this.farmName,
     this.farmAddress,
     this.landAreaHectares,
@@ -83,9 +86,6 @@ class FarmerProfileModel {
     return '${dateOfBirth!.year}-${dateOfBirth!.month.toString().padLeft(2, '0')}-${dateOfBirth!.day.toString().padLeft(2, '0')}';
   }
 
-  String get memberSinceLabel =>
-      memberSince != null ? memberSince!.year.toString() : '—';
-
   /// Human-readable coordinates string (e.g. "13.6302° N, 121.9392° E")
   String get coordinatesLabel {
     if (!hasCoordinates) return 'Not pinned yet';
@@ -117,39 +117,6 @@ class FarmerProfileModel {
   int get completionPercentInt => (completionPercent * 100).round();
   bool get isComplete => filledFieldCount >= _totalFields;
 
-  // ─── Display labels for enums ──────────────────────────────────────────────
-
-  String get ownershipLabel {
-    switch (farmOwnershipType) {
-      case 'owned':    return 'Owned';
-      case 'leased':   return 'Leased';
-      case 'communal': return 'Communal';
-      default:         return 'Not specified';
-    }
-  }
-
-  String get soilLabel {
-    switch (soilType) {
-      case 'sandy':    return 'Sandy';
-      case 'clay':     return 'Clay';
-      case 'loam':     return 'Loam';
-      case 'volcanic': return 'Volcanic';
-      case 'mixed':    return 'Mixed';
-      default:         return 'Not specified';
-    }
-  }
-
-  String get waterLabel {
-    switch (waterSource) {
-      case 'rain_fed':  return 'Rain-fed';
-      case 'irrigated': return 'Irrigated';
-      case 'well':      return 'Well';
-      case 'river':     return 'River';
-      case 'mixed':     return 'Mixed';
-      default:          return 'Not specified';
-    }
-  }
-
   // ─── Serialization ────────────────────────────────────────────────────────────
 
   factory FarmerProfileModel.fromMap(Map<String, dynamic> map) {
@@ -160,8 +127,6 @@ class FarmerProfileModel {
       contactEmail:       map['contact_email'] as String?,
       phoneNumber:        map['phone_number'] as String?,
       profilePhotoUrl:    map['profile_photo_url'] as String?,
-      purok:              map['purok'] as String?,
-      memberId:           map['member_id'] as String?,
       farmName:           map['farm_name'] as String?,
       farmAddress:        map['farm_address'] as String?,
       landAreaHectares:   map['land_area_hectares'] != null
@@ -192,9 +157,8 @@ class FarmerProfileModel {
           : null,
       rejectionReason:    map['rejection_reason'] as String?,
       suspensionReason:   map['suspension_reason'] as String?,
-      primaryCrops:       (map['primary_crops'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
+      primaryCrops:
+          (map['primary_crops'] as List?)?.map((e) => e.toString()).toList() ??
           [],
     );
   }
@@ -206,6 +170,9 @@ class MyProgramEntry {
   final String id;
   final String programId;
   final String programName;
+  final String? programDescription;
+  final String programType;
+  final String? distributionCategory;
   final String benefitType;
   final String programPurpose; // 'distribution' | 'sales'
   final String programStatus;
@@ -220,11 +187,20 @@ class MyProgramEntry {
   final DateTime? settledAt;
   final String? programImageUrl;
   final String? itemImageUrl;
+  // 'pending' | 'thriving' | 'failed' | null (not yet distributed, or
+  // recorded before this field existed). 'failed' is when a distribution
+  // was converted into a farmer_loans entry — see convertedLoanId.
+  final String? distributionOutcome;
+  final DateTime? outcomeRecordedAt;
+  final String? convertedLoanId;
 
   const MyProgramEntry({
     required this.id,
     required this.programId,
     required this.programName,
+    this.programDescription,
+    this.programType = 'other',
+    this.distributionCategory,
     required this.benefitType,
     this.programPurpose = 'distribution',
     required this.programStatus,
@@ -239,12 +215,18 @@ class MyProgramEntry {
     this.settledAt,
     this.programImageUrl,
     this.itemImageUrl,
+    this.distributionOutcome,
+    this.outcomeRecordedAt,
+    this.convertedLoanId,
   });
 
   bool get isRevenueShare => benefitType == 'revenue_share';
   bool get isDistributed => distributedAt != null;
   bool get isSettled => settledAt != null;
   bool get isSalesProgram => programPurpose == 'sales';
+  bool get isOutcomeThriving => distributionOutcome == 'thriving';
+  bool get isOutcomeFailed => distributionOutcome == 'failed';
+  bool get hasConvertedLoan => convertedLoanId != null;
 
   factory MyProgramEntry.fromMap(Map<String, dynamic> m) {
     final program = m['cooperative_programs'] as Map<String, dynamic>? ?? {};
@@ -253,6 +235,9 @@ class MyProgramEntry {
       id: m['id'] as String,
       programId: m['program_id'] as String,
       programName: program['program_name'] as String? ?? 'Program',
+      programDescription: program['description'] as String?,
+      programType: program['program_type'] as String? ?? 'other',
+      distributionCategory: program['distribution_category'] as String?,
       benefitType: program['benefit_type'] as String? ?? 'grant',
       programPurpose: program['program_purpose'] as String? ?? 'distribution',
       programStatus: program['status'] as String? ?? 'active',
@@ -262,17 +247,32 @@ class MyProgramEntry {
       // join goes null if the inventory item was later deleted
       // (inventory_item_id is ON DELETE SET NULL there), so this keeps a
       // farmer's past distribution record meaningful either way.
-      itemName: item?['item_name'] as String? ?? m['distributed_item_name'] as String?,
+      itemName:
+          item?['item_name'] as String? ??
+          m['distributed_item_name'] as String?,
       itemUnit: item?['unit'] as String?,
-      quantityGiven: m['quantity_given'] != null ? (m['quantity_given'] as num).toDouble() : null,
-      distributedAt: m['distributed_at'] != null ? DateTime.parse(m['distributed_at'] as String) : null,
+      quantityGiven: m['quantity_given'] != null
+          ? (m['quantity_given'] as num).toDouble()
+          : null,
+      distributedAt: m['distributed_at'] != null
+          ? DateTime.parse(m['distributed_at'] as String)
+          : null,
       expectedReturnPercent: program['expected_return_percent'] != null
           ? (program['expected_return_percent'] as num).toDouble()
           : null,
-      amountReturned: m['amount_returned'] != null ? (m['amount_returned'] as num).toDouble() : null,
-      settledAt: m['settled_at'] != null ? DateTime.parse(m['settled_at'] as String) : null,
+      amountReturned: m['amount_returned'] != null
+          ? (m['amount_returned'] as num).toDouble()
+          : null,
+      settledAt: m['settled_at'] != null
+          ? DateTime.parse(m['settled_at'] as String)
+          : null,
       programImageUrl: program['image_url'] as String?,
       itemImageUrl: item?['image_url'] as String?,
+      distributionOutcome: m['distribution_outcome'] as String?,
+      outcomeRecordedAt: m['outcome_recorded_at'] != null
+          ? DateTime.parse(m['outcome_recorded_at'] as String)
+          : null,
+      convertedLoanId: m['converted_loan_id'] as String?,
     );
   }
 }

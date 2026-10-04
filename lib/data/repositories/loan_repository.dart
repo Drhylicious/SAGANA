@@ -13,13 +13,19 @@ class LoanRepository {
     try {
       final rows = await _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(*), farmer_loan_payments(*)')
+          // cooperative_programs(program_name) join added so
+          // LoanModel.sourceProgramName/isFromProgramDistribution — already
+          // populated on every Admin-side loan query — is also populated
+          // here, closing the gap where a farmer whose program distribution
+          // was converted to a loan (convert_program_distribution_to_loan())
+          // had no way to see that provenance on their own My Loans screen.
+          .select(
+            '*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)',
+          )
           .eq('farmer_id', _userId)
           .order('issued_date', ascending: false);
 
-      return rows
-          .map((r) => LoanModel.fromMap(r))
-          .toList();
+      return rows.map((r) => LoanModel.fromMap(r)).toList();
     } catch (_) {
       return [];
     }
@@ -63,10 +69,16 @@ class LoanRepository {
           .select('*, farmer_loan_items(item_name)')
           .eq('farmer_id', _userId);
       if (start != null) {
-        query = query.gte('issued_date', start.toIso8601String().split('T').first);
+        query = query.gte(
+          'issued_date',
+          start.toIso8601String().split('T').first,
+        );
       }
       if (end != null) {
-        query = query.lte('issued_date', end.toIso8601String().split('T').first);
+        query = query.lte(
+          'issued_date',
+          end.toIso8601String().split('T').first,
+        );
       }
       final rows = await query.order('issued_date', ascending: false);
       if (rows.isEmpty) return [];
@@ -79,7 +91,6 @@ class LoanRepository {
         return AdminLoanSummary.fromRow(
           row,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           itemNames: items,
         );
       }).toList();

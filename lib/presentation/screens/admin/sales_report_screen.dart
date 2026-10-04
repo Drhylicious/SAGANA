@@ -11,6 +11,7 @@ import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/management_modal.dart';
 import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
 
@@ -90,14 +91,15 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   List<SalesTransactionRow> get _filteredTransactions {
     var list = _sellingTypeFilter == null
         ? _data.transactions
-        : _data.transactions.where((t) => t.sellingType == _sellingTypeFilter).toList();
+        : _data.transactions
+              .where((t) => t.sellingType == _sellingTypeFilter)
+              .toList();
     if (_searchQuery.isEmpty) return list;
     final q = _searchQuery.toLowerCase();
     return list
         .where(
           (t) =>
               t.farmerName.toLowerCase().contains(q) ||
-              t.memberId.toLowerCase().contains(q) ||
               t.cropName.toLowerCase().contains(q) ||
               (t.referenceNo?.toLowerCase().contains(q) ?? false),
         )
@@ -189,10 +191,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 ),
               ),
               IconButton(
-                icon: Icon(
-                  Icons.file_download_outlined,
-                  color: cs.primary,
-                ),
+                icon: Icon(Icons.file_download_outlined, color: cs.primary),
                 onPressed: () => context.push(
                   AppRoutes.exportCenter,
                   extra: ExportCenterArgs(
@@ -219,7 +218,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(
+                reportPeriodLabel(l10n, p),
+                style: GoogleFonts.inter(fontSize: 12),
+              ),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
@@ -366,7 +368,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       children: [
         Text(
           l10n.reportsSalesBySellingType,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: cs.onSurface),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 2),
         Text(
@@ -383,7 +389,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         for (var i = 0; i < _data.channelTotals.length; i += 2)
           Padding(
             padding: EdgeInsets.only(
-              bottom: i + 2 < _data.channelTotals.length ? AppConstants.spacingMd : 0,
+              bottom: i + 2 < _data.channelTotals.length
+                  ? AppConstants.spacingMd
+                  : 0,
             ),
             child: SizedBox(
               height: 172,
@@ -391,7 +399,13 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: _channelCard(_data.channelTotals[i], colors[i % colors.length], cs, sagana, l10n),
+                    child: _channelCard(
+                      _data.channelTotals[i],
+                      colors[i % colors.length],
+                      cs,
+                      sagana,
+                      l10n,
+                    ),
                   ),
                   if (i + 1 < _data.channelTotals.length) ...[
                     const SizedBox(width: AppConstants.spacingMd),
@@ -420,9 +434,14 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     SaganaColors sagana,
     AppLocalizations l10n,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     final active = _sellingTypeFilter == channel.sellingType;
-    final icon = _channelIcons[channel.sellingType] ?? Icons.point_of_sale_rounded;
+    final icon =
+        _channelIcons[channel.sellingType] ?? Icons.point_of_sale_rounded;
     return GestureDetector(
       onTap: () => setState(() {
         _sellingTypeFilter = active ? null : channel.sellingType;
@@ -440,7 +459,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             ],
           ),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: accent.withValues(alpha: active ? 0.6 : 0.2), width: active ? 2 : 1),
+          border: Border.all(
+            color: accent.withValues(alpha: active ? 0.6 : 0.2),
+            width: active ? 2 : 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -453,20 +475,31 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             const Spacer(),
             Text(
               _sellingTypeLabel(l10n, channel.sellingType),
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
             const SizedBox(height: 4),
             Text(
               currency.format(channel.amount),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 20, color: accent),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+                color: accent,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
             Text(
               l10n.reportsTransactionCount(channel.transactionCount),
-              style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -492,7 +525,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.show_chart_rounded, size: 15, color: AppConstants.primaryGreen),
+              const Icon(
+                Icons.show_chart_rounded,
+                size: 15,
+                color: AppConstants.primaryGreen,
+              ),
               const SizedBox(width: 6),
               Text(
                 l10n.reportsRevenueTrend,
@@ -548,7 +585,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       children: [
         Row(
           children: [
-            const Icon(Icons.receipt_long_rounded, size: 16, color: AppConstants.primaryGreen),
+            const Icon(
+              Icons.receipt_long_rounded,
+              size: 16,
+              color: AppConstants.primaryGreen,
+            ),
             const SizedBox(width: 6),
             Text(
               l10n.reportsTransactionDetails,
@@ -563,20 +604,32 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               GestureDetector(
                 onTap: () => setState(() => _sellingTypeFilter = null),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         _sellingTypeLabel(l10n, _sellingTypeFilter!),
-                        style: GoogleFonts.inter(fontSize: 10, color: AppConstants.primaryGreen),
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: AppConstants.primaryGreen,
+                        ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.close_rounded, size: 12, color: AppConstants.primaryGreen),
+                      const Icon(
+                        Icons.close_rounded,
+                        size: 12,
+                        color: AppConstants.primaryGreen,
+                      ),
                     ],
                   ),
                 ),
@@ -606,18 +659,25 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         else if (filtered.isEmpty)
           ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
-          ...filtered.map((t) => _buildTransactionRow(t, currency, cs, sagana, l10n)),
+          ...filtered.map(
+            (t) => _buildTransactionRow(t, currency, cs, sagana, l10n),
+          ),
       ],
     );
   }
 
   static String _sellingTypeLabel(AppLocalizations l10n, String type) {
     switch (type) {
-      case 'offer_to_cooperative': return l10n.sellingTypeOfferToCooperative;
-      case 'marketplace': return l10n.navMarketplace;
-      case 'informal_sale': return l10n.sellingTypeInformalSale;
-      case 'da_amad_market_linking': return l10n.sellingTypeDaAmadMarketLinking;
-      default: return type;
+      case 'offer_to_cooperative':
+        return l10n.sellingTypeOfferToCooperative;
+      case 'marketplace':
+        return l10n.navMarketplace;
+      case 'informal_sale':
+        return l10n.sellingTypeInformalSale;
+      case 'da_amad_market_linking':
+        return l10n.sellingTypeDaAmadMarketLinking;
+      default:
+        return type;
     }
   }
 
@@ -638,7 +698,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     final typeColor = _sellingTypeColors[t.sellingType] ?? cs.outline;
     final typeLabel = _sellingTypeLabel(l10n, t.sellingType);
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _showTransactionDetails(context, t, l10n),
+      child: Container(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
@@ -652,10 +714,15 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                 decoration: BoxDecoration(
                   color: typeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                 ),
                 child: Text(
                   typeLabel,
@@ -669,14 +736,22 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               if (t.marketType != null) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
                   decoration: BoxDecoration(
                     color: cs.outline.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                   ),
                   child: Text(
                     t.marketType!,
-                    style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        color: cs.onSurfaceVariant,
+                      ),
                   ),
                 ),
               ],
@@ -702,13 +777,134 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           Text(
-            '${t.memberId} • ${t.quantityKg.toStringAsFixed(0)} kg • ${DateFormat('MMM d, yyyy').format(t.saleDate)}'
+              '${t.quantityKg.toStringAsFixed(0)} kg • ${DateFormat('MMM d, yyyy').format(t.saleDate)}'
             '${t.referenceNo != null ? ' • ${t.referenceNo}' : ''}',
             style: GoogleFonts.inter(
               fontSize: 10,
               color: cs.onSurfaceVariant,
             ),
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transaction Details — mirrors Farmer Transaction History's own detail
+// sheet exactly (farmer_transaction_history_screen.dart), same
+// ManagementModalShell/_DetailRow pattern, with Farmer/Member ID added
+// since (unlike the farmer's own view of their own transaction) an admin
+// viewing every member's sales needs to know whose transaction this is.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void _showTransactionDetails(
+  BuildContext context,
+  SalesTransactionRow t,
+  AppLocalizations l10n,
+) {
+  showManagementModal<void>(
+    context: context,
+    builder: (_) => _TransactionDetailsSheet(transaction: t, l10n: l10n),
+  );
+}
+
+class _TransactionDetailsSheet extends StatelessWidget {
+  final SalesTransactionRow transaction;
+  final AppLocalizations l10n;
+  const _TransactionDetailsSheet({
+    required this.transaction,
+    required this.l10n,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = transaction;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
+    return ManagementModalShell(
+      title: t.cropName,
+      subtitle: _SalesReportScreenState._sellingTypeLabel(l10n, t.sellingType),
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _TransactionDetailRow(label: 'Farmer', value: t.farmerName),
+          _TransactionDetailRow(
+            label: 'Quantity',
+            value: '${t.quantityKg.toStringAsFixed(0)} kg',
+          ),
+          _TransactionDetailRow(
+            label: 'Amount',
+            value: currency.format(t.amount),
+          ),
+          _TransactionDetailRow(
+            label: 'Date',
+            value: DateFormat('MMM d, yyyy · h:mm a').format(t.saleDate),
+          ),
+          if (t.marketType != null)
+            _TransactionDetailRow(label: 'Market Type', value: t.marketType!),
+          if (t.referenceNo != null && t.referenceNo!.isNotEmpty)
+            _TransactionDetailRow(
+              label: 'Reference No.',
+              value: t.referenceNo!,
+            ),
+          if (t.orderStatus != null)
+            _TransactionDetailRow(label: 'Order Status', value: t.orderStatus!),
+          if (t.buyerName != null && t.buyerName!.isNotEmpty)
+            _TransactionDetailRow(
+              label: 'Sold To',
+              value: t.buyerName!,
+              isLast: true,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isLast;
+  const _TransactionDetailRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
           ),
         ],
       ),

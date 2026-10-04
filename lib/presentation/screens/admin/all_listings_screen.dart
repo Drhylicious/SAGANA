@@ -38,7 +38,9 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
-    _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text),
+    );
     _loadAll();
   }
 
@@ -68,10 +70,12 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
         : _allListings.where((l) => l.status == _statusFilter);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      list = list.where((l) =>
+      list = list.where(
+        (l) =>
           l.cropName.toLowerCase().contains(q) ||
           l.farmerName.toLowerCase().contains(q) ||
-          (l.variety?.toLowerCase().contains(q) ?? false));
+            (l.variety?.toLowerCase().contains(q) ?? false),
+      );
     }
     return list.toList();
   }
@@ -91,9 +95,13 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: isSuccess ? AppConstants.successGreen : AppConstants.charcoal,
+        backgroundColor: isSuccess
+            ? AppConstants.successGreen
+            : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
       ),
     );
   }
@@ -117,7 +125,11 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadAll,
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppConstants.primaryGreen,
+                          ),
+                        )
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
                           children: [
@@ -125,16 +137,30 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                               controller: _searchCtrl,
                               decoration: InputDecoration(
                                 hintText: l10n.marketplaceSearchHint,
-                                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                                prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
+                                hintStyle: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: cs.outline,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.search_rounded,
+                                  color: cs.outline,
+                                  size: 22,
+                                ),
                                 suffixIcon: _searchQuery.isNotEmpty
                                     ? IconButton(
-                                        icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
+                                        icon: Icon(
+                                          Icons.close_rounded,
+                                          color: cs.outline,
+                                          size: 18,
+                                        ),
                                         onPressed: () => _searchCtrl.clear(),
                                       )
                                     : null,
                               ),
-                              style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: cs.onSurface,
+                              ),
                             ),
                             const SizedBox(height: 14),
 
@@ -148,33 +174,48 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                                 scrollDirection: Axis.horizontal,
                                 children: [
                                   ListingStatusFilterChip(
-                                    label: l10n.farmerMgmtAllFilter, active: _statusFilter == null,
-                                    color: cs.primary, onTap: () => _onStatusFilterChanged(null), cs: cs,
+                                    label: l10n.farmerMgmtAllFilter,
+                                    active: _statusFilter == null,
+                                    color: cs.primary,
+                                    onTap: () => _onStatusFilterChanged(null),
+                                    cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: l10n.buyerOrderDetailPendingTimestamp, active: _statusFilter == 'pending_review',
-                                    color: cs.error, onTap: () => _onStatusFilterChanged('pending_review'), cs: cs,
+                                    label:
+                                        l10n.buyerOrderDetailPendingTimestamp,
+                                    active: _statusFilter == 'pending_review',
+                                    color: cs.error,
+                                    onTap: () => _onStatusFilterChanged(
+                                      'pending_review',
+                                  ),
+                                    cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: l10n.marketplaceFilterLive, active: _statusFilter == 'approved',
-                                    color: AppConstants.successGreen, onTap: () => _onStatusFilterChanged('approved'), cs: cs,
+                                    label: l10n.marketplaceFilterLive,
+                                    active: _statusFilter == 'approved',
+                                    color: AppConstants.successGreen,
+                                    onTap: () =>
+                                        _onStatusFilterChanged('approved'),
+                                    cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: l10n.marketplaceFilterChanges, active: _statusFilter == 'changes_required',
-                                    color: AppConstants.warningAmber, onTap: () => _onStatusFilterChanged('changes_required'), cs: cs,
+                                    label: l10n.marketplaceFilterSold,
+                                    active: _statusFilter == 'sold',
+                                    color: cs.onSurfaceVariant,
+                                    onTap: () => _onStatusFilterChanged('sold'),
+                                    cs: cs,
                                   ),
                                   const SizedBox(width: 8),
                                   ListingStatusFilterChip(
-                                    label: l10n.marketplaceFilterSold, active: _statusFilter == 'sold',
-                                    color: cs.onSurfaceVariant, onTap: () => _onStatusFilterChanged('sold'), cs: cs,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ListingStatusFilterChip(
-                                    label: l10n.farmerMgmtStatusRejectedLabel, active: _statusFilter == 'rejected',
-                                    color: cs.error, onTap: () => _onStatusFilterChanged('rejected'), cs: cs,
+                                    label: l10n.farmerMgmtStatusRejectedLabel,
+                                    active: _statusFilter == 'rejected',
+                                    color: cs.error,
+                                    onTap: () =>
+                                        _onStatusFilterChanged('rejected'),
+                                    cs: cs,
                                   ),
                                 ],
                               ),
@@ -183,7 +224,9 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
 
                             if (visible.isEmpty)
                               _EmptyState(
-                                hasSearch: _searchQuery.isNotEmpty || _statusFilter != null,
+                                hasSearch:
+                                    _searchQuery.isNotEmpty ||
+                                    _statusFilter != null,
                                 cs: cs,
                                 sagana: sagana,
                               )
@@ -200,10 +243,16 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                                     // reject/request-changes stays exclusive
                                     // to Pending Review (see M-marketplace-2).
                                     onTap: () => context
-                                        .push(AppRoutes.listingReview,
-                                            extra: {'listingId': listing.id, 'readOnly': true})
+                                        .push(
+                                          AppRoutes.listingReview,
+                                          extra: {
+                                            'listingId': listing.id,
+                                            'readOnly': true,
+                                          },
+                                        )
                                         .then((_) => _loadAll()),
-                                    onQuickApprove: listing.isPending && _isOnline
+                                    onQuickApprove:
+                                        listing.isPending && _isOnline
                                         ? () => _quickApprove(listing)
                                         : null,
                                   ),
@@ -219,7 +268,11 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
             top: 0,
             left: 0,
             right: 0,
-            child: _TopAppBar(onBack: () => context.pop(), sagana: sagana, cs: cs),
+            child: _TopAppBar(
+              onBack: () => context.pop(),
+              sagana: sagana,
+              cs: cs,
+            ),
           ),
         ],
       ),
@@ -235,7 +288,11 @@ class _TopAppBar extends StatelessWidget {
   final VoidCallback onBack;
   final SaganaColors sagana;
   final ColorScheme cs;
-  const _TopAppBar({required this.onBack, required this.sagana, required this.cs});
+  const _TopAppBar({
+    required this.onBack,
+    required this.sagana,
+    required this.cs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -256,8 +313,14 @@ class _TopAppBar extends StatelessWidget {
                 onPressed: onBack,
               ),
               Expanded(
-                child: Text(AppLocalizations.of(context).marketplaceAllListingsTitle,
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
+                child: Text(
+                  AppLocalizations.of(context).marketplaceAllListingsTitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: cs.primary,
+                  ),
+                ),
               ),
             ],
           ),
@@ -266,8 +329,6 @@ class _TopAppBar extends StatelessWidget {
     );
   }
 }
-
-
 
 // ─── All Listing Card ─────────────────────────────────────────────────────────
 class _AllListingCard extends StatelessWidget {
@@ -301,7 +362,12 @@ class _AllListingCard extends StatelessWidget {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -333,7 +399,8 @@ class _AllListingCard extends StatelessWidget {
                     ? Image.network(
                         listing.listingPhotoUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _Thumb(cs: cs, crop: listing.cropName),
+                        errorBuilder: (_, __, ___) =>
+                            _Thumb(cs: cs, crop: listing.cropName),
                       )
                     : _Thumb(cs: cs, crop: listing.cropName),
               ),
@@ -347,34 +414,60 @@ class _AllListingCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          listing.variety != null ? '${listing.cropName} — ${listing.variety}' : listing.cropName,
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface),
+                          listing.variety != null
+                              ? '${listing.cropName} — ${listing.variety}'
+                              : listing.cropName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 6),
-                      _StatusBadge(label: statusLabel, color: statusColor, cs: cs),
+                      _StatusBadge(
+                        label: statusLabel,
+                        color: statusColor,
+                        cs: cs,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text('${listing.farmerName} • ${listing.submittedLabel}',
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    '${listing.farmerName} • ${listing.submittedLabel}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(
                         child: Text.rich(
-                          TextSpan(children: [
                             TextSpan(
-                              text: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
-                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary),
+                            children: [
+                              TextSpan(
+                                text:
+                                    '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.primary,
+                                ),
                             ),
                             TextSpan(
-                              text: '  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
-                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                                text:
+                                    '  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                             ),
-                          ]),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -384,10 +477,22 @@ class _AllListingCard extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.warning_amber_rounded, size: 13, color: cs.error),
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 13,
+                              color: cs.error,
+                            ),
                             const SizedBox(width: 2),
-                            Text(AppLocalizations.of(context).marketplaceStockWarningBadge,
-                                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: cs.error)),
+                            Text(
+                              AppLocalizations.of(
+                                context,
+                              ).marketplaceStockWarningBadge,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: cs.error,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -401,12 +506,19 @@ class _AllListingCard extends StatelessWidget {
               GestureDetector(
                 onTap: onQuickApprove,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: AppConstants.successGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                  child: const Icon(Icons.check_rounded, size: 18, color: AppConstants.successGreen),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 18,
+                    color: AppConstants.successGreen,
+                  ),
                 ),
               )
             else
@@ -419,8 +531,10 @@ class _AllListingCard extends StatelessWidget {
 
   Color _statusColor(String status, ColorScheme cs, BuildContext context) {
     switch (status) {
-      case 'pending_review': return cs.error;
-      default: return ListingStatusDisplay.color(context, status);
+      case 'pending_review':
+        return cs.error;
+      default:
+        return ListingStatusDisplay.color(context, status);
     }
   }
 }
@@ -434,7 +548,13 @@ class _Thumb extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: cs.surfaceContainerHighest,
-      child: Center(child: Icon(Icons.eco_outlined, size: 26, color: cs.outline.withValues(alpha: 0.40))),
+      child: Center(
+        child: Icon(
+          Icons.eco_outlined,
+          size: 26,
+          color: cs.outline.withValues(alpha: 0.40),
+        ),
+      ),
     );
   }
 }
@@ -443,15 +563,29 @@ class _StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
   final ColorScheme cs;
-  const _StatusBadge({required this.label, required this.color, required this.cs});
+  const _StatusBadge({
+    required this.label,
+    required this.color,
+    required this.cs,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-      child: Text(label.toUpperCase(),
-          style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.3, color: color)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -461,7 +595,11 @@ class _EmptyState extends StatelessWidget {
   final bool hasSearch;
   final ColorScheme cs;
   final SaganaColors sagana;
-  const _EmptyState({required this.hasSearch, required this.cs, required this.sagana});
+  const _EmptyState({
+    required this.hasSearch,
+    required this.cs,
+    required this.sagana,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -475,12 +613,22 @@ class _EmptyState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(Icons.inventory_2_outlined, size: 44, color: cs.outline.withValues(alpha: 0.35)),
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 44,
+            color: cs.outline.withValues(alpha: 0.35),
+          ),
           const SizedBox(height: 12),
-          Text(hasSearch
+          Text(
+            hasSearch
                   ? AppLocalizations.of(context).marketplaceNoListingsFiltered
                   : AppLocalizations.of(context).marketplaceNoListingsYet,
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );

@@ -15,7 +15,7 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 
 class HarvestEntryFormScreen extends StatefulWidget {
-  final FarmerCropModel? crop; // optional pre-fill from My Crops' shortcut
+  final FarmerCropModel? crop; // optional pre-fill from Crop Roster's shortcut
   const HarvestEntryFormScreen({super.key, this.crop});
 
   @override
@@ -26,9 +26,6 @@ class HarvestEntryFormScreen extends StatefulWidget {
 class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _quantityController = TextEditingController();
-  final _varietyController = TextEditingController();
-  final _storageController = TextEditingController();
-  final _notesController = TextEditingController();
   final _repo = HarvestEntryRepository();
   final _cropRepo = CropRepository();
 
@@ -37,6 +34,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   FarmerCropModel? _blockedCrop;
   bool _isLoadingCrops = true;
   String? _previewBatchNumber;
+  final String _selectedStorageLocation = AppConstants.harvestStorageLocations.first;
 
   DateTime _harvestDate = DateTime.now();
   bool _isLoading = false;
@@ -113,13 +111,6 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     });
   }
 
-  void _onCropChanged(FarmerCropModel crop) {
-    setState(() {
-      _selectedCrop = crop;
-      _previewBatchNumber = _generateBatchNumber(crop);
-    });
-  }
-
   String _generateBatchNumber(FarmerCropModel crop) {
     final code = crop.cropName.length >= 4
         ? crop.cropName.substring(0, 4).toUpperCase()
@@ -130,17 +121,19 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   @override
   void dispose() {
     _quantityController.dispose();
-    _varietyController.dispose();
-    _storageController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
+    // firstDate deliberately far in the past rather than a recent literal
+    // year (e.g. 2020) — a fixed near-term floor silently cuts off older
+    // historical harvest data as time passes. lastDate stays DateTime.now(),
+    // which is itself re-evaluated on every open, so the upper bound already
+    // advances automatically with no hardcoded year on that side either.
     final picked = await showDatePicker(
       context: context,
       initialDate: _harvestDate,
-      firstDate: DateTime(2020),
+      firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
@@ -191,15 +184,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         quantityKg: qty,
         harvestDate: _harvestDate,
         batchNumber: batchNumber,
-        variety: _varietyController.text.trim().isEmpty
-            ? null
-            : _varietyController.text.trim(),
-        storageLocation: _storageController.text.trim().isEmpty
-            ? null
-            : _storageController.text.trim(),
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        storageLocation: _selectedStorageLocation,
       );
 
       AppEventService.instance.notifyHarvestRecorded();
@@ -314,13 +299,28 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         // be misleading here, since they do have one, it just isn't usable.
         return _PendingCropBlockedState(
           cropName: _blockedCrop!.cropName,
-          onGoToMyCrops: () => context.pushRoute(AppRoutes.cropListing),
+          buttonLabel: 'Go to Crop Roster',
+          onButtonTap: () => context.pushRoute(AppRoutes.cropListing),
         );
       }
       return _NoCropsEmptyState(
         onGoToMyCrops: () => context.pushRoute(AppRoutes.cropListing),
       );
     }
+
+    if (_selectedCrop == null) {
+      // The crop passed in isn't usable (pending/rejected), but other
+      // approved crops exist — the Crop field is locked on this screen
+      // now (no more in-form reselection), so recovery routes through the
+      // dedicated crop picker instead of an inline dropdown.
+      return _PendingCropBlockedState(
+        cropName: _blockedCrop!.cropName,
+        buttonLabel: 'Choose a Different Crop',
+        onButtonTap: () => context.pushRoute(AppRoutes.selectCropForHarvest),
+      );
+    }
+
+    final selectedCrop = _selectedCrop!;
 
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
@@ -350,33 +350,35 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                           _PendingCropBanner(cropName: _blockedCrop!.cropName),
                           const SizedBox(height: 16),
                         ],
-                        // Crop selector — now the first field, not a fixed header
-                        _CropSelectorField(
-                          crops: _myCrops,
-                          selected: _selectedCrop,
-                          onChanged: _onCropChanged,
-                        ),
+                        // Crop — locked. The crop is already chosen by the
+                        // time a farmer reaches this screen (select_crop_
+                        // screen.dart or a "Record Harvest" shortcut always
+                        // supplies one); re-selection here would be
+                        // redundant, so this is a read-only display, not a
+                        // dropdown.
+                        const _FieldLabel('Crop'),
+                        const SizedBox(height: 8),
+                        _LockedField(value: selectedCrop.cropName),
                         const SizedBox(height: 20),
 
                         // ── Quantity ──────────────────────────────────────
                         _QuantityField(controller: _quantityController),
                         const SizedBox(height: 20),
 
-                        // ── Variety ───────────────────────────────────────
-                        const _FieldLabel('Variety (Optional)'),
+                        // ── Market Type ───────────────────────────────────
+                        // Replaces the old Variety field. Locked — this is
+                        // the crop's registered market type, carried
+                        // through from Request New Crop / Crop Roster, not
+                        // something set per-harvest.
+                        const _FieldLabel('Market Type'),
                         const SizedBox(height: 8),
-                        _SimpleTextField(
-                          controller: _varietyController,
-                          hint: 'e.g. IR64, Sinandomeng',
-                          icon: Icons.spa_outlined,
-                        ),
+                        _LockedField(value: selectedCrop.marketTypeLabel),
                         const SizedBox(height: 16),
 
                         // ── Batch Number ──────────────────────────────────
                         const _FieldLabel('Batch Number'),
                         const SizedBox(height: 8),
-                        _BatchNumberField(
-                            batchNumber: _previewBatchNumber ?? '—'),
+                        _LockedField(value: _previewBatchNumber ?? '—'),
                         const SizedBox(height: 16),
 
                         // ── Harvest Date ──────────────────────────────────
@@ -386,19 +388,14 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 16),
 
                         // ── Storage Location ──────────────────────────────
+                        // Locked, same as Batch Number above — SP3 has one
+                        // physical storage location today (see
+                        // AppConstants.harvestStorageLocations); the farmer
+                        // never chooses it. Was previously an interactive
+                        // dropdown despite having only one option.
                         const _FieldLabel('Storage Location'),
                         const SizedBox(height: 8),
-                        _SimpleTextField(
-                          controller: _storageController,
-                          hint: 'e.g. Bodega 1, Home Storage',
-                          icon: Icons.location_on_outlined,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ── Notes ─────────────────────────────────────────
-                        const _FieldLabel('Notes'),
-                        const SizedBox(height: 8),
-                        _NotesField(controller: _notesController),
+                        _LockedField(value: _selectedStorageLocation),
                         const SizedBox(height: 16),
 
                         // ── Error ─────────────────────────────────────────
@@ -423,12 +420,14 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
           Positioned(
             top: 0, left: 0, right: 0,
             child: FarmerTopBar(
-              title: _selectedCrop?.cropName ?? 'Record Harvest',
+              title: selectedCrop.cropName,
               onBack: () => Navigator.of(context).pop(),
               profilePhotoUrl: null,
               onProfileTap: () {},
               onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications),
               onSettingsTap: null,
+              hideProfileAvatar: true,
+              showNotificationButton: false,
               // trailing badge removed; use the standardized OfflineBanner above
             ),
           ),
@@ -442,93 +441,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
 // _OnlineBadge and _PulsingDot removed — standardized OfflineBanner is used instead
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Crop Selector Field
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CropSelectorField extends StatelessWidget {
-  final List<FarmerCropModel> crops;
-  final FarmerCropModel? selected;
-  final ValueChanged<FarmerCropModel> onChanged;
-
-  const _CropSelectorField({
-    required this.crops,
-    required this.selected,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text('Crop',
-              style: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w500,
-                  color: AppConstants.charcoal)),
-        ),
-        DropdownButtonFormField<FarmerCropModel>(
-          initialValue: selected,
-          isExpanded: true,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.white,
-            prefixIcon: const Icon(Icons.eco_outlined,
-                size: 20, color: AppConstants.outline),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              borderSide: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.20)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              borderSide: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.20)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              borderSide: const BorderSide(
-                  color: AppConstants.primaryContainer, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
-          ),
-          hint: Text('Select a crop',
-              style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AppConstants.outline.withValues(alpha: 0.60))),
-          items: crops.map((crop) => DropdownMenuItem(
-            value: crop,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(crop.cropName, style: GoogleFonts.inter(fontSize: 14)),
-                if (crop.isPendingApproval) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppConstants.warningAmber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                    ),
-                    child: Text('Pending',
-                        style: GoogleFonts.inter(
-                            fontSize: 10, color: AppConstants.warningAmber)),
-                  ),
-                ],
-              ],
-            ),
-          )).toList(),
-          validator: (v) => v == null ? 'Please select a crop' : null,
-          onChanged: (crop) { if (crop != null) onChanged(crop); },
-        ),
-      ],
-    );
-  }
-}
+// _CropSelectorField removed — the Crop field is locked (read-only) now
+// that every navigation path into this screen always supplies a crop;
+// see _LockedField below.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // No Crops Empty State
@@ -644,7 +559,7 @@ class _NoCropsEmptyState extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
                 ),
-                child: Text('Go to My Crops',
+                child: Text('Go to Crop Roster',
                     style: GoogleFonts.poppins(
                         fontSize: 14, fontWeight: FontWeight.w500)),
               ),
@@ -663,10 +578,12 @@ class _NoCropsEmptyState extends StatelessWidget {
 
 class _PendingCropBlockedState extends StatelessWidget {
   final String cropName;
-  final VoidCallback onGoToMyCrops;
+  final String buttonLabel;
+  final VoidCallback onButtonTap;
   const _PendingCropBlockedState({
     required this.cropName,
-    required this.onGoToMyCrops,
+    required this.buttonLabel,
+    required this.onButtonTap,
   });
 
   @override
@@ -703,7 +620,7 @@ class _PendingCropBlockedState extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: onGoToMyCrops,
+                onPressed: onButtonTap,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppConstants.primaryGreen,
                   foregroundColor: Colors.white,
@@ -712,7 +629,7 @@ class _PendingCropBlockedState extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
                 ),
-                child: Text('Go to My Crops',
+                child: Text(buttonLabel,
                     style: GoogleFonts.poppins(
                         fontSize: 14, fontWeight: FontWeight.w500)),
               ),
@@ -787,17 +704,17 @@ class _QuantityField extends StatelessWidget {
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
               ],
               style: GoogleFonts.poppins(
-                  fontSize: 36, fontWeight: FontWeight.w700,
+                  fontSize: 24, fontWeight: FontWeight.w700,
                   color: AppConstants.primaryGreen),
               decoration: InputDecoration(
                 hintText: '0.00',
                 hintStyle: GoogleFonts.poppins(
-                    fontSize: 36, fontWeight: FontWeight.w700,
+                    fontSize: 24, fontWeight: FontWeight.w700,
                     color: AppConstants.outline.withValues(alpha: 0.30)),
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(
-                    vertical: 20, horizontal: 48),
+                    vertical: 16, horizontal: 48),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                   borderSide: BorderSide(
@@ -841,12 +758,14 @@ class _QuantityField extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Batch Number Field
+// Locked Field — read-only display styled to look and behave locked
+// (light-blue fill + lock icon). Used for Crop, Market Type, and Batch
+// Number: all three are decided before/outside this form, not edited here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BatchNumberField extends StatelessWidget {
-  final String batchNumber;
-  const _BatchNumberField({required this.batchNumber});
+class _LockedField extends StatelessWidget {
+  final String value;
+  const _LockedField({required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -854,7 +773,7 @@ class _BatchNumberField extends StatelessWidget {
       alignment: Alignment.centerRight,
       children: [
         TextFormField(
-          initialValue: batchNumber,
+          initialValue: value,
           readOnly: true,
           style: GoogleFonts.inter(
               fontSize: 13, color: AppConstants.onSurface,
@@ -924,98 +843,6 @@ class _DateField extends StatelessWidget {
                 size: 18, color: AppConstants.primaryGreen),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Simple Text Field
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SimpleTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-
-  const _SimpleTextField({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.inter(
-            fontSize: 14,
-            color: AppConstants.outline.withValues(alpha: 0.50)),
-        suffixIcon: Icon(icon, size: 20, color: AppConstants.primaryGreen),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(
-              color: AppConstants.outline.withValues(alpha: 0.20)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(
-              color: AppConstants.outline.withValues(alpha: 0.20)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(
-              color: AppConstants.primaryContainer, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Notes Field
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _NotesField extends StatelessWidget {
-  final TextEditingController controller;
-  const _NotesField({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      maxLines: 3,
-      style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-      decoration: InputDecoration(
-        hintText: 'Describe crop conditions, humidity, weather, etc.',
-        hintStyle: GoogleFonts.inter(
-            fontSize: 14,
-            color: AppConstants.outline.withValues(alpha: 0.50)),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(
-              color: AppConstants.outline.withValues(alpha: 0.20)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: BorderSide(
-              color: AppConstants.outline.withValues(alpha: 0.20)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(
-              color: AppConstants.primaryContainer, width: 2),
-        ),
-        contentPadding: const EdgeInsets.all(16),
       ),
     );
   }

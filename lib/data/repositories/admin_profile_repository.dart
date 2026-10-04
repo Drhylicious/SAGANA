@@ -16,36 +16,34 @@ class AdminProfileRepository {
     try {
       final infoRow = await _client
           .from('user_information')
-          .select('full_name, phone_number, profile_photo_url, purok, contact_email')
+          .select('full_name, phone_number, profile_photo_url, contact_email')
           .eq('user_id', _userId)
           .maybeSingle();
       if (infoRow == null) return null;
 
       final adminRow = await _client
           .from('admin_profiles')
-          .select('employee_id, position, department, created_at, date_of_birth, gender')
+          .select('position, department, created_at, date_of_birth, gender')
           .eq('user_id', _userId)
           .maybeSingle();
 
-      // Cosmetic fix (verification pass): an Officer's admin_profiles row
-      // (Phase D-2 — grants operational RPC/RLS access) has no
-      // employee_id — their real EMP-### lives on officer_profiles. Fall
-      // back to it so an Officer viewing this shared profile screen sees
-      // their actual Employee ID / position instead of blanks. No-op for
-      // a real Admin (no officer_profiles row). Same fallback applies to
-      // date_of_birth/gender (Admin Profile & Settings Phase 2) — an
-      // Officer's real values live on officer_profiles too, since
-      // create_officer_account only ever writes them there.
+      // An Officer's admin_profiles row (Phase D-2 — grants operational
+      // RPC/RLS access) has no position/date_of_birth/gender of its own —
+      // those live on officer_profiles. Fall back to it so an Officer
+      // viewing this shared profile screen sees their actual values
+      // instead of blanks. No-op for a real Admin (no officer_profiles
+      // row).
       Map<String, dynamic>? officerRow;
       try {
         officerRow = await _client
             .from('officer_profiles')
-            .select('employee_id, position, date_of_birth, gender')
+            .select('position, date_of_birth, gender')
             .eq('user_id', _userId)
             .maybeSingle();
       } catch (_) {}
 
-      final dobRaw = (adminRow?['date_of_birth'] as String?) ??
+      final dobRaw =
+          (adminRow?['date_of_birth'] as String?) ??
           (officerRow?['date_of_birth'] as String?);
 
       return AdminProfileModel(
@@ -54,18 +52,17 @@ class AdminProfileRepository {
         fullName: infoRow['full_name'] as String? ?? 'Admin',
         phoneNumber: infoRow['phone_number'] as String?,
         profilePhotoUrl: infoRow['profile_photo_url'] as String?,
-        purok: infoRow['purok'] as String?,
         contactEmail: infoRow['contact_email'] as String?,
-        employeeId: (adminRow?['employee_id'] as String?) ??
-            (officerRow?['employee_id'] as String?),
-        position: (adminRow?['position'] as String?) ??
+        position:
+            (adminRow?['position'] as String?) ??
             (officerRow?['position'] as String?),
         department: adminRow?['department'] as String?,
         adminSince: adminRow?['created_at'] != null
             ? DateTime.tryParse(adminRow!['created_at'] as String)
             : null,
         dateOfBirth: dobRaw != null ? DateTime.tryParse(dobRaw) : null,
-        gender: (adminRow?['gender'] as String?) ??
+        gender:
+            (adminRow?['gender'] as String?) ??
             (officerRow?['gender'] as String?),
       );
     } catch (_) {
@@ -78,8 +75,10 @@ class AdminProfileRepository {
   /// "authenticated users read" SELECT policy.
   Future<int> fetchPricesUpdatedCount() async {
     try {
-      final rows =
-          await _client.from('price_records').select('id').eq('recorded_by', _userId);
+      final rows = await _client
+          .from('price_records')
+          .select('id')
+          .eq('recorded_by', _userId);
       return rows.length;
     } catch (_) {
       return 0;
@@ -91,8 +90,10 @@ class AdminProfileRepository {
   /// "Admin full access to broadcast_logs" policy.
   Future<int> fetchBroadcastsSentCount() async {
     try {
-      final rows =
-          await _client.from('broadcast_logs').select('id').eq('created_by', _userId);
+      final rows = await _client
+          .from('broadcast_logs')
+          .select('id')
+          .eq('created_by', _userId);
       return rows.length;
     } catch (_) {
       return 0;
@@ -182,22 +183,23 @@ class AdminProfileRepository {
   /// Updates the shared user_information fields, plus date_of_birth/gender
   /// on whichever table actually owns them for this session — admin_profiles
   /// for a true Admin, officer_profiles for an Officer (same split as the
-  /// employee_id/position fallback in fetchProfile: an Officer's real
-  /// identity fields live on officer_profiles, not the admin_profiles
-  /// operational-access grant row). No-op for date_of_birth/gender when
-  /// both are left null, so existing callers are unaffected.
+  /// position fallback in fetchProfile: an Officer's real identity fields
+  /// live on officer_profiles, not the admin_profiles operational-access
+  /// grant row). No-op for date_of_birth/gender when both are left null,
+  /// so existing callers are unaffected.
   Future<void> updateBasicInfo({
     required String fullName,
     String? phoneNumber,
-    String? purok,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
-    await _client.from('user_information').update({
+    await _client
+        .from('user_information')
+        .update({
       'full_name': fullName.trim(),
       'phone_number': phoneNumber?.trim(),
-      'purok': purok,
-    }).eq('user_id', _userId);
+        })
+        .eq('user_id', _userId);
 
     AdminActivityRepository().log(
       module: 'profile',
@@ -212,10 +214,13 @@ class AdminProfileRepository {
         : '${dateOfBirth.year.toString().padLeft(4, '0')}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}';
 
     final table = HiveService.isOfficer ? 'officer_profiles' : 'admin_profiles';
-    await _client.from(table).update({
+    await _client
+        .from(table)
+        .update({
       if (dateOfBirth != null) 'date_of_birth': dobValue,
       if (gender != null) 'gender': gender,
-    }).eq('user_id', _userId);
+        })
+        .eq('user_id', _userId);
   }
 
   Future<String?> updatePhoto({
@@ -233,7 +238,13 @@ class AdminProfileRepository {
     try {
       await _client
           .from('user_information')
-          .update({'profile_photo_url': url}).eq('user_id', _userId);
+          .update({'profile_photo_url': url})
+          .eq('user_id', _userId);
+      AdminActivityRepository().log(
+        module: 'profile',
+        actionType: 'photo_updated',
+        description: 'Updated their profile picture.',
+      );
       return url;
     } catch (_) {
       return null;
@@ -243,6 +254,12 @@ class AdminProfileRepository {
   Future<void> removePhoto() async {
     await _client
         .from('user_information')
-        .update({'profile_photo_url': null}).eq('user_id', _userId);
+        .update({'profile_photo_url': null})
+        .eq('user_id', _userId);
+    AdminActivityRepository().log(
+      module: 'profile',
+      actionType: 'photo_removed',
+      description: 'Removed their profile picture.',
+    );
   }
 }

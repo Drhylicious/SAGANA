@@ -178,35 +178,46 @@ class _OutstandingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // KPI card design mirrored from Admin Marketplace tab's _KpiStrip/
+    // _KpiTile (marketplace_dashboard_screen.dart) — tinted background +
+    // border, icon in a tinted badge, label, big value — applied full-width
+    // here since this is the screen's one hero stat rather than a strip.
     final color = allPaid ? AppConstants.successGreen : AppConstants.errorRed;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: context.saganaColors.cardBackground,
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border(left: BorderSide(color: color, width: 4)),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.05),
-            blurRadius: 16,
-          ),
-        ],
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'TOTAL OUTSTANDING BALANCE',
-            style: GoogleFonts.poppins(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
-              letterSpacing: 0.6,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                ),
+                child: Icon(Icons.account_balance_wallet_rounded, size: 18, color: color),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'TOTAL OUTSTANDING BALANCE',
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: AppConstants.onSurfaceVariant,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           if (isLoading)
             Container(width: 180, height: 32, color: const Color(0xFFE8E8E8))
           else if (allPaid)
@@ -266,6 +277,23 @@ class _OutstandingCard extends StatelessWidget {
 class _BodScheduleCard extends StatelessWidget {
   final DateTime bodDate;
   const _BodScheduleCard({required this.bodDate});
+
+  // Calendar-day difference to bodDate, ignoring time-of-day on both sides
+  // — matches the same normalization Farmer Home's priority card uses, so
+  // the two screens can never disagree on what day a given date "is."
+  int get _daysUntil {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(bodDate.year, bodDate.month, bodDate.day);
+    return target.difference(today).inDays;
+  }
+
+  String get _badgeLabel {
+    final days = _daysUntil;
+    if (days <= 0) return 'DUE TODAY';
+    if (days == 1) return 'IN 1 DAY';
+    return 'IN $days DAYS';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +360,7 @@ class _BodScheduleCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'UPCOMING',
+                      _badgeLabel,
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -569,6 +597,40 @@ class _LoanCardState extends State<_LoanCard> {
                     ),
                   ],
                 ),
+                if (loan.isFromProgramDistribution) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppConstants.programPurple.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.volunteer_activism_rounded,
+                          size: 12,
+                          color: AppConstants.programPurple,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'From Program Distribution: ${loan.sourceProgramName}',
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.programPurple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
 
                 // ── Itemized inputs ────────────────────────────────────────

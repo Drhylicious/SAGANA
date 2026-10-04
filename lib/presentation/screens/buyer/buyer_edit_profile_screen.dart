@@ -33,7 +33,6 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
   String? _photoUrl;
-  String? _selectedPurok;
   DateTime? _dateOfBirth;
   String? _gender; // male | female | prefer_not_to_say
 
@@ -59,7 +58,6 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
       _emailController.text = profile?.contactEmail ?? '';
-      _selectedPurok = profile?.purok;
       _dateOfBirth = profile?.dateOfBirth;
       _gender = profile?.gender;
       _isLoading = false;
@@ -91,7 +89,10 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
     if (url == null && mounted) {
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.photoUploadFailed), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(l10n.photoUploadFailed),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
     }
   }
@@ -100,13 +101,20 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
     final l10n = AppLocalizations.of(context);
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.fullNameEmpty), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(l10n.fullNameEmpty),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
       return;
     }
     if (_dateOfBirth != null) {
       final now = DateTime.now();
-      final eighteenth = DateTime(_dateOfBirth!.year + 18, _dateOfBirth!.month, _dateOfBirth!.day);
+      final eighteenth = DateTime(
+        _dateOfBirth!.year + 18,
+        _dateOfBirth!.month,
+        _dateOfBirth!.day,
+      );
       if (eighteenth.isAfter(now)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -125,13 +133,15 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
         phoneNumber: _phoneController.text,
         photoUrl: _photoUrl,
         contactEmail: _emailController.text.trim(),
-        purok: _selectedPurok,
         dateOfBirth: _dateOfBirth,
         gender: _gender,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.profileUpdated), backgroundColor: AppConstants.successGreen),
+        SnackBar(
+          content: Text(l10n.profileUpdated),
+          backgroundColor: AppConstants.successGreen,
+        ),
       );
       context.pop();
     } catch (e) {
@@ -156,46 +166,84 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
       appBar: AppBar(
         backgroundColor: sagana.scaffoldBackground,
         elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.editProfile,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+        leading: BackButton(
+          onPressed: () => context.pop(),
+          color: AppConstants.primaryGreen,
+        ),
+        title: Text(
+          l10n.editProfile,
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.primaryGreen,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _save,
-            child: Text(l10n.save,
-                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+            child: Text(
+              l10n.save,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 40),
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingSafeH,
+                16,
+                AppConstants.spacingSafeH,
+                40,
+              ),
               children: [
                 Center(
                   child: Stack(
                     children: [
                       ProfileAvatar(
                         photoUrl: _photoUrl,
-                        displayName: _nameController.text.isNotEmpty ? _nameController.text : l10n.buyerDefaultName,
+                        displayName: _nameController.text.isNotEmpty
+                            ? _nameController.text
+                            : l10n.buyerDefaultName,
                         radius: 56,
                       ),
                       if (_isUploadingPhoto)
                         Positioned.fill(
                           child: Container(
-                            decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
-                            child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                            decoration: const BoxDecoration(
+                              color: Colors.black38,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            ),
                           ),
                         )
                       else
                         Positioned(
-                          bottom: 0, right: 0,
+                          bottom: 0,
+                          right: 0,
                           child: GestureDetector(
                             onTap: _pickPhoto,
                             child: Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(color: AppConstants.primaryGreen, shape: BoxShape.circle),
-                              child: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                              decoration: const BoxDecoration(
+                                color: AppConstants.primaryGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.edit_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -206,8 +254,14 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                 Center(
                   child: TextButton(
                     onPressed: _isUploadingPhoto ? null : _pickPhoto,
-                    child: Text(l10n.changePhoto,
-                        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+                    child: Text(
+                      l10n.changePhoto,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -233,15 +287,6 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                   hint: '09XXXXXXXXX',
                   prefixIcon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                AppDropdownField<String>(
-                  value: AppConstants.payanasPuroks.contains(_selectedPurok) ? _selectedPurok : null,
-                  hintText: l10n.addMemberSelectHint,
-                  labelText: l10n.adminProfilePurok,
-                  items: AppConstants.payanasPuroks,
-                  itemLabel: (s) => s,
-                  onChanged: (v) => setState(() => _selectedPurok = v),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -291,35 +336,73 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                   elevation: 0,
                   child: Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusLg,
+                      ),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
                       ],
                     ),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                      onTap: () => AppDialog.show<void>(context: context, child: const ChangePasswordDialog()),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusLg,
+                      ),
+                      onTap: () => AppDialog.show<void>(
+                        context: context,
+                        child: ChangePasswordDialog(
+                          onSuccess: _repository.logPasswordChanged,
+                        ),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
                         child: Row(
                           children: [
                             Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(color: AppConstants.primaryGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
-                              child: const Icon(Icons.lock_reset_rounded, color: AppConstants.primaryGreen),
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: AppConstants.primaryGreen.withValues(
+                                  alpha: 0.1,
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.lock_reset_rounded,
+                                color: AppConstants.primaryGreen,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(l10n.changePassword, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
-                                  Text(l10n.updatePasswordSubtitle,
-                                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                                  Text(
+                                    l10n.changePassword,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    l10n.updatePasswordSubtitle,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: AppConstants.onSurfaceVariant,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                            Icon(Icons.chevron_right_rounded, color: AppConstants.outline.withValues(alpha: 0.5)),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppConstants.outline.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -361,10 +444,12 @@ class _BuyerLabeledDateField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: onTap,
@@ -385,7 +470,9 @@ class _BuyerLabeledDateField extends StatelessWidget {
                     maxLines: 1,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: hasValue ? cs.onSurface : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                      color: hasValue
+                          ? cs.onSurface
+                          : cs.onSurfaceVariant.withValues(alpha: 0.7),
                     ),
                   ),
                 ),

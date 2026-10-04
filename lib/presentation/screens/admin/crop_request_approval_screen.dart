@@ -19,6 +19,7 @@ class CropRequestItem {
   final String cropType;
   final String status;
   final String? adminNotes;
+  final String? photoUrl;
   final DateTime createdAt;
   final DateTime? reviewedAt;
 
@@ -31,6 +32,7 @@ class CropRequestItem {
     required this.cropType,
     required this.status,
     this.adminNotes,
+    this.photoUrl,
     required this.createdAt,
     this.reviewedAt,
   });
@@ -46,14 +48,17 @@ class _CropRequestRepository {
       final rows = await _client
           .from('crop_requests')
           .select(
-              'id, farmer_id, requested_name, category, crop_type, status, admin_notes, created_at, reviewed_at')
+            'id, farmer_id, requested_name, category, crop_type, status, admin_notes, photo_url, created_at, reviewed_at',
+          )
           .eq('status', status)
           .order('created_at', ascending: status == 'pending');
 
       if (rows.isEmpty) return [];
 
-      final farmerIds =
-          rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
 
       final infoRows = await _client
           .from('user_information')
@@ -76,6 +81,7 @@ class _CropRequestRepository {
           cropType: r['crop_type'] as String? ?? 'open_market',
           status: r['status'] as String,
           adminNotes: r['admin_notes'] as String?,
+          photoUrl: r['photo_url'] as String?,
           createdAt: DateTime.parse(r['created_at'] as String),
           reviewedAt: r['reviewed_at'] != null
               ? DateTime.tryParse(r['reviewed_at'] as String)
@@ -87,13 +93,20 @@ class _CropRequestRepository {
     }
   }
 
-  Future<bool> approve(String requestId, {String? notes, required String cropType}) async {
+  Future<bool> approve(
+    String requestId, {
+    String? notes,
+    required String cropType,
+  }) async {
     try {
-      await _client.rpc('approve_crop_request', params: {
+      await _client.rpc(
+        'approve_crop_request',
+        params: {
         'p_request_id': requestId,
         if (notes != null && notes.isNotEmpty) 'p_admin_notes': notes,
         'p_crop_type': cropType,
-      });
+        },
+      );
       return true;
     } catch (_) {
       return false;
@@ -102,10 +115,10 @@ class _CropRequestRepository {
 
   Future<bool> reject(String requestId, String notes) async {
     try {
-      await _client.rpc('reject_crop_request', params: {
-        'p_request_id': requestId,
-        'p_admin_notes': notes,
-      });
+      await _client.rpc(
+        'reject_crop_request',
+        params: {'p_request_id': requestId, 'p_admin_notes': notes},
+      );
       return true;
     } catch (_) {
       return false;
@@ -158,8 +171,11 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
     setState(() {
       _pending = results[0];
       _reviewed = [...results[1], ...rejected]
-        ..sort((a, b) =>
-            (b.reviewedAt ?? b.createdAt).compareTo(a.reviewedAt ?? a.createdAt));
+        ..sort(
+          (a, b) => (b.reviewedAt ?? b.createdAt).compareTo(
+            a.reviewedAt ?? a.createdAt,
+          ),
+        );
       _isLoading = false;
     });
   }
@@ -173,23 +189,28 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
     showManagementModal(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           Future<void> respond(bool approve) async {
             if (!approve && notesCtrl.text.trim().isEmpty) {
-              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
                 content: Text(l10n.cropRequestProvideReason),
                 backgroundColor: AppConstants.errorRed,
                 behavior: SnackBarBehavior.floating,
-              ));
+                  ),
+                );
               return;
             }
             setSheet(() => isSaving = true);
             final ok = approve
-                ? await _repo.approve(item.id,
+                  ? await _repo.approve(
+                      item.id,
                     notes: notesCtrl.text.trim().isEmpty
                         ? null
                         : notesCtrl.text.trim(),
-                    cropType: selectedCropType)
+                      cropType: selectedCropType,
+                    )
                 : await _repo.reject(item.id, notesCtrl.text.trim());
             if (ok) {
               AdminActivityRepository().log(
@@ -204,16 +225,21 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (ok) _load();
-            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
-              content: Text(ok
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok
                   ? (approve
                       ? l10n.cropRequestApprovedToast
                       : l10n.cropRequestDeclinedToast)
-                  : l10n.cropRequestFailedTryAgain),
-              backgroundColor:
-                  ok ? AppConstants.successGreen : AppConstants.errorRed,
+                        : l10n.cropRequestFailedTryAgain,
+                  ),
+                  backgroundColor: ok
+                      ? AppConstants.successGreen
+                      : AppConstants.errorRed,
               behavior: SnackBarBehavior.floating,
-            ));
+                ),
+              );
           }
 
           return ManagementModalShell(
@@ -234,8 +260,25 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                 Text(
                   l10n.cropRequestApprovingNote,
                   style: GoogleFonts.inter(
-                      fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (item.photoUrl != null && item.photoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
+                      child: Image.network(
+                        item.photoUrl!,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                 ),
+                  ],
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: selectedCropType,
@@ -244,8 +287,14 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                     helperText: l10n.cropRequestCropTypeHelper,
                   ),
                   items: [
-                    DropdownMenuItem(value: 'sp3_cooperative', child: Text(l10n.cropRequestCooperativeMarket)),
-                    DropdownMenuItem(value: 'open_market', child: Text(l10n.cropRequestPublicMarket)),
+                      DropdownMenuItem(
+                        value: 'sp3_cooperative',
+                        child: Text(l10n.cropRequestCooperativeMarket),
+                      ),
+                      DropdownMenuItem(
+                        value: 'open_market',
+                        child: Text(l10n.cropRequestPublicMarket),
+                      ),
                   ],
                   onChanged: (v) => setSheet(() => selectedCropType = v!),
                 ),
@@ -282,7 +331,9 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                           )
                         : Text(l10n.farmerMgmtApproveAction),
                   ),
@@ -290,7 +341,8 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
               ],
             ),
           );
-        });
+          },
+        );
       },
     );
   }
@@ -315,11 +367,14 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                     onPressed: () => context.pop(),
                   ),
                   Expanded(
-                    child: Text(l10n.cropRequestTitle,
+                    child: Text(
+                      l10n.cropRequestTitle,
                         style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w700,
                             fontSize: 18,
-                            color: cs.onSurface)),
+                        color: cs.onSurface,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -338,7 +393,9 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
               child: _isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
-                          color: AppConstants.primaryGreen))
+                        color: AppConstants.primaryGreen,
+                      ),
+                    )
                   : TabBarView(
                       controller: _tabController,
                       children: [
@@ -353,8 +410,12 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
     );
   }
 
-  Widget _buildList(List<CropRequestItem> items, ColorScheme cs, SaganaColors sagana,
-      {required bool isPending}) {
+  Widget _buildList(
+    List<CropRequestItem> items,
+    ColorScheme cs,
+    SaganaColors sagana, {
+    required bool isPending,
+  }) {
     final l10n = AppLocalizations.of(context);
     if (items.isEmpty) {
       return Center(
@@ -386,7 +447,10 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                 border: Border(left: BorderSide(color: statusColor, width: 4)),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                  ),
                 ],
               ),
               child: Row(
@@ -395,40 +459,63 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.requestedName,
+                        Text(
+                          item.requestedName,
                             style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 14,
-                                color: cs.onSurface)),
-                        Text('${item.farmerName} · ${item.category}',
-                            style:
-                                GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        Text(
+                          '${item.farmerName} · ${item.category}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
                         if (!isPending &&
                             item.adminNotes != null &&
                             item.adminNotes!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
-                            child: Text('"${item.adminNotes}"',
+                            child: Text(
+                              '"${item.adminNotes}"',
                                 style: GoogleFonts.inter(
                                     fontSize: 11,
                                     fontStyle: FontStyle.italic,
-                                    color: cs.onSurfaceVariant)),
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
                           ),
                       ],
                     ),
                   ),
                   if (isPending)
-                    Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant)
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: cs.onSurfaceVariant,
+                    )
                   else
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
                       ),
-                      child: Text(item.status.toUpperCase(),
+                      child: Text(
+                        item.status.toUpperCase(),
                           style: GoogleFonts.inter(
-                              fontSize: 9, fontWeight: FontWeight.w700, color: statusColor)),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                        ),
+                      ),
                     ),
                 ],
               ),

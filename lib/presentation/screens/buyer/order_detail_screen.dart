@@ -8,6 +8,7 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/shared_widgets.dart';
 
 // Local bypasses, duplicated from my_orders_screen.dart's 3a addendum
@@ -23,17 +24,17 @@ String _orderStatusBadge(String status, AppLocalizations l10n) {
   }
 }
 
-String _orderHarvestedLabel(DateTime? harvestDate, AppLocalizations l10n) {
-  if (harvestDate == null) return '';
-  final diff = DateTime.now().difference(harvestDate);
-  if (diff.inDays <= 0) return l10n.buyerHarvestedToday;
-  if (diff.inDays == 1) return l10n.buyerHarvestedYesterday;
-  return l10n.buyerHarvestedDaysAgo(diff.inDays);
-}
-
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
-  const OrderDetailScreen({super.key, required this.orderId});
+  // Phase 13 — reused as-is for Farmer's "My Orders" (farmer-as-buyer);
+  // only the "Browse More" destination below differs, same isFarmerContext
+  // pattern as ListingDetailsScreen/CartScreen (Phase 9).
+  final bool isFarmerContext;
+  const OrderDetailScreen({
+    super.key,
+    required this.orderId,
+    this.isFarmerContext = false,
+  });
 
   @override
   State<OrderDetailScreen> createState() => _OrderDetailScreenState();
@@ -97,6 +98,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 32),
         children: [
+          // Fulfillment first — how the order arrives is the thing a buyer
+          // checking a pending/approved order most wants confirmed, so it
+          // leads instead of sitting after the summary/payment info.
+          if (order.hasFulfillmentChoice) ...[
+            FulfillmentInfoCard(
+              fulfillmentMethod: order.fulfillmentMethod,
+              deliveryAddress: order.deliveryAddress,
+              deliveryContactNumber: order.deliveryContactNumber,
+              deliveryRecipientName: order.deliveryRecipientName,
+              deliveryLabel: order.deliveryLabel,
+              deliveryNotes: order.deliveryNotes,
+            ),
+            const SizedBox(height: 16),
+          ],
           _buildStatusSection(order, l10n),
           const SizedBox(height: 16),
           if (!order.isCancelled) ...[
@@ -108,15 +123,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           _buildOrderSummary(order, l10n),
           const SizedBox(height: 16),
           _buildPaymentInfo(l10n),
-          const SizedBox(height: 16),
-          _buildPickupSection(l10n),
-          const SizedBox(height: 20),
-          _buildSupportSection(context, l10n),
+          // Browse More Products doesn't belong once an order is approved —
+          // Pickup/Delivery are the only appropriate actions left at that
+          // point. Still shown for pending/completed/cancelled orders,
+          // where there's no fulfillment choice to make.
+          if (order.status != 'approved') ...[
+            const SizedBox(height: 20),
+            _buildSupportSection(context, l10n),
+          ],
         ],
       ),
     );
   }
 
+  // Two clearly separated zones, not one paragraph stacked under a small
+  // pill: a headline zone (icon + status name + short subtitle) that reads
+  // at a glance, and an explanation zone below a divider that's there to
+  // be read, not skimmed. A cancelled order additionally surfaces the
+  // admin's own typed reason, if any — same "Reason: …" treatment Admin's
+  // own detail screen already gives it, so the buyer actually sees why.
   Widget _buildStatusSection(BuyerOrderModel order, AppLocalizations l10n) {
     final subtitle = switch (order.status) {
       'approved' => l10n.buyerOrderDetailReadyPickup,
@@ -130,37 +155,58 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       'completed' => l10n.buyerOrderDetailMsgCompleted,
       _ => l10n.buyerOrderDetailMsgCancelled,
     };
+    final statusIcon = switch (order.status) {
+      'approved' => Icons.task_alt_rounded,
+      'pending' => Icons.hourglass_top_rounded,
+      'completed' => Icons.check_circle_rounded,
+      _ => Icons.cancel_rounded,
+    };
 
     return GlassCard(
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-                child: Text(_orderStatusBadge(order.status, l10n),
-                    style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w800, color: _statusColor)),
-              ),
-              const SizedBox(width: 8),
-              Text('— $subtitle', style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(message, style: GoogleFonts.inter(fontSize: 13, height: 1.5)),
-          if (!order.isCancelled) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: PrimaryButton(
-                label: l10n.buyerOrderDetailContactCoop,
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.buyerOrderDetailComingSoon)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.14), shape: BoxShape.circle),
+                  child: Icon(statusIcon, size: 20, color: _statusColor),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_orderStatusBadge(order.status, l10n),
+                          style: GoogleFonts.poppins(fontSize: 15.5, fontWeight: FontWeight.w800, color: _statusColor)),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+          Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message, style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: AppConstants.onSurfaceVariant)),
+                if (order.isCancelled && order.notes != null && order.notes!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text('${l10n.adminOrderDetailReasonLabel}: ${order.notes}',
+                      style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -187,7 +233,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.buyerOrderDetailJourney, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Row(
+            children: [
+              const Icon(Icons.timeline_rounded, size: 16, color: AppConstants.primaryGreen),
+              const SizedBox(width: 6),
+              Text(l10n.buyerOrderDetailJourney, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+            ],
+          ),
           const SizedBox(height: 16),
           for (int i = 0; i < steps.length; i++)
             _timelineStep(
@@ -257,6 +309,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  // Header (image + crop name only — no cooperative subtitle here; that
+  // badge used to sit in exactly the spot a Market Type reads, which
+  // read as if "SP3 Agriculture Cooperative" WAS the market type). Below
+  // it, Market Type and Category sit side by side as a simple two-up
+  // row, then Description underneath — matches the same structure used
+  // on the Admin Order Detail screen (that one adds Batch Reference/
+  // Freshness on top, since that's admin-only inventory context).
   Widget _buildProductSection(BuyerOrderModel order, AppLocalizations l10n) {
     return GlassCard(
       padding: EdgeInsets.zero,
@@ -274,49 +333,32 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(order.displayName, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_rounded, size: 13, color: AppConstants.primaryGreen),
-                          const SizedBox(width: 4),
-                          Text(AppConstants.cooperativeName,
-                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: Text(order.displayName, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                if (order.batchNumber != null)
-                  Expanded(child: _miniField(l10n.buyerOrderDetailBatchRef, '#${order.batchNumber}')),
-                if (order.harvestDate != null)
-                  Expanded(child: _miniField(l10n.buyerOrderDetailFreshness, _orderHarvestedLabel(order.harvestDate, l10n), alignEnd: true)),
-              ],
-            ),
-          ),
-          if (order.harvestDate != null || order.category != null)
+          if (order.marketType != null || order.category != null) ...[
+            const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
-                  if (order.harvestDate != null)
-                    Expanded(child: _miniField(l10n.buyerListingHarvestDate, AppUtils.formatDate(order.harvestDate!, l10n.localeName))),
-                  if (order.category != null)
-                    Expanded(child: _miniField(l10n.buyerListingCategory, order.category!, alignEnd: true)),
+                  if (order.marketType != null) Expanded(child: _miniField('Market Type', order.marketTypeLabel)),
+                  if (order.marketType != null && order.category != null) const SizedBox(width: 20),
+                  if (order.category != null) Expanded(child: _miniField(l10n.buyerListingCategory, order.category!)),
                 ],
               ),
             ),
+          ],
+          if (order.description != null && order.description!.isNotEmpty) ...[
+            Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(order.description!,
+                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.5)),
+            ),
+          ],
         ],
       ),
     );
@@ -337,7 +379,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.buyerOrderDetailSummary, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_rounded, size: 16, color: AppConstants.primaryGreen),
+              const SizedBox(width: 6),
+              Text(l10n.buyerOrderDetailSummary, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+            ],
+          ),
           const SizedBox(height: 12),
           _summaryRow(l10n.buyerOrdersQuantityLabel, '${order.quantityKg.toStringAsFixed(0)} kg'),
           _summaryRow(l10n.buyerPricePerKg, '₱${order.pricePerKg.toStringAsFixed(2)}'),
@@ -414,71 +462,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildPickupSection(AppLocalizations l10n) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.buyerOrderDetailPickupLocationTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text('${AppConstants.cooperativeName}, ${AppConstants.cooperativeLocation}',
-              style: GoogleFonts.inter(fontSize: 13)),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: context.saganaColors.scaffoldBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.calendar_today_rounded, size: 16, color: AppConstants.primaryGreen),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.buyerOrderDetailBodSchedule, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                      const SizedBox(height: 2),
-                      Text(l10n.buyerOrderDetailBodBody,
-                          style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // Contact/Call SP3 Cooperative and "Need help with this order?" removed
+  // per explicit direction — neither is a real, working contact channel
+  // (both were snackbar placeholders). Browse More is the one real action
+  // left, now in its own bordered container instead of a floating
+  // TextButton sitting directly on the page background.
   Widget _buildSupportSection(BuildContext context, AppLocalizations l10n) {
-    return Column(
-      children: [
-        Text(l10n.buyerOrderDetailNeedHelp, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 2),
-        Text(l10n.buyerOrderDetailSupportBody,
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-        const SizedBox(height: 14),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.call_rounded, size: 18),
-            label: Text(l10n.buyerOrderDetailCallCoop),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.buyerOrderDetailComingSoon)),
-            ),
-          ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.15)),
+      ),
+      child: TextButton.icon(
+        icon: const Icon(Icons.shopping_basket_outlined, size: 18),
+        label: Text(l10n.buyerOrderDetailBrowseMore),
+        onPressed: () => context.go(
+          widget.isFarmerContext ? AppRoutes.myListings : AppRoutes.marketplaceBrowse,
         ),
-        const SizedBox(height: 8),
-        TextButton.icon(
-          icon: const Icon(Icons.shopping_basket_outlined, size: 18),
-          label: Text(l10n.buyerOrderDetailBrowseMore),
-          onPressed: () => context.go(AppRoutes.marketplaceBrowse),
-        ),
-      ],
+      ),
     );
   }
 

@@ -1,11 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_activity_repository.dart';
 
 /// Shared repository for the admin-managed category lookup tables
 /// (inventory_categories, crop_categories — see
-/// supabase_schema_category_lookup_tables.sql). Replaces the previously
+/// supabase_schema_category_lookup_tables.sql — and expense_categories,
+/// see supabase_schema_expense_categories.sql). Replaces the previously
 /// hardcoded AppConstants.inventoryCategories / FarmerCropModel.categories
-/// lists as the source for every category dropdown, so an admin can add a
-/// new category directly from the dropdown without a code change.
+/// / expenseCategories lists as the source for every category dropdown,
+/// so a category can be added directly from the dropdown without a code
+/// change.
 class CategoryRepository {
   final _client = Supabase.instance.client;
 
@@ -13,6 +16,9 @@ class CategoryRepository {
       _fetchNames('inventory_categories');
 
   Future<List<String>> fetchCropCategories() => _fetchNames('crop_categories');
+
+  Future<List<String>> fetchExpenseCategories() =>
+      _fetchNames('expense_categories');
 
   Future<List<String>> _fetchNames(String table) async {
     try {
@@ -28,11 +34,35 @@ class CategoryRepository {
     }
   }
 
-  Future<String?> addInventoryCategory(String name) =>
-      _addCategory('inventory_categories', name);
+  // Logged at this level, not inside _addCategory — addExpenseCategory
+  // below is Farmer-triggered (My Expenses), and Admin Recent Activity
+  // must only ever contain admin-performed actions.
+  Future<String?> addInventoryCategory(String name) async {
+    final result = await _addCategory('inventory_categories', name);
+    if (result != null) {
+      AdminActivityRepository().log(
+        module: 'inventory',
+        actionType: 'category_added',
+        description: 'Added "$result" as an inventory category.',
+      );
+    }
+    return result;
+  }
 
-  Future<String?> addCropCategory(String name) =>
-      _addCategory('crop_categories', name);
+  Future<String?> addCropCategory(String name) async {
+    final result = await _addCategory('crop_categories', name);
+    if (result != null) {
+      AdminActivityRepository().log(
+        module: 'crops',
+        actionType: 'category_added',
+        description: 'Added "$result" as a crop category.',
+      );
+    }
+    return result;
+  }
+
+  Future<String?> addExpenseCategory(String name) =>
+      _addCategory('expense_categories', name);
 
   /// Inserts a new category row and returns its name — or, if a category
   /// with that name already exists (case-insensitive UNIQUE violation),

@@ -61,7 +61,9 @@ class AdminDashboardRepository {
   Future<List<Map<String, dynamic>>> _fetchActiveInventoryRows() {
     return _inventoryRowsCache ??= _client
         .from('cooperative_inventory')
-        .select('id, item_name, category, unit, quantity_on_hand, reorder_level')
+        .select(
+          'id, item_name, category, unit, quantity_on_hand, reorder_level',
+        )
         .eq('is_active', true);
   }
 
@@ -98,7 +100,9 @@ class AdminDashboardRepository {
       // logic as before, just computed from the shared row set.
       final allFarmerRows = await _fetchFarmerRoleRows();
       totalMembers = allFarmerRows.length;
-      pendingMembers = allFarmerRows.where((r) => r['status'] == 'pending').length;
+      pendingMembers = allFarmerRows
+          .where((r) => r['status'] == 'pending')
+          .length;
 
       final activeIds = allFarmerRows
           .where((r) => r['status'] == 'active')
@@ -126,10 +130,14 @@ class AdminDashboardRepository {
         0,
         (sum, r) => sum + (r['quantity_on_hand'] as num).toDouble(),
       );
-      lowStockAlertCount = rows.where((r) => _isLowStock(
+      lowStockAlertCount = rows
+          .where(
+            (r) => _isLowStock(
         r['quantity_on_hand'] as num,
         r['reorder_level'] as num?,
-      )).length;
+            ),
+          )
+          .length;
     } catch (e) {
       debugPrint('[AdminDashboardRepository] fetchKpiSummary/inventory: $e');
     }
@@ -194,7 +202,9 @@ class AdminDashboardRepository {
 
     return AdminKpiSummary(
       activeMembers: activeMembers,
-      totalMembersTarget: membersQueryFailed ? 52 : totalMembers, // fallback only when the query itself threw — a genuine zero-member result is reported as 0, not masked
+      totalMembersTarget: membersQueryFailed
+          ? 52
+          : totalMembers, // fallback only when the query itself threw — a genuine zero-member result is reported as 0, not masked
       pendingMembers: pendingMembers,
       totalStockKg: totalStockKg,
       activeInventoryItems: activeInventoryItems,
@@ -215,17 +225,29 @@ class AdminDashboardRepository {
     final List<DashboardPriority> priorities = [];
     final now = DateTime.now();
     final bodDate = BodSchedule.upcoming();
-    final daysUntilBod = bodDate.difference(now).inDays;
+    // Calendar-day difference, ignoring time-of-day on both sides — a plain
+    // `.difference(now).inDays` undercounts by one for most of the day,
+    // since `now` carries a time-of-day component while bodDate is always
+    // midnight (e.g. checked at 3pm, a target 6 calendar-days away is only
+    // ~5.6 Duration-days away, and .inDays truncates that to 5). Same
+    // normalization already applied on the Farmer side (Farmer Home's
+    // priority card, My Input Loans' BOD badge) so both sides count
+    // "days until" the same way.
+    final today = DateTime(now.year, now.month, now.day);
+    final bodDay = DateTime(bodDate.year, bodDate.month, bodDate.day);
+    final daysUntilBod = bodDay.difference(today).inDays;
 
     // BOD countdown — only when within 7 days
     if (daysUntilBod <= 7) {
       int farmersWithLoans = 0;
       try {
         // Single source of truth — see AdminLoanRepository.fetchDashboardStats().
-        farmersWithLoans =
-            (await AdminLoanRepository().fetchDashboardStats()).farmersOutstandingCount;
+        farmersWithLoans = (await AdminLoanRepository().fetchDashboardStats())
+            .farmersOutstandingCount;
       } catch (e) {
-        debugPrint('[AdminDashboardRepository] fetchDashboardPriorities/bodLoans: $e');
+        debugPrint(
+          '[AdminDashboardRepository] fetchDashboardPriorities/bodLoans: $e',
+        );
       }
 
       priorities.add(
@@ -261,7 +283,9 @@ class AdminDashboardRepository {
         );
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchDashboardPriorities/overdueLoans: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchDashboardPriorities/overdueLoans: $e',
+      );
     }
 
     // Pending listings
@@ -286,7 +310,9 @@ class AdminDashboardRepository {
         );
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchDashboardPriorities/pendingListings: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchDashboardPriorities/pendingListings: $e',
+      );
     }
 
     // Low stock — cooperative-owned stock only, per the Inventory
@@ -295,13 +321,19 @@ class AdminDashboardRepository {
     // co-op's own input stock running low).
     try {
       final rows = await _fetchActiveInventoryRows();
-      final lowItems = rows.where((r) => _isLowStock(
+      final lowItems = rows
+          .where(
+            (r) => _isLowStock(
         r['quantity_on_hand'] as num,
         r['reorder_level'] as num?,
-      )).toList();
+            ),
+          )
+          .toList();
       if (lowItems.isNotEmpty) {
-        final names =
-            lowItems.map((r) => r['item_name'] as String).take(2).join(', ');
+        final names = lowItems
+            .map((r) => r['item_name'] as String)
+            .take(2)
+            .join(', ');
         priorities.add(
           DashboardPriority(
             id: 'low_stock',
@@ -315,7 +347,9 @@ class AdminDashboardRepository {
         );
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchDashboardPriorities/lowStock: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchDashboardPriorities/lowStock: $e',
+      );
     }
 
     // Crop requests awaiting review
@@ -338,13 +372,17 @@ class AdminDashboardRepository {
         );
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchDashboardPriorities/cropRequests: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchDashboardPriorities/cropRequests: $e',
+      );
     }
 
     // Pending members
     try {
       final allFarmerRows = await _fetchFarmerRoleRows();
-      final rows = allFarmerRows.where((r) => r['status'] == 'pending').toList();
+      final rows = allFarmerRows
+          .where((r) => r['status'] == 'pending')
+          .toList();
       if (rows.isNotEmpty) {
         priorities.add(
           DashboardPriority(
@@ -359,7 +397,9 @@ class AdminDashboardRepository {
         );
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchDashboardPriorities/pendingMembers: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchDashboardPriorities/pendingMembers: $e',
+      );
     }
 
     // Sort: critical → warning → info
@@ -381,10 +421,14 @@ class AdminDashboardRepository {
   Future<List<InventoryAlertItem>> fetchInventoryAlerts() async {
     try {
       final rows = await _fetchActiveInventoryRows();
-      final alerts = rows.where((r) => _isLowStock(
+      final alerts = rows
+          .where(
+            (r) => _isLowStock(
         r['quantity_on_hand'] as num,
         r['reorder_level'] as num?,
-      )).map((r) {
+            ),
+          )
+          .map((r) {
         final onHand = (r['quantity_on_hand'] as num).toDouble();
         return InventoryAlertItem(
           id: r['id'] as String,
@@ -397,7 +441,8 @@ class AdminDashboardRepository {
               ? InventoryAlertLevel.depleted
               : InventoryAlertLevel.low,
         );
-      }).toList();
+          })
+          .toList();
       alerts.sort((a, b) => a.quantityOnHand.compareTo(b.quantityOnHand));
       return alerts.take(5).toList();
     } catch (e) {
@@ -464,7 +509,9 @@ class AdminDashboardRepository {
         }
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCalendarEvents/loanDueDates: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCalendarEvents/loanDueDates: $e',
+      );
     }
 
     // Harvests grouped by date
@@ -530,7 +577,9 @@ class AdminDashboardRepository {
         );
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCalendarEvents/broadcasts: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCalendarEvents/broadcasts: $e',
+      );
     }
 
     // Program activities
@@ -539,8 +588,10 @@ class AdminDashboardRepository {
       final end = DateTime(year, month + 1, 1);
       final rows = await _client
           .from('program_activities')
-          .select('id, title, description, activity_date, location, program_id, '
-              'cooperative_programs(program_name)')
+          .select(
+            'id, title, description, activity_date, location, program_id, '
+            'cooperative_programs(program_name)',
+          )
           .gte('activity_date', start.toIso8601String().split('T').first)
           .lt('activity_date', end.toIso8601String().split('T').first);
       for (final r in rows) {
@@ -573,8 +624,8 @@ class AdminDashboardRepository {
     int farmersWithLoans = 0;
     try {
       // Single source of truth — see AdminLoanRepository.fetchDashboardStats().
-      farmersWithLoans =
-          (await AdminLoanRepository().fetchDashboardStats()).farmersOutstandingCount;
+      farmersWithLoans = (await AdminLoanRepository().fetchDashboardStats())
+          .farmersOutstandingCount;
     } catch (e) {
       debugPrint('[AdminDashboardRepository] fetchBodMeetingInfo: $e');
     }
@@ -600,10 +651,14 @@ class AdminDashboardRepository {
     try {
       final rows = await _fetchActiveInventoryRows();
       final total = rows.length;
-      final lowOrDepleted = rows.where((r) => _isLowStock(
+      final lowOrDepleted = rows
+          .where(
+            (r) => _isLowStock(
         r['quantity_on_hand'] as num,
         r['reorder_level'] as num?,
-      )).length;
+            ),
+          )
+          .length;
 
       inventoryBadge = total == 0
           ? 'No items'
@@ -612,7 +667,9 @@ class AdminDashboardRepository {
           : '$total items';
       inventoryAlert = lowOrDepleted > 0;
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchManagementModuleBadges/inventory: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/inventory: $e',
+      );
       inventoryBadge = 'No items';
     }
 
@@ -623,7 +680,9 @@ class AdminDashboardRepository {
           .eq('is_active', true);
       cropsBadge = rows.isEmpty ? 'No crops' : '${rows.length} crops';
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchManagementModuleBadges/crops: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/crops: $e',
+      );
     }
 
     try {
@@ -633,7 +692,9 @@ class AdminDashboardRepository {
           .eq('is_active', true);
       loanItemsBadge = rows.isEmpty ? 'No items' : '${rows.length} items';
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchManagementModuleBadges/loanItems: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/loanItems: $e',
+      );
     }
 
     try {
@@ -645,7 +706,9 @@ class AdminDashboardRepository {
           ? '0 mapped'
           : '${mapped.length} mapped';
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchManagementModuleBadges/supplyChain: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/supplyChain: $e',
+      );
     }
 
     try {
@@ -662,7 +725,9 @@ class AdminDashboardRepository {
         pricesBadge = 'No entries';
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchManagementModuleBadges/prices: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/prices: $e',
+      );
     }
 
     try {
@@ -672,7 +737,9 @@ class AdminDashboardRepository {
           .eq('status', 'active');
       programsBadge = rows.isEmpty ? 'No programs' : '${rows.length} active';
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchManagementModuleBadges/programs: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchManagementModuleBadges/programs: $e',
+      );
     }
 
     return [
@@ -957,7 +1024,9 @@ class AdminDashboardRepository {
         }
       }
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/cropRequest: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchRecentActivity/cropRequest: $e',
+      );
     }
 
     // Generic log-backed activity — see admin_activity_log
@@ -1001,7 +1070,9 @@ class AdminDashboardRepository {
 
     final filtered = moduleFilters == null
         ? items
-        : items.where((item) => moduleFilters.contains(item.sourceModule)).toList();
+        : items
+              .where((item) => moduleFilters.contains(item.sourceModule))
+              .toList();
 
     return filtered.skip(offset).take(limit).toList();
   }
@@ -1018,7 +1089,9 @@ class AdminDashboardRepository {
       final rows = await _client.from('harvest_records').select('id');
       totalHarvests = rows.length;
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/harvests: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCoopPerformance/harvests: $e',
+      );
     }
 
     double farmerAvailableStockKg = 0;
@@ -1031,7 +1104,9 @@ class AdminDashboardRepository {
         (s, r) => s + (r['available_kg'] as num).toDouble(),
       );
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/farmerStock: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCoopPerformance/farmerStock: $e',
+      );
     }
 
     try {
@@ -1041,7 +1116,9 @@ class AdminDashboardRepository {
           .eq('status', 'approved');
       activeListings = rows.length;
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/listings: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCoopPerformance/listings: $e',
+      );
     }
 
     try {
@@ -1078,7 +1155,9 @@ class AdminDashboardRepository {
           .toSet();
       totalMembers = activeFarmerIds.length;
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/totalMembers: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCoopPerformance/totalMembers: $e',
+      );
       totalMembersQueryFailed = true;
     }
 
@@ -1094,7 +1173,9 @@ class AdminDashboardRepository {
           .intersection(activeFarmerIds)
           .length;
     } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchCoopPerformance/activeMembers: $e');
+      debugPrint(
+        '[AdminDashboardRepository] fetchCoopPerformance/activeMembers: $e',
+      );
     }
 
     return CoopPerformanceSummary(
@@ -1103,26 +1184,10 @@ class AdminDashboardRepository {
       activeListings: activeListings,
       completedSales: completedSales,
       activeMembersThisSeason: activeMembersThisSeason,
-      totalMembers: totalMembersQueryFailed ? 52 : totalMembers, // fallback only when the query itself threw — a genuine zero-member result is reported as 0, not masked
+      totalMembers: totalMembersQueryFailed
+          ? 52
+          : totalMembers, // fallback only when the query itself threw — a genuine zero-member result is reported as 0, not masked
     );
-  }
-
-  // ─── Unread count ──────────────────────────────────────────────────────────
-
-  Future<int> fetchUnreadCount() async {
-    try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) return 0;
-      final rows = await _client
-          .from('notifications')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('is_read', false);
-      return rows.length;
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchUnreadCount: $e');
-      return 0;
-    }
   }
 
   // ─── Admin Display Name ─────────────────────────────────────────────────────

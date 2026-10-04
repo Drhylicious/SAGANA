@@ -2,12 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
- 
+import '../../../data/models/notification_model.dart';
+import '../../../data/repositories/notification_repository.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -34,72 +34,33 @@ class AdminNotif {
     this.routeExtra,
   });
 
-  factory AdminNotif.fromMap(Map<String, dynamic> m) {
-    final type = m['type'] as String? ?? 'system';
+  factory AdminNotif.fromNotification(NotificationModel n) {
     AdminNotifCategory cat;
-    switch (type) {
-      case 'listing_submitted':
-      case 'loan_overdue':
-      case 'member_pending':
-      case 'crop_request':
+    switch (n.type) {
+      case NotificationType.listingSubmitted:
+      case NotificationType.loanOverdue:
+      case NotificationType.memberPending:
+      case NotificationType.cropRequest:
         cat = AdminNotifCategory.actions;
-      case 'member_registered':
-      case 'member_updated':
+      case NotificationType.memberRegistered:
+      case NotificationType.memberUpdated:
         cat = AdminNotifCategory.members;
-      case 'low_stock':
-      case 'stock_depleted':
+      case NotificationType.lowStock:
+      case NotificationType.stockDepleted:
         cat = AdminNotifCategory.inventory;
       default:
         cat = AdminNotifCategory.system;
     }
     return AdminNotif(
-      id: m['id'] as String,
-      title: m['title'] as String,
-      body: m['body'] as String,
+      id: n.id,
+      title: n.title,
+      body: n.body,
       category: cat,
-      isRead: m['is_read'] as bool? ?? false,
-      createdAt: DateTime.parse(m['created_at'] as String),
+      isRead: n.isRead,
+      createdAt: n.createdAt,
+      routeOnTap: n.routeOnTap,
+      routeExtra: n.routeExtra,
     );
-  }
-}
-
-// ── Repository ───────────────────────────────────────────────────────────────
-
-class _AdminNotifRepository {
-  final _client = Supabase.instance.client;
-
-  Future<List<AdminNotif>> fetchAll() async {
-    try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) return [];
-      final rows = await _client
-          .from('notifications')
-          .select('id, type, title, body, is_read, created_at')
-          .eq('user_id', userId)
-          .order('created_at', ascending: false)
-          .limit(50);
-      return rows.map((r) => AdminNotif.fromMap(r)).toList();
-    } catch (_) { return []; }
-  }
-
-  Future<void> markRead(String id) async {
-    try {
-      await _client
-          .from('notifications')
-          .update({'is_read': true}).eq('id', id);
-    } catch (_) {}
-  }
-
-  Future<void> markAllRead() async {
-    try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) return;
-      await _client
-          .from('notifications')
-          .update({'is_read': true})
-          .eq('user_id', userId)
-          .eq('is_read', false);
-    } catch (_) {}
   }
 }
 
@@ -113,9 +74,8 @@ class AdminNotificationsScreen extends StatefulWidget {
       _AdminNotificationsScreenState();
 }
 
-class _AdminNotificationsScreenState
-    extends State<AdminNotificationsScreen> {
-  final _repo = _AdminNotifRepository();
+class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
+  final _repo = NotificationRepository();
 
   List<AdminNotif> _all = [];
   AdminNotifCategory _selected = AdminNotifCategory.all;
@@ -130,9 +90,12 @@ class _AdminNotificationsScreenState
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final result = await _repo.fetchAll();
+    final result = await _repo.fetchNotifications();
     if (!mounted) return;
-    setState(() { _all = result; _isLoading = false; });
+    setState(() {
+      _all = result.map(AdminNotif.fromNotification).toList();
+      _isLoading = false;
+    });
   }
 
   List<AdminNotif> get _filtered {
@@ -141,13 +104,14 @@ class _AdminNotificationsScreenState
   }
 
   int _unreadCount(AdminNotifCategory cat) {
-    final source =
-        cat == AdminNotifCategory.all ? _all : _all.where((n) => n.category == cat);
+    final source = cat == AdminNotifCategory.all
+        ? _all
+        : _all.where((n) => n.category == cat);
     return source.where((n) => !n.isRead).length;
   }
 
   Future<void> _onNotifTap(AdminNotif notif) async {
-    await _repo.markRead(notif.id);
+    await _repo.markAsRead(notif.id);
     if (!mounted) return;
     setState(() {
       final idx = _all.indexWhere((n) => n.id == notif.id);
@@ -173,33 +137,53 @@ class _AdminNotificationsScreenState
     }
   }
 
+  Future<void> _onNotifDelete(AdminNotif notif) async {
+    setState(() => _all.removeWhere((n) => n.id == notif.id));
+    await _repo.deleteNotification(notif.id);
+  }
+
   IconData _categoryIcon(AdminNotifCategory cat) {
     switch (cat) {
-      case AdminNotifCategory.all:       return Icons.notifications_rounded;
-      case AdminNotifCategory.actions:   return Icons.priority_high_rounded;
-      case AdminNotifCategory.members:   return Icons.people_rounded;
-      case AdminNotifCategory.inventory: return Icons.inventory_2_rounded;
-      case AdminNotifCategory.system:    return Icons.settings_rounded;
+      case AdminNotifCategory.all:
+        return Icons.notifications_rounded;
+      case AdminNotifCategory.actions:
+        return Icons.priority_high_rounded;
+      case AdminNotifCategory.members:
+        return Icons.people_rounded;
+      case AdminNotifCategory.inventory:
+        return Icons.inventory_2_rounded;
+      case AdminNotifCategory.system:
+        return Icons.settings_rounded;
     }
   }
 
   Color _categoryColor(AdminNotifCategory cat, ColorScheme cs) {
     switch (cat) {
-      case AdminNotifCategory.all:       return cs.primary;
-      case AdminNotifCategory.actions:   return AppConstants.errorRed;
-      case AdminNotifCategory.members:   return AppConstants.primaryGreen;
-      case AdminNotifCategory.inventory: return AppConstants.warningAmber;
-      case AdminNotifCategory.system:    return cs.outline;
+      case AdminNotifCategory.all:
+        return cs.primary;
+      case AdminNotifCategory.actions:
+        return AppConstants.errorRed;
+      case AdminNotifCategory.members:
+        return AppConstants.primaryGreen;
+      case AdminNotifCategory.inventory:
+        return AppConstants.warningAmber;
+      case AdminNotifCategory.system:
+        return cs.outline;
     }
   }
 
   String _categoryLabel(AppLocalizations l10n, AdminNotifCategory cat) {
     switch (cat) {
-      case AdminNotifCategory.all:       return l10n.buyerNotifFilterAll;
-      case AdminNotifCategory.actions:   return l10n.adminNotifCategoryActions;
-      case AdminNotifCategory.members:   return l10n.adminNavMembers;
-      case AdminNotifCategory.inventory: return l10n.supplyChainFlowInventory;
-      case AdminNotifCategory.system:    return l10n.adminNotifCategorySystem;
+      case AdminNotifCategory.all:
+        return l10n.buyerNotifFilterAll;
+      case AdminNotifCategory.actions:
+        return l10n.adminNotifCategoryActions;
+      case AdminNotifCategory.members:
+        return l10n.adminNavMembers;
+      case AdminNotifCategory.inventory:
+        return l10n.supplyChainFlowInventory;
+      case AdminNotifCategory.system:
+        return l10n.adminNotifCategorySystem;
     }
   }
 
@@ -207,7 +191,8 @@ class _AdminNotificationsScreenState
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) return l10n.broadcastJustNow;
-    if (diff.inMinutes < 60) return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
+    if (diff.inMinutes < 60)
+      return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
     if (diff.inHours < 24) return l10n.buyerNotifTimeHoursAgo(diff.inHours);
     if (diff.inDays == 1) return l10n.buyerNotifTimeYesterday;
     return l10n.buyerNotifTimeDaysAgo(diff.inDays);
@@ -233,17 +218,17 @@ class _AdminNotificationsScreenState
                 height: 64 + MediaQuery.of(context).padding.top,
                 padding: EdgeInsets.only(
                     top: MediaQuery.of(context).padding.top,
-                    left: 8, right: 8),
+                  left: 8,
+                  right: 8,
+                ),
                 decoration: BoxDecoration(
                   color: sagana.glassBackground,
-                  border:
-                      Border(bottom: BorderSide(color: sagana.glassBorder)),
+                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
                 ),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.arrow_back_rounded,
-                          color: cs.onSurface),
+                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
                       onPressed: () => context.pop(),
                     ),
                     Expanded(
@@ -252,13 +237,14 @@ class _AdminNotificationsScreenState
                         style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: cs.onSurface),
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
                     if (unreadTotal > 0)
                       TextButton(
                         onPressed: () async {
-                          await _repo.markAllRead();
+                          await _repo.markAllAsRead();
                           _load();
                         },
                         child: Text(
@@ -266,7 +252,8 @@ class _AdminNotificationsScreenState
                           style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: cs.primary),
+                            color: cs.primary,
+                          ),
                         ),
                       ),
                   ],
@@ -292,13 +279,16 @@ class _AdminNotificationsScreenState
                       onTap: () => setState(() => _selected = cat),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 7),
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? cs.primary
                               : sagana.cardBackground,
                           borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull),
+                            AppConstants.radiusFull,
+                          ),
                           border: Border.all(
                             color: isSelected
                                 ? cs.primary
@@ -357,43 +347,66 @@ class _AdminNotificationsScreenState
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen, strokeWidth: 2))
+                      color: AppConstants.primaryGreen,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
                     child: filtered.isEmpty
-                        ? ListView(children: [
+                        ? ListView(
+                            children: [
                             const SizedBox(height: 100),
                             Center(
-                              child: Column(children: [
-                                Icon(Icons.notifications_none_rounded,
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.notifications_none_rounded,
                                     size: 48,
-                                    color: cs.onSurfaceVariant),
+                                      color: cs.onSurfaceVariant,
+                                    ),
                                 const SizedBox(height: 12),
                                 Text(
                                   l10n.buyerNotifEmptyTitle,
                                   style: GoogleFonts.inter(
                                       fontSize: 14,
-                                      color: cs.onSurfaceVariant),
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ]),
                             ),
-                          ])
+                            ],
+                          )
                         : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(
-                                16, 8, 16, 40),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
                             itemCount: filtered.length,
                             separatorBuilder: (_, __) => Divider(
                                 height: 1,
-                                color: cs.outline.withValues(alpha: 0.08)),
+                              color: cs.outline.withValues(alpha: 0.08),
+                            ),
                             itemBuilder: (_, i) {
                               final notif = filtered[i];
-                              final color =
-                                  _categoryColor(notif.category, cs);
-                              final icon =
-                                  _categoryIcon(notif.category);
+                              final color = _categoryColor(notif.category, cs);
+                              final icon = _categoryIcon(notif.category);
 
-                              return GestureDetector(
+                              return Dismissible(
+                                key: Key(notif.id),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 20),
+                                  color: AppConstants.errorRed.withValues(
+                                    alpha: 0.10,
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: AppConstants.errorRed,
+                                  ),
+                                ),
+                                onDismissed: (_) => _onNotifDelete(notif),
+                                child: GestureDetector(
                                 onTap: () => _onNotifTap(notif),
                                 behavior: HitTestBehavior.opaque,
                                 child: Container(
@@ -401,7 +414,9 @@ class _AdminNotificationsScreenState
                                       ? Colors.transparent
                                       : cs.primary.withValues(alpha: 0.04),
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 14),
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
                                   child: Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -411,11 +426,15 @@ class _AdminNotificationsScreenState
                                         height: 40,
                                         decoration: BoxDecoration(
                                           color: color.withValues(
-                                              alpha: 0.12),
+                                              alpha: 0.12,
+                                            ),
                                           shape: BoxShape.circle,
                                         ),
-                                        child: Icon(icon,
-                                            color: color, size: 20),
+                                          child: Icon(
+                                            icon,
+                                            color: color,
+                                            size: 20,
+                                          ),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
@@ -423,15 +442,20 @@ class _AdminNotificationsScreenState
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Row(children: [
+                                              Row(
+                                                children: [
                                               Expanded(
                                                 child: Text(
                                                   notif.title,
-                                                  style: GoogleFonts.poppins(
+                                                      style:
+                                                          GoogleFonts.poppins(
                                                     fontSize: 13,
-                                                    fontWeight: notif.isRead
-                                                        ? FontWeight.w500
-                                                        : FontWeight.w700,
+                                                            fontWeight:
+                                                                notif.isRead
+                                                                ? FontWeight
+                                                                      .w500
+                                                                : FontWeight
+                                                                      .w700,
                                                     color: cs.onSurface,
                                                   ),
                                                 ),
@@ -440,13 +464,16 @@ class _AdminNotificationsScreenState
                                                 Container(
                                                   width: 8,
                                                   height: 8,
-                                                  decoration: const BoxDecoration(
+                                                      decoration:
+                                                          const BoxDecoration(
                                                     color: AppConstants
                                                         .errorRed,
-                                                    shape: BoxShape.circle,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
                                                   ),
+                                                ],
                                                 ),
-                                            ]),
                                             const SizedBox(height: 3),
                                             Text(
                                               notif.body,
@@ -455,12 +482,14 @@ class _AdminNotificationsScreenState
                                                 color: cs.onSurfaceVariant,
                                               ),
                                               maxLines: 2,
-                                              overflow:
-                                                  TextOverflow.ellipsis,
+                                                overflow: TextOverflow.ellipsis,
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              _timeLabel(l10n, notif.createdAt),
+                                                _timeLabel(
+                                                  l10n,
+                                                  notif.createdAt,
+                                                ),
                                               style: GoogleFonts.inter(
                                                 fontSize: 10,
                                                 color: cs.onSurfaceVariant,
@@ -471,6 +500,7 @@ class _AdminNotificationsScreenState
                                       ),
                                     ],
                                   ),
+                                ),
                                 ),
                               );
                             },

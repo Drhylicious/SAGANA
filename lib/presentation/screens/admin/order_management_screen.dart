@@ -43,7 +43,9 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text),
+    );
     _load();
   }
 
@@ -65,24 +67,33 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   }
 
   List<AdminOrderModel> _byStatus(String? status) {
-    var list = status == null ? _allOrders : _allOrders.where((o) => o.status == status);
+    var list = status == null
+        ? _allOrders
+        : _allOrders.where((o) => o.status == status);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      list = list.where((o) =>
+      list = list.where(
+        (o) =>
           o.buyerName.toLowerCase().contains(q) ||
           o.cropName.toLowerCase().contains(q) ||
-          o.orderReference.toLowerCase().contains(q));
+            o.orderReference.toLowerCase().contains(q),
+      );
     }
     return list.toList();
   }
 
   String _emptyMessage(AppLocalizations l10n) {
     switch (_statusFilter) {
-      case 'pending': return l10n.buyerOrderHistoryNoPending;
-      case 'approved': return l10n.buyerOrderHistoryNoApproved;
-      case 'completed': return l10n.buyerOrderHistoryNoCompleted;
-      case 'cancelled': return l10n.buyerOrderHistoryNoCancelled;
-      default: return l10n.buyerOrderHistoryNoOrdersYet;
+      case 'pending':
+        return l10n.buyerOrderHistoryNoPending;
+      case 'approved':
+        return l10n.buyerOrderHistoryNoApproved;
+      case 'completed':
+        return l10n.buyerOrderHistoryNoCompleted;
+      case 'cancelled':
+        return l10n.buyerOrderHistoryNoCancelled;
+      default:
+        return l10n.buyerOrderHistoryNoOrdersYet;
     }
   }
 
@@ -124,28 +135,43 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
                 // switching behavior this screen already had is unchanged,
                 // only the chip's own look changed.
                 ListingStatusFilterChip(
-                  label: l10n.farmerMgmtAllFilter, active: _statusFilter == null,
-                  color: cs.primary, onTap: () => setState(() => _statusFilter = null), cs: cs,
+                  label: l10n.farmerMgmtAllFilter,
+                  active: _statusFilter == null,
+                  color: cs.primary,
+                  onTap: () => setState(() => _statusFilter = null),
+                  cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'pending'), active: _statusFilter == 'pending',
-                  color: AppConstants.warningAmber, onTap: () => setState(() => _statusFilter = 'pending'), cs: cs,
+                  label: adminOrderStatusLabel(l10n, 'pending'),
+                  active: _statusFilter == 'pending',
+                  color: AppConstants.warningAmber,
+                  onTap: () => setState(() => _statusFilter = 'pending'),
+                  cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'approved'), active: _statusFilter == 'approved',
-                  color: AppConstants.successGreen, onTap: () => setState(() => _statusFilter = 'approved'), cs: cs,
+                  label: adminOrderStatusLabel(l10n, 'approved'),
+                  active: _statusFilter == 'approved',
+                  color: AppConstants.successGreen,
+                  onTap: () => setState(() => _statusFilter = 'approved'),
+                  cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'completed'), active: _statusFilter == 'completed',
-                  color: AppConstants.primaryGreen, onTap: () => setState(() => _statusFilter = 'completed'), cs: cs,
+                  label: adminOrderStatusLabel(l10n, 'completed'),
+                  active: _statusFilter == 'completed',
+                  color: AppConstants.primaryGreen,
+                  onTap: () => setState(() => _statusFilter = 'completed'),
+                  cs: cs,
                 ),
                 const SizedBox(width: 8),
                 ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'cancelled'), active: _statusFilter == 'cancelled',
-                  color: AppConstants.errorRed, onTap: () => setState(() => _statusFilter = 'cancelled'), cs: cs,
+                  label: adminOrderStatusLabel(l10n, 'cancelled'),
+                  active: _statusFilter == 'cancelled',
+                  color: AppConstants.errorRed,
+                  onTap: () => setState(() => _statusFilter = 'cancelled'),
+                  cs: cs,
                 ),
               ],
             ),
@@ -164,8 +190,13 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   Widget _buildList(List<AdminOrderModel> orders, String emptyMessage) {
     if (orders.isEmpty) {
       return Center(
-        child: Text(emptyMessage,
-            style: GoogleFonts.inter(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        child: Text(
+          emptyMessage,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       );
     }
     return RefreshIndicator(
@@ -174,10 +205,13 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
         itemCount: orders.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) => _OrderRow(order: orders[i], onTap: () async {
+        itemBuilder: (context, i) => _OrderRow(
+          order: orders[i],
+          onTap: () async {
           await context.push(AppRoutes.adminOrderDetail, extra: orders[i].id);
           _load();
-        }),
+          },
+        ),
       ),
     );
   }
@@ -190,11 +224,16 @@ class _OrderRow extends StatelessWidget {
 
   Color get _statusColor {
     switch (order.status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending': return AppConstants.warningAmber;
-      case 'completed': return AppConstants.primaryGreen;
-      case 'cancelled': return AppConstants.errorRed;
-      default: return AppConstants.outline;
+      case 'approved':
+        return AppConstants.successGreen;
+      case 'pending':
+        return AppConstants.warningAmber;
+      case 'completed':
+        return AppConstants.primaryGreen;
+      case 'cancelled':
+        return AppConstants.errorRed;
+      default:
+        return AppConstants.outline;
     }
   }
 
@@ -211,7 +250,13 @@ class _OrderRow extends StatelessWidget {
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border(left: BorderSide(color: _statusColor, width: 4)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -219,25 +264,86 @@ class _OrderRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(order.orderReference,
-                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
-                  Text(order.buyerName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                  Text('${order.displayName} · ${order.quantityKg.toStringAsFixed(0)} kg',
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                  Text(
+                    order.orderReference,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    order.buyerName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${order.displayName} · ${order.quantityKg.toStringAsFixed(0)} kg',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  if (order.hasFulfillmentChoice) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          order.isPickupChoice
+                              ? Icons.storefront_rounded
+                              : Icons.local_shipping_outlined,
+                          size: 12,
+                          color: AppConstants.primaryGreen,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          order.isPickupChoice
+                              ? l10n.checkoutFulfillmentPickup
+                              : l10n.checkoutFulfillmentDelivery,
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.primaryGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('₱${order.totalPrice.toStringAsFixed(0)}',
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                Text(
+                  '₱${order.totalPrice.toStringAsFixed(0)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppConstants.primaryGreen,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                  child: Text(adminOrderStatusLabel(l10n, order.status).toUpperCase(),
-                      style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: _statusColor)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    adminOrderStatusLabel(l10n, order.status),
+                    style: GoogleFonts.inter(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      color: _statusColor,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -257,10 +363,7 @@ class _TopAppBar extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
 
-  const _TopAppBar({
-    required this.title,
-    required this.onBack,
-  });
+  const _TopAppBar({required this.title, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -283,9 +386,15 @@ class _TopAppBar extends StatelessWidget {
               onPressed: onBack,
             ),
             Expanded(
-              child: Text(title,
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
-                  overflow: TextOverflow.ellipsis),
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: cs.primary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),

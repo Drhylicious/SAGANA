@@ -25,9 +25,13 @@ CREATE INDEX IF NOT EXISTS buyer_profile_activity_buyer_id_idx
 ALTER TABLE public.buyer_profile_activity ENABLE ROW LEVEL SECURITY;
 
 -- Single FOR ALL policy, scoped to own rows — the buyer's own client
--- inserts (from updateProfile()) and reads (Recent Activity screen) both
--- need exactly this, nothing broader. No admin policy — not required by
--- this feature's scope.
+-- inserts (from updateProfile()/logActivity()) and reads (Recent Activity
+-- screen) both need exactly this, nothing broader. No admin policy — not
+-- required by this feature's scope.
+-- Dropped first so this file is safe to re-run — CREATE POLICY alone
+-- errors "already exists" on a second run, unlike CREATE TABLE IF NOT
+-- EXISTS above.
+DROP POLICY IF EXISTS "Buyers manage own profile activity" ON public.buyer_profile_activity;
 CREATE POLICY "Buyers manage own profile activity"
   ON public.buyer_profile_activity
   FOR ALL

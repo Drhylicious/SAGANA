@@ -61,7 +61,6 @@ class AdminLoanSummary {
   final String id;
   final String farmerId;
   final String farmerName;
-  final String memberId;
   final String referenceNo;
   final DateTime issuedDate;
   final double totalValue;
@@ -80,7 +79,6 @@ class AdminLoanSummary {
     required this.id,
     required this.farmerId,
     required this.farmerName,
-    required this.memberId,
     required this.referenceNo,
     required this.issuedDate,
     required this.totalValue,
@@ -107,7 +105,6 @@ class AdminLoanSummary {
   factory AdminLoanSummary.fromRow(
     Map<String, dynamic> row, {
     required String farmerName,
-    required String memberId,
     required List<String> itemNames,
   }) {
     final program = row['cooperative_programs'] as Map<String, dynamic>?;
@@ -115,7 +112,6 @@ class AdminLoanSummary {
       id: row['id'] as String,
       farmerId: row['farmer_id'] as String,
       farmerName: farmerName,
-      memberId: memberId,
       referenceNo: row['reference_no'] as String,
       issuedDate: DateTime.parse(row['issued_date'] as String),
       totalValue: (row['total_value'] as num).toDouble(),
@@ -136,7 +132,6 @@ class AdminLoanSummary {
       id: map['id'] as String,
       farmerId: map['farmerId'] as String,
       farmerName: map['farmerName'] as String,
-      memberId: map['memberId'] as String,
       referenceNo: map['referenceNo'] as String,
       issuedDate: DateTime.parse(map['issuedDate'] as String),
       totalValue: (map['totalValue'] as num).toDouble(),
@@ -156,7 +151,6 @@ class AdminLoanSummary {
         'id': id,
         'farmerId': farmerId,
         'farmerName': farmerName,
-        'memberId': memberId,
         'referenceNo': referenceNo,
         'issuedDate': issuedDate.toIso8601String(),
         'totalValue': totalValue,
@@ -173,13 +167,11 @@ class AdminLoanSummary {
 class FarmerPickerResult {
   final String id;
   final String fullName;
-  final String memberId;
   final String? profilePhotoUrl;
 
   const FarmerPickerResult({
     required this.id,
     required this.fullName,
-    required this.memberId,
     this.profilePhotoUrl,
   });
 
@@ -187,7 +179,6 @@ class FarmerPickerResult {
     return FarmerPickerResult(
       id: map['id'] as String,
       fullName: map['fullName'] as String,
-      memberId: map['memberId'] as String,
       profilePhotoUrl: map['profilePhotoUrl'] as String?,
     );
   }
@@ -195,7 +186,6 @@ class FarmerPickerResult {
   Map<String, dynamic> toMap() => {
         'id': id,
         'fullName': fullName,
-        'memberId': memberId,
         'profilePhotoUrl': profilePhotoUrl,
       };
 }
@@ -221,8 +211,7 @@ class FarmerLoanStanding {
   bool get meetsCapitalEligibility =>
       capitalContribution >= minimumCapitalRequired;
 
-  double get capitalShortfall =>
-      (minimumCapitalRequired - capitalContribution)
+  double get capitalShortfall => (minimumCapitalRequired - capitalContribution)
           .clamp(0, double.infinity)
           .toDouble();
 }
@@ -230,13 +219,11 @@ class FarmerLoanStanding {
 class AdminLoanDetail {
   final LoanModel loan;
   final String farmerName;
-  final String memberId;
   final String? farmerPhotoUrl;
 
   const AdminLoanDetail({
     required this.loan,
     required this.farmerName,
-    required this.memberId,
     this.farmerPhotoUrl,
   });
 }
@@ -287,10 +274,7 @@ class IssuedLoanResult {
   final String loanId;
   final String referenceNo;
 
-  const IssuedLoanResult({
-    required this.loanId,
-    required this.referenceNo,
-  });
+  const IssuedLoanResult({required this.loanId, required this.referenceNo});
 }
 
 class LoanPaymentResult {

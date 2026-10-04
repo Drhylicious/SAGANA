@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -83,7 +82,12 @@ class _CreateOfficerAccountScreenState
   bool _checked = false;
   String? _registryId;      // set only when a matching AVAILABLE row is found
   String? _registryError;   // "already registered" / "not found"
-  String _empIdPreview = 'EMP-###';
+  // Email and phone the Officer Registry supplied. Locked on a match.
+  String? _registryEmail;
+  String? _registryPhone;
+
+  bool get _emailLocked => _registryId != null && _registryEmail != null;
+  bool get _phoneLocked => _registryId != null && _registryPhone != null;
 
   @override
   void initState() {
@@ -95,15 +99,9 @@ class _CreateOfficerAccountScreenState
 
   Future<void> _loadSuggestions() async {
     final username = await AuthService.suggestNextUsername('OFF');
-    String emp = 'EMP-###';
-    try {
-      final r = await Supabase.instance.client.rpc('generate_employee_id');
-      if (r is String && r.isNotEmpty) emp = r;
-    } catch (_) {}
     if (mounted) {
       setState(() {
         _usernameCtrl.text = username;
-        _empIdPreview = emp;
       });
     }
   }
@@ -124,11 +122,19 @@ class _CreateOfficerAccountScreenState
   void _onNameChanged() {
     final name = _fullNameCtrl.text.trim();
     if (_checked || _registryId != null || _registryError != null) {
+      final hadMatch = _registryId != null;
       setState(() {
         _checked = false;
         _registryId = null;
         _registryError = null;
+        _registryEmail = null;
+        _registryPhone = null;
       });
+      // Values filled from the previous match unlock with it.
+      if (hadMatch) {
+        _emailCtrl.clear();
+        _phoneCtrl.clear();
+      }
     }
     if (name.length < 3) return;
     _debounce?.cancel();
@@ -153,12 +159,12 @@ class _CreateOfficerAccountScreenState
       } else {
         _registryId = match.registryId;
         _registryError = null;
-        if (match.phone != null && _phoneCtrl.text.trim().isEmpty) {
-          _phoneCtrl.text = match.phone!;
-        }
-        if (match.email != null && _emailCtrl.text.trim().isEmpty) {
-          _emailCtrl.text = match.email!;
-        }
+        // Registry email and phone fill the form and are locked. A blank
+        // registry value stays editable.
+        _registryEmail = match.email;
+        _registryPhone = match.phone;
+        if (match.phone != null) _phoneCtrl.text = match.phone!;
+        if (match.email != null) _emailCtrl.text = match.email!;
       }
     });
   }
@@ -178,19 +184,25 @@ class _CreateOfficerAccountScreenState
         fullName: _fullNameCtrl.text.trim(),
         registryId: _registryId!,
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-        phoneNumber:
-            _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        position:
-            _positionCtrl.text.trim().isEmpty ? null : _positionCtrl.text.trim(),
+        phoneNumber: _phoneCtrl.text.trim().isEmpty
+            ? null
+            : _phoneCtrl.text.trim(),
+        position: _positionCtrl.text.trim().isEmpty
+            ? null
+            : _positionCtrl.text.trim(),
         dateOfBirth: _dateOfBirth,
         gender: _gender,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(l10n.createOfficerCreated,
-            style: GoogleFonts.inter(fontSize: 13)),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.createOfficerCreated,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
         backgroundColor: AppConstants.successGreen,
-      ));
+        ),
+      );
       context.pop(true);
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '');
@@ -206,10 +218,12 @@ class _CreateOfficerAccountScreenState
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
       content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
       backgroundColor: AppConstants.charcoal,
-    ));
+      ),
+    );
   }
 
   @override
@@ -228,11 +242,14 @@ class _CreateOfficerAccountScreenState
           icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
           onPressed: () => context.pop(),
         ),
-        title: Text(l10n.createOfficerTitle,
+        title: Text(
+          l10n.createOfficerTitle,
             style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: cs.onSurface)),
+            color: cs.onSurface,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Form(
@@ -250,7 +267,9 @@ class _CreateOfficerAccountScreenState
                 child: Text(
                   l10n.createOfficerNotice,
                   style: GoogleFonts.inter(
-                      fontSize: 12, color: cs.onSurfaceVariant),
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -272,11 +291,15 @@ class _CreateOfficerAccountScreenState
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2)),
+                                  strokeWidth: 2,
+                                ),
+                              ),
                             )
                           : (_registryId != null
-                              ? const Icon(Icons.check_circle_rounded,
-                                  color: AppConstants.successGreen)
+                                ? const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: AppConstants.successGreen,
+                                  )
                               : null),
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty)
@@ -285,39 +308,57 @@ class _CreateOfficerAccountScreenState
                   ),
                   if (_checked && _registryError != null) ...[
                     const SizedBox(height: 8),
-                    Text(_registryError!,
+                    Text(
+                      _registryError!,
                         style: GoogleFonts.inter(
-                            fontSize: 11, color: AppConstants.errorRed)),
+                        fontSize: 11,
+                        color: AppConstants.errorRed,
+                      ),
+                    ),
                   ],
                   if (_registryId != null) ...[
                     const SizedBox(height: 8),
-                    Text(l10n.createOfficerMatched,
+                    Text(
+                      l10n.createOfficerMatched,
                         style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: AppConstants.successGreen)),
+                        color: AppConstants.successGreen,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 12),
                   _FieldLabel(label: l10n.createOfficerEmailLabel, cs: cs),
                   TextFormField(
                     controller: _emailCtrl,
+                    readOnly: _emailLocked,
                     keyboardType: TextInputType.emailAddress,
-                    decoration:
-                        const InputDecoration(hintText: 'name@example.com'),
+                    decoration: InputDecoration(
+                      hintText: 'name@example.com',
+                      suffixIcon: _emailLocked
+                          ? const Icon(Icons.lock_outline_rounded, size: 18)
+                          : null,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _FieldLabel(label: l10n.createOfficerPhoneLabel, cs: cs),
                   TextFormField(
                     controller: _phoneCtrl,
+                    readOnly: _phoneLocked,
                     keyboardType: TextInputType.phone,
-                    decoration:
-                        const InputDecoration(hintText: '09XX XXX XXXX'),
+                    decoration: InputDecoration(
+                      hintText: '09XX XXX XXXX',
+                      suffixIcon: _phoneLocked
+                          ? const Icon(Icons.lock_outline_rounded, size: 18)
+                          : null,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _FieldLabel(label: l10n.createOfficerPositionLabel, cs: cs),
                   TextFormField(
                     controller: _positionCtrl,
-                    decoration:
-                        InputDecoration(hintText: l10n.createOfficerPositionHint),
+                    decoration: InputDecoration(
+                      hintText: l10n.createOfficerPositionHint,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -354,21 +395,29 @@ class _CreateOfficerAccountScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _FieldLabel(
-                                label: l10n.addMemberGenderLabel, cs: cs),
+                              label: l10n.addMemberGenderLabel,
+                              cs: cs,
+                            ),
                             DropdownButtonFormField<String>(
                               initialValue: _gender,
                               isExpanded: true,
-                              hint: Text(l10n.addMemberSelectHint,
+                              hint: Text(
+                                l10n.addMemberSelectHint,
                                   style: GoogleFonts.inter(
-                                      fontSize: 13, color: cs.outline)),
-                              items: _genderOptions(l10n)
-                                  .entries
-                                  .map((e) => DropdownMenuItem(
+                                  fontSize: 13,
+                                  color: cs.outline,
+                                ),
+                              ),
+                              items: _genderOptions(l10n).entries
+                                  .map(
+                                    (e) => DropdownMenuItem(
                                         value: e.key,
-                                        child: Text(e.value,
-                                            style: GoogleFonts.inter(
-                                                fontSize: 13)),
-                                      ))
+                                      child: Text(
+                                        e.value,
+                                        style: GoogleFonts.inter(fontSize: 13),
+                                      ),
+                                    ),
+                                  )
                                   .toList(),
                               onChanged: (v) => setState(() => _gender = v),
                             ),
@@ -376,23 +425,6 @@ class _CreateOfficerAccountScreenState
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  _FieldLabel(label: l10n.createOfficerEmployeeIdLabel, cs: cs),
-                  TextFormField(
-                    key: ValueKey(_empIdPreview),
-                    readOnly: true,
-                    enabled: false,
-                    initialValue: _empIdPreview,
-                    style: TextStyle(color: cs.onSurfaceVariant),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 4),
-                    child: Text(
-                      l10n.createOfficerEmployeeIdHelp,
-                      style: GoogleFonts.inter(
-                          fontSize: 11, color: cs.onSurfaceVariant),
-                    ),
                   ),
                 ],
               ),
@@ -414,9 +446,13 @@ class _CreateOfficerAccountScreenState
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 4, left: 4),
-                    child: Text(l10n.createOfficerUsernameHelp,
+                    child: Text(
+                      l10n.createOfficerUsernameHelp,
                         style: GoogleFonts.inter(
-                            fontSize: 11, color: cs.onSurfaceVariant)),
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _FieldLabel(label: l10n.createOfficerPasswordLabel, cs: cs),
@@ -436,7 +472,8 @@ class _CreateOfficerAccountScreenState
                               color: cs.outline,
                             ),
                             onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword),
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
@@ -444,19 +481,25 @@ class _CreateOfficerAccountScreenState
                               onTap: _generatePassword,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                      color: cs.primary
-                                          .withValues(alpha: 0.30)),
+                                    color: cs.primary.withValues(alpha: 0.30),
+                                  ),
                                   borderRadius: BorderRadius.circular(
-                                      AppConstants.radiusSm),
+                                    AppConstants.radiusSm,
                                 ),
-                                child: Text(l10n.autoGeneratedBadge,
+                                ),
+                                child: Text(
+                                  l10n.autoGeneratedBadge,
                                     style: GoogleFonts.inter(
                                         fontSize: 9,
                                         fontWeight: FontWeight.w800,
-                                        color: cs.primary)),
+                                    color: cs.primary,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -483,11 +526,16 @@ class _CreateOfficerAccountScreenState
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.person_add_alt_1_rounded),
-            label: Text(_isSaving
+            label: Text(
+              _isSaving
                 ? l10n.createOfficerCreating
-                : l10n.createOfficerCreateButton),
+                  : l10n.createOfficerCreateButton,
+            ),
           ),
         ),
       ),
@@ -520,11 +568,14 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
+          Text(
+            title,
               style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: cs.onSurface)),
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
           ...children,
         ],
@@ -548,13 +599,16 @@ class _FieldLabel extends StatelessWidget {
       // admin_edit_profile_screen.dart's _LabeledDateField — the longer
       // Tagalog "Petsa ng Kapanganakan" label could still wrap onto two
       // lines next to one-line "Kasarian" without this.
-      child: Text(label,
+      child: Text(
+        label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: cs.onSurfaceVariant)),
+          color: cs.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }

@@ -90,11 +90,12 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     if (_searchQuery.isEmpty) return _data.expenses;
     final q = _searchQuery.toLowerCase();
     return _data.expenses
-        .where((e) =>
+        .where(
+          (e) =>
             e.farmerName.toLowerCase().contains(q) ||
-            e.memberId.toLowerCase().contains(q) ||
             e.category.toLowerCase().contains(q) ||
-            e.description.toLowerCase().contains(q))
+              e.description.toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -156,7 +157,9 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -170,7 +173,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
               Expanded(
                 child: Text(
                   l10n.reportsExpenseReport,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
               IconButton(
@@ -201,11 +208,16 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(
+                reportPeriodLabel(l10n, p),
+                style: GoogleFonts.inter(fontSize: 12),
+              ),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
+              labelStyle: TextStyle(
+                color: active ? Colors.white : cs.onSurface,
+              ),
             ),
           );
         }).toList(),
@@ -251,7 +263,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     // A fixed absolute height, NOT a GridView childAspectRatio — aspect
     // ratio ties cell height to cell width, but this card's content
     // (icon badge + up-to-2-line label + value) needs roughly the same
@@ -314,10 +330,21 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.reportsExpensesByCategory, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+          Text(
+            l10n.reportsExpensesByCategory,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingMd),
           ..._data.categoryBreakdown.map((c) {
-            final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+            final currency = NumberFormat.currency(
+              locale: 'en_PH',
+              symbol: '₱',
+              decimalDigits: 0,
+            );
             return Padding(
               padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
               child: Column(
@@ -325,33 +352,66 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(categoryIcon(c.category), size: 14, color: categoryColor(c.category)),
+                      Icon(
+                        categoryIcon(c.category),
+                        size: 14,
+                        color: categoryColor(c.category),
+                      ),
                       const SizedBox(width: 6),
-                      Expanded(child: Text(c.category, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface))),
+                      Expanded(
+                        child: Text(
+                          c.category,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ),
                       if (c.hasSubsidy)
                         Container(
                           margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: AppConstants.buyerBlue.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                            color: AppConstants.buyerBlue.withValues(
+                              alpha: 0.12,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusFull,
+                            ),
                           ),
                           child: Text(
                             l10n.reportsSubsidizedTag,
-                            style: GoogleFonts.inter(fontSize: 9, color: AppConstants.buyerBlue),
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              color: AppConstants.buyerBlue,
+                            ),
                           ),
                         ),
-                      Text(currency.format(c.total), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface)),
+                      Text(
+                        currency.format(c.total),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: cs.onSurface,
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                     child: LinearProgressIndicator(
                       value: c.percentOfMax,
                       minHeight: 6,
                       backgroundColor: cs.outline.withValues(alpha: 0.12),
-                      valueColor: AlwaysStoppedAnimation(categoryColor(c.category)),
+                      valueColor: AlwaysStoppedAnimation(
+                        categoryColor(c.category),
+                      ),
                     ),
                   ),
                 ],
@@ -379,7 +439,14 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.reportsSpendingTrend, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+          Text(
+            l10n.reportsSpendingTrend,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingSm),
           SizedBox(
             height: 120,
@@ -413,12 +480,23 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     SaganaColors sagana,
   ) {
     final filtered = _filteredExpenses;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.reportsExpenseEntries, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+        Text(
+          l10n.reportsExpenseEntries,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: cs.onSurface,
+          ),
+        ),
         const SizedBox(height: AppConstants.spacingSm),
         if (_data.expenses.isNotEmpty)
           TextField(
@@ -427,7 +505,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
             decoration: InputDecoration(
               hintText: l10n.reportsSearchExpenses,
               hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 20),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: cs.outline,
+                size: 20,
+              ),
             ),
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
           ),
@@ -437,7 +519,9 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
         else if (filtered.isEmpty)
           ReportEmptyState(message: l10n.reportsNoSearchResults)
         else
-          ...filtered.map((e) => _buildExpenseRow(context, e, currency, l10n, cs, sagana)),
+          ...filtered.map(
+            (e) => _buildExpenseRow(context, e, currency, l10n, cs, sagana),
+          ),
       ],
     );
   }
@@ -451,7 +535,8 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     SaganaColors sagana,
   ) {
     return GestureDetector(
-      onTap: () => context.push(AppRoutes.farmerDetails, extra: expense.farmerId),
+      onTap: () =>
+          context.push(AppRoutes.farmerDetails, extra: expense.farmerId),
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -469,7 +554,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                 color: categoryBgColor(expense.category),
                 shape: BoxShape.circle,
               ),
-              child: Icon(categoryIcon(expense.category), size: 16, color: categoryColor(expense.category)),
+              child: Icon(
+                categoryIcon(expense.category),
+                size: 16,
+                color: categoryColor(expense.category),
+              ),
             ),
             const SizedBox(width: AppConstants.spacingMd),
             Expanded(
@@ -478,12 +567,19 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                 children: [
                   Text(
                     expense.description,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: cs.onSurface,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    '${expense.farmerName} • ${expense.memberId} • ${DateFormat('MMM d, yyyy').format(expense.expenseDate)}',
-                    style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                    '${expense.farmerName} • ${DateFormat('MMM d, yyyy').format(expense.expenseDate)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: cs.onSurfaceVariant,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -491,22 +587,130 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
             ),
             expense.isSubsidy
                 ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppConstants.buyerBlue.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
                     child: Text(
                       l10n.reportsSubsidizedTag,
-                      style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.buyerBlue),
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.buyerBlue,
+                      ),
                     ),
                   )
                 : Text(
                     currency.format(expense.amount),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: cs.onSurface,
+                    ),
+                  ),
+            const SizedBox(width: 4),
+            // Separate tap target from the row's own onTap (which goes to
+            // Farmer Details) — this opens a per-transaction detail
+            // instead, closing the gap where an admin could see a farmer's
+            // full profile from this row but not this specific expense's
+            // own details.
+            GestureDetector(
+              onTap: () => _showExpenseDetail(context, expense, currency),
+              child: Icon(
+                Icons.info_outline_rounded,
+                size: 18,
+                color: cs.onSurfaceVariant,
+              ),
                   ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showExpenseDetail(
+    BuildContext context,
+    ExpenseReportRow expense,
+    NumberFormat currency,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+        title: Text(
+          expense.name,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ExpenseDetailRow(label: 'Farmer', value: expense.farmerName),
+            _ExpenseDetailRow(label: 'Category', value: expense.category),
+            _ExpenseDetailRow(label: 'Description', value: expense.description),
+            _ExpenseDetailRow(
+              label: 'Amount',
+              value: expense.isSubsidy
+                  ? 'Subsidized (₱0.00)'
+                  : currency.format(expense.amount),
+            ),
+            _ExpenseDetailRow(
+              label: 'Date',
+              value: DateFormat('MMM d, yyyy').format(expense.expenseDate),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpenseDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _ExpenseDetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

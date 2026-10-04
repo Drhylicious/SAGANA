@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'animated_pressable.dart';
 import 'material_list_tile.dart';
@@ -9,6 +10,26 @@ import '../../core/theme/sagana_colors.dart';
 
 export 'farmer_top_bar.dart';
 export 'disposal_action_sheet.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// flatCardDecoration — flat, bordered/shadowed card chrome matching Admin
+// Dashboard's card treatment (_PriceCard, _ManagementModulesGrid). Single
+// shared definition — PriorityCard, Farmer Home, and View Market all
+// previously computed their own identical copy of this.
+// ─────────────────────────────────────────────────────────────────────────────
+
+BoxDecoration flatCardDecoration(BuildContext context) {
+  final sagana = Theme.of(context).extension<SaganaColors>() ?? SaganaColors.light;
+  final cs = Theme.of(context).colorScheme;
+  return BoxDecoration(
+    color: sagana.cardBackground,
+    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+    border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+    boxShadow: [
+      BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+    ],
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GlassCard
@@ -74,6 +95,12 @@ class PrimaryButton extends StatelessWidget {
   final bool useGradient;
   final IconData? icon;
   final double height;
+  // false: size to the label's actual content instead of filling the
+  // parent's full width — for placement in a Row alongside other content
+  // (e.g. a bottom bar's Total + action button), where forcing full width
+  // would either overflow or force the label to ellipsis. Default true
+  // preserves every existing full-width call site unchanged.
+  final bool expand;
 
   const PrimaryButton({
     super.key,
@@ -83,77 +110,85 @@ class PrimaryButton extends StatelessWidget {
     this.useGradient = true,
     this.icon,
     this.height = 52,
+    this.expand = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final button = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: useGradient && onPressed != null
+            ? AppConstants.primaryButtonGradient
+            : null,
+        color: useGradient ? null : cs.primary,
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        boxShadow: onPressed != null
+            ? [
+                BoxShadow(
+                  color: cs.primary.withValues(alpha: 0.30),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: cs.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          ),
+          // The app-wide ElevatedButtonThemeData forces minimumSize to
+          // Size(double.infinity, 52); a non-expanding button must opt out
+          // of that or it would still demand infinite width from its
+          // parent regardless of the SizedBox below.
+          minimumSize: expand ? null : Size.zero,
+          padding: expand ? null : const EdgeInsets.symmetric(horizontal: 20),
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(cs.onPrimary),
+                ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 18, color: cs.onPrimary),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: cs.onPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+
     return AnimatedPressable(
       onTap: isLoading ? null : onPressed,
       scaleDown: 0.97,
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: useGradient && onPressed != null
-                ? AppConstants.primaryButtonGradient
-                : null,
-            color: useGradient ? null : cs.primary,
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            boxShadow: onPressed != null
-                ? [
-                    BoxShadow(
-                      color: cs.primary.withValues(alpha: 0.30),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: ElevatedButton(
-            onPressed: isLoading ? null : onPressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              foregroundColor: cs.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-            ),
-            child: isLoading
-                ? SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(cs.onPrimary),
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (icon != null) ...[
-                        Icon(icon, size: 18, color: cs.onPrimary),
-                        const SizedBox(width: 8),
-                      ],
-                      Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: cs.onPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ),
+      child: expand
+          ? SizedBox(width: double.infinity, height: height, child: button)
+          : SizedBox(height: height, child: button),
     );
   }
 }
@@ -164,7 +199,7 @@ class PrimaryButton extends StatelessWidget {
 
 class AppTextField extends StatefulWidget {
   final TextEditingController controller;
-  final String label;
+  final String? label;
   final String? hint;
   final IconData? prefixIcon;
   final bool isPassword;
@@ -172,14 +207,19 @@ class AppTextField extends StatefulWidget {
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
   final bool readOnly;
+  // Locked value (for example the account email): cannot be edited or
+  // focused, shows a lock icon, and uses the tinted fill of the Harvest Entry
+  // locked field. readOnly alone still allows focus and text selection.
+  final bool locked;
   final VoidCallback? onTap;
   final TextCapitalization textCapitalization;
   final int maxLines;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AppTextField({
     super.key,
     required this.controller,
-    required this.label,
+    this.label,
     this.hint,
     this.prefixIcon,
     this.isPassword = false,
@@ -187,9 +227,11 @@ class AppTextField extends StatefulWidget {
     this.validator,
     this.onChanged,
     this.readOnly = false,
+    this.locked = false,
     this.onTap,
     this.textCapitalization = TextCapitalization.none,
     this.maxLines = 1,
+    this.inputFormatters,
   });
 
   @override
@@ -208,18 +250,24 @@ class _AppTextFieldState extends State<AppTextField> {
       keyboardType: widget.keyboardType,
       validator: widget.validator,
       onChanged: widget.onChanged,
-      readOnly: widget.readOnly,
+      readOnly: widget.readOnly || widget.locked,
+      enabled: !widget.locked,
       onTap: widget.onTap,
+      inputFormatters: widget.inputFormatters,
       textCapitalization: widget.textCapitalization,
       maxLines: widget.isPassword ? 1 : widget.maxLines,
       style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
+        filled: widget.locked,
+        fillColor: widget.locked ? const Color(0xFFE6F6FF) : null,
         prefixIcon: widget.prefixIcon != null
             ? Icon(widget.prefixIcon, size: 20, color: cs.outline)
             : null,
-        suffixIcon: widget.isPassword
+        suffixIcon: widget.locked
+            ? Icon(Icons.lock_outline_rounded, size: 18, color: cs.outline)
+            : widget.isPassword
             ? IconButton(
                 icon: Icon(
                   _obscureText
@@ -380,7 +428,9 @@ class PriorityCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     if (items.isEmpty) {
-      return GlassCard(
+      return Container(
+        padding: const EdgeInsets.all(AppConstants.spacingGutter),
+        decoration: flatCardDecoration(context),
         child: Row(
           children: [
             Container(
@@ -422,8 +472,9 @@ class PriorityCard extends StatelessWidget {
       );
     }
 
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: flatCardDecoration(context),
       child: Column(
         children: items.asMap().entries.map((entry) {
           final isLast = entry.key == items.length - 1;
@@ -694,6 +745,12 @@ class SettingsRow extends StatelessWidget {
   // Overrides the chevron with a custom control (e.g. a Switch) for rows
   // that toggle a setting directly rather than navigating/opening a picker.
   final Widget? trailing;
+  // Optional override for callers that need a tighter vertical rhythm
+  // (e.g. AppNavigationDrawer, which stacks many rows in a non-scrolling
+  // drawer). Defaults to the original padding so every other existing
+  // call site (Admin/Buyer/Farmer settings and edit-profile screens) is
+  // completely unaffected.
+  final EdgeInsetsGeometry? contentPadding;
 
   const SettingsRow({
     super.key,
@@ -705,6 +762,7 @@ class SettingsRow extends StatelessWidget {
     this.titleColor,
     this.showChevron = true,
     this.trailing,
+    this.contentPadding,
   });
 
   @override
@@ -712,7 +770,8 @@ class SettingsRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return MaterialListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      contentPadding: contentPadding ??
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
         width: 36,
         height: 36,

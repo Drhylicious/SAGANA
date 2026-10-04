@@ -7,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_profile_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../widgets/app_dialog.dart';
@@ -15,7 +16,7 @@ import '../../widgets/change_password_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 
-/// Admin Edit Profile — name, phone, purok, photo, and Change Password.
+/// Admin Edit Profile — name, phone, photo, and Change Password.
 /// Route: /admin/profile/edit. Same shape as BuyerEditProfileScreen:
 /// dedicated screen with a Save action, avatar tap-to-change, and a
 /// Security section linking out to the shared ChangePasswordDialog.
@@ -37,7 +38,6 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
   String? _photoUrl;
-  String? _selectedPurok;
   DateTime? _dateOfBirth;
   String? _gender;
 
@@ -70,7 +70,6 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
       _emailController.text = profile?.email ?? '';
-      _selectedPurok = profile?.purok;
       _dateOfBirth = profile?.dateOfBirth;
       _dobController.text = _dateOfBirth == null
           ? ''
@@ -100,13 +99,20 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
 
   Future<void> _pickPhoto() async {
     try {
-      final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 800, imageQuality: 85);
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        imageQuality: 85,
+      );
       if (picked == null) return;
 
       setState(() => _isUploadingPhoto = true);
       final bytes = await picked.readAsBytes();
       final extension = picked.name.split('.').last;
-      final url = await _repo.updatePhoto(imageBytes: bytes, fileExtension: extension);
+      final url = await _repo.updatePhoto(
+        imageBytes: bytes,
+        fileExtension: extension,
+      );
       if (!mounted) return;
 
       if (url != null) {
@@ -127,7 +133,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   void _showPhotoError() {
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.adminProfilePhotoError), backgroundColor: AppConstants.errorRed),
+      SnackBar(
+        content: Text(l10n.adminProfilePhotoError),
+        backgroundColor: AppConstants.errorRed,
+      ),
     );
   }
 
@@ -135,7 +144,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
     final l10n = AppLocalizations.of(context);
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.adminProfileNameRequired), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(l10n.adminProfileNameRequired),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
       return;
     }
@@ -145,14 +157,16 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       await _repo.updateBasicInfo(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
-        purok: _selectedPurok,
         dateOfBirth: _dateOfBirth,
         gender: _gender,
       );
       AdminProfileStateService.instance.refresh();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.adminProfileUpdated), backgroundColor: AppConstants.successGreen),
+        SnackBar(
+          content: Text(l10n.adminProfileUpdated),
+          backgroundColor: AppConstants.successGreen,
+        ),
       );
       context.pop();
     } catch (_) {
@@ -160,7 +174,10 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       setState(() => _isSaving = false);
       final l10n2 = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n2.adminProfileSaveError), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(l10n2.adminProfileSaveError),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
     }
   }
@@ -175,46 +192,84 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       appBar: AppBar(
         backgroundColor: sagana.scaffoldBackground,
         elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.editProfile,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+        leading: BackButton(
+          onPressed: () => context.pop(),
+          color: AppConstants.primaryGreen,
+        ),
+        title: Text(
+          l10n.editProfile,
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.primaryGreen,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _save,
-            child: Text(l10n.adminProfileSaveChanges,
-                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+            child: Text(
+              l10n.adminProfileSaveChanges,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 40),
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingSafeH,
+                16,
+                AppConstants.spacingSafeH,
+                40,
+              ),
               children: [
                 Center(
                   child: Stack(
                     children: [
                       ProfileAvatar(
                         photoUrl: _photoUrl,
-                        displayName: _nameController.text.isNotEmpty ? _nameController.text : 'Admin',
+                        displayName: _nameController.text.isNotEmpty
+                            ? _nameController.text
+                            : 'Admin',
                         radius: 56,
                       ),
                       if (_isUploadingPhoto)
                         Positioned.fill(
                           child: Container(
-                            decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
-                            child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                            decoration: const BoxDecoration(
+                              color: Colors.black38,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            ),
                           ),
                         )
                       else
                         Positioned(
-                          bottom: 0, right: 0,
+                          bottom: 0,
+                          right: 0,
                           child: GestureDetector(
                             onTap: _pickPhoto,
                             child: Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(color: AppConstants.primaryGreen, shape: BoxShape.circle),
-                              child: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                              decoration: const BoxDecoration(
+                                color: AppConstants.primaryGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.edit_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -225,8 +280,14 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                 Center(
                   child: TextButton(
                     onPressed: _isUploadingPhoto ? null : _pickPhoto,
-                    child: Text(l10n.adminProfileChangePhoto,
-                        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+                    child: Text(
+                      l10n.adminProfileChangePhoto,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -243,13 +304,19 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                   controller: _emailController,
                   label: l10n.emailAddress,
                   prefixIcon: Icons.email_outlined,
-                  readOnly: true,
+                  // Locked: not editable, with the lock icon (same as Harvest Entry).
+                  locked: true,
                 ),
                 const SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.only(left: 4),
-                  child: Text(l10n.emailCannotBeChanged,
-                      style: GoogleFonts.inter(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  child: Text(
+                    l10n.emailCannotBeChanged,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 AppTextField(
@@ -258,15 +325,6 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                   hint: '09XXXXXXXXX',
                   prefixIcon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                AppDropdownField<String>(
-                  value: AppConstants.payanasPuroks.contains(_selectedPurok) ? _selectedPurok : null,
-                  hintText: l10n.addMemberSelectHint,
-                  labelText: l10n.adminProfilePurok,
-                  items: AppConstants.payanasPuroks,
-                  itemLabel: (s) => s,
-                  onChanged: (v) => setState(() => _selectedPurok = v),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -296,15 +354,26 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                 const SizedBox(height: 24),
                 SectionLabel(label: l10n.sectionSecurity),
                 const SizedBox(height: 8),
-                SettingsCard(children: [
+                SettingsCard(
+                  children: [
                   SettingsRow(
                     icon: Icons.lock_reset_rounded,
                     iconColor: AppConstants.primaryGreen,
                     title: l10n.changePassword,
                     subtitle: l10n.updateYourPassword,
-                    onTap: () => AppDialog.show<void>(context: context, child: const ChangePasswordDialog()),
+                      onTap: () => AppDialog.show<void>(
+                        context: context,
+                        child: ChangePasswordDialog(
+                          onSuccess: () => AdminActivityRepository().log(
+                            module: 'profile',
+                            actionType: 'password_changed',
+                            description: 'Changed their account password.',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   ),
-                ]),
               ],
             ),
     );
@@ -340,10 +409,12 @@ class _LabeledDateField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
+        Text(
+          label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: onTap,
@@ -364,7 +435,9 @@ class _LabeledDateField extends StatelessWidget {
                     maxLines: 1,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: hasValue ? cs.onSurface : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                      color: hasValue
+                          ? cs.onSurface
+                          : cs.onSurfaceVariant.withValues(alpha: 0.7),
                     ),
                   ),
                 ),

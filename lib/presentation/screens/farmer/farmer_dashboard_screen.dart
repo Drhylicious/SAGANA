@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -28,6 +27,16 @@ import '../../../data/services/sync_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
+
+// Shared compact-number formatter — kg and currency figures on Home all
+// use the same "1.2k" shorthand above 1000; kept as one definition rather
+// than each card computing its own identical copy.
+String _formatCompact(double v) {
+  if (v >= 1000) {
+    return '${(v / 1000).toStringAsFixed(1)}k';
+  }
+  return v.toStringAsFixed(0);
+}
 
 class FarmerDashboardScreen extends StatefulWidget {
   const FarmerDashboardScreen({super.key});
@@ -113,7 +122,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       final l10n = AppLocalizations.of(context);
 
       final summary = results[0] as DashboardSummaryModel;
-      final fullActivity = results[2] as List<ActivityItem>;
+      final activity = results[2] as List<ActivityItem>;
       final loans = results[3] as List<LoanModel>;
       final listings = results[4] as List<MarketplaceListingModel>;
       final notifications = results[5] as List<NotificationModel>;
@@ -121,9 +130,11 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       setState(() {
         _summary = summary;
         _marketRates = results[1] as List<FarmerMarketRateModel>;
-        // Loan-due entries now live in the Priority section, not here.
-        _activity =
-            fullActivity.where((a) => a.type != ActivityType.loan).toList();
+        // Loan-due entries live in the Priority section, not here — now
+        // excluded server-side (before the 5-item cap is applied) instead
+        // of filtered out of an already-capped list, which previously
+        // could silently show fewer than 5 items on Home.
+        _activity = activity;
         _priorityItems = _buildPriorityItems(
           l10n: l10n,
           loans: loans,
@@ -137,6 +148,18 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Calendar-day difference to [target], ignoring time-of-day on both
+  /// sides — a plain `.difference(DateTime.now()).inDays` would truncate
+  /// toward zero and under-count by one whenever "now" has already moved
+  /// past midnight (e.g. a payment 5 calendar-days away, checked at 3pm,
+  /// is really 4.x Duration-days away and would misreport as "in 4 days").
+  int _daysUntil(DateTime target) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDay = DateTime(target.year, target.month, target.day);
+    return targetDay.difference(today).inDays;
   }
 
   /// Ranked by urgency: overdue loan → listing needs changes →
@@ -163,22 +186,18 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       ));
     }
 
-    for (final listing in listings.where((l) => l.status == 'changes_required')) {
-      items.add(PriorityItem(
-        title: l10n.farmerDashListingNeedsChanges(listing.cropName),
-        subtitle: l10n.farmerDashListingChangesSubtitle,
-        icon: Icons.storefront_outlined,
-        severity: PrioritySeverity.warning,
-        onTap: () => context.goTab(AppRoutes.myListings),
-      ));
-    }
-
     for (final loan in loans.where(
       (l) => l.isActive && !l.isOverdue && l.nextPaymentDate != null,
     )) {
       if (loan.nextPaymentDate!.isBefore(dueSoonCutoff)) {
+        final daysUntil = _daysUntil(loan.nextPaymentDate!);
+        final title = daysUntil <= 0
+            ? l10n.farmerDashLoanDueTodayTitle
+            : daysUntil == 1
+                ? l10n.farmerDashLoanDueInDaysTitleOne(daysUntil)
+                : l10n.farmerDashLoanDueInDaysTitleOther(daysUntil);
         items.add(PriorityItem(
-          title: l10n.farmerDashLoanDueSoonTitle,
+          title: title,
           subtitle: l10n.farmerDashLoanDueSoonSubtitle(
               loan.referenceNo,
               loan.monthlyPayment.toStringAsFixed(0),
@@ -223,7 +242,13 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
   Future<void> _handleSync() async {
     setState(() => _isSyncing = true);
+    // Captured before syncPending() runs — a tap with nothing queued isn't
+    // a meaningful action to record in Recent Activity.
+    final hadPending = _summary.unsyncedCount > 0;
     await SyncService.syncPending();
+    if (hadPending) {
+      await _dashRepo.logSyncCompleted();
+    }
     await _loadData();
     if (mounted) setState(() => _isSyncing = false);
   }
@@ -269,6 +294,10 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
               Navigator.pop(context);
               context.pushRoute(AppRoutes.editFarmDetails);
             },
+            onMyAddresses: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.myAddresses);
+            },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
             onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
@@ -310,7 +339,11 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                         ),
                       ),
 
-                      // Priority section (new)
+                      // Priority section — "Today's Priorities" header +
+                      // count badge shown only when there's something to
+                      // act on, mirroring Admin Dashboard's Priorities card.
+                      // The All Clear state keeps its own self-contained
+                      // positive framing instead, with no header above it.
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -318,20 +351,35 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                             index: 1,
                             child: _isLoading
                                 ? const _Shimmer(width: double.infinity, height: 72)
-                                : PriorityCard(
-                                    items: _priorityItems,
-                                    allClearTitle: l10n.dashboardAllClearTitle,
-                                    allClearMessage: l10n.dashboardAllClearMessage,
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (_priorityItems.isNotEmpty) ...[
+                                        _PriorityHeader(
+                                          count: _priorityItems.length,
+                                          l10n: l10n,
+                                        ),
+                                        const SizedBox(height: 10),
+                                      ],
+                                      PriorityCard(
+                                        items: _priorityItems,
+                                        allClearTitle: l10n.dashboardAllClearTitle,
+                                        allClearMessage: l10n.dashboardAllClearMessage,
+                                      ),
+                                    ],
                                   ),
                           ),
                         ),
                       ),
 
-                      // KPI cards. Total Earnings aggregates Marketplace
-                      // (orders) + Confirmed Cooperative Sales
+                      // KPI cards. Monthly Earnings aggregates Marketplace
+                      // (orders) + Offer to Cooperative
                       // (member_sales_transactions) + Informal Sales
-                      // (informal_sales) — see DashboardRepository.fetchSummary().
-                      // Earnings Goal remains a flat ₱60,000 constant.
+                      // (informal_sales) + Market Linking
+                      // (market_linking_programs, completed rounds) — see
+                      // DashboardRepository.fetchSummary(). Earnings Goal is
+                      // Admin-configurable (farmer_dashboard_settings),
+                      // never hardcoded.
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -343,6 +391,14 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                           ),
                         ),
                       ),
+
+                      // Annual Yield / Annual Earnings moved to the Farmer
+                      // Profile tab (as a KPI row above Farm Records) — no
+                      // longer shown here. Market Rates' own top padding
+                      // (20, matching every other section gap on this
+                      // screen) now provides the spacing directly below
+                      // the Monthly KPI section, so removing this block
+                      // doesn't leave an uneven gap.
 
                       // Market Rates carousel — replaces the ticker
                       SliverToBoxAdapter(
@@ -361,21 +417,10 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                         ),
                       ),
 
-                      // Quick Actions (new)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                          child: StaggeredEntrance(
-                            index: 2,
-                            child: _QuickActionsSection(l10n: l10n),
-                          ),
-                        ),
-                      ),
-
                       // Recent activity — loan-due entries excluded (now in Priority)
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                          padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
                           child: _RecentActivitySection(
                             items: _activity,
                             isLoading: _isLoading,
@@ -412,54 +457,6 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Quick Actions
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _QuickActionsSection extends StatelessWidget {
-  final AppLocalizations l10n;
-  const _QuickActionsSection({required this.l10n});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.dashboardQuickActions,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.charcoal,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            QuickActionButton(
-              icon: Icons.add_circle_outline_rounded,
-              label: l10n.quickActionRecordHarvest,
-              onTap: () => context.pushRoute(AppRoutes.selectCropForHarvest),
-            ),
-            const SizedBox(width: 10),
-            QuickActionButton(
-              icon: Icons.storefront_outlined,
-              label: l10n.quickActionCreateListing,
-              onTap: () => context.pushRoute(AppRoutes.createListing),
-            ),
-            const SizedBox(width: 10),
-            QuickActionButton(
-              icon: Icons.trending_up_rounded,
-              label: l10n.quickActionCheckPrices,
-              onTap: () => context.goTab(AppRoutes.farmerAnalytics),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }
@@ -521,6 +518,104 @@ class _WelcomeSection extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Priority Header — "Today's Priorities" + count badge, mirroring Admin
+// Dashboard's Priorities card header. Shown only when there's at least one
+// item; the All Clear state has its own self-contained framing instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PriorityHeader extends StatelessWidget {
+  final int count;
+  final AppLocalizations l10n;
+
+  const _PriorityHeader({required this.count, required this.l10n});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: AppConstants.warningAmber,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            l10n.farmerDashTodaysPriorities,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppConstants.warningAmber.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            count == 1
+                ? l10n.farmerDashItemCountOne(count)
+                : l10n.farmerDashItemCountOther(count),
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.warningAmber,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared section header — icon (optional) + label, matching Admin
+// Dashboard's _SectionHeader treatment so Home's section titles read
+// consistently with the rest of the app.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FarmerSectionHeader extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+
+  const _FarmerSectionHeader({required this.label, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 18, color: AppConstants.primaryGreen),
+          const SizedBox(width: 6),
+        ],
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppConstants.charcoal,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // KPI Section
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -564,6 +659,7 @@ class _KpiSection extends StatelessWidget {
   }
 }
 
+
 class _YieldCard extends StatelessWidget {
   final DashboardSummaryModel summary;
   final bool isLoading;
@@ -573,12 +669,14 @@ class _YieldCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return GlassCard(
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: flatCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n.reportsTotalYield,
+            l10n.farmerDashMonthlyYield,
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -593,7 +691,7 @@ class _YieldCard extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      _formatNumber(summary.totalYieldKg),
+                      _formatCompact(summary.monthlyYieldKg),
                       style: GoogleFonts.poppins(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -643,12 +741,6 @@ class _YieldCard extends StatelessWidget {
     );
   }
 
-  String _formatNumber(double n) {
-    if (n >= 1000) {
-      return '${(n / 1000).toStringAsFixed(1)}k';
-    }
-    return n.toStringAsFixed(0);
-  }
 }
 
 class _EarningsCard extends StatelessWidget {
@@ -660,26 +752,44 @@ class _EarningsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return GlassCard(
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: flatCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Label gets the card's full width on its own line — previously
+          // shared a row with the Goal badge, which forced it to truncate
+          // to "Total Ear…" on narrower devices. The badge now pairs with
+          // the amount below instead, where there's room for both.
+          Text(
+            l10n.farmerDashTotalEarnings,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Flexible(
-                child: Text(
-                  l10n.farmerDashTotalEarnings,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppConstants.onSurfaceVariant,
-                  ),
-                ),
+              Expanded(
+                child: isLoading
+                    ? const _Shimmer(width: 90, height: 24)
+                    : Text(
+                        '₱${_formatCompact(summary.monthlyEarnings)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppConstants.secondaryContainer,
+                        ),
+                      ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -697,17 +807,6 @@ class _EarningsCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          isLoading
-              ? const _Shimmer(width: 90, height: 24)
-              : Text(
-                  '₱${_formatCurrency(summary.totalEarnings)}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.secondaryContainer,
-                  ),
-                ),
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -722,7 +821,7 @@ class _EarningsCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '₱${_formatCurrency(summary.totalEarnings)} / ₱${_formatCurrency(summary.earningsGoal)}',
+            '₱${_formatCompact(summary.monthlyEarnings)} / ₱${_formatCompact(summary.earningsGoal)}',
             style: GoogleFonts.inter(
               fontSize: 9,
               color: AppConstants.onSurfaceVariant,
@@ -734,12 +833,6 @@ class _EarningsCard extends StatelessWidget {
     );
   }
 
-  String _formatCurrency(double v) {
-    if (v >= 1000) {
-      return '${(v / 1000).toStringAsFixed(1)}k';
-    }
-    return v.toStringAsFixed(0);
-  }
 }
 
 class _SyncCard extends StatelessWidget {
@@ -759,7 +852,9 @@ class _SyncCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final hasUnsynced = summary.unsyncedCount > 0;
-    return GlassCard(
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: flatCardDecoration(context),
       child: Row(
         children: [
           Expanded(
@@ -823,6 +918,21 @@ class _SyncCard extends StatelessWidget {
                       ),
                   ],
                 ),
+                if (!isLoading) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    summary.lastSyncedAt != null
+                        ? l10n.farmerDashLastSynced(
+                            AppUtils.formatRelativeTime(summary.lastSyncedAt!, l10n))
+                        : l10n.farmerDashNeverSynced,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -903,15 +1013,9 @@ class _MarketRatesCarousel extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                l10n.farmerDashMarketRates,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.charcoal,
-                ),
+              child: _FarmerSectionHeader(
+                label: l10n.farmerDashMarketRates,
+                icon: Icons.storefront_outlined,
               ),
             ),
             const SizedBox(width: 8),
@@ -930,10 +1034,11 @@ class _MarketRatesCarousel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (isLoading)
-          const _Shimmer(width: double.infinity, height: 132)
+          const _Shimmer(width: double.infinity, height: 188)
         else if (rates.isEmpty)
-          GlassCard(
+          Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: flatCardDecoration(context),
             child: Row(
               children: [
                 Icon(Icons.storefront_outlined,
@@ -953,7 +1058,7 @@ class _MarketRatesCarousel extends StatelessWidget {
           )
         else
           SizedBox(
-            height: 132,
+            height: 188,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
@@ -989,12 +1094,13 @@ class _MarketRateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final color = MarketTypeDisplay.color(context, rate.priceType);
+    final imageUrl = rate.cropImageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 168,
-        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -1007,51 +1113,92 @@ class _MarketRateCard extends StatelessWidget {
             ),
           ],
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                MarketTypeDisplay.label(l10n, rate.priceType),
-                style: GoogleFonts.inter(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
+            // Image fills the card's upper portion — crop identity comes
+            // first, price is read once you know what it is. Mirrors Admin
+            // Price Management's _PriceCard treatment, adapted to this
+            // carousel's fixed card width instead of a grid.
+            SizedBox(
+              height: 84,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  hasImage
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: color.withValues(alpha: 0.12),
+                            child: Icon(Icons.eco_rounded, size: 28, color: color),
+                          ),
+                        )
+                      : Container(
+                          color: color.withValues(alpha: 0.12),
+                          child: Icon(Icons.eco_rounded, size: 28, color: color),
+                        ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        MarketTypeDisplay.label(l10n, rate.priceType),
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              rate.cropName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.charcoal,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              rate.formattedPrice,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                color: AppConstants.onSurfaceVariant,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    rate.cropName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.charcoal,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    rate.formattedPrice,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1084,22 +1231,13 @@ class _RecentActivitySection extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                l10n.recentActivity,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.charcoal,
-                ),
-              ),
+              child: _FarmerSectionHeader(label: l10n.recentActivity),
             ),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: onViewAll,
               child: Text(
-                l10n.buyerActivityViewAll,
+                l10n.farmerDashActivityViewAll,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -1111,7 +1249,9 @@ class _RecentActivitySection extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         if (isLoading)
-          GlassCard(
+          Container(
+            padding: const EdgeInsets.all(AppConstants.spacingGutter),
+            decoration: flatCardDecoration(context),
             child: Column(
               children: List.generate(
                 3,
@@ -1123,7 +1263,9 @@ class _RecentActivitySection extends StatelessWidget {
             ),
           )
         else if (items.isEmpty)
-          GlassCard(
+          Container(
+            padding: const EdgeInsets.all(AppConstants.spacingGutter),
+            decoration: flatCardDecoration(context),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
@@ -1135,7 +1277,7 @@ class _RecentActivitySection extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    l10n.buyerActivityEmpty,
+                    l10n.farmerDashActivityEmpty,
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: AppConstants.onSurfaceVariant,
@@ -1146,43 +1288,28 @@ class _RecentActivitySection extends StatelessWidget {
             ),
           )
         else
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: 0.30),
-                  ),
-                ),
-                child: Column(
-                  children: items
-                      .asMap()
-                      .entries
-                      .map(
-                        (e) => Column(
-                          children: [
-                            _ActivityTile(item: e.value),
-                            if (e.key < items.length - 1)
-                              Divider(
-                                height: 1,
-                                color: AppConstants.outline.withValues(
-                                  alpha: 0.08,
-                                ),
-                              ),
-                          ],
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: flatCardDecoration(context),
+            child: Column(
+              children: items
+                  .asMap()
+                  .entries
+                  .map(
+                    (e) => Column(
+                      children: [
+                        _ActivityTile(item: e.value),
+                        if (e.key < items.length - 1)
+                          Divider(
+                            height: 1,
+                            color: AppConstants.outline.withValues(
+                              alpha: 0.08,
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                  .toList(),
             ),
           ),
       ],
@@ -1238,8 +1365,6 @@ class _ActivityTile extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                     color: item.isAlert
                         ? AppConstants.errorRed
-                        : item.type == ActivityType.order
-                        ? AppConstants.primaryGreen
                         : AppConstants.charcoal,
                   ),
                 ),
@@ -1274,19 +1399,9 @@ class _ActivityIcon extends StatelessWidget {
     Color bg;
     Color fg;
 
-    if (isAlert && type == ActivityType.loan) {
-      icon = Icons.event_repeat_rounded;
-      bg = AppConstants.errorRed.withValues(alpha: 0.12);
-      fg = AppConstants.errorRed;
-    } else {
-      switch (type) {
-        case ActivityType.harvest:
+    switch (type) {
+      case ActivityType.harvest:
           icon = Icons.eco_rounded;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.order:
-          icon = Icons.shopping_cart_outlined;
           bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
           fg = AppConstants.primaryGreen;
           break;
@@ -1295,10 +1410,10 @@ class _ActivityIcon extends StatelessWidget {
           bg = AppConstants.successGreen.withValues(alpha: 0.10);
           fg = AppConstants.successGreen;
           break;
-        case ActivityType.loan:
-          icon = Icons.account_balance_wallet_outlined;
-          bg = AppConstants.warningAmber.withValues(alpha: 0.10);
-          fg = AppConstants.warningAmber;
+        case ActivityType.orderPlaced:
+          icon = Icons.shopping_cart_outlined;
+          bg = AppConstants.successGreen.withValues(alpha: 0.10);
+          fg = AppConstants.successGreen;
           break;
         case ActivityType.cropRequest:
           icon = Icons.local_florist_outlined;
@@ -1316,8 +1431,23 @@ class _ActivityIcon extends StatelessWidget {
           bg = AppConstants.successGreen.withValues(alpha: 0.10);
           fg = AppConstants.successGreen;
           break;
-        case ActivityType.cooperativeSale:
+        case ActivityType.cropPhotoUpdated:
+          icon = Icons.photo_camera_outlined;
+          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+          fg = AppConstants.primaryGreen;
+          break;
+        case ActivityType.cooperativeOffer:
           icon = Icons.groups_outlined;
+          bg = AppConstants.successGreen.withValues(alpha: 0.10);
+          fg = AppConstants.successGreen;
+          break;
+        case ActivityType.marketLinkingEnrollment:
+          icon = Icons.handshake_outlined;
+          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+          fg = AppConstants.primaryGreen;
+          break;
+        case ActivityType.gingerBatchSubmission:
+          icon = Icons.outbox_outlined;
           bg = AppConstants.successGreen.withValues(alpha: 0.10);
           fg = AppConstants.successGreen;
           break;
@@ -1326,8 +1456,37 @@ class _ActivityIcon extends StatelessWidget {
           bg = AppConstants.outline.withValues(alpha: 0.10);
           fg = AppConstants.outline;
           break;
+        case ActivityType.addressUpdated:
+          icon = Icons.location_on_outlined;
+          bg = AppConstants.outline.withValues(alpha: 0.10);
+          fg = AppConstants.outline;
+          break;
+        case ActivityType.expenseAdded:
+          icon = Icons.receipt_long_outlined;
+          bg = AppConstants.outline.withValues(alpha: 0.10);
+          fg = AppConstants.outline;
+          break;
+        case ActivityType.programEnrollment:
+          icon = Icons.assignment_turned_in_outlined;
+          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+          fg = AppConstants.primaryGreen;
+          break;
+        case ActivityType.programPurchase:
+          icon = Icons.shopping_bag_outlined;
+          bg = AppConstants.successGreen.withValues(alpha: 0.10);
+          fg = AppConstants.successGreen;
+          break;
+        case ActivityType.capitalReinvestment:
+          icon = Icons.savings_outlined;
+          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+          fg = AppConstants.primaryGreen;
+          break;
+        case ActivityType.syncCompleted:
+          icon = Icons.sync_rounded;
+          bg = AppConstants.outline.withValues(alpha: 0.10);
+          fg = AppConstants.outline;
+          break;
       }
-    }
 
     return Container(
       width: 44,

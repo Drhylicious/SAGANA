@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../core/l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -89,6 +91,18 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     AppEventService.instance.notify();
   }
 
+  Future<void> _onNotifTap(NotificationModel n) async {
+    await _markRead(n.id);
+    if (!mounted) return;
+    if (n.routeOnTap != null) {
+      if (n.routeExtra != null) {
+        context.push(n.routeOnTap!, extra: n.routeExtra);
+      } else {
+        context.push(n.routeOnTap!);
+      }
+    }
+  }
+
   Future<void> _delete(String id) async {
     await _repo.deleteNotification(id);
     setState(() => _notifications.removeWhere((n) => n.id == id));
@@ -137,7 +151,7 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Notifications',
+                                      AppLocalizations.of(context).sectionNotifications,
                                       style: GoogleFonts.poppins(
                                         fontSize: 20,
                                         fontWeight: FontWeight.w700,
@@ -255,7 +269,7 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'Notifications',
+              title: AppLocalizations.of(context).sectionNotifications,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -293,7 +307,7 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
         widgets.add(
           _NotifCard(
             item: n,
-            onTap: () => _markRead(n.id),
+            onTap: () => _onNotifTap(n),
             onDelete: () => _delete(n.id),
           ),
         );
@@ -495,6 +509,11 @@ class _NotifCard extends StatelessWidget {
         return const _IconConfig(
           Icons.volunteer_activism_outlined,
           AppConstants.tertiaryContainer,
+        );
+      case NotificationType.capital:
+        return const _IconConfig(
+          Icons.savings_outlined,
+          AppConstants.amber,
         );
       case NotificationType.memberApproved:
         return const _IconConfig(

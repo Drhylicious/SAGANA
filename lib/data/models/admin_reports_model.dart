@@ -95,6 +95,13 @@ const reportPeriodChipOrder = [
 
 class PerformanceSummary {
   final double totalHarvestKg;
+  // Revenue across all 4 real selling channels (Offer to Cooperative,
+  // Marketplace, Informal Sale, DA-AMAD Market Linking) for the selected
+  // period — same total Sales Report's own "Total Revenue" shows, reused
+  // rather than recomputed. Replaces the old headline figure, which only
+  // ever summed member_sales_transactions (Offer to Cooperative) despite
+  // being labeled and shown as if it covered the whole sales ecosystem.
+  final double totalSalesAmount;
   final double coopSalesAmount;
   final double marketplaceRevenue;
   final double activeLoanOutstanding;
@@ -103,6 +110,7 @@ class PerformanceSummary {
 
   const PerformanceSummary({
     required this.totalHarvestKg,
+    required this.totalSalesAmount,
     required this.coopSalesAmount,
     required this.marketplaceRevenue,
     required this.activeLoanOutstanding,
@@ -112,6 +120,7 @@ class PerformanceSummary {
 
   factory PerformanceSummary.empty() => const PerformanceSummary(
     totalHarvestKg: 0,
+    totalSalesAmount: 0,
     coopSalesAmount: 0,
     marketplaceRevenue: 0,
     activeLoanOutstanding: 0,
@@ -153,20 +162,30 @@ class QuickInsights {
 class SalesTransactionRow {
   final String id;
   final String farmerName;
-  final String memberId;
   final String cropType; // 'palay' | 'peanut' | other crop's lowercased name
   final String cropName;
   final double quantityKg;
   final double amount;
   final DateTime saleDate;
   final String? referenceNo;
-  final String sellingType; // offer_to_cooperative | marketplace | informal_sale | da_amad_market_linking
-  final String? marketType; // 'Cooperative Market' | 'Public Market' | 'DA-AMAD Market' | null
+  final String
+  sellingType; // offer_to_cooperative | marketplace | informal_sale | da_amad_market_linking
+  final String?
+  marketType; // 'Cooperative Market' | 'Public Market' | 'DA-AMAD Market' | null
+
+  /// Populated for every channel except Offer to Cooperative (that
+  /// transaction is directly with the cooperative, not an external
+  /// buyer) — mirrors FarmerTransactionModel's identical field/rule.
+  final String? buyerName;
+
+  /// Marketplace only — always 'completed' today, since this channel is
+  /// already filtered to completed orders only, but carried through as
+  /// real data rather than a hardcoded label.
+  final String? orderStatus;
 
   const SalesTransactionRow({
     required this.id,
     required this.farmerName,
-    required this.memberId,
     required this.cropType,
     required this.cropName,
     required this.quantityKg,
@@ -175,6 +194,8 @@ class SalesTransactionRow {
     this.referenceNo,
     required this.sellingType,
     this.marketType,
+    this.buyerName,
+    this.orderStatus,
   });
 }
 
@@ -228,7 +249,6 @@ class SalesReportData {
 class MemberContributionRow {
   final String farmerId;
   final String farmerName;
-  final String memberId;
   final double palayQtyKg;
   final double palayAmount;
   final double peanutQtyKg;
@@ -248,10 +268,14 @@ class MemberContributionRow {
   /// its own line, never folded into the sales-based total.
   final double programPurchasesAmount;
 
+  /// This member's share of the year's total Product Sales Program
+  /// purchases across all members — computed the same way sharePercent
+  /// is, but against the purchases pool, never against coopTotalSales.
+  final double purchaseSharePercent;
+
   const MemberContributionRow({
     required this.farmerId,
     required this.farmerName,
-    required this.memberId,
     required this.palayQtyKg,
     required this.palayAmount,
     required this.peanutQtyKg,
@@ -261,9 +285,18 @@ class MemberContributionRow {
     this.otherCropsQtyKg = 0,
     this.otherCropsAmount = 0,
     this.programPurchasesAmount = 0,
+    this.purchaseSharePercent = 0,
   });
 
   bool get hasContributed => totalAmount > 0;
+
+  /// Both patronage sources combined — selling to the cooperative AND
+  /// buying from it. The headline figure a member's overall patronage
+  /// should be judged by, so the report doesn't read as biased toward
+  /// whichever side happens to be shown first.
+  double get combinedTotalAmount => totalAmount + programPurchasesAmount;
+
+  bool get hasAnyActivity => combinedTotalAmount > 0;
 }
 
 class MemberContributionReportData {
@@ -303,7 +336,6 @@ class InventoryReportRow {
   final String batchId;
   final String farmerId;
   final String farmerName;
-  final String memberId;
   final String cropName;
   final String batchNumber;
   final double quantityKg;
@@ -318,7 +350,6 @@ class InventoryReportRow {
     required this.batchId,
     required this.farmerId,
     required this.farmerName,
-    required this.memberId,
     required this.cropName,
     required this.batchNumber,
     required this.quantityKg,
@@ -370,19 +401,26 @@ class InventoryReportData {
 
 // ─── Harvest Report ─────────────────────────────────────────────────────────
 
-/// One row in Harvest Report's table. submitted_to_cooperative and
-/// is_synced are both real stored columns on harvest_records — no
-/// inference needed, same as the Available/Reserved/Sold columns on
-/// Inventory Report.
+/// One row in Harvest Report's table. is_synced is a real stored column on
+/// harvest_records — no inference needed, same as the Available/Reserved/
+/// Sold columns on Inventory Report.
+///
+/// submitted_to_cooperative previously appeared here too, but it's dead
+/// data — the column exists on harvest_records but nothing anywhere in the
+/// app (Dart or SQL) ever sets it to true, so it always read as "Not
+/// Submitted"/false. A harvest's produce being sold to the cooperative is
+/// tracked separately, at the inventory-batch level, via
+/// member_sales_transactions — not on the harvest record itself. Removed
+/// rather than fixed, since no code path actually implements that
+/// per-harvest signal; the DB column itself is left in place, unreferenced
+/// (same precedent as InventoryRepository's removed deleteBatch()).
 class HarvestReportRow {
   final String id;
   final String farmerId;
   final String farmerName;
-  final String memberId;
   final String cropName;
   final double quantityKg;
   final DateTime harvestDate;
-  final bool submittedToCooperative;
   final bool isSynced;
   final String batchNumber; // links 1:1 to InventoryReportRow.batchNumber
 
@@ -390,11 +428,9 @@ class HarvestReportRow {
     required this.id,
     required this.farmerId,
     required this.farmerName,
-    required this.memberId,
     required this.cropName,
     required this.quantityKg,
     required this.harvestDate,
-    required this.submittedToCooperative,
     required this.isSynced,
     required this.batchNumber,
   });
@@ -407,6 +443,14 @@ class HarvestReportData {
   final List<double> monthlyTrend;
   final List<CropStockBreakdown> cropBreakdown;
   final List<HarvestReportRow> harvests;
+  // Kg actually disposed of (across all 4 real selling channels — Offer to
+  // Cooperative, Marketplace, Informal Sale, DA-AMAD Market Linking) within
+  // the SAME period selected for totalYieldKg above. Deliberately distinct
+  // from InventoryReportData.totalSoldKg, which is an all-time cumulative
+  // snapshot, not period-scoped — this pairs with totalYieldKg to show
+  // "harvested vs. sold" for one window, rather than duplicating the live
+  // Available Stock figure shown elsewhere on the same screen.
+  final double soldKgInPeriod;
 
   const HarvestReportData({
     required this.totalYieldKg,
@@ -415,6 +459,7 @@ class HarvestReportData {
     required this.monthlyTrend,
     required this.cropBreakdown,
     required this.harvests,
+    required this.soldKgInPeriod,
   });
 
   factory HarvestReportData.empty() => const HarvestReportData(
@@ -424,6 +469,7 @@ class HarvestReportData {
         monthlyTrend: [],
         cropBreakdown: [],
         harvests: [],
+    soldKgInPeriod: 0,
       );
 }
 
@@ -438,7 +484,7 @@ class HarvestReportData {
 class ExpenseReportRow {
   final String farmerId;
   final String farmerName;
-  final String memberId;
+  final String name;
   final String category;
   final String description;
   final double amount;
@@ -448,7 +494,7 @@ class ExpenseReportRow {
   const ExpenseReportRow({
     required this.farmerId,
     required this.farmerName,
-    required this.memberId,
+    required this.name,
     required this.category,
     required this.description,
     required this.amount,

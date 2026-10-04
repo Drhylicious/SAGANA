@@ -37,7 +37,8 @@ class AnalyticsDashboardScreen extends StatefulWidget {
   const AnalyticsDashboardScreen({super.key});
 
   @override
-  State<AnalyticsDashboardScreen> createState() => _AnalyticsDashboardScreenState();
+  State<AnalyticsDashboardScreen> createState() =>
+      _AnalyticsDashboardScreenState();
 }
 
 class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
@@ -52,7 +53,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   List<CropPriceCard> _priceCards = [];
   AllTimeLoanSummary _loanSummary = AllTimeLoanSummary.empty();
   List<double> _collectionTrend = [];
-  MemberParticipationSummary _participation = MemberParticipationSummary.empty();
+  MemberParticipationSummary _participation =
+      MemberParticipationSummary.empty();
 
   // Scoped to Member Participation only — Top Harvested Crops and
   // Planting Forecast read from crop_planting_forecast/top_harvested_crops,
@@ -108,7 +110,8 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   /// price ever recorded (no previous price to diff against) was
   /// invisible here even though its current price was real, on-file data.
   List<CropPriceCard> get _priceSnapshotCards {
-    final sorted = [..._priceCards]..sort((a, b) {
+    final sorted = [..._priceCards]
+      ..sort((a, b) {
       final ad = a.priceDiff?.abs() ?? -1;
       final bd = b.priceDiff?.abs() ?? -1;
       return bd.compareTo(ad);
@@ -152,12 +155,12 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                         32,
                       ),
                       children: [
+                        _buildParticipationPeriodSelector(cs),
+                        const SizedBox(height: AppConstants.spacingMd),
                         ReportSectionHeader(
                           icon: Icons.insights_rounded,
                           title: l10n.reportsAnalyticsOverview,
                         ),
-                        const SizedBox(height: AppConstants.spacingMd),
-                        _buildParticipationPeriodSelector(cs),
                         const SizedBox(height: AppConstants.spacingMd),
                         _buildParticipationCard(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingSectionV),
@@ -172,12 +175,18 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                         const PlantingForecastSectionHeader(),
                         const SizedBox(height: AppConstants.spacingMd),
                         if (_forecasts.isEmpty)
-                          ReportEmptyState(message: l10n.analyticsNoForecastsYet)
+                          ReportEmptyState(
+                            message: l10n.analyticsNoForecastsYet,
+                          )
                         else
-                          ..._forecasts.map((f) => Padding(
-                                padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
+                          ..._forecasts.map(
+                            (f) => Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppConstants.spacingMd,
+                              ),
                                 child: PlantingForecastCard(forecast: f),
-                              )),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -198,7 +207,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -212,7 +223,11 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               Expanded(
                 child: Text(
                   l10n.reportsAnalyticsDashboard,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
             ],
@@ -248,8 +263,12 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: isActive ? AppConstants.primaryGreen : Colors.transparent,
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      color: isActive
+                          ? AppConstants.primaryGreen
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
                     child: Text(
                       p.label,
@@ -292,15 +311,40 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.analyticsMemberParticipation, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+          Text(
+            l10n.analyticsMemberParticipation,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingMd),
           Row(
             children: [
-              Expanded(child: _tierStat(l10n.analyticsActiveHarvested, _participation.activeHarvestedCount, AppConstants.successGreen)),
+              Expanded(
+                child: _tierStat(
+                  l10n.analyticsActiveHarvested,
+                  _participation.activeHarvestedCount,
+                  AppConstants.successGreen,
+                ),
+              ),
               const SizedBox(width: AppConstants.spacingSm),
-              Expanded(child: _tierStat(l10n.analyticsActiveListed, _participation.activeListedCount, AppConstants.buyerBlue)),
+              Expanded(
+                child: _tierStat(
+                  l10n.analyticsActiveListed,
+                  _participation.activeListedCount,
+                  AppConstants.buyerBlue,
+                ),
+              ),
               const SizedBox(width: AppConstants.spacingSm),
-              Expanded(child: _tierStat(l10n.analyticsInactive, _participation.inactiveCount, AppConstants.warningAmber)),
+              Expanded(
+                child: _tierStat(
+                  l10n.analyticsInactive,
+                  _participation.inactiveCount,
+                  AppConstants.warningAmber,
+                ),
+              ),
             ],
           ),
         ],
@@ -318,8 +362,19 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       ),
       child: Column(
         children: [
-          Text('$count', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: color)),
-          Text(label, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 9, color: color)),
+          Text(
+            '$count',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 9, color: color),
+          ),
         ],
       ),
     );
@@ -333,7 +388,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   ) {
     final isHealthy = _loanSummary.isHealthy;
     final repaymentRate = _loanSummary.repaymentRatePercent;
-    final healthColor = isHealthy ? AppConstants.successGreen : AppConstants.warningAmber;
+    final healthColor = isHealthy
+        ? AppConstants.successGreen
+        : AppConstants.warningAmber;
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -348,10 +405,21 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(l10n.analyticsLoanHealth, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+              Text(
+                l10n.analyticsLoanHealth,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+              ),
               Text(
                 '${repaymentRate.toStringAsFixed(0)}% ${l10n.analyticsCollectionRate}',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: healthColor),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: healthColor,
+                ),
               ),
             ],
           ),
@@ -360,7 +428,10 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
             height: 100,
             child: _collectionTrend.length < 2
                 ? Center(
-                    child: Text(l10n.reportsNotEnoughTrendData, style: GoogleFonts.inter(fontSize: 12, color: cs.outline)),
+                    child: Text(
+                      l10n.reportsNotEnoughTrendData,
+                      style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
+                    ),
                   )
                 : CustomPaint(
                     size: const Size(double.infinity, 100),
@@ -396,44 +467,260 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.analyticsPriceSnapshot, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+          Text(
+            l10n.analyticsPriceSnapshot,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingSm),
           if (cards.isEmpty)
-            Text(l10n.reportsNotEnoughTrendData, style: GoogleFonts.inter(fontSize: 12, color: cs.outline))
+            Text(
+              l10n.reportsNotEnoughTrendData,
+              style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
+            )
           else
-            ...cards.map((c) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(c.cropName, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface)),
-                      Row(
-                        children: [
-                          Icon(
-                            c.isUp ? Icons.arrow_upward_rounded : c.isDown ? Icons.arrow_downward_rounded : Icons.remove_rounded,
-                            size: 13,
-                            color: c.isUp ? AppConstants.successGreen : c.isDown ? AppConstants.errorRed : cs.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '₱${c.currentPrice.toStringAsFixed(2)}',
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                )),
+            // Card-style display, matching Price Management's own _PriceCard
+            // visual language (image top with market-type badge overlay,
+            // name/price/% delta/freshness below) rather than the plain
+            // text rows this replaces — but without Price Management's
+            // edit affordance, since this snapshot is read-only.
+            // Horizontally scrollable per its own row, similar in concept
+            // to Farmer Analytics' Price Monitoring cards without copying
+            // that design directly (narrower, no margin/kg row, percentage
+            // delta instead of a peso amount, matching Price Management).
+            SizedBox(
+              height: 150,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: cards.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, i) =>
+                    _PriceSnapshotCard(price: cards[i], cs: cs, sagana: sagana),
+              ),
+            ),
           const SizedBox(height: AppConstants.spacingSm),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () => context.push(AppRoutes.priceManagement),
-              child: Text(l10n.analyticsViewFullPrices, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+              child: Text(
+                l10n.analyticsViewFullPrices,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+/// Price Snapshot's card — same visual language as Price Management's own
+/// _PriceCard (price_management_screen.dart: image top with market-type
+/// badge overlay, name/price/% delta/freshness below), minus its edit
+/// affordance since this snapshot is read-only. Deliberately duplicated
+/// here rather than importing that private class — _PriceCard isn't
+/// exported, and this card's data source (CropPriceCard, a lighter shape
+/// than PriceManagementRepository's own PriceRecordModel) differs anyway.
+class _PriceSnapshotCard extends StatelessWidget {
+  final CropPriceCard price;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _PriceSnapshotCard({
+    required this.price,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final marketColor = MarketTypeDisplay.color(context, price.priceType);
+    final hasImage = price.imageUrl != null && price.imageUrl!.isNotEmpty;
+    final delta = _delta();
+
+    return Container(
+      width: 130,
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 64,
+            width: double.infinity,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                hasImage
+                    ? Image.network(
+                        price.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: cs.surfaceContainerHighest.withValues(
+                            alpha: 0.4,
+                          ),
+                          child: Icon(
+                            Icons.eco_rounded,
+                            size: 26,
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        color: cs.surfaceContainerHighest.withValues(
+                          alpha: 0.4,
+                        ),
+                        child: Icon(
+                          Icons.eco_rounded,
+                          size: 26,
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                        ),
+                      ),
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: marketColor,
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
+                    ),
+                    child: Text(
+                      MarketTypeDisplay.label(l10n, price.priceType),
+                      style: GoogleFonts.inter(
+                        fontSize: 7,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+                    children: [
+                Text(
+                  price.cropName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                      Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                        children: [
+                    Flexible(
+                      child: Text(
+                        '₱${price.currentPrice.toStringAsFixed(2)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: cs.primary,
+                        ),
+                      ),
+                          ),
+                    if (delta != null) ...[
+                          const SizedBox(width: 4),
+                      Icon(delta.icon, size: 11, color: delta.color),
+                          Text(
+                        delta.label,
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: delta.color,
+                          ),
+                      ),
+                    ],
+                  ],
+                  ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.priceUpdatedPrefix(_updatedLabel()),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 8, color: cs.outline),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ({IconData icon, String label, Color color})? _delta() {
+    final diff = price.priceDiff;
+    if (diff == null || price.previousPrice == null || price.previousPrice == 0)
+      return null;
+    final pct = (diff / price.previousPrice!) * 100;
+    if (pct.abs() < 0.01) {
+      return (
+        icon: Icons.horizontal_rule_rounded,
+        label: '0%',
+        color: AppConstants.outline,
+      );
+    }
+    return (
+      icon: pct > 0 ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+      label: '${pct.abs().toStringAsFixed(1)}%',
+      color: pct > 0 ? AppConstants.successGreen : AppConstants.errorRed,
+    );
+  }
+
+  String _updatedLabel() {
+    final dt = price.recordedAt;
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
   }
 }

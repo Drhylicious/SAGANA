@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sagana/core/theme/sagana_colors.dart';
+import 'package:sagana/core/l10n/app_localizations.dart';
 import 'package:sagana/presentation/screens/admin/farmer_management_screen.dart';
 
 void main() {
@@ -9,6 +10,8 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Center(
             child: SizedBox(

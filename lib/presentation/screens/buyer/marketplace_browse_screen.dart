@@ -14,7 +14,6 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/animated_pressable.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
-import '../../widgets/shared_widgets.dart';
 
 class MarketplaceBrowseScreen extends StatefulWidget {
   const MarketplaceBrowseScreen({super.key});
@@ -159,6 +158,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           Navigator.pop(context);
           context.push(AppRoutes.buyerEditProfile);
         },
+        onMyAddresses: () {
+          Navigator.pop(context);
+          context.push(AppRoutes.myAddresses);
+        },
         onSignOut: () => confirmBuyerSignOut(context),
         onAboutSagana: () => context.push(AppRoutes.aboutSagana),
         onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
@@ -179,10 +182,8 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                       controller: _scrollController,
                       slivers: [
                         SliverToBoxAdapter(child: _buildHeader(l10n)),
-                        if (_allListings.isNotEmpty) ...[
-                          SliverToBoxAdapter(child: _buildPriceTicker()),
+                        if (_allListings.isNotEmpty)
                           SliverToBoxAdapter(child: _buildCategoryChips()),
-                        ],
                         if (_isLoading)
                           const SliverFillRemaining(
                             child: Center(child: CircularProgressIndicator()),
@@ -267,43 +268,6 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     );
   }
 
-  Widget _buildPriceTicker() {
-    final priced = _allListings.where((l) => l.marketRefPricePerKg != null).toList();
-    final cropsShown = <String>{};
-    final tickerItems = <BuyerListingModel>[];
-    for (final l in priced) {
-      if (cropsShown.add(l.canonicalDisplayCropName)) tickerItems.add(l);
-    }
-    if (tickerItems.isEmpty) return const SizedBox.shrink();
-
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH),
-        itemCount: tickerItems.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final l = tickerItems[i];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppConstants.primaryGreen.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-            ),
-            child: Text(
-              '${l.canonicalDisplayCropName} · ₱${l.marketRefPricePerKg!.toStringAsFixed(2)}/kg',
-              style: GoogleFonts.inter(
-                fontSize: 12, fontWeight: FontWeight.w600,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildCategoryChips() {
     final cats = _availableCategories;
     if (cats.length <= 1) return const SizedBox(height: 12);
@@ -361,8 +325,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           crossAxisCount: 2,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          // Give the cards enough vertical room for the image, title, price, stock, and CTA.
-          childAspectRatio: 0.62,
+          // Buyer Browse-tab rework: card content is now name, price+sold
+          // row, market type, available — one more line than the earlier
+          // 0.72 tuning accounted for; loosened further to fit it.
+          childAspectRatio: 0.71,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, i) => _ListingCard(listing: listings[i], onReturn: _loadCartCount),
@@ -432,13 +398,8 @@ class _ListingCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            border: AppConstants.cardBorder,
+            boxShadow: AppConstants.cardShadow,
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -495,42 +456,36 @@ class _ListingCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14, fontWeight: FontWeight.w800,
-                        color: AppConstants.primaryGreen,
-                      ),
+                    const SizedBox(height: 1),
+                    // Price left, units sold right — same row, per reference.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14, fontWeight: FontWeight.w800,
+                              color: AppConstants.primaryGreen,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          l10n.buyerBrowseUnitsSold(listing.soldKg.toStringAsFixed(0)),
+                          style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
+                    Text(
+                      listing.marketTypeLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 1),
                     Text(
                       '${listing.displayAvailableKg.toStringAsFixed(0)} kg ${l10n.buyerBrowseAvailableSuffix}',
                       style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
-                    ),
-                    if (!listing.isPriceWithinMarketRange) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.info_outline_rounded, size: 12, color: AppConstants.warningAmber),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              l10n.buyerBrowseAboveMarketRange,
-                              style: GoogleFonts.inter(fontSize: 10, color: AppConstants.warningAmber),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: PrimaryButton(
-                        label: soldOut ? l10n.buyerBrowseSoldOut : l10n.buyerBrowseOrderNow,
-                        height: 34,
-                        onPressed: soldOut ? null : () => _open(context),
-                      ),
                     ),
                   ],
                 ),

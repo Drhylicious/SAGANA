@@ -9,15 +9,22 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 
 String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
   switch (s) {
-    case MarketLinkingStatus.submitted:  return l10n.marketLinkKpiSubmitted;
-    case MarketLinkingStatus.buyerFound: return l10n.marketLinkKpiBuyerFound;
-    case MarketLinkingStatus.completed:  return l10n.statCompleted;
-    case MarketLinkingStatus.cancelled:  return l10n.buyerActivityStatusCancelled;
+    case MarketLinkingStatus.requested:
+      return 'Requested';
+    case MarketLinkingStatus.submitted:
+      return l10n.marketLinkKpiSubmitted;
+    case MarketLinkingStatus.buyerFound:
+      return l10n.marketLinkKpiBuyerFound;
+    case MarketLinkingStatus.completed:
+      return l10n.statCompleted;
+    case MarketLinkingStatus.cancelled:
+      return l10n.buyerActivityStatusCancelled;
   }
 }
 
@@ -38,6 +45,11 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
   // the full season once and filtering in memory fixes that and also cuts
   // a network round-trip per filter tap.
   List<MarketLinkingModel> _allEntries = [];
+  // Approved DA-AMAD Enrollments — "Enrolled" now counts this, not
+  // distinct farmers in market_linking_programs. A farmer is enrolled
+  // (or not) independent of whether they currently have a harvest
+  // submission in flight; see da_amad_enrollments / DaAmadEnrollmentModel.
+  int _enrolledCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
   MarketLinkingStatus? _statusFilter;
@@ -55,36 +67,54 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchAll();
+    final results = await Future.wait([
+      _repo.fetchAll(),
+      _repo.fetchReviewedEnrollments(),
+    ]);
     if (!mounted) return;
+    final reviewed = results[1] as List<DaAmadEnrollmentModel>;
     setState(() {
-      _allEntries = data;
+      _allEntries = results[0] as List<MarketLinkingModel>;
+      _enrolledCount = reviewed
+          .where((e) => e.status == DaAmadEnrollmentStatus.approved)
+          .length;
       _isLoading = false;
     });
   }
 
+  // The 'requested' status is no longer created by anything (Enrollment
+  // is now the one gate a farmer passes through, not a per-harvest
+  // approval) — every entry here is already a real, actionable
+  // submission. Kept as a no-op filter rather than assuming the list can
+  // never contain a 'requested' row, in case one exists from before this
+  // change.
+  List<MarketLinkingModel> get _actionableEntries => _allEntries
+      .where((e) => e.status != MarketLinkingStatus.requested)
+      .toList();
+
   List<MarketLinkingModel> get _visibleEntries {
-    if (_statusFilter == null) return _allEntries;
-    return _allEntries.where((e) => e.status == _statusFilter).toList();
+    final base = _actionableEntries;
+    if (_statusFilter == null) return base;
+    return base.where((e) => e.status == _statusFilter).toList();
   }
 
-  // Unique farmers enrolled in the program — a farmer starting a second
-  // round (Start New Round) must not inflate this, since they're still
-  // just one enrolled farmer with two records. _totalRoundsCount below is
-  // the separate, row-count metric for that.
-  int get _enrolledFarmersCount =>
-      _allEntries.map((e) => e.farmerId).toSet().length;
-  int get _totalRoundsCount => _allEntries.length;
-  int get _submittedCount =>
-      _allEntries.where((e) => e.status == MarketLinkingStatus.submitted).length;
-  int get _buyerFoundCount =>
-      _allEntries.where((e) => e.status == MarketLinkingStatus.buyerFound).length;
-  int get _completedCount =>
-      _allEntries.where((e) => e.status == MarketLinkingStatus.completed).length;
-  int get _cancelledCount =>
-      _allEntries.where((e) => e.status == MarketLinkingStatus.cancelled).length;
+  int get _submittedCount => _actionableEntries
+      .where((e) => e.status == MarketLinkingStatus.submitted)
+      .length;
+  int get _buyerFoundCount => _actionableEntries
+      .where((e) => e.status == MarketLinkingStatus.buyerFound)
+      .length;
+  int get _completedCount => _actionableEntries
+      .where((e) => e.status == MarketLinkingStatus.completed)
+      .length;
+  int get _cancelledCount => _actionableEntries
+      .where((e) => e.status == MarketLinkingStatus.cancelled)
+      .length;
 
-  void _showStatusSheet(MarketLinkingModel entry, MarketLinkingStatus targetStatus) {
+  void _showStatusSheet(
+    MarketLinkingModel entry,
+    MarketLinkingStatus targetStatus,
+  ) {
     showManagementModal(
       context: context,
       builder: (_) => _UpdateStatusSheet(
@@ -96,27 +126,13 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
     );
   }
 
-  void _confirmStartNewRound(MarketLinkingModel entry) {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (ctx) => ManagementModalShell(
-        title: l10n.marketLinkStartNewRoundTitle,
-        subtitle: entry.farmerName,
-        body: Text(
-          l10n.marketLinkStartNewRoundBody,
-        ),
-        footer: ManagementModalActions(
-          primaryLabel: l10n.marketLinkStartNewRoundTitle,
-          onPrimary: () async {
-            Navigator.pop(ctx);
-            await _repo.startNewRound(farmerId: entry.farmerId);
-            _load();
-          },
-        ),
-      ),
-    );
-  }
+  // _confirmStartNewRound removed along with the old admin-direct
+  // enrollment flow (Enroll Farmer + Start New Round both inserted a
+  // market_linking_programs row directly at status='submitted', bypassing
+  // the farmer's own Submit to Sell -> 'requested' -> Approve/Decline
+  // path entirely). A new round is now only ever possible through that
+  // farmer-initiated flow — see manage_inventory_screen.dart's Submit to
+  // Sell action.
 
   void _confirmDelete(MarketLinkingModel entry) {
     final l10n = AppLocalizations.of(context);
@@ -125,9 +141,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
       builder: (ctx) => ManagementModalShell(
         title: l10n.marketLinkDeleteRecordTitle,
         subtitle: entry.farmerName,
-        body: Text(
-          l10n.marketLinkDeleteRecordBody,
-        ),
+        body: Text(l10n.marketLinkDeleteRecordBody),
         footer: ManagementModalActions(
           primaryLabel: l10n.commonDelete,
           isDestructive: true,
@@ -141,19 +155,12 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
     );
   }
 
-  void _showEnrollSheet() async {
-    final data = await _repo.fetchEnrollmentCandidates();
-    if (!mounted) return;
-    showManagementModal(
-      context: context,
-      builder: (_) => _EnrollFarmerSheet(
-        totalGingerFarmers: data['totalGingerFarmers'] as int,
-        farmers: data['unenrolled'] as List<Map<String, dynamic>>,
-        repo: _repo,
-        onSaved: _load,
-      ),
-    );
-  }
+  // _approveRequest / _rejectRequest removed along with the per-harvest
+  // 'requested' -> Approve/Decline gate (respondToRequest(), now unused).
+  // Reviewing a farmer happens once, at Enrollment (Manage Enrollments,
+  // top bar) — see DaAmadEnrollmentScreen. _showEnrollSheet removed along
+  // with the old "+" FAB for the same reason — see the note above
+  // _confirmStartNewRound's removal.
 
   @override
   Widget build(BuildContext context) {
@@ -163,18 +170,47 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: _isOnline
-          ? FloatingActionButton(
-              onPressed: _showEnrollSheet,
-              backgroundColor: AppConstants.tertiaryContainer,
-              child: const Icon(Icons.add_rounded, color: AppConstants.onTertiaryContainer),
-            )
-          : null,
       body: Stack(
         children: [
           Column(
             children: [
               const SizedBox(height: 64),
+              // ── Fixed header — KPI strip + DA-AMAD explainer ────────────
+              // Deliberately outside the scroll view: these are context an
+              // admin should always see, not content that scrolls away
+              // with the entry list below.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: Column(
+                  children: [
+                    // Grouped inside the same outer titled container the
+                    // Report tab uses (Executive Snapshot etc.), not just
+                    // individually restyled cards.
+                    ReportSectionCard(
+                      title: 'Market Linking Overview',
+                      icon: Icons.hub_rounded,
+                      accent: AppConstants.buyerBlue,
+                      child: _KpiStrip(
+                        enrolledFarmers: _enrolledCount,
+                        submitted: _submittedCount,
+                        buyerFound: _buyerFoundCount,
+                        completed: _completedCount,
+                        cancelled: _cancelledCount,
+                        cs: cs,
+                        sagana: sagana,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Full explainer when the program is empty (it's the
+                    // only content on the page and needs to earn its
+                    // keep); collapses to a slim strip once there's real
+                    // data so it doesn't compete with the KPI cards and
+                    // entries below.
+                    _DaAmadInfoCard(cs: cs, compact: _allEntries.isNotEmpty),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -186,41 +222,13 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                           ),
                         )
                       : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 100),
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                           children: [
-                            // ── KPI strip ─────────────────────────────────
-                            // Grouped inside the same outer titled container
-                            // the Report tab uses (Executive Snapshot etc.),
-                            // not just individually restyled cards.
-                            ReportSectionCard(
-                              title: 'Market Linking Overview',
-                              icon: Icons.hub_rounded,
-                              accent: AppConstants.buyerBlue,
-                              child: _KpiStrip(
-                                enrolledFarmers: _enrolledFarmersCount,
-                                totalRounds: _totalRoundsCount,
-                                submitted: _submittedCount,
-                                buyerFound: _buyerFoundCount,
-                                completed: _completedCount,
-                                cancelled: _cancelledCount,
-                                cs: cs,
-                                sagana: sagana,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // ── DA-AMAD explainer ─────────────────────────
-                            // Full explainer when the program is empty (it's
-                            // the only content on the page and needs to earn
-                            // its keep); collapses to a slim strip once
-                            // there's real data so it doesn't compete with
-                            // the KPI cards and entries below.
-                            _DaAmadInfoCard(
-                              cs: cs,
-                              compact: _allEntries.isNotEmpty,
-                            ),
-                            const SizedBox(height: 16),
-
+                            // Pending farmer requests are gone — that gate
+                            // is now Enrollment (Manage Enrollments, top
+                            // bar), reviewed once per farmer rather than
+                            // once per harvest submission. Every entry
+                            // reaching this list is already actionable.
                             if (visible.isEmpty)
                               _EmptyState(
                                 hasFilter: _statusFilter != null,
@@ -236,16 +244,22 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                                     cs: cs,
                                     sagana: sagana,
                                     onEnterBuyerDetails: _isOnline
-                                        ? () => _showStatusSheet(e, MarketLinkingStatus.buyerFound)
+                                        ? () => _showStatusSheet(
+                                            e,
+                                            MarketLinkingStatus.buyerFound,
+                                          )
                                         : null,
                                     onComplete: _isOnline
-                                        ? () => _showStatusSheet(e, MarketLinkingStatus.completed)
+                                        ? () => _showStatusSheet(
+                                            e,
+                                            MarketLinkingStatus.completed,
+                                          )
                                         : null,
                                     onCancel: _isOnline
-                                        ? () => _showStatusSheet(e, MarketLinkingStatus.cancelled)
-                                        : null,
-                                    onStartNewRound: _isOnline
-                                        ? () => _confirmStartNewRound(e)
+                                        ? () => _showStatusSheet(
+                                            e,
+                                            MarketLinkingStatus.cancelled,
+                                          )
                                         : null,
                                     onDelete: _isOnline
                                         ? () => _confirmDelete(e)
@@ -267,6 +281,8 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
             right: 0,
             child: _TopAppBar(
               onBack: () => context.pop(),
+              onManageEnrollments: () =>
+                  context.push(AppRoutes.daAmadEnrollment).then((_) => _load()),
               sagana: sagana,
               cs: cs,
             ),
@@ -285,9 +301,15 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
 // since there's no in-app "DA-AMAD contacts" destination to send it to.
 class _TopAppBar extends StatelessWidget {
   final VoidCallback onBack;
+  final VoidCallback onManageEnrollments;
   final SaganaColors sagana;
   final ColorScheme cs;
-  const _TopAppBar({required this.onBack, required this.sagana, required this.cs});
+  const _TopAppBar({
+    required this.onBack,
+    required this.onManageEnrollments,
+    required this.sagana,
+    required this.cs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -313,17 +335,32 @@ class _TopAppBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.marketLinkTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(fontSize: 17,
-                            fontWeight: FontWeight.w700, color: cs.primary)),
-                    Text(l10n.marketLinkSubtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                    Text(
+                      l10n.marketLinkTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary,
+                      ),
+                    ),
+                    Text(
+                      l10n.marketLinkSubtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Manage Enrollments',
+                icon: Icon(Icons.how_to_reg_rounded, color: cs.primary),
+                onPressed: onManageEnrollments,
               ),
             ],
           ),
@@ -339,12 +376,11 @@ class _TopAppBar extends StatelessWidget {
 // not the currently-selected chip, so they stay accurate no matter what's
 // filtered below.
 class _KpiStrip extends StatelessWidget {
-  final int enrolledFarmers, totalRounds, submitted, buyerFound, completed, cancelled;
+  final int enrolledFarmers, submitted, buyerFound, completed, cancelled;
   final ColorScheme cs;
   final SaganaColors sagana;
   const _KpiStrip({
     required this.enrolledFarmers,
-    required this.totalRounds,
     required this.submitted,
     required this.buyerFound,
     required this.completed,
@@ -356,16 +392,42 @@ class _KpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // "Total Rounds" (a raw row count, separate from unique farmers below)
+    // removed — it was a leftover from when Admin could directly create
+    // new rounds via "Enroll"/"Start New Round"; every remaining card here
+    // maps to a real pipeline stage a farmer-initiated request actually
+    // moves through.
     final tiles = [
-      // Unique farmers in the program — NOT a count of rounds/records
-      // (see "Total Rounds" below for that). Starting a new round for an
-      // already-enrolled farmer must not move this number.
-      _KpiTile(l10n.marketLinkKpiEnrolled, '$enrolledFarmers', cs.primary, Icons.eco_rounded),
-      _KpiTile(l10n.marketLinkKpiTotalRounds, '$totalRounds', AppConstants.programPurple, Icons.repeat_rounded),
-      _KpiTile(l10n.marketLinkKpiSubmitted, '$submitted', AppConstants.warningAmber, Icons.upload_file_rounded),
-      _KpiTile(l10n.marketLinkKpiBuyerFound, '$buyerFound', AppConstants.buyerBlue, Icons.handshake_outlined),
-      _KpiTile(l10n.statCompleted, '$completed', AppConstants.successGreen, Icons.check_circle_outline_rounded),
-      _KpiTile(l10n.buyerActivityStatusCancelled, '$cancelled', AppConstants.errorRed, Icons.cancel_outlined),
+      _KpiTile(
+        l10n.marketLinkKpiEnrolled,
+        '$enrolledFarmers',
+        cs.primary,
+        Icons.eco_rounded,
+      ),
+      _KpiTile(
+        l10n.marketLinkKpiSubmitted,
+        '$submitted',
+        AppConstants.warningAmber,
+        Icons.upload_file_rounded,
+      ),
+      _KpiTile(
+        l10n.marketLinkKpiBuyerFound,
+        '$buyerFound',
+        AppConstants.buyerBlue,
+        Icons.handshake_outlined,
+      ),
+      _KpiTile(
+        l10n.statCompleted,
+        '$completed',
+        AppConstants.successGreen,
+        Icons.check_circle_outline_rounded,
+      ),
+      _KpiTile(
+        l10n.buyerActivityStatusCancelled,
+        '$cancelled',
+        AppConstants.errorRed,
+        Icons.cancel_outlined,
+      ),
     ];
 
     return SizedBox(
@@ -402,14 +464,24 @@ class _KpiStrip extends StatelessWidget {
                   child: Icon(t.icon, size: 14, color: t.color),
                 ),
                 const SizedBox(height: 6),
-                Text(t.label,
-                    maxLines: 1,
-                    style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  t.label,
+                  maxLines: 1,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
-                Text(t.value,
-                    style: GoogleFonts.poppins(
-                        fontSize: 18, fontWeight: FontWeight.w800, color: cs.onSurface)),
+                Text(
+                  t.value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                ),
               ],
             ),
           );
@@ -453,7 +525,10 @@ class _DaAmadInfoCard extends StatelessWidget {
             Expanded(
               child: Text(
                 l10n.marketLinkDaAmadCompact,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -482,12 +557,19 @@ class _DaAmadInfoCard extends StatelessWidget {
                 Text(
                   l10n.marketLinkDaAmadTitle,
                   style: GoogleFonts.poppins(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   l10n.marketLinkDaAmadBody,
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant, height: 1.4),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -497,6 +579,9 @@ class _DaAmadInfoCard extends StatelessWidget {
     );
   }
 }
+
+// _PendingRequestCard removed along with the per-harvest 'requested' ->
+// Approve/Decline gate — see the note above _approveRequest's removal.
 
 // ─── Entry Card ───────────────────────────────────────────────────────────────
 class _EntryCard extends StatelessWidget {
@@ -508,13 +593,13 @@ class _EntryCard extends StatelessWidget {
   // picker offering Buyer Found/Completed/Cancelled all at once. Only the
   // action(s) valid for entry.status are ever wired (see build() below),
   // so the card renders exactly one of these small groups:
-  //   submitted            -> onEnterBuyerDetails only
-  //   buyer_found          -> onCancel + onComplete
-  //   completed/cancelled  -> onStartNewRound only
+  //   submitted   -> onEnterBuyerDetails only
+  //   buyer_found -> onCancel + onComplete
+  //   completed   -> nothing (final, read-only — see build() below)
+  //   cancelled   -> onDelete only
   final VoidCallback? onEnterBuyerDetails;
   final VoidCallback? onComplete;
   final VoidCallback? onCancel;
-  final VoidCallback? onStartNewRound;
   final VoidCallback? onDelete;
   const _EntryCard({
     required this.entry,
@@ -523,7 +608,6 @@ class _EntryCard extends StatelessWidget {
     this.onEnterBuyerDetails,
     this.onComplete,
     this.onCancel,
-    this.onStartNewRound,
     this.onDelete,
   });
 
@@ -545,10 +629,7 @@ class _EntryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(
-          color: cs.outline.withValues(alpha: 0.10),
-          width: 1,
-        ),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10), width: 1),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
@@ -572,7 +653,9 @@ class _EntryCard extends StatelessWidget {
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppConstants.tertiaryContainer.withValues(alpha: 0.15),
+                        color: AppConstants.tertiaryContainer.withValues(
+                          alpha: 0.15,
+                        ),
                       ),
                       child: Center(
                         child: Text(
@@ -600,16 +683,6 @@ class _EntryCard extends StatelessWidget {
                               color: cs.onSurface,
                             ),
                           ),
-                          if (entry.purok != null)
-                            Text(
-                              entry.purok!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -621,10 +694,15 @@ class _EntryCard extends StatelessWidget {
                     // always fit next to the name column above.
                     Flexible(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
                         ),
                         child: Text(
                           statusLabel.toUpperCase(),
@@ -669,7 +747,9 @@ class _EntryCard extends StatelessWidget {
                         height: 7,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: reached ? statusColor : cs.outline.withValues(alpha: 0.25),
+                          color: reached
+                              ? statusColor
+                              : cs.outline.withValues(alpha: 0.25),
                         ),
                       );
                     }),
@@ -686,12 +766,19 @@ class _EntryCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           '${entry.volumeKg!.toStringAsFixed(0)} kg',
-                          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(width: 12),
                       ],
                       if (entry.pricePerKg != null) ...[
-                        Icon(Icons.payments_outlined, size: 13, color: cs.outline),
+                        Icon(
+                          Icons.payments_outlined,
+                          size: 13,
+                          color: cs.outline,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '₱${entry.pricePerKg!.toStringAsFixed(2)}/kg',
@@ -704,12 +791,19 @@ class _EntryCard extends StatelessWidget {
                         const SizedBox(width: 12),
                       ],
                       if (entry.buyerName != null) ...[
-                        Icon(Icons.handshake_outlined, size: 13, color: cs.outline),
+                        Icon(
+                          Icons.handshake_outlined,
+                          size: 13,
+                          color: cs.outline,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             entry.buyerName!,
-                            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -723,7 +817,11 @@ class _EntryCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                   child: Row(
                     children: [
-                      Icon(Icons.inventory_2_outlined, size: 13, color: cs.outline),
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 13,
+                        color: cs.outline,
+                      ),
                       const SizedBox(width: 4),
                       // Flexible + ellipsis: "Naka-link sa Batch #..." plus
                       // the confirmed-volume suffix can run past the card
@@ -734,7 +832,10 @@ class _EntryCard extends StatelessWidget {
                           l10n.marketLinkLinkedToBatch(entry.batchNumber!),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ),
                       if (entry.confirmedVolumeKg != null) ...[
@@ -742,10 +843,14 @@ class _EntryCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             l10n.marketLinkConfirmedVolumeSuffix(
-                                entry.confirmedVolumeKg!.toStringAsFixed(0)),
+                              entry.confirmedVolumeKg!.toStringAsFixed(0),
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],
@@ -766,7 +871,10 @@ class _EntryCard extends StatelessWidget {
                         _timelineLabel(entry, l10n),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: cs.outline,
+                        ),
                       ),
                     ),
                   ],
@@ -781,11 +889,16 @@ class _EntryCard extends StatelessWidget {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusSm,
+                      ),
                     ),
                     child: Text(
                       entry.notes!,
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
@@ -797,7 +910,9 @@ class _EntryCard extends StatelessWidget {
                     onTap: onEnterBuyerDetails,
                     icon: Icons.person_add_alt_1_rounded,
                     label: l10n.marketLinkEnterBuyerDetails,
-                    style: onEnterBuyerDetails != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
+                    style: onEnterBuyerDetails != null
+                        ? _ActionStyle.tertiary
+                        : _ActionStyle.disabled,
                     cs: cs,
                   ),
                 ),
@@ -811,7 +926,9 @@ class _EntryCard extends StatelessWidget {
                           onTap: onCancel,
                           icon: Icons.close_rounded,
                           label: l10n.cancel,
-                          style: onCancel != null ? _ActionStyle.outlineDestructive : _ActionStyle.disabled,
+                          style: onCancel != null
+                              ? _ActionStyle.outlineDestructive
+                              : _ActionStyle.disabled,
                           cs: cs,
                         ),
                       ),
@@ -821,52 +938,34 @@ class _EntryCard extends StatelessWidget {
                           onTap: onComplete,
                           icon: Icons.handshake_rounded,
                           label: l10n.marketLinkCompleteAction,
-                          style: onComplete != null ? _ActionStyle.gradient : _ActionStyle.disabled,
+                          style: onComplete != null
+                              ? _ActionStyle.gradient
+                              : _ActionStyle.disabled,
                           cs: cs,
                         ),
                       ),
                     ],
                   ),
                 ),
-              if (entry.status == MarketLinkingStatus.completed)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: _ActionButton(
-                    onTap: onStartNewRound,
-                    icon: Icons.refresh_rounded,
-                    label: l10n.marketLinkStartNewRoundTitle,
-                    style: onStartNewRound != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
-                    cs: cs,
-                  ),
-                ),
-              // Cancelled entries additionally offer Delete — cancelled
-              // records carry no sale/history value the way Completed ones
-              // do, so they shouldn't just accumulate forever.
+              // Completed is a final, read-only state — no action button.
+              // A new round only ever happens through the farmer's own
+              // Submit to Sell request, never from an admin-side control
+              // here (see the note above _confirmStartNewRound's removal).
+              //
+              // Cancelled entries offer Delete only — cancelled records
+              // carry no sale/history value the way Completed ones do, so
+              // they shouldn't just accumulate forever.
               if (entry.status == MarketLinkingStatus.cancelled)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _ActionButton(
-                          onTap: onDelete,
-                          icon: Icons.delete_outline_rounded,
-                          label: l10n.commonDelete,
-                          style: onDelete != null ? _ActionStyle.outlineDestructive : _ActionStyle.disabled,
-                          cs: cs,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ActionButton(
-                          onTap: onStartNewRound,
-                          icon: Icons.refresh_rounded,
-                          label: l10n.marketLinkStartNewRoundTitle,
-                          style: onStartNewRound != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
-                          cs: cs,
-                        ),
-                      ),
-                    ],
+                  child: _ActionButton(
+                    onTap: onDelete,
+                    icon: Icons.delete_outline_rounded,
+                    label: l10n.commonDelete,
+                    style: onDelete != null
+                        ? _ActionStyle.outlineDestructive
+                        : _ActionStyle.disabled,
+                    cs: cs,
                   ),
                 ),
             ],
@@ -877,22 +976,43 @@ class _EntryCard extends StatelessWidget {
   }
 
   String _timelineLabel(MarketLinkingModel e, AppLocalizations l10n) {
-    if (e.completedAt != null) return l10n.marketLinkTimelineCompleted(_fmt(e.completedAt!));
-    if (e.buyerFoundAt != null) return l10n.marketLinkTimelineBuyerFound(_fmt(e.buyerFoundAt!));
+    if (e.completedAt != null)
+      return l10n.marketLinkTimelineCompleted(_fmt(e.completedAt!));
+    if (e.buyerFoundAt != null)
+      return l10n.marketLinkTimelineBuyerFound(_fmt(e.buyerFoundAt!));
     return l10n.marketLinkTimelineSubmitted(_fmt(e.submittedAt));
   }
 
   String _fmt(DateTime dt) {
-    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const m = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${m[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   Color _statusColor(MarketLinkingStatus s, ColorScheme cs) {
     switch (s) {
-      case MarketLinkingStatus.submitted: return AppConstants.warningAmber;
-      case MarketLinkingStatus.buyerFound: return AppConstants.buyerBlue;
-      case MarketLinkingStatus.completed: return AppConstants.successGreen;
-      case MarketLinkingStatus.cancelled: return cs.outline;
+      case MarketLinkingStatus.requested:
+        return cs.outline;
+      case MarketLinkingStatus.submitted:
+        return AppConstants.warningAmber;
+      case MarketLinkingStatus.buyerFound:
+        return AppConstants.buyerBlue;
+      case MarketLinkingStatus.completed:
+        return AppConstants.successGreen;
+      case MarketLinkingStatus.cancelled:
+        return cs.outline;
     }
   }
 }
@@ -972,7 +1092,11 @@ class _ActionButton extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: foreground),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
               ),
             ),
           ],
@@ -987,7 +1111,11 @@ class _EmptyState extends StatelessWidget {
   final bool hasFilter;
   final ColorScheme cs;
   final SaganaColors sagana;
-  const _EmptyState({required this.hasFilter, required this.cs, required this.sagana});
+  const _EmptyState({
+    required this.hasFilter,
+    required this.cs,
+    required this.sagana,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1005,13 +1133,21 @@ class _EmptyState extends StatelessWidget {
           const Text('🌿', style: TextStyle(fontSize: 40)),
           const SizedBox(height: 14),
           Text(
-            hasFilter ? l10n.marketLinkNoFarmersFiltered : l10n.marketLinkNoFarmersYet,
+            hasFilter
+                ? l10n.marketLinkNoFarmersFiltered
+                : l10n.marketLinkNoFarmersYet,
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            hasFilter ? l10n.marketLinkTryDifferentFilter : l10n.marketLinkTapToEnroll,
+            hasFilter
+                ? l10n.marketLinkTryDifferentFilter
+                : l10n.marketLinkTapToEnroll,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
@@ -1051,11 +1187,12 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
   final _priceCtrl = TextEditingController();
   final _requestedVolumeCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
-  final _confirmedVolumeCtrl = TextEditingController();
   bool _isSaving = false;
 
-  bool get _isCancelling => widget.targetStatus == MarketLinkingStatus.cancelled;
-  bool get _isCompleting => widget.targetStatus == MarketLinkingStatus.completed;
+  bool get _isCancelling =>
+      widget.targetStatus == MarketLinkingStatus.cancelled;
+  bool get _isCompleting =>
+      widget.targetStatus == MarketLinkingStatus.completed;
 
   List<Map<String, dynamic>> _eligibleBatches = [];
   String? _selectedBatchId;
@@ -1067,9 +1204,9 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
     _buyerNameCtrl.text = widget.entry.buyerName ?? '';
     _buyerContactCtrl.text = widget.entry.buyerContact ?? '';
     _priceCtrl.text = widget.entry.pricePerKg?.toStringAsFixed(2) ?? '';
-    _requestedVolumeCtrl.text = widget.entry.requestedVolumeKg?.toStringAsFixed(2) ?? '';
+    _requestedVolumeCtrl.text =
+        widget.entry.requestedVolumeKg?.toStringAsFixed(2) ?? '';
     _notesCtrl.text = widget.entry.notes ?? '';
-    _confirmedVolumeCtrl.text = widget.entry.confirmedVolumeKg?.toStringAsFixed(2) ?? '';
     _selectedBatchId = widget.entry.inventoryBatchId;
     if (_isCancelling) {
       _loadingBatches = false;
@@ -1085,7 +1222,9 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
   // (as long as it still has stock), otherwise the farmer's most recent
   // eligible Ginger batch. See M-marketplace-6.
   Future<void> _loadBatches() async {
-    final batches = await widget.repo.fetchEligibleBatches(widget.entry.farmerId);
+    final batches = await widget.repo.fetchEligibleBatches(
+      widget.entry.farmerId,
+    );
     if (!mounted) return;
     setState(() {
       _eligibleBatches = batches;
@@ -1108,8 +1247,25 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
     _priceCtrl.dispose();
     _requestedVolumeCtrl.dispose();
     _notesCtrl.dispose();
-    _confirmedVolumeCtrl.dispose();
     super.dispose();
+  }
+
+  // Complete is a confirmation step, not a data-entry one — everything it
+  // records was already captured when Buyer Details were entered at Buyer
+  // Found time. The final confirmed quantity is derived, never typed:
+  // whatever the buyer originally wanted, capped at whatever's actually
+  // still available on the linked batch (it can only ever go down from
+  // real-world stock changes since then, never up).
+  double? get _computedConfirmedVolumeKg {
+    final requested = widget.entry.requestedVolumeKg ?? widget.entry.volumeKg;
+    if (requested == null) return null;
+    final batch = _eligibleBatches.firstWhere(
+      (b) => b['id'] == _selectedBatchId,
+      orElse: () => const {},
+    );
+    final available = (batch['available_kg'] as num?)?.toDouble();
+    if (available == null) return requested;
+    return requested < available ? requested : available;
   }
 
   Future<void> _save() async {
@@ -1122,23 +1278,30 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
       if (!_isCancelling &&
           !_isCompleting &&
           _selectedBatchId != widget.entry.inventoryBatchId) {
-        await widget.repo.attachBatch(id: widget.entry.id, batchId: _selectedBatchId);
+        await widget.repo.attachBatch(
+          id: widget.entry.id,
+          batchId: _selectedBatchId,
+        );
       }
 
       await widget.repo.updateStatus(
         id: widget.entry.id,
         newStatus: widget.targetStatus,
-        buyerName: _isCancelling || _buyerNameCtrl.text.trim().isEmpty ? null : _buyerNameCtrl.text.trim(),
-        buyerContact: _isCancelling || _buyerContactCtrl.text.trim().isEmpty ? null : _buyerContactCtrl.text.trim(),
-        pricePerKg: _isCancelling ? null : double.tryParse(_priceCtrl.text.trim()),
+        buyerName: _isCancelling || _buyerNameCtrl.text.trim().isEmpty
+            ? null
+            : _buyerNameCtrl.text.trim(),
+        buyerContact: _isCancelling || _buyerContactCtrl.text.trim().isEmpty
+            ? null
+            : _buyerContactCtrl.text.trim(),
+        pricePerKg: _isCancelling
+            ? null
+            : double.tryParse(_priceCtrl.text.trim()),
         requestedVolumeKg: widget.targetStatus == MarketLinkingStatus.buyerFound
             ? double.tryParse(_requestedVolumeCtrl.text.trim())
             : null,
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         inventoryBatchId: _isCompleting ? _selectedBatchId : null,
-        confirmedVolumeKg: _isCompleting
-            ? double.tryParse(_confirmedVolumeCtrl.text.trim())
-            : null,
+        confirmedVolumeKg: _isCompleting ? _computedConfirmedVolumeKg : null,
       );
       if (!mounted) return;
       Navigator.pop(context);
@@ -1148,21 +1311,32 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
       final l10n = AppLocalizations.of(context);
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(
-          e.toString().contains('exceeds')
-              ? l10n.marketLinkVolumeExceedsError
-              : l10n.marketLinkUpdateFailed,
-        )),
+        SnackBar(
+          content: Text(
+            e.toString().contains('exceeds')
+                ? l10n.marketLinkVolumeExceedsError
+                : l10n.marketLinkUpdateFailed,
+          ),
+        ),
       );
     }
   }
 
   String _title(AppLocalizations l10n) {
     switch (widget.targetStatus) {
-      case MarketLinkingStatus.buyerFound: return l10n.marketLinkEnterBuyerDetails;
-      case MarketLinkingStatus.completed: return l10n.marketLinkTitleCompleteSale;
-      case MarketLinkingStatus.cancelled: return l10n.marketLinkTitleCancelEnrollment;
-      case MarketLinkingStatus.submitted: return l10n.marketLinkTitleUpdate;
+      case MarketLinkingStatus.buyerFound:
+        return l10n.marketLinkEnterBuyerDetails;
+      case MarketLinkingStatus.completed:
+        return l10n.marketLinkTitleCompleteSale;
+      case MarketLinkingStatus.cancelled:
+        return l10n.marketLinkTitleCancelEnrollment;
+      case MarketLinkingStatus.submitted:
+        return l10n.marketLinkTitleUpdate;
+      // Not a real target of this sheet — 'requested' rows are reviewed
+      // via the dedicated Pending Requests approve/reject flow, not this
+      // generic status-update sheet. Exhaustiveness-only fallback.
+      case MarketLinkingStatus.requested:
+        return l10n.marketLinkTitleUpdate;
     }
   }
 
@@ -1181,38 +1355,74 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
           // Cancelling needs nothing but an optional reason — no buyer,
           // price, quantity, or batch fields at all.
           if (!_isCancelling) ...[
-            _FieldLabel(label: l10n.marketLinkBuyerNameLabel, cs: cs),
-            TextFormField(
-              controller: _buyerNameCtrl,
-              decoration: InputDecoration(
-                hintText: l10n.marketLinkBuyerNameHint,
-                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+            // Completing is a review-and-confirm step, not data entry —
+            // everything here was already recorded at Buyer Found time.
+            // Read-only, matching how Order Management's own Complete
+            // step works: confirm what's already there, don't re-collect
+            // it.
+            if (_isCompleting) ...[
+              _ReadOnlyRow(
+                label: l10n.marketLinkBuyerNameLabel,
+                value: widget.entry.buyerName ?? '—',
+                cs: cs,
               ),
-            ),
-            const SizedBox(height: 12),
-            _FieldLabel(label: l10n.marketLinkAgreedPriceLabel, cs: cs),
-            TextFormField(
-              controller: _priceCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-              decoration: InputDecoration(
-                prefixText: '₱ ',
-                hintText: '0.00',
-                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+              const SizedBox(height: 10),
+              _ReadOnlyRow(
+                label: l10n.marketLinkAgreedPriceLabel,
+                value: widget.entry.pricePerKg != null
+                    ? '₱${widget.entry.pricePerKg!.toStringAsFixed(2)}/kg'
+                    : '—',
+                cs: cs,
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              _ReadOnlyRow(
+                label: l10n.marketLinkQuantityBuyerWantsLabel,
+                value: widget.entry.requestedVolumeKg != null
+                    ? '${widget.entry.requestedVolumeKg!.toStringAsFixed(0)} kg'
+                    : '—',
+                cs: cs,
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
+              _FieldLabel(label: l10n.marketLinkBuyerNameLabel, cs: cs),
+              TextFormField(
+                controller: _buyerNameCtrl,
+                decoration: InputDecoration(
+                  hintText: l10n.marketLinkBuyerNameHint,
+                  hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _FieldLabel(label: l10n.marketLinkAgreedPriceLabel, cs: cs),
+              TextFormField(
+                controller: _priceCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                decoration: InputDecoration(
+                  prefixText: '₱ ',
+                  hintText: '0.00',
+                  hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // Only asked for at Buyer Found time — the buyer's stated
-            // intent, distinct from Confirmed Volume below (which only
-            // applies once completing against an actual batch).
+            // intent, shown read-only above once completing instead.
             if (widget.targetStatus == MarketLinkingStatus.buyerFound) ...[
-              _FieldLabel(label: l10n.marketLinkQuantityBuyerWantsLabel, cs: cs),
+              _FieldLabel(
+                label: l10n.marketLinkQuantityBuyerWantsLabel,
+                cs: cs,
+              ),
               TextFormField(
                 controller: _requestedVolumeCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                 ],
@@ -1231,7 +1441,11 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
             if (_loadingBatches)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
-                child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                child: SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               )
             else if (_selectedBatchId == null)
               Container(
@@ -1243,88 +1457,114 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 16, color: AppConstants.warningAmber),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 16,
+                      color: AppConstants.warningAmber,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         l10n.marketLinkNoBatchFound,
-                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
                   ],
                 ),
               )
             else
-              Builder(builder: (context) {
-                final batch = _eligibleBatches.firstWhere((b) => b['id'] == _selectedBatchId);
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.lock_outline_rounded, size: 14, color: cs.onSurfaceVariant),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n.marketLinkBatchAvailableLine(
-                            '${batch['batch_number']}',
-                            (batch['available_kg'] as num).toStringAsFixed(0),
-                          ),
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+              Builder(
+                builder: (context) {
+                  final batch = _eligibleBatches.firstWhere(
+                    (b) => b['id'] == _selectedBatchId,
+                  );
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
                       ),
-                    ],
-                  ),
-                );
-              }),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.lock_outline_rounded,
+                          size: 14,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.marketLinkBatchAvailableLine(
+                              '${batch['batch_number']}',
+                              (batch['available_kg'] as num).toStringAsFixed(0),
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
 
             if (_isCompleting && _selectedBatchId != null) ...[
-              const SizedBox(height: 12),
-              _FieldLabel(label: l10n.marketLinkConfirmedVolumeLabel, cs: cs),
-              TextFormField(
-                controller: _confirmedVolumeCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                ],
-                decoration: InputDecoration(
-                  hintText: '0.00',
-                  hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                  helperText: () {
-                    final batch = _eligibleBatches.firstWhere(
-                      (b) => b['id'] == _selectedBatchId,
-                      orElse: () => const {},
-                    );
-                    final avail = batch['available_kg'];
-                    return avail != null
-                        ? l10n.marketLinkUpToAvailable((avail as num).toStringAsFixed(0))
-                        : null;
-                  }(),
-                ),
+              const SizedBox(height: 10),
+              _ReadOnlyRow(
+                label: l10n.marketLinkConfirmedVolumeLabel,
+                value: _computedConfirmedVolumeKg != null
+                    ? '${_computedConfirmedVolumeKg!.toStringAsFixed(0)} kg'
+                    : '—',
+                cs: cs,
               ),
             ],
             const SizedBox(height: 12),
           ],
 
-          _FieldLabel(label: _isCancelling ? l10n.marketLinkReasonOptional : l10n.paymentNotes, cs: cs),
-          TextFormField(
-            controller: _notesCtrl,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: _isCancelling ? l10n.marketLinkWhyCancelled : l10n.marketLinkAdditionalNotes,
-              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+          if (_isCompleting) ...[
+            if (widget.entry.notes != null && widget.entry.notes!.isNotEmpty)
+              _ReadOnlyRow(
+                label: l10n.paymentNotes,
+                value: widget.entry.notes!,
+                cs: cs,
+              ),
+          ] else ...[
+            _FieldLabel(
+              label: _isCancelling
+                  ? l10n.marketLinkReasonOptional
+                  : l10n.paymentNotes,
+              cs: cs,
             ),
-          ),
+            TextFormField(
+              controller: _notesCtrl,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: _isCancelling
+                    ? l10n.marketLinkWhyCancelled
+                    : l10n.marketLinkAdditionalNotes,
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+              ),
+            ),
+          ],
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: _isCancelling ? l10n.marketLinkConfirmCancellation : l10n.saveChanges,
+        primaryLabel: _isCancelling
+            ? l10n.marketLinkConfirmCancellation
+            : _isCompleting
+            ? l10n.marketLinkCompleteAction
+            : l10n.saveChanges,
         isDestructive: _isCancelling,
         isLoading: _isSaving,
         // The harvest batch link is no longer optional (see M-marketplace-6)
@@ -1332,152 +1572,18 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
         // nothing real to link this record to, so saving is blocked rather
         // than silently proceeding without one. Cancelling never needs a
         // batch at all.
-        onPrimary: (!_isCancelling && !_loadingBatches && _selectedBatchId == null) ? null : _save,
+        onPrimary:
+            (!_isCancelling && !_loadingBatches && _selectedBatchId == null)
+            ? null
+            : _save,
       ),
     );
   }
 }
 
-// ─── Enroll Farmer Modal ──────────────────────────────────────────────────────
-class _EnrollFarmerSheet extends StatefulWidget {
-  final int totalGingerFarmers;
-  final List<Map<String, dynamic>> farmers;
-  final MarketLinkingRepository repo;
-  final VoidCallback onSaved;
-  const _EnrollFarmerSheet({
-    required this.totalGingerFarmers,
-    required this.farmers,
-    required this.repo,
-    required this.onSaved,
-  });
-
-  @override
-  State<_EnrollFarmerSheet> createState() => _EnrollFarmerSheetState();
-}
-
-class _EnrollFarmerSheetState extends State<_EnrollFarmerSheet> {
-  String? _selectedFarmerId;
-  final _volumeCtrl = TextEditingController();
-  bool _isSaving = false;
-
-  @override
-  void dispose() {
-    _volumeCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _enroll() async {
-    final l10n = AppLocalizations.of(context);
-    if (_selectedFarmerId == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.marketLinkSelectFarmerPrompt)));
-      return;
-    }
-    setState(() => _isSaving = true);
-    try {
-      await widget.repo.enrollFarmer(
-        farmerId: _selectedFarmerId!,
-        volumeKg: double.tryParse(_volumeCtrl.text.trim()),
-      );
-      if (!mounted) return;
-      Navigator.pop(context);
-      widget.onSaved();
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.marketLinkEnrollFailed)));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-
-    return ManagementModalShell(
-      title: l10n.marketLinkEnrollTitle,
-      subtitle: l10n.marketLinkEnrollSubtitle,
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _FieldLabel(label: l10n.marketLinkSelectFarmerLabel, cs: cs),
-          widget.farmers.isEmpty
-              ? Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        widget.totalGingerFarmers == 0
-                            ? Icons.info_outline_rounded
-                            : Icons.check_circle_outline_rounded,
-                        size: 16,
-                        color: cs.outline,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.totalGingerFarmers == 0
-                              ? l10n.marketLinkNoGingerFarmers
-                              : l10n.marketLinkAllEnrolled(widget.totalGingerFarmers),
-                          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : DropdownButtonFormField<String>(
-                  initialValue: _selectedFarmerId,
-                  isExpanded: true,
-                  hint: Text(
-                    l10n.marketLinkSelectGingerFarmerHint,
-                    style: GoogleFonts.inter(fontSize: 14, color: cs.outline),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  items: widget.farmers
-                      .map(
-                        (f) => DropdownMenuItem(
-                          value: f['id'] as String,
-                          child: Text(
-                            '${f['name']}${f['purok'] != null ? ' — ${f['purok']}' : ''}',
-                            style: GoogleFonts.inter(fontSize: 14),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() => _selectedFarmerId = v),
-                ),
-          const SizedBox(height: 14),
-          _FieldLabel(label: l10n.marketLinkCommittedVolumeLabel, cs: cs),
-          TextFormField(
-            controller: _volumeCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              hintText: 'e.g. 500',
-              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              suffixText: 'kg',
-            ),
-          ),
-        ],
-      ),
-      footer: widget.farmers.isEmpty
-          ? null
-          : ManagementModalActions(
-              primaryLabel: l10n.marketLinkEnrollInProgram,
-              isLoading: _isSaving,
-              onPrimary: _enroll,
-            ),
-    );
-  }
-}
+// _EnrollFarmerSheet removed along with the "+" FAB and the rest of the
+// old admin-direct enrollment flow — see the note above
+// _confirmStartNewRound's removal.
 
 // ─── Field Label ──────────────────────────────────────────────────────────────
 class _FieldLabel extends StatelessWidget {
@@ -1487,10 +1593,69 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500, color: cs.onSurfaceVariant),
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      label,
+      style: GoogleFonts.poppins(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: cs.onSurfaceVariant,
+      ),
+    ),
+  );
+}
+
+/// Label + already-recorded value, locked — same pattern as the Ginger
+/// Harvest Batch display just above it. Used by Complete Sale's
+/// confirmation-only body: nothing there is still editable by the time an
+/// admin taps Complete, it's reviewing what Buyer Found already recorded.
+class _ReadOnlyRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final ColorScheme cs;
+  const _ReadOnlyRow({
+    required this.label,
+    required this.value,
+    required this.cs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(label: label, cs: cs),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.lock_outline_rounded,
+                size: 14,
+                color: cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
-      );
+      ],
+    );
+  }
 }

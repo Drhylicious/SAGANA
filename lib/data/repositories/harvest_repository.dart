@@ -25,10 +25,8 @@ class HarvestRepository {
         variety: p['variety'] as String?,
         batchNumber: p['batch_number'] as String?,
         storageLocation: p['storage_location'] as String?,
-        notes: p['notes'] as String?,
         harvestDate: DateTime.parse(p['harvest_date'] as String),
         isSynced: false,
-        submittedToCooperative: false,
         createdAt: DateTime.now(),
       );
     }).toList();
@@ -63,7 +61,8 @@ class HarvestRepository {
   }
 
   Future<Map<String, double>> _fetchHistoryStatsForFarmer(
-      String farmerId) async {
+    String farmerId,
+  ) async {
     double totalYield = 0;
     int syncedCount = 0;
     int total = 0;
@@ -87,8 +86,9 @@ class HarvestRepository {
 
     if (farmerId == _userId) {
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
-      final pending =
-          _pendingHarvestModels().where((h) => h.harvestDate.isAfter(cutoff));
+      final pending = _pendingHarvestModels().where(
+        (h) => h.harvestDate.isAfter(cutoff),
+      );
       for (final h in pending) {
         totalYield += h.quantityKg;
         total += 1; // unsynced, so it doesn't add to syncedCount
@@ -108,24 +108,26 @@ class HarvestRepository {
 
   // ─── Harvest Stats ────────────────────────────────────────────────────────────
 
+  // Yield itself is no longer part of this — Farmer Home's "Annual Yield"
+  // is now the single source of truth for the season/year total (same
+  // harvest_records query, same offline-queue merge), so it isn't computed
+  // and shown in two places with two different labels.
   Future<HarvestStats> fetchStats() async {
     final now = DateTime.now();
     final startOfSeason = DateTime(now.year, 1, 1);
 
     int seasonCount = 0;
-    double totalYield = 0;
     int unsyncedCount = 0;
 
     try {
       final response = await _client
           .from('harvest_records')
-          .select('quantity_kg, is_synced, harvest_date')
+          .select('is_synced')
           .eq('farmer_id', _userId)
           .gte('harvest_date', startOfSeason.toIso8601String());
 
       seasonCount = response.length;
       for (final row in response) {
-        totalYield += (row['quantity_kg'] as num).toDouble();
         if (!(row['is_synced'] as bool? ?? false)) unsyncedCount++;
       }
     } catch (_) {
@@ -134,19 +136,13 @@ class HarvestRepository {
       // even if the season-to-date server totals aren't reachable.
     }
 
-    final pending = _pendingHarvestModels()
-        .where((h) => h.harvestDate.year == now.year);
+    final pending = _pendingHarvestModels().where(
+      (h) => h.harvestDate.year == now.year,
+    );
     seasonCount += pending.length;
     unsyncedCount += pending.length;
-    for (final h in pending) {
-      totalYield += h.quantityKg;
-    }
 
-    return HarvestStats(
-      seasonCount: seasonCount,
-      totalYieldKg: totalYield,
-      unsyncedCount: unsyncedCount,
-    );
+    return HarvestStats(seasonCount: seasonCount, unsyncedCount: unsyncedCount);
   }
 
   // ─── Inventory Batch Count ────────────────────────────────────────────────────
@@ -159,9 +155,7 @@ class HarvestRepository {
           .eq('farmer_id', _userId);
 
       int total = response.length;
-      int lowStock = response
-          .where((r) => r['status'] == 'low_stock')
-          .length;
+      int lowStock = response.where((r) => r['status'] == 'low_stock').length;
 
       return {'total': total, 'low_stock': lowStock};
     } catch (_) {
@@ -233,18 +227,17 @@ extension HarvestHistoryFetch on HarvestRepository {
     }).toList();
     if (filtered.isEmpty) return HarvestReportData.empty();
 
-    final info = (await fetchFarmerInfoMap(
-        Supabase.instance.client, [_userId]))[_userId];
+    final info = (await fetchFarmerInfoMap(Supabase.instance.client, [
+      _userId,
+    ]))[_userId];
     final harvests = filtered.map((h) {
       return HarvestReportRow(
         id: h.id,
         farmerId: h.farmerId,
         farmerName: info?.fullName ?? 'Unknown Farmer',
-        memberId: info?.memberId ?? '—',
         cropName: h.cropName,
         quantityKg: h.quantityKg,
         harvestDate: h.harvestDate,
-        submittedToCooperative: h.submittedToCooperative,
         isSynced: h.isSynced,
         batchNumber: h.batchNumber ?? '—',
       );
@@ -257,6 +250,7 @@ extension HarvestHistoryFetch on HarvestRepository {
       monthlyTrend: const [],
       cropBreakdown: const [],
       harvests: harvests,
+      soldKgInPeriod: 0,
     );
   }
 }

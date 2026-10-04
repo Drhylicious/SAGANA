@@ -7,9 +7,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../widgets/map_attribution_links.dart';
+import '../../../core/constants/osm_config.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/models/buyer_address_model.dart';
 import '../../../data/models/buyer_profile_model.dart' show buyerGenderLabel;
 import '../../../data/models/farmer_member_model.dart';
 import '../../../data/models/farmer_profile_model.dart';
@@ -23,7 +26,10 @@ import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dropdown_field.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/suspend_reason_dialog.dart';
 import '../../widgets/temp_password_dialog.dart';
 
 class FarmerDetailsScreen extends StatefulWidget {
@@ -40,11 +46,11 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   final _reportsRepo = AdminReportsRepository();
   final _accountRepo = AccountManagementRepository();
 
-  FarmerProfileModel?       _profile;
-  FarmPerformanceSummary    _harvestSummary = FarmPerformanceSummary.empty;
-  Map<String, dynamic>      _harvestStats   = {};
-  List<LoanModel>           _loans          = [];
-  MemberContribution?       _contribution;
+  FarmerProfileModel? _profile;
+  FarmPerformanceSummary _harvestSummary = FarmPerformanceSummary.empty;
+  Map<String, dynamic> _harvestStats = {};
+  List<LoanModel> _loans = [];
+  MemberContribution? _contribution;
   // Carries the exact same figures shown for this farmer on Member
   // Patronage Report (Palay/Peanut/Other Crops/Cooperative Purchases/
   // Total/Share%) — sourced by reusing fetchMemberContributionReport()
@@ -52,14 +58,17 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   // the year, so there's no cheaper single-farmer equivalent) and picking
   // out this farmer's own row, guaranteeing it can never drift from what
   // the Report itself shows for the same farmer/year.
-  MemberContributionRow?    _patronageRow;
+  MemberContributionRow? _patronageRow;
   final int _patronageYear = DateTime.now().year;
-  CapitalSharesModel?       _capitalShares;
-  MemberCapitalSummary?     _capitalSummary;
+  CapitalSharesModel? _capitalShares;
+  MemberCapitalSummary? _capitalSummary;
   List<CapitalContributionEvent> _capitalLedger = [];
-  List<MemberStatusEvent>   _statusHistory = [];
+  List<MemberStatusEvent> _statusHistory = [];
   List<Map<String, dynamic>> _expenses = [];
   List<Map<String, dynamic>> _programs = [];
+  // The farmer's saved default address (for an outsider applicant, the one
+  // entered at registration). Null when none is saved.
+  BuyerAddressModel? _address;
 
   bool _isLoading = true;
 
@@ -85,26 +94,30 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       _capitalRepo.fetchLedger(widget.farmerId),
       _repo.fetchStatusHistory(widget.farmerId),
       _reportsRepo.fetchMemberContributionReport(_patronageYear),
+      _repo.fetchDefaultAddress(widget.farmerId),
     ]);
     if (!mounted) return;
     final patronageReport = results[11] as MemberContributionReportData;
     setState(() {
-      _profile        = results[0] as FarmerProfileModel?;
+      _profile = results[0] as FarmerProfileModel?;
+      _address = results[12] as BuyerAddressModel?;
       _harvestSummary = results[1] as FarmPerformanceSummary;
-      _harvestStats   = results[2] as Map<String, dynamic>;
-      _loans          = results[3] as List<LoanModel>;
-      _contribution   = results[4] as MemberContribution?;
-      _capitalShares  = results[5] as CapitalSharesModel?;
-      _expenses       = results[6] as List<Map<String, dynamic>>;
-      _programs       = results[7] as List<Map<String, dynamic>>;
+      _harvestStats = results[2] as Map<String, dynamic>;
+      _loans = results[3] as List<LoanModel>;
+      _contribution = results[4] as MemberContribution?;
+      _capitalShares = results[5] as CapitalSharesModel?;
+      _expenses = results[6] as List<Map<String, dynamic>>;
+      _programs = results[7] as List<Map<String, dynamic>>;
       _capitalSummary = results[8] as MemberCapitalSummary?;
-      _capitalLedger  = results[9] as List<CapitalContributionEvent>;
-      _statusHistory  = results[10] as List<MemberStatusEvent>;
-      _patronageRow   = patronageReport.rows.cast<MemberContributionRow?>().firstWhere(
+      _capitalLedger = results[9] as List<CapitalContributionEvent>;
+      _statusHistory = results[10] as List<MemberStatusEvent>;
+      _patronageRow = patronageReport.rows
+          .cast<MemberContributionRow?>()
+          .firstWhere(
             (r) => r!.farmerId == widget.farmerId,
             orElse: () => null,
           );
-      _isLoading      = false;
+      _isLoading = false;
     });
   }
 
@@ -125,8 +138,10 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.farmerDetailsContributionRecorded,
-              style: GoogleFonts.inter(fontSize: 13)),
+          content: Text(
+            l10n.farmerDetailsContributionRecorded,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
           backgroundColor: AppConstants.successGreen,
           behavior: SnackBarBehavior.floating,
         ),
@@ -136,8 +151,10 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.farmerDetailsContributionError,
-              style: GoogleFonts.inter(fontSize: 13)),
+          content: Text(
+            l10n.farmerDetailsContributionError,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -147,39 +164,6 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   double get _totalOutstanding => _loans
       .where((l) => !l.isPaid)
       .fold(0.0, (sum, l) => sum + l.remainingBalance);
-
-  Future<String?> _promptSuspendReason() {
-    final ctrl = TextEditingController();
-    final l10n = AppLocalizations.of(context);
-    return showDialog<String>(
-      context: context,
-      builder: (dc) {
-        final cs = Theme.of(dc).colorScheme;
-        return AlertDialog(
-          title: Text(l10n.farmerDetailsSuspendMemberTitle,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: l10n.farmerDetailsSuspendReasonHint,
-              hintStyle: GoogleFonts.inter(fontSize: 12, color: cs.outline),
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dc),
-                child: Text(l10n.farmerMgmtCancel)),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dc, ctrl.text.trim()),
-              child: Text(l10n.farmerMgmtNext),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   void _showActionsMenu() {
     final l10n = AppLocalizations.of(context);
@@ -198,8 +182,9 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
         onResetPassword: () async {
           Navigator.pop(context);
           try {
-            final tempPassword =
-                await _accountRepo.resetUserPassword(widget.farmerId);
+            final tempPassword = await _accountRepo.resetUserPassword(
+              widget.farmerId,
+            );
             if (!mounted) return;
             await showTempPasswordDialog(
               context: context,
@@ -210,8 +195,9 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content:
-                    Text(AppLocalizations.of(context).farmerMgmtResetPasswordError),
+                content: Text(
+                  AppLocalizations.of(context).farmerMgmtResetPasswordError,
+                ),
                 backgroundColor: AppConstants.errorRed,
               ),
             );
@@ -227,19 +213,33 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
           if (!status.supportsSuspendToggle) return;
           if (!status.isEffectivelyActive) {
             // Suspended — reactivate, single tap.
-            await _repo.setFarmerStatus(
-                farmerId: widget.farmerId, status: 'active');
+            try {
+              await _repo.setFarmerStatus(
+                farmerId: widget.farmerId,
+                status: 'active',
+              );
+            } catch (_) {
+              if (mounted)
+                AppToast.show(context, l10n.suspendActionError, isError: true);
+              return;
+            }
             _loadAll();
             return;
           }
           // Active or Inactive — suspend, two-step (Decision D17).
-          final reason = await _promptSuspendReason();
+          final reason = await promptSuspendReason(
+            context: context,
+            title: l10n.farmerDetailsSuspendMemberTitle,
+            hint: l10n.farmerDetailsSuspendReasonHint,
+          );
           if (reason == null || reason.trim().isEmpty || !mounted) return;
           final ok = await showDialog<bool>(
             context: context,
             builder: (dc) => AlertDialog(
-              title: Text(l10n.farmerMgmtConfirmSuspensionTitle,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+              title: Text(
+                l10n.farmerMgmtConfirmSuspensionTitle,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
               content: Text(
                 '${l10n.farmerMgmtSuspendMemberLine(_profile?.fullName ?? '')}\n'
                 '${l10n.farmerMgmtSuspendOutcomeLine}\n'
@@ -248,23 +248,32 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
               ),
               actions: [
                 TextButton(
-                    onPressed: () => Navigator.pop(dc, false),
-                    child: Text(l10n.farmerMgmtBack)),
+                  onPressed: () => Navigator.pop(dc, false),
+                  child: Text(l10n.farmerMgmtBack),
+                ),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(dc, true),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: AppConstants.errorRed,
-                      foregroundColor: Colors.white),
+                    backgroundColor: AppConstants.errorRed,
+                    foregroundColor: Colors.white,
+                  ),
                   child: Text(l10n.farmerMgmtSuspendAccountAction),
                 ),
               ],
             ),
           );
           if (ok != true) return;
-          await _repo.setFarmerStatus(
+          try {
+            await _repo.setFarmerStatus(
               farmerId: widget.farmerId,
               status: 'suspended',
-              reason: reason.trim());
+              reason: reason.trim(),
+            );
+          } catch (_) {
+            if (mounted)
+              AppToast.show(context, l10n.suspendActionError, isError: true);
+            return;
+          }
           _loadAll();
         },
       ),
@@ -273,9 +282,9 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
 
     if (_isLoading) {
       return Scaffold(
@@ -293,12 +302,15 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline_rounded,
-                  size: 40, color: cs.outline),
+              Icon(Icons.error_outline_rounded, size: 40, color: cs.outline),
               const SizedBox(height: 12),
-              Text(l10n.farmerDetailsNotFound,
-                  style: GoogleFonts.poppins(
-                      fontSize: 15, color: cs.onSurfaceVariant)),
+              Text(
+                l10n.farmerDetailsNotFound,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () => context.pop(),
@@ -349,16 +361,38 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                           child: TabBarView(
                             children: [
                               ListView(
-                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  12,
+                                  20,
+                                  120,
+                                ),
                                 children: [
-                                  if (profile.memberStatus == MemberStatus.rejected) ...[
+                                  if (profile.memberStatus ==
+                                      MemberStatus.rejected) ...[
                                     _RejectedApplicationBanner(
-                                        profile: profile, cs: cs),
+                                      profile: profile,
+                                      cs: cs,
+                                    ),
                                     const SizedBox(height: 16),
                                   ],
-                                  _IdentityCard(profile: profile, cs: cs, sagana: sagana),
+                                  _IdentityCard(
+                                    profile: profile,
+                                    cs: cs,
+                                    sagana: sagana,
+                                  ),
                                   const SizedBox(height: 16),
-                                  _FarmDetailsCard(profile: profile, cs: cs, sagana: sagana),
+                                  _AddressCard(
+                                    address: _address,
+                                    cs: cs,
+                                    sagana: sagana,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _FarmDetailsCard(
+                                    profile: profile,
+                                    cs: cs,
+                                    sagana: sagana,
+                                  ),
                                   const SizedBox(height: 16),
                                   _MemberPatronageCard(
                                     row: _patronageRow,
@@ -377,7 +411,12 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                 ],
                               ),
                               ListView(
-                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  12,
+                                  20,
+                                  120,
+                                ),
                                 children: [
                                   _HarvestActivityCard(
                                     summary: _harvestSummary,
@@ -392,7 +431,12 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                 ],
                               ),
                               ListView(
-                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  12,
+                                  20,
+                                  120,
+                                ),
                                 children: [
                                   _LoanSummaryCard(
                                     loans: _loans,
@@ -403,7 +447,12 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                 ],
                               ),
                               ListView(
-                                padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  12,
+                                  20,
+                                  120,
+                                ),
                                 children: [
                                   _ContributionCard(
                                     contribution: _contribution,
@@ -419,8 +468,16 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   ),
                                 ],
                               ),
-                              _ExpensesTab(expenses: _expenses, cs: cs, sagana: sagana),
-                              _ProgramsTab(programs: _programs, cs: cs, sagana: sagana),
+                              _ExpensesTab(
+                                expenses: _expenses,
+                                cs: cs,
+                                sagana: sagana,
+                              ),
+                              _ProgramsTab(
+                                programs: _programs,
+                                cs: cs,
+                                sagana: sagana,
+                              ),
                             ],
                           ),
                         ),
@@ -454,16 +511,11 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
             child: _BottomActionBar(
               cs: cs,
               sagana: sagana,
-              onNotify: () =>
-                  context.push(AppRoutes.announcementDashboard),
-              onPay: () => context.push(
-                AppRoutes.recordPayment,
-                extra: widget.farmerId,
-              ),
-              onIssueLoan: () => context.push(
-                AppRoutes.issueNewLoan,
-                extra: widget.farmerId,
-              ),
+              onNotify: () => context.push(AppRoutes.announcementDashboard),
+              onPay: () =>
+                  context.push(AppRoutes.recordPayment, extra: widget.farmerId),
+              onIssueLoan: () =>
+                  context.push(AppRoutes.issueNewLoan, extra: widget.farmerId),
             ),
           ),
         ],
@@ -552,21 +604,29 @@ class _RejectedApplicationBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppConstants.errorRed.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.25),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.cancel_rounded,
-                  size: 18, color: AppConstants.errorRed),
+              const Icon(
+                Icons.cancel_rounded,
+                size: 18,
+                color: AppConstants.errorRed,
+              ),
               const SizedBox(width: 8),
-              Text(l10n.farmerDetailsApplicationRejected,
-                  style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.errorRed)),
+              Text(
+                l10n.farmerDetailsApplicationRejected,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.errorRed,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -575,13 +635,19 @@ class _RejectedApplicationBanner extends StatelessWidget {
                 ? l10n.farmerMgmtReasonLine(reason)
                 : l10n.farmerDetailsNoReasonRecorded,
             style: GoogleFonts.inter(
-                fontSize: 12, color: cs.onSurface, height: 1.5),
+              fontSize: 12,
+              color: cs.onSurface,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             l10n.farmerDetailsRejectedKeptNote,
             style: GoogleFonts.inter(
-                fontSize: 11, color: cs.onSurfaceVariant, height: 1.5),
+              fontSize: 11,
+              color: cs.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -592,6 +658,104 @@ class _RejectedApplicationBanner extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Identity Card
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Address Information card. Shows the saved registration address (structured
+/// fields and the full line), or "No address saved yet." when there is none.
+class _AddressCard extends StatelessWidget {
+  final BuyerAddressModel? address;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _AddressCard({
+    required this.address,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final a = address;
+    final rows = <(String, String?)>[
+      (l10n.registerRegionLabel, a?.regionName),
+      (l10n.registerProvinceLabel, a?.provinceName),
+      (l10n.registerCityLabel, a?.cityMunicipalityName),
+      (l10n.registerBarangayLabel, a?.barangayName),
+      (l10n.registerPostalLabel, a?.postalCode),
+      (l10n.registerStreetLabel, a?.street),
+      (l10n.registerBuildingLabel, a?.building),
+      (l10n.registerHouseNoLabel, a?.houseNo),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pendingAddressInfoTitle,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (a == null)
+            Text(
+              l10n.pendingNoAddressYet,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
+            )
+          else ...[
+            Text(
+              a.addressLine,
+              style: GoogleFonts.inter(fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            for (final (label, value) in rows)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 110,
+                      child: Text(
+                        label,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        value ?? l10n.pendingNotSet,
+                        style: GoogleFonts.inter(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _IdentityCard extends StatelessWidget {
   final FarmerProfileModel profile;
@@ -614,7 +778,10 @@ class _IdentityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
@@ -632,11 +799,12 @@ class _IdentityCard extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppConstants.successGreen.withValues(alpha: 0.10),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusFull),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
                   profile.isVerified
@@ -682,28 +850,13 @@ class _IdentityCard extends StatelessWidget {
               color: cs.onSurface,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            l10n.farmerDetailsMemberIdLine(
-                profile.memberId ?? l10n.farmerDetailsNotYetAssigned),
-            style: GoogleFonts.inter(
-                fontSize: 12, color: cs.outline),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            l10n.farmerDetailsMemberSince(profile.memberSinceLabel) +
-                (profile.purok != null ? ' • ${profile.purok}' : ''),
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-                fontSize: 11, color: cs.onSurfaceVariant),
-          ),
           const SizedBox(height: 16),
           Divider(color: cs.outline.withValues(alpha: 0.10)),
           const SizedBox(height: 12),
 
           // Every Edit Profile field always renders here, populated or
           // not (placeholder "–" when empty) — previously only phone/email
-          // showed up, and only when set, leaving Full Name/Purok/Date of
+          // showed up, and only when set, leaving Full Name/Date of
           // Birth/Gender invisible from this screen entirely. Mirrors
           // Buyer Details' identical field-grid layout (Issue 5).
           IntrinsicHeight(
@@ -711,12 +864,22 @@ class _IdentityCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                    child: _fieldTile(Icons.email_rounded,
-                        l10n.emailAddress, profile.contactEmail, cs)),
+                  child: _fieldTile(
+                    Icons.email_rounded,
+                    l10n.emailAddress,
+                    profile.contactEmail,
+                    cs,
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
-                    child: _fieldTile(Icons.phone_rounded,
-                        l10n.adminProfilePhoneNumber, profile.phoneNumber, cs)),
+                  child: _fieldTile(
+                    Icons.phone_rounded,
+                    l10n.adminProfilePhoneNumber,
+                    profile.phoneNumber,
+                    cs,
+                  ),
+                ),
               ],
             ),
           ),
@@ -726,26 +889,36 @@ class _IdentityCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                    child: _fieldTile(Icons.cake_rounded,
-                        l10n.dateOfBirthLabel, profile.dateOfBirthLabel, cs)),
+                  child: _fieldTile(
+                    Icons.cake_rounded,
+                    l10n.dateOfBirthLabel,
+                    profile.dateOfBirthLabel,
+                    cs,
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
-                    child: _fieldTile(
-                        Icons.person_outline_rounded,
-                        l10n.addMemberGenderLabel,
-                        buyerGenderLabel(l10n, profile.gender),
-                        cs)),
+                  child: _fieldTile(
+                    Icons.person_outline_rounded,
+                    l10n.addMemberGenderLabel,
+                    buyerGenderLabel(l10n, profile.gender),
+                    cs,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          _fieldTile(Icons.map_outlined, l10n.adminProfilePurok, profile.purok, cs),
         ],
       ),
     );
   }
 
-  Widget _fieldTile(IconData icon, String label, String? value, ColorScheme cs) {
+  Widget _fieldTile(
+    IconData icon,
+    String label,
+    String? value,
+    ColorScheme cs,
+  ) {
     final hasValue = value != null && value.isNotEmpty;
     return Container(
       width: double.infinity,
@@ -764,7 +937,10 @@ class _IdentityCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -774,9 +950,10 @@ class _IdentityCard extends StatelessWidget {
           Text(
             hasValue ? value : '–',
             style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: hasValue ? cs.onSurface : cs.onSurfaceVariant),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: hasValue ? cs.onSurface : cs.onSurfaceVariant,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -833,7 +1010,10 @@ class _FarmDetailsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
@@ -842,21 +1022,28 @@ class _FarmDetailsCard extends StatelessWidget {
           if (profile.hasCoordinates)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppConstants.radiusXl)),
+                top: Radius.circular(AppConstants.radiusXl),
+              ),
               child: SizedBox(
                 height: 130,
                 child: IgnorePointer(
                   child: FlutterMap(
                     options: MapOptions(
                       initialCenter: LatLng(
-                          profile.farmLatitude!, profile.farmLongitude!),
+                        profile.farmLatitude!,
+                        profile.farmLongitude!,
+                      ),
                       initialZoom: 15,
                       interactionOptions: const InteractionOptions(
                         flags: InteractiveFlag.none,
                       ),
                     ),
                     children: [
+                      const OsmMapAttribution(),
                       TileLayer(
+                        tileProvider: NetworkTileProvider(
+                          headers: {'User-Agent': kOsmTileUserAgent},
+                        ),
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.sp3coop.sagana',
@@ -867,16 +1054,23 @@ class _FarmDetailsCard extends StatelessWidget {
                         // IMAGE RESOURCE SERVICE" log.
                         errorTileCallback: (tile, error, stackTrace) {},
                       ),
-                      MarkerLayer(markers: [
-                        Marker(
-                          point: LatLng(
-                              profile.farmLatitude!, profile.farmLongitude!),
-                          width: 36,
-                          height: 36,
-                          child: Icon(Icons.location_on_rounded,
-                              color: cs.primary, size: 36),
-                        ),
-                      ]),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(
+                              profile.farmLatitude!,
+                              profile.farmLongitude!,
+                            ),
+                            width: 36,
+                            height: 36,
+                            child: Icon(
+                              Icons.location_on_rounded,
+                              color: cs.primary,
+                              size: 36,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -913,7 +1107,9 @@ class _FarmDetailsCard extends StatelessWidget {
                       child: _StatLabel(
                         label: l10n.farmerDetailsExperience,
                         value: profile.yearsFarming != null
-                            ? l10n.farmerDetailsYearsValue(profile.yearsFarming!)
+                            ? l10n.farmerDetailsYearsValue(
+                                profile.yearsFarming!,
+                              )
                             : l10n.farmerDetailsNotRecorded,
                         cs: cs,
                         alignEnd: true,
@@ -925,48 +1121,65 @@ class _FarmDetailsCard extends StatelessWidget {
                 if (profile.primaryCrops.isEmpty)
                   Text(
                     l10n.farmerDetailsNoCropsYet,
-                    style: GoogleFonts.inter(
-                        fontSize: 12, color: cs.outline),
+                    style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
                   )
-                else
+                else ...[
+                  Text(
+                    '${profile.primaryCrops.length} crop${profile.primaryCrops.length == 1 ? '' : 's'}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: profile.primaryCrops
-                        .map((c) => Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppConstants.secondaryContainer
-                                    .withValues(alpha: 0.20),
-                                borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusFull),
+                        .map(
+                          (c) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppConstants.secondaryContainer.withValues(
+                                alpha: 0.20,
                               ),
-                              child: Text(
-                                c,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF694300),
-                                ),
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusFull,
                               ),
-                            ))
+                            ),
+                            child: Text(
+                              c,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF694300),
+                              ),
+                            ),
+                          ),
+                        )
                         .toList(),
                   ),
+                ],
                 const SizedBox(height: 14),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     color: cs.primary.withValues(alpha: 0.06),
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.info_outline_rounded,
-                          size: 14, color: cs.primary),
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 14,
+                        color: cs.primary,
+                      ),
                       const SizedBox(width: 6),
                       // Flexible + ellipsis: the Tagalog sentence is about
                       // 25% longer than the English source and this
@@ -1010,12 +1223,23 @@ class _StatLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+        // Fixed height reserved for up to 2 lines — a longer label
+        // wrapping to a second line (e.g. "Volume to Cooperative
+        // (2026)") would otherwise push its own value down while a
+        // shorter one-line label next to it (e.g. "Completed Shares")
+        // doesn't, misaligning the two values that follow.
+        SizedBox(
+          height: 30,
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+          ),
         ),
         Text(
           value,
@@ -1052,11 +1276,13 @@ class _HarvestActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final count = stats['count'] as int? ?? 0;
-    final lastEntry = stats['last_entry'] as String?;
-    final lastEntryLabel = lastEntry != null
-        ? _shortDate(DateTime.parse(lastEntry))
-        : '—';
+    final totalHarvestCount = stats['count'] as int? ?? 0;
+    final thisYearYieldKg = (stats['this_year_kg'] as num?)?.toDouble() ?? 0.0;
+    final unsyncedCount = stats['unsynced_count'] as int? ?? 0;
+    final yieldLabel = thisYearYieldKg % 1 == 0
+        ? thisYearYieldKg.toStringAsFixed(0)
+        : thisYearYieldKg.toStringAsFixed(1);
+    final hasUnsynced = unsyncedCount > 0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1065,81 +1291,95 @@ class _HarvestActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
         children: [
+          // Same 3 KPIs as the farmer-facing Harvest History screen
+          // (Total Harvest / This Year's Yield / Sync Status) — previously
+          // Records/Total KG/Last Entry, which didn't correspond to
+          // anything the farmer themselves sees.
           Row(
             children: [
               Expanded(
-                child: _MiniStat(
-                  value: '$count',
-                  label: l10n.farmerDetailsRecordsLabel,
-                  cs: cs,
+                child: ReportIconStatCard(
+                  icon: Icons.calendar_month_rounded,
+                  accent: AppConstants.primaryGreen,
+                  label: 'Total Harvest',
+                  value: '$totalHarvestCount',
                 ),
               ),
-              Container(
-                width: 1,
-                height: 32,
-                color: cs.outline.withValues(alpha: 0.10),
-              ),
+              const SizedBox(width: 8),
               Expanded(
-                child: _MiniStat(
-                  value: summary.totalYieldKg.toStringAsFixed(0),
-                  label: l10n.farmerDetailsTotalKgLabel,
-                  cs: cs,
+                child: ReportIconStatCard(
+                  icon: Icons.eco_rounded,
+                  accent: AppConstants.successGreen,
+                  label: "This Year's Yield",
+                  value: '$yieldLabel kg',
                 ),
               ),
-              Container(
-                width: 1,
-                height: 32,
-                color: cs.outline.withValues(alpha: 0.10),
-              ),
+              const SizedBox(width: 8),
               Expanded(
-                child: _MiniStat(
-                  value: lastEntryLabel,
-                  label: l10n.farmerDetailsLastEntryLabel,
-                  cs: cs,
-                  small: true,
+                child: ReportIconStatCard(
+                  icon: hasUnsynced
+                      ? Icons.sync_rounded
+                      : Icons.check_circle_outline_rounded,
+                  accent: hasUnsynced
+                      ? AppConstants.warningAmber
+                      : AppConstants.successGreen,
+                  label: 'Sync Status',
+                  value: hasUnsynced ? '$unsyncedCount Unsynced' : 'Synced',
                 ),
               ),
             ],
           ),
           if (summary.cropBreakdown.isNotEmpty) ...[
             const SizedBox(height: 18),
-            ...summary.cropBreakdown.take(4).map((c) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(c.cropName,
+            ...summary.cropBreakdown
+                .take(4)
+                .map(
+                  (c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              c.cropName,
                               style: GoogleFonts.inter(
-                                  fontSize: 13, color: cs.onSurface)),
-                          Text('${c.quantityKg.toStringAsFixed(0)}kg',
+                                fontSize: 13,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            Text(
+                              '${c.quantityKg.toStringAsFixed(0)}kg',
                               style: GoogleFonts.inter(
-                                  fontSize: 12, color: cs.outline)),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: c.percentOfMax,
-                          minHeight: 6,
-                          backgroundColor:
-                              cs.surfaceContainerHighest,
-                          valueColor:
-                              AlwaysStoppedAnimation(cs.primary),
+                                fontSize: 12,
+                                color: cs.outline,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: c.percentOfMax,
+                            minHeight: 6,
+                            backgroundColor: cs.surfaceContainerHighest,
+                            valueColor: AlwaysStoppedAnimation(cs.primary),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
           ],
           const SizedBox(height: 6),
           GestureDetector(
@@ -1165,54 +1405,17 @@ class _HarvestActivityCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded,
-                      size: 18, color: cs.primary),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: cs.primary,
+                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  String _shortDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[dt.month - 1]} ${dt.day}';
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final ColorScheme cs;
-  final bool small;
-
-  const _MiniStat({
-    required this.value,
-    required this.label,
-    required this.cs,
-    this.small = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontSize: small ? 14 : 20,
-            fontWeight: FontWeight.w700,
-            color: cs.primary,
-          ),
-        ),
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
-        ),
-      ],
     );
   }
 }
@@ -1245,15 +1448,15 @@ class _LoanSummaryCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            sagana.cardBackground,
-            cs.surfaceContainerHighest,
-          ],
+          colors: [sagana.cardBackground, cs.surfaceContainerHighest],
         ),
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
@@ -1267,8 +1470,7 @@ class _LoanSummaryCard extends StatelessWidget {
                 children: [
                   Text(
                     l10n.farmerDetailsTotalOutstanding,
-                    style: GoogleFonts.inter(
-                        fontSize: 11, color: cs.outline),
+                    style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
                   ),
                   Text(
                     '₱${totalOutstanding.toStringAsFixed(2)}',
@@ -1297,99 +1499,112 @@ class _LoanSummaryCard extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppConstants.successGreen.withValues(alpha: 0.08),
-                borderRadius:
-                    BorderRadius.circular(AppConstants.radiusMd),
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline_rounded,
-                      color: AppConstants.successGreen, size: 18),
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: AppConstants.successGreen,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     l10n.farmerDetailsNoActiveLoans,
                     style: GoogleFonts.inter(
-                        fontSize: 13, color: AppConstants.successGreen),
+                      fontSize: 13,
+                      color: AppConstants.successGreen,
+                    ),
                   ),
                 ],
               ),
             )
           else
-            ...activeLoans.take(2).map((loan) => Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: sagana.cardBackground.withValues(alpha: 0.70),
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
-                    border: Border.all(
-                        color: cs.outline.withValues(alpha: 0.08)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              loan.referenceNo,
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: cs.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            l10n.farmerDetailsPercentPaid(
-                                (loan.repaidPercent * 100).toStringAsFixed(0)),
-                            style: GoogleFonts.inter(
-                                fontSize: 11, color: cs.onSurfaceVariant),
-                          ),
-                        ],
+            ...activeLoans
+                .take(2)
+                .map(
+                  (loan) => Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: sagana.cardBackground.withValues(alpha: 0.70),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
                       ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: loan.repaidPercent,
-                          minHeight: 5,
-                          backgroundColor:
-                              cs.surfaceContainerHighest,
-                          valueColor: AlwaysStoppedAnimation(
-                            loan.isOverdue
-                                ? cs.error
-                                : AppConstants.successGreen,
+                      border: Border.all(
+                        color: cs.outline.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                loan.referenceNo,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.onSurface,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              l10n.farmerDetailsPercentPaid(
+                                (loan.repaidPercent * 100).toStringAsFixed(0),
+                              ),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: loan.repaidPercent,
+                            minHeight: 5,
+                            backgroundColor: cs.surfaceContainerHighest,
+                            valueColor: AlwaysStoppedAnimation(
+                              loan.isOverdue
+                                  ? cs.error
+                                  : AppConstants.successGreen,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            l10n.farmerDetailsRemainingBalance(
-                                loan.remainingBalance.toStringAsFixed(2)),
-                            style: GoogleFonts.inter(
-                                fontSize: 11, color: cs.outline),
-                          ),
-                          if (loan.isOverdue)
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
                             Text(
-                              l10n.farmerMgmtOverdueBadge,
+                              l10n.farmerDetailsRemainingBalance(
+                                loan.remainingBalance.toStringAsFixed(2),
+                              ),
                               style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: cs.error,
+                                fontSize: 11,
+                                color: cs.outline,
                               ),
                             ),
-                        ],
-                      ),
-                    ],
+                            if (loan.isOverdue)
+                              Text(
+                                l10n.farmerMgmtOverdueBadge,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: cs.error,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
         ],
       ),
     );
@@ -1441,7 +1656,9 @@ class _ContributionCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final summary = capitalSummary;
     final contributionTotal =
-        summary?.shares.totalContribution ?? capitalShares?.totalContribution ?? 0;
+        summary?.shares.totalContribution ??
+        capitalShares?.totalContribution ??
+        0;
     final completedShares =
         summary?.shares.totalShares ?? capitalShares?.totalShares ?? 0;
 
@@ -1452,7 +1669,10 @@ class _ContributionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
@@ -1472,7 +1692,8 @@ class _ContributionCard extends StatelessWidget {
               Expanded(
                 child: _StatLabel(
                   label: l10n.farmerDetailsCompletedShares,
-                  value: '$completedShares (₱${(completedShares * 2000).toStringAsFixed(0)})',
+                  value:
+                      '$completedShares (₱${(completedShares * 2000).toStringAsFixed(0)})',
                   cs: cs,
                   alignEnd: true,
                 ),
@@ -1495,16 +1716,22 @@ class _ContributionCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(l10n.farmerDetailsCapitalContribution,
-                        style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onSurfaceVariant)),
-                    Text('₱${contributionTotal.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: cs.onSurface)),
+                    Text(
+                      l10n.farmerDetailsCapitalContribution,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      '₱${contributionTotal.toStringAsFixed(2)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: cs.onSurface,
+                      ),
+                    ),
                   ],
                 ),
                 if (summary != null) ...[
@@ -1522,10 +1749,12 @@ class _ContributionCard extends StatelessWidget {
                   Text(
                     summary.meetsLoanEligibility
                         ? l10n.farmerDetailsMeetsMinimum(
-                            summary.minimumForLoan.toStringAsFixed(0))
+                            summary.minimumForLoan.toStringAsFixed(0),
+                          )
                         : l10n.farmerDetailsNeedsMore(
                             summary.loanShortfall.toStringAsFixed(0),
-                            summary.minimumForLoan.toStringAsFixed(0)),
+                            summary.minimumForLoan.toStringAsFixed(0),
+                          ),
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: summary.meetsLoanEligibility
@@ -1540,39 +1769,49 @@ class _ContributionCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onRecordContribution,
                     icon: const Icon(Icons.add_rounded, size: 16),
-                    label: Text(l10n.farmerDetailsRecordContribution,
-                        style: GoogleFonts.poppins(
-                            fontSize: 12, fontWeight: FontWeight.w600)),
+                    label: Text(
+                      l10n.farmerDetailsRecordContribution,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 if (capitalLedger.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  ...capitalLedger.take(4).map((e) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${_sourceLabel(l10n, e.source)} · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
+                  ...capitalLedger
+                      .take(4)
+                      .map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${_sourceLabel(l10n, e.source)} · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                '${e.amount < 0 ? '−' : '+'}₱${e.amount.abs().toStringAsFixed(2)}',
                                 style: GoogleFonts.inter(
-                                    fontSize: 11, color: cs.onSurfaceVariant),
-                                overflow: TextOverflow.ellipsis,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: e.amount < 0
+                                      ? AppConstants.errorRed
+                                      : cs.onSurface,
+                                ),
                               ),
-                            ),
-                            Text(
-                              '${e.amount < 0 ? '−' : '+'}₱${e.amount.abs().toStringAsFixed(2)}',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: e.amount < 0
-                                    ? AppConstants.errorRed
-                                    : cs.onSurface,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      )),
+                      ),
                 ],
               ],
             ),
@@ -1593,7 +1832,9 @@ class _ContributionCard extends StatelessWidget {
                     Text(
                       l10n.farmerDetailsEstBalikTangkilik,
                       style: GoogleFonts.inter(
-                          fontSize: 11, color: cs.onSurfaceVariant),
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                     Text(
                       contribution != null
@@ -1607,8 +1848,11 @@ class _ContributionCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                Icon(Icons.trending_up_rounded,
-                    color: cs.primary.withValues(alpha: 0.30), size: 28),
+                Icon(
+                  Icons.trending_up_rounded,
+                  color: cs.primary.withValues(alpha: 0.30),
+                  size: 28,
+                ),
               ],
             ),
           ),
@@ -1635,8 +1879,11 @@ class _ContributionCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded,
-                      size: 18, color: cs.primary),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: cs.primary,
+                  ),
                 ],
               ),
             ),
@@ -1701,20 +1948,32 @@ class _ExpensesTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      expense['description'] as String? ?? l10n.farmerDetailsExpenseFallback,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface),
+                      expense['description'] as String? ??
+                          l10n.farmerDetailsExpenseFallback,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       date != null ? date.split('T').first : '—',
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
               Text(
                 '₱${amount.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.primary),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: cs.primary,
+                ),
               ),
             ],
           ),
@@ -1768,20 +2027,33 @@ class _ProgramsTab extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.emoji_events_rounded, color: AppConstants.programPurple, size: 18),
+                  const Icon(
+                    Icons.emoji_events_rounded,
+                    color: AppConstants.programPurple,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      program['name'] as String? ?? l10n.farmerDetailsProgramFallback,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface),
+                      program['name'] as String? ??
+                          l10n.farmerDetailsProgramFallback,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                program['description'] as String? ?? l10n.farmerDetailsAssignedProgramFallback,
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                program['description'] as String? ??
+                    l10n.farmerDetailsAssignedProgramFallback,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -1818,7 +2090,11 @@ class _BottomActionBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           padding: EdgeInsets.fromLTRB(
-              20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
+            20,
+            12,
+            20,
+            MediaQuery.of(context).padding.bottom + 12,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(top: BorderSide(color: sagana.glassBorder)),
@@ -1856,14 +2132,18 @@ class _BottomActionBar extends StatelessWidget {
                           AppConstants.primaryContainer,
                         ],
                       ),
-                      borderRadius:
-                          BorderRadius.circular(AppConstants.radiusMd),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.add_card_rounded,
-                            color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.add_card_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
@@ -1987,8 +2267,7 @@ class _ActionsMenu extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: color),
               const SizedBox(width: 14),
-              Text(label,
-                  style: GoogleFonts.inter(fontSize: 14, color: color)),
+              Text(label, style: GoogleFonts.inter(fontSize: 14, color: color)),
             ],
           ),
         ),
@@ -2023,9 +2302,7 @@ class _ActionsMenu extends StatelessWidget {
           // admin "reactivating" it here.
           if (status.supportsSuspendToggle)
             row(
-              icon: isActive
-                  ? Icons.person_off_outlined
-                  : Icons.person_rounded,
+              icon: isActive ? Icons.person_off_outlined : Icons.person_rounded,
               label: isActive
                   ? l10n.farmerMgmtActionSetSuspended
                   : l10n.farmerMgmtActionSetActive,
@@ -2037,14 +2314,19 @@ class _ActionsMenu extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline_rounded,
-                      size: 20, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 20,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       l10n.farmerDetailsRejectedNoToggleNote,
                       style: GoogleFonts.inter(
-                          fontSize: 12, color: cs.onSurfaceVariant),
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -2130,8 +2412,10 @@ class _RecordContributionDialogState extends State<_RecordContributionDialog> {
     final l10n = AppLocalizations.of(context);
     final sources = _sources(l10n);
     return AlertDialog(
-      title: Text(l10n.farmerDetailsRecordContribution,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+      title: Text(
+        l10n.farmerDetailsRecordContribution,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2139,8 +2423,10 @@ class _RecordContributionDialogState extends State<_RecordContributionDialog> {
           children: [
             TextField(
               controller: _amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true, signed: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+                signed: true,
+              ),
               inputFormatters: [
                 // Digits only, an optional single leading minus, one dot.
                 FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
@@ -2169,9 +2455,13 @@ class _RecordContributionDialogState extends State<_RecordContributionDialog> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 10),
-              Text(_error!,
-                  style: GoogleFonts.inter(
-                      fontSize: 12, color: AppConstants.errorRed)),
+              Text(
+                _error!,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.errorRed,
+                ),
+              ),
             ],
           ],
         ),
@@ -2215,7 +2505,11 @@ class _MemberPatronageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     final r = row;
 
     return Container(
@@ -2225,7 +2519,10 @@ class _MemberPatronageCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusXl),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(
@@ -2233,56 +2530,143 @@ class _MemberPatronageCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.paid_rounded, size: 18, color: AppConstants.primaryGreen),
+              const Icon(
+                Icons.paid_rounded,
+                size: 18,
+                color: AppConstants.primaryGreen,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Member Patronage ($year)',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: cs.onSurface,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          if (r == null || (!r.hasContributed && r.programPurchasesAmount <= 0))
+          if (r == null || !r.hasAnyActivity)
             Text(
               'No patronage activity recorded for $year.',
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             )
           else ...[
+            // Mirrors Member Patronage Report's row design exactly (see
+            // member_contribution_report_screen.dart's _buildMemberRow) —
+            // a combined headline total, then each source's own share%
+            // shown separately (never blended into one percentage), then
+            // each source's own labeled detail section.
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  currency.format(r.totalAmount),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18, color: cs.onSurface),
+                  currency.format(r.combinedTotalAmount),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    color: cs.onSurface,
+                  ),
                 ),
                 Text(
-                  '${r.sharePercent.toStringAsFixed(1)}% share',
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.primaryGreen),
+                  'Total Patronage',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _sourceShareChip(
+                    label: 'Sold to Co-op',
+                    percent: r.sharePercent,
+                    color: AppConstants.primaryGreen,
+                    cs: cs,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _sourceShareChip(
+                    label: 'Bought from Co-op',
+                    percent: r.purchaseSharePercent,
+                    color: AppConstants.buyerBlue,
+                    cs: cs,
+                  ),
                 ),
               ],
             ),
             if (r.hasContributed) ...[
               const SizedBox(height: 10),
+              Text(
+                'Selling to Cooperative',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
               Row(
                 children: [
-                  _patronageStat('Palay', '${r.palayQtyKg.toStringAsFixed(0)} kg (${currency.format(r.palayAmount)})', AppConstants.primaryGreen, cs),
+                  _patronageStat(
+                    'Palay',
+                    '${r.palayQtyKg.toStringAsFixed(0)} kg (${currency.format(r.palayAmount)})',
+                    AppConstants.primaryGreen,
+                    cs,
+                  ),
                   const SizedBox(width: 16),
-                  _patronageStat('Peanut', '${r.peanutQtyKg.toStringAsFixed(0)} kg (${currency.format(r.peanutAmount)})', AppConstants.amber, cs),
+                  _patronageStat(
+                    'Peanut',
+                    '${r.peanutQtyKg.toStringAsFixed(0)} kg (${currency.format(r.peanutAmount)})',
+                    AppConstants.amber,
+                    cs,
+                  ),
                 ],
               ),
               if (r.otherCropsAmount > 0) ...[
                 const SizedBox(height: 4),
-                _patronageStat('Other Crops', '${r.otherCropsQtyKg.toStringAsFixed(0)} kg (${currency.format(r.otherCropsAmount)})', AppConstants.buyerBlue, cs),
+                _patronageStat(
+                  'Other Crops',
+                  '${r.otherCropsQtyKg.toStringAsFixed(0)} kg (${currency.format(r.otherCropsAmount)})',
+                  AppConstants.buyerBlue,
+                  cs,
+                ),
               ],
             ],
             if (r.programPurchasesAmount > 0) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Buying from Cooperative',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 4),
               // _patronageStat() returns an Expanded — it must be a Row's
               // direct child (bounded main-axis width), never a Column's
               // direct child (unbounded height in this scrollable
-              // context), which is what the other 3 stats above already
-              // do correctly by each sitting inside their own Row.
-              Row(children: [_patronageStat('Product Sales Program Patronage', currency.format(r.programPurchasesAmount), AppConstants.buyerBlue, cs)]),
+              // context), which is what the other stats above already do
+              // correctly by each sitting inside their own Row.
+              Row(
+                children: [
+                  _patronageStat(
+                    'Purchases',
+                    currency.format(r.programPurchasesAmount),
+                    AppConstants.buyerBlue,
+                    cs,
+                  ),
+                ],
+              ),
             ],
           ],
         ],
@@ -2290,16 +2674,65 @@ class _MemberPatronageCard extends StatelessWidget {
     );
   }
 
-  Widget _patronageStat(String label, String value, Color color, ColorScheme cs) {
+  Widget _sourceShareChip({
+    required String label,
+    required double percent,
+    required Color color,
+    required ColorScheme cs,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            '${percent.toStringAsFixed(1)}%',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _patronageStat(
+    String label,
+    String value,
+    Color color,
+    ColorScheme cs,
+  ) {
     return Expanded(
       child: Row(
         children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               '$label: $value',
-              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -2326,13 +2759,20 @@ class _StatusHistoryCard extends StatelessWidget {
 
   static String _label(AppLocalizations l10n, String s) {
     switch (s) {
-      case 'active':    return l10n.farmerMgmtStatusActiveLabel;
-      case 'inactive':  return l10n.analyticsInactive;
-      case 'suspended': return l10n.farmerMgmtStatusSuspendedLabel;
-      case 'pending':   return l10n.buyerOrderDetailPendingTimestamp;
-      case 'rejected':  return l10n.farmerMgmtStatusRejectedLabel;
-      case 'draft':     return l10n.farmerMgmtStatusDraftLabel;
-      default:          return s;
+      case 'active':
+        return l10n.farmerMgmtStatusActiveLabel;
+      case 'inactive':
+        return l10n.analyticsInactive;
+      case 'suspended':
+        return l10n.farmerMgmtStatusSuspendedLabel;
+      case 'pending':
+        return l10n.buyerOrderDetailPendingTimestamp;
+      case 'rejected':
+        return l10n.farmerMgmtStatusRejectedLabel;
+      case 'draft':
+        return l10n.farmerMgmtStatusDraftLabel;
+      default:
+        return s;
     }
   }
 
@@ -2353,11 +2793,14 @@ class _StatusHistoryCard extends StatelessWidget {
             children: [
               Icon(Icons.history_rounded, size: 18, color: cs.primary),
               const SizedBox(width: 8),
-              Text(l10n.farmerDetailsStatusHistoryTitle,
-                  style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: cs.onSurface)),
+              Text(
+                l10n.farmerDetailsStatusHistoryTitle,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -2376,7 +2819,9 @@ class _StatusHistoryCard extends StatelessWidget {
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                          color: cs.primary, shape: BoxShape.circle),
+                        color: cs.primary,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -2389,19 +2834,27 @@ class _StatusHistoryCard extends StatelessWidget {
                               ? '${_label(l10n, e.fromStatus!)} → ${_label(l10n, e.toStatus)}'
                               : _label(l10n, e.toStatus),
                           style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurface),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
                         ),
                         if (e.reason != null && e.reason!.trim().isNotEmpty)
-                          Text(e.reason!.trim(),
-                              style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: cs.onSurfaceVariant,
-                                  height: 1.4)),
-                        Text(date,
+                          Text(
+                            e.reason!.trim(),
                             style: GoogleFonts.inter(
-                                fontSize: 10, color: cs.onSurfaceVariant)),
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                              height: 1.4,
+                            ),
+                          ),
+                        Text(
+                          date,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   ),

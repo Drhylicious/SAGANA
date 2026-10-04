@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_navigation_drawer.dart';
+import '../../widgets/buyer_activity_card.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
@@ -66,18 +68,24 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
 
   Future<void> _loadActivity() async {
     setState(() => _isActivityLoading = true);
+    // Pool wider than the final 6 shown (5 of each) so a recent burst of
+    // one category (e.g. several order updates) doesn't crowd out the
+    // other category entirely before the merge+sort below picks the
+    // overall 6 most recent.
     final results = await Future.wait([
-      _buyerOrderRepo.fetchRecentOrderActivity(),
-      _repository.fetchRecentProfileActivity(),
+      _buyerOrderRepo.fetchRecentOrderActivity(limit: 5),
+      _repository.fetchRecentProfileActivity(limit: 5),
     ]);
     if (!mounted) return;
     final combined = [...results[0], ...results[1]]
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     setState(() {
-      _recentActivity = combined.take(5).toList();
+      _recentActivity = combined.take(6).toList();
       _isActivityLoading = false;
     });
   }
+
+  Future<void> _refreshAll() => Future.wait([_load(), _loadActivity()]);
 
   @override
   Widget build(BuildContext context) {
@@ -92,9 +100,15 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
         displayName: _profile?.fullName ?? 'Buyer',
         contactEmail: _profile?.contactEmail,
         phoneNumber: _profile?.phoneNumber,
-        onEditProfile: () {
+        onEditProfile: () async {
           Navigator.pop(context);
-          context.push(AppRoutes.buyerEditProfile);
+          await context.push(AppRoutes.buyerEditProfile);
+          if (mounted) _refreshAll();
+        },
+        onMyAddresses: () async {
+          Navigator.pop(context);
+          await context.push(AppRoutes.myAddresses);
+          if (mounted) _refreshAll();
         },
         onSignOut: () => confirmBuyerSignOut(context),
         onAboutSagana: () => context.push(AppRoutes.aboutSagana),
@@ -111,7 +125,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : RefreshIndicator(
-                        onRefresh: _load,
+                        onRefresh: _refreshAll,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(
                             AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 40,
@@ -150,35 +164,112 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
     );
   }
 
+  // Mirrors FarmerProfileScreen's _ProfileHeaderCard visual language
+  // (gradient glass card, avatar + name + contact line) without copying
+  // Farmer-only content — no status badge (accountStatus is deliberately
+  // never fetched for the buyer's own profile, see BuyerProfileModel), no
+  // "Member since" line, and the contact line shows contactEmail (the
+  // buyer's real, self-entered email) rather than the synthetic
+  // auth-only email — omitted entirely when neither contactEmail nor
+  // phoneNumber is set, never filled with a placeholder.
   Widget _buildIdentityCard(AppLocalizations l10n) {
     final profile = _profile;
-    return GlassCard(
-      child: Row(
-        children: [
-          ProfileAvatar(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? l10n.buyerDefaultName,
-            radius: 32,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(profile?.fullName ?? l10n.buyerDefaultName,
-                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(profile?.email ?? '',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-                const SizedBox(height: 2),
-                if (profile != null)
-                  Text(buyerMemberSinceLabel(l10n, profile.memberSince),
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+    final hasContactEmail = profile?.contactEmail?.isNotEmpty ?? false;
+    final hasPhone = profile?.phoneNumber?.isNotEmpty ?? false;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.80),
+                AppConstants.buyerBlue.withValues(alpha: 0.06),
               ],
             ),
+            borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+            border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.14)),
+            boxShadow: [
+              BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.06), blurRadius: 16),
+            ],
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.radiusXl)),
+                  gradient: LinearGradient(
+                    colors: [AppConstants.buyerBlue, AppConstants.buyerBlue.withValues(alpha: 0.35)],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ProfileAvatar(
+                      photoUrl: profile?.profilePhotoUrl,
+                      displayName: profile?.fullName ?? l10n.buyerDefaultName,
+                      radius: 32,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(profile?.fullName ?? l10n.buyerDefaultName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+                          if (hasContactEmail || hasPhone) ...[
+                            const SizedBox(height: 4),
+                            // Built as a list rather than two independent
+                            // `if` blocks with a fixed gap between them —
+                            // a fixed gap before the phone line left a
+                            // phantom 3px gap under the name whenever only
+                            // the phone (no email) was set. Interspersing
+                            // the gap only *between* present lines keeps
+                            // either single-line or both-lines cases
+                            // equally compact.
+                            for (final (i, w) in [
+                              if (hasContactEmail) _contactLine(Icons.email_outlined, profile!.contactEmail!),
+                              if (hasPhone) _contactLine(Icons.phone_outlined, profile!.phoneNumber!),
+                            ].indexed) ...[
+                              if (i > 0) const SizedBox(height: 2),
+                              w,
+                            ],
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _contactLine(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: AppConstants.onSurfaceVariant),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+        ),
+      ],
     );
   }
 
@@ -194,32 +285,50 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
       children: [
         Expanded(
           child: _statTile(l10n.statOrders, '${profile?.totalOrders ?? 0}',
+              icon: Icons.shopping_bag_rounded, color: AppConstants.buyerBlue,
               onTap: () => context.go(AppRoutes.myOrders)),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: _statTile(l10n.statCompleted, '${profile?.completedOrders ?? 0}',
+              icon: Icons.check_circle_rounded, color: AppConstants.successGreen,
               onTap: () => context.go(AppRoutes.myOrders, extra: 2)), // Completed tab index
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _statTile(l10n.statSpent, '₱${(profile?.totalSpent ?? 0).toStringAsFixed(0)}'),
+          child: _statTile(l10n.statSpent, '₱${(profile?.totalSpent ?? 0).toStringAsFixed(0)}',
+              icon: Icons.payments_rounded, color: AppConstants.primaryGreen),
         ),
       ],
     );
   }
 
-  Widget _statTile(String label, String value, {VoidCallback? onTap}) {
+  // KPI-tile visual language — mirrors Admin Marketplace Dashboard's
+  // _KpiStrip/_KpiTile (icon chip + label + value, tinted border/bg per
+  // stat) rather than the plain value/label tile used previously, so
+  // Purchase Summary reads as the same kind of stat card used elsewhere
+  // in SAGANA.
+  Widget _statTile(String label, String value, {required IconData icon, required Color color, VoidCallback? onTap}) {
     final tile = Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: context.saganaColors.cardBackground,
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 8),
+          Text(value, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: AppConstants.onSurface)),
           const SizedBox(height: 2),
           Text(label, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
         ],
@@ -251,10 +360,10 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   }
 }
 
-// Superseded — was a single tappable row to the full activity screen;
-// replaced with the inline preview section below (_RecentActivitySection),
-// which shows the most recent items directly on this screen instead of
-// requiring a tap-through to see anything.
+// Inline preview of the buyer's most recent activity — same date-grouped
+// card presentation as the full BuyerRecentActivityScreen (shared via
+// buyer_activity_card.dart) so the two surfaces read as one consistent
+// feature rather than two different designs for the same data.
 class _RecentActivitySection extends StatelessWidget {
   final List<BuyerActivityItem> items;
   final bool isLoading;
@@ -306,100 +415,10 @@ class _RecentActivitySection extends StatelessWidget {
             ),
           )
         else
-          Container(
-            decoration: BoxDecoration(
-              color: context.saganaColors.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
-            ),
-            child: Column(
-              children: items.asMap().entries.map((e) {
-                return Column(
-                  children: [
-                    _RecentActivityTile(item: e.value),
-                    if (e.key < items.length - 1)
-                      Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.08)),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
+          ...groupBuyerActivityByDate(items, l10n).entries.map(
+                (e) => BuyerActivityDateGroup(label: e.key, items: e.value),
+              ),
       ],
-    );
-  }
-}
-
-// Buyer-local bypasses for BuyerActivityItem's order-derived text —
-// mirrors the same pattern used throughout this project for shared/
-// cross-cutting models, applied here even though this model is
-// Buyer-exclusive, to move presentation logic out of the repository.
-// Duplicated in buyer_recent_activity_screen.dart's _ActivityCard.
-String _activityOrderTitle(String? status, AppLocalizations l10n) {
-  switch (status) {
-    case 'pending':   return l10n.buyerOrderDetailStepPlaced;
-    case 'approved':  return l10n.buyerActivityOrderApproved;
-    case 'completed': return l10n.buyerActivityOrderCompleted;
-    case 'cancelled': return l10n.buyerActivityOrderCancelled;
-    default:          return l10n.buyerActivityOrderUpdated;
-  }
-}
-
-String _activityStatusLabel(String? status, AppLocalizations l10n) {
-  switch (status) {
-    case 'pending':   return l10n.buyerOrderDetailPendingTimestamp;
-    case 'approved':  return l10n.buyerOrderDetailStepApproved;
-    case 'completed': return l10n.buyerOrderDetailStepCompleted;
-    case 'cancelled': return l10n.buyerActivityStatusCancelled;
-    default:          return status ?? '';
-  }
-}
-
-class _RecentActivityTile extends StatelessWidget {
-  final BuyerActivityItem item;
-  const _RecentActivityTile({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final isOrder = item.type == BuyerActivityType.order;
-    final title = isOrder ? _activityOrderTitle(item.orderStatus, l10n) : item.title;
-    final subtitle = isOrder ? item.subtitle : l10n.buyerActivityFilterProfile;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-              color: AppConstants.limeGreen,
-              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-            ),
-            child: Icon(isOrder ? Icons.receipt_long_rounded : Icons.person_rounded,
-                size: 18, color: AppConstants.primaryGreen),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
-                Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-              ],
-            ),
-          ),
-          if (item.valueLabel != null)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(item.valueLabel!,
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                if (isOrder && item.orderStatus != null)
-                  Text(_activityStatusLabel(item.orderStatus, l10n),
-                      style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.successGreen)),
-              ],
-            ),
-        ],
-      ),
     );
   }
 }

@@ -146,7 +146,6 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
         .where(
           (h) =>
               h.farmerName.toLowerCase().contains(q) ||
-              h.memberId.toLowerCase().contains(q) ||
               h.cropName.toLowerCase().contains(q) ||
               h.batchNumber.toLowerCase().contains(q),
         )
@@ -163,7 +162,6 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           .where(
             (b) =>
                 b.farmerName.toLowerCase().contains(q) ||
-                b.memberId.toLowerCase().contains(q) ||
                 b.cropName.toLowerCase().contains(q) ||
                 b.batchNumber.toLowerCase().contains(q),
           )
@@ -334,14 +332,15 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
         period: _period,
         primaryStats: [
           ReportHeroStat(
-            label: '${l10n.reportsTotalYield} (${reportPeriodLabel(l10n, _period)})',
+            label:
+                '${l10n.reportsTotalYield} (${reportPeriodLabel(l10n, _period)})',
             value: '${_harvestData.totalYieldKg.toStringAsFixed(0)} kg',
             icon: Icons.agriculture_rounded,
             accent: AppConstants.primaryGreen,
           ),
           ReportHeroStat(
-            label: l10n.reportsAvailableStockLive,
-            value: '${_inventoryData.totalAvailableKg.toStringAsFixed(0)} kg',
+            label: '${l10n.reportsSold} (${reportPeriodLabel(l10n, _period)})',
+            value: '${_harvestData.soldKgInPeriod.toStringAsFixed(0)} kg',
             icon: Icons.inventory_2_rounded,
             accent: AppConstants.buyerBlue,
           ),
@@ -417,7 +416,10 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(
+                reportPeriodLabel(l10n, p),
+                style: GoogleFonts.inter(fontSize: 12),
+              ),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
@@ -697,7 +699,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
               ],
             ),
             Text(
-              '${harvest.farmerName} • ${harvest.memberId} • ${DateFormat('MMM d, yyyy').format(harvest.harvestDate)}',
+              '${harvest.farmerName} • ${DateFormat('MMM d, yyyy').format(harvest.harvestDate)}',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: cs.onSurfaceVariant,
@@ -718,18 +720,6 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                 Expanded(
                   child: Row(
                     children: [
-                      _statusChip(
-                        icon: harvest.submittedToCooperative
-                            ? Icons.check_circle_rounded
-                            : Icons.remove_circle_outline_rounded,
-                        label: harvest.submittedToCooperative
-                            ? l10n.reportsToCoop
-                            : l10n.reportsNotToCoop,
-                        color: harvest.submittedToCooperative
-                            ? AppConstants.successGreen
-                            : cs.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: AppConstants.spacingSm),
                       _statusChip(
                         icon: harvest.isSynced
                             ? Icons.cloud_done_rounded
@@ -1099,7 +1089,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                         ),
                       ),
                       Text(
-                        '${batch.farmerName} • ${batch.memberId}',
+                        batch.farmerName,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: cs.onSurfaceVariant,

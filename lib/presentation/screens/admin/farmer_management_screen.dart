@@ -21,36 +21,46 @@ void _safePop(BuildContext context, [Object? result]) {
   if (Navigator.canPop(context)) {
     Navigator.pop(context, result);
   }
-
 }
 
 // Localized labels for model enums — kept here rather than in the data
 // model so the model stays presentation-agnostic.
 String _memberStatusLabel(AppLocalizations l10n, MemberStatus s) {
   switch (s) {
-    case MemberStatus.active:    return l10n.farmerMgmtStatusActiveLabel;
-    case MemberStatus.inactive:  return l10n.analyticsInactive;
-    case MemberStatus.suspended: return l10n.farmerMgmtStatusSuspendedLabel;
-    case MemberStatus.pending:   return l10n.buyerOrderDetailPendingTimestamp;
-    case MemberStatus.rejected:  return l10n.farmerMgmtStatusRejectedLabel;
-    case MemberStatus.draft:     return l10n.farmerMgmtStatusDraftLabel;
+    case MemberStatus.active:
+      return l10n.farmerMgmtStatusActiveLabel;
+    case MemberStatus.inactive:
+      return l10n.analyticsInactive;
+    case MemberStatus.suspended:
+      return l10n.farmerMgmtStatusSuspendedLabel;
+    case MemberStatus.pending:
+      return l10n.buyerOrderDetailPendingTimestamp;
+    case MemberStatus.rejected:
+      return l10n.farmerMgmtStatusRejectedLabel;
+    case MemberStatus.draft:
+      return l10n.farmerMgmtStatusDraftLabel;
   }
 }
 
 String _loanStatusLabel(AppLocalizations l10n, LoanStatusSummary s) {
   switch (s) {
-    case LoanStatusSummary.none:    return l10n.farmerMgmtLoanNone;
-    case LoanStatusSummary.active:  return l10n.farmerMgmtLoanActiveLabel;
-    case LoanStatusSummary.overdue: return l10n.adminDashKpiOverdue;
+    case LoanStatusSummary.none:
+      return l10n.farmerMgmtLoanNone;
+    case LoanStatusSummary.active:
+      return l10n.farmerMgmtLoanActiveLabel;
+    case LoanStatusSummary.overdue:
+      return l10n.adminDashKpiOverdue;
   }
 }
 
 String _sortOptionLabel(AppLocalizations l10n, FarmerSortOption o) {
   switch (o) {
-    case FarmerSortOption.nameAZ:        return l10n.farmerMgmtSortNameAZ;
-    case FarmerSortOption.recentHarvest: return l10n.farmerMgmtSortRecentHarvest;
-    case FarmerSortOption.memberId:      return l10n.farmerMgmtSortMemberId;
-    case FarmerSortOption.loanBalance:   return l10n.farmerMgmtSortLoanBalance;
+    case FarmerSortOption.nameAZ:
+      return l10n.farmerMgmtSortNameAZ;
+    case FarmerSortOption.recentHarvest:
+      return l10n.farmerMgmtSortRecentHarvest;
+    case FarmerSortOption.loanBalance:
+      return l10n.farmerMgmtSortLoanBalance;
   }
 }
 
@@ -114,7 +124,11 @@ class FarmerManagementHeader extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_rounded, color: colorScheme.onPrimary, size: 20),
+                    Icon(
+                      Icons.add_rounded,
+                      color: colorScheme.onPrimary,
+                      size: 20,
+                    ),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
@@ -152,7 +166,8 @@ class FarmerManagementHeader extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          Container(
+          Flexible(
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
@@ -161,6 +176,7 @@ class FarmerManagementHeader extends StatelessWidget {
             child: Text(
               l10n.farmerMgmtMembersCount(memberCount),
               maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -168,14 +184,24 @@ class FarmerManagementHeader extends StatelessWidget {
               ),
             ),
           ),
+          ),
         ],
       );
     }
 
-    return Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 300;
+        return Row(
       children: [
         Expanded(
-          child: Row(
+          child: compact
+              ? _CompactTitle(
+                  title: title,
+                  count: l10n.farmerMgmtMembersCount(memberCount),
+                  cs: colorScheme,
+                )
+              : Row(
             children: [
               Expanded(
                 child: Text(
@@ -191,7 +217,10 @@ class FarmerManagementHeader extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
@@ -255,6 +284,56 @@ class FarmerManagementHeader extends StatelessWidget {
           ],
         ),
       ],
+        );
+      },
+    );
+  }
+}
+
+// Narrow headers (under 300 px): the title sits above the member count, so
+// neither has to share a line with the action buttons.
+class _CompactTitle extends StatelessWidget {
+  final String title;
+  final String count;
+  final ColorScheme cs;
+
+  const _CompactTitle({required this.title, required this.count, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+          ),
+          child: Text(
+            count,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: cs.primary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -263,8 +342,7 @@ class FarmerManagementScreen extends StatefulWidget {
   const FarmerManagementScreen({super.key});
 
   @override
-  State<FarmerManagementScreen> createState() =>
-      _FarmerManagementScreenState();
+  State<FarmerManagementScreen> createState() => _FarmerManagementScreenState();
 }
 
 class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
@@ -424,7 +502,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
         onResetPassword: () async {
           _safePop(dialogContext);
           try {
-            final tempPassword = await _accountRepo.resetUserPassword(farmer.userId);
+            final tempPassword = await _accountRepo.resetUserPassword(
+              farmer.userId,
+            );
             if (!mounted) return;
             await showTempPasswordDialog(
               context: context,
@@ -435,7 +515,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(AppLocalizations.of(context).farmerMgmtResetPasswordError),
+                content: Text(
+                  AppLocalizations.of(context).farmerMgmtResetPasswordError,
+                ),
                 backgroundColor: AppConstants.errorRed,
               ),
             );
@@ -460,8 +542,10 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       builder: (dialogContext) {
         final cs = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
-          title: Text(l10n.farmerMgmtApproveDialogTitle(farmer.fullName),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          title: Text(
+            l10n.farmerMgmtApproveDialogTitle(farmer.fullName),
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
           content: Text(
             l10n.farmerMgmtApproveDialogBody,
             style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
@@ -469,14 +553,20 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text(l10n.farmerMgmtCancel)),
+              child: Text(l10n.farmerMgmtCancel),
+            ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.successGreen),
-              child: Text(l10n.farmerMgmtApproveAction,
+                backgroundColor: AppConstants.successGreen,
+              ),
+              child: Text(
+                l10n.farmerMgmtApproveAction,
                   style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600, color: Colors.white)),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         );
@@ -493,21 +583,22 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     if (!mounted) return;
 
     if (result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          l10n.farmerMgmtApprovedToast(farmer.fullName,
-              result.memberId ?? '', result.username?.toUpperCase() ?? ''),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.farmerMgmtApprovedToast(farmer.fullName)),
         backgroundColor: AppConstants.successGreen,
         behavior: SnackBarBehavior.floating,
-      ));
+        ),
+      );
       _loadAll();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
         content: Text(l10n.farmerMgmtApproveFailedToast(result.error ?? '')),
         backgroundColor: AppConstants.errorRed,
         behavior: SnackBarBehavior.floating,
-      ));
+        ),
+      );
     }
   }
 
@@ -538,19 +629,23 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     try {
       await _repo.rejectMember(userId: farmer.userId, reason: reason.trim());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
         content: Text(l10n.farmerMgmtRejectedToast(farmer.fullName)),
         backgroundColor: AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
-      ));
+        ),
+      );
       _loadAll();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
         content: Text(e.toString().replaceFirst('Exception: ', '')),
         backgroundColor: AppConstants.errorRed,
         behavior: SnackBarBehavior.floating,
-      ));
+        ),
+      );
     }
   }
 
@@ -579,19 +674,23 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     try {
       await _repo.suspendMember(userId: farmer.userId, reason: reason.trim());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
         content: Text(l10n.farmerMgmtSuspendedToast(farmer.fullName)),
         backgroundColor: AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
-      ));
+        ),
+      );
       _loadAll();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
         content: Text(e.toString().replaceFirst('Exception: ', '')),
         backgroundColor: AppConstants.errorRed,
         behavior: SnackBarBehavior.floating,
-      ));
+        ),
+      );
     }
   }
 
@@ -606,8 +705,10 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       builder: (dc) {
         final cs = Theme.of(dc).colorScheme;
         return AlertDialog(
-          title: Text(title,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          title: Text(
+            title,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
           content: TextField(
             controller: ctrl,
             autofocus: true,
@@ -620,7 +721,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dc),
-                child: Text(AppLocalizations.of(dc).farmerMgmtCancel)),
+              child: Text(AppLocalizations.of(dc).farmerMgmtCancel),
+            ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dc, ctrl.text.trim()),
               child: Text(actionLabel),
@@ -642,32 +744,41 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       builder: (dc) {
         final cs = Theme.of(dc).colorScheme;
         return AlertDialog(
-          title: Text(title,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          title: Text(
+            title,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: lines
-                .map((l) => Padding(
+                .map(
+                  (l) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Text(l,
+                    child: Text(
+                      l,
                           style: GoogleFonts.inter(
                               fontSize: 13,
                               color: cs.onSurfaceVariant,
-                              height: 1.4)),
-                    ))
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                )
                 .toList(),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dc, false),
-                child: Text(AppLocalizations.of(dc).farmerMgmtBack)),
+              child: Text(AppLocalizations.of(dc).farmerMgmtBack),
+            ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dc, true),
               style: danger
                   ? ElevatedButton.styleFrom(
                       backgroundColor: AppConstants.errorRed,
-                      foregroundColor: Colors.white)
+                      foregroundColor: Colors.white,
+                    )
                   : null,
               child: Text(actionLabel),
             ),
@@ -715,7 +826,9 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           AdminTopBar(
             title: l10n.adminNavMembers,
             onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
-            onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
+            onNotificationTap: () => context
+                .push(AppRoutes.adminNotifications)
+                .then((_) => _loadAll()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
             enableMenu: true,
           ),
@@ -724,7 +837,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen),
+                      color: AppConstants.primaryGreen,
+                    ),
                   )
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
@@ -732,7 +846,6 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                       children: [
-
                         // ── Header row ───────────────────────────────────
                         FarmerManagementHeader(
                           title: l10n.farmerMgmtTitle,
@@ -777,7 +890,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                                   color: _statusColor(s, cs),
                                   selected: _filter.statusFilter == s,
                                   onTap: () => _setStatusFilter(
-                                      _filter.statusFilter == s ? null : s),
+                                    _filter.statusFilter == s ? null : s,
+                                  ),
                                   cs: cs,
                                   sagana: sagana,
                                 ),
@@ -794,51 +908,64 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                           decoration: InputDecoration(
                             hintText: l10n.farmerMgmtSearchHint,
                             hintStyle: GoogleFonts.inter(
-                                fontSize: 13, color: cs.outline),
-                            prefixIcon: Icon(Icons.search_rounded,
-                                color: cs.outline, size: 22),
+                              fontSize: 13,
+                              color: cs.outline,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search_rounded,
+                              color: cs.outline,
+                              size: 22,
+                            ),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: Icon(Icons.close_rounded,
-                                        color: cs.outline, size: 18),
+                                    icon: Icon(
+                                      Icons.close_rounded,
+                                      color: cs.outline,
+                                      size: 18,
+                                    ),
                                     onPressed: () => _searchCtrl.clear(),
                                   )
                                 : null,
                           ),
                           style: GoogleFonts.inter(
-                              fontSize: 14, color: cs.onSurface),
+                            fontSize: 14,
+                            color: cs.onSurface,
+                          ),
                         ),
                         const SizedBox(height: 16),
 
                         // ── Farmer list ───────────────────────────────────
                         if (farmers.isEmpty)
                           _EmptyState(
-                            hasFilters: !_filter.isDefault ||
-                                _searchQuery.isNotEmpty,
+                            hasFilters:
+                                !_filter.isDefault || _searchQuery.isNotEmpty,
                             cs: cs,
                           )
                         else ...[
-                          ...visible.map((f) => Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 12),
+                          ...visible.map(
+                            (f) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
                                 child: _FarmerCard(
                                   farmer: f,
                                   cs: cs,
                                   sagana: sagana,
                                   onTap: () => context.push(
                                       AppRoutes.farmerDetails,
-                                      extra: f.userId),
-                                  onMoreTap: () =>
-                                      _showFarmerActions(f),
+                                  extra: f.userId,
                                 ),
-                              )),
+                                onMoreTap: () => _showFarmerActions(f),
+                              ),
+                            ),
+                                ),
                           if (_visibleCount < farmers.length)
                             Center(
                               child: TextButton(
-                                onPressed: () => setState(
-                                    () => _visibleCount += _pageSize),
+                                onPressed: () =>
+                                    setState(() => _visibleCount += _pageSize),
                                 child: Text(
-                                  l10n.farmerMgmtLoadMore(farmers.length - _visibleCount),
+                                  l10n.farmerMgmtLoadMore(
+                                    farmers.length - _visibleCount,
+                                  ),
                                   style: GoogleFonts.poppins(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -857,8 +984,6 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     );
   }
 }
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Icon Button with badge
@@ -892,12 +1017,12 @@ class _IconButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: sagana.cardBackground,
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(
-                  color: cs.outline.withValues(alpha: 0.15)),
+              border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 4),
+                  blurRadius: 4,
+                ),
               ],
             ),
             child: Icon(icon, color: cs.onSurfaceVariant, size: 20),
@@ -928,12 +1053,18 @@ class _IconButton extends StatelessWidget {
 
 Color _statusColor(MemberStatus s, ColorScheme cs) {
   switch (s) {
-    case MemberStatus.active:    return AppConstants.successGreen;
-    case MemberStatus.inactive:  return cs.outline;
-    case MemberStatus.suspended: return AppConstants.errorRed;
-    case MemberStatus.pending:   return AppConstants.warningAmber;
-    case MemberStatus.rejected:  return AppConstants.errorRed;
-    case MemberStatus.draft:     return cs.outline;
+    case MemberStatus.active:
+      return AppConstants.successGreen;
+    case MemberStatus.inactive:
+      return cs.outline;
+    case MemberStatus.suspended:
+      return AppConstants.errorRed;
+    case MemberStatus.pending:
+      return AppConstants.warningAmber;
+    case MemberStatus.rejected:
+      return AppConstants.errorRed;
+    case MemberStatus.draft:
+      return cs.outline;
   }
 }
 
@@ -981,7 +1112,8 @@ class _StatusFilterChip extends StatelessWidget {
               : [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 4),
+                    blurRadius: 4,
+                  ),
                 ],
         ),
         child: Row(
@@ -990,21 +1122,25 @@ class _StatusFilterChip extends StatelessWidget {
             Container(
               width: 8,
               height: 8,
-              decoration:
-                  BoxDecoration(color: color, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 8),
-            Text('$label: ',
+            Text(
+              '$label: ',
                 style: GoogleFonts.inter(
                     fontSize: 12,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w400,
-                    color: selected ? color : cs.onSurfaceVariant)),
-            Text('$value',
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                color: selected ? color : cs.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              '$value',
                 style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: selected ? color : cs.primary)),
+                color: selected ? color : cs.primary,
+              ),
+            ),
           ],
         ),
       ),
@@ -1055,7 +1191,10 @@ class _FarmerCard extends StatelessWidget {
                 : cs.outline.withValues(alpha: 0.10),
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+            ),
           ],
         ),
         child: Column(
@@ -1074,7 +1213,9 @@ class _FarmerCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: cs.surfaceContainerHighest,
                     border: Border.all(
-                        color: cs.primary.withValues(alpha: 0.10), width: 2),
+                      color: cs.primary.withValues(alpha: 0.10),
+                      width: 2,
+                    ),
                   ),
                   child: farmer.hasPhoto
                       ? ClipOval(
@@ -1118,12 +1259,17 @@ class _FarmerCard extends StatelessWidget {
                           height: 1.25,
                         ),
                       ),
+                      if (farmer.contactLine != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        farmer.memberId ?? l10n.farmerMgmtNoMemberId,
+                          farmer.contactLine!,
+                          overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
-                            fontSize: 11.5, color: cs.outline),
+                            fontSize: 11.5,
+                            color: cs.outline,
+                          ),
                       ),
+                    ],
                     ],
                   ),
                 ),
@@ -1138,8 +1284,11 @@ class _FarmerCard extends StatelessWidget {
                       behavior: HitTestBehavior.opaque,
                       child: Padding(
                         padding: const EdgeInsets.all(2),
-                        child: Icon(Icons.more_vert_rounded,
-                            color: cs.onSurfaceVariant, size: 20),
+                        child: Icon(
+                          Icons.more_vert_rounded,
+                          color: cs.onSurfaceVariant,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ],
@@ -1148,23 +1297,20 @@ class _FarmerCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Crop tags — tinted pills for real crops, muted/dashed treatment
-            // for "no crops" so the empty state reads as distinctly lower
-            // priority rather than just another chip.
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: farmer.primaryCrops.isEmpty
-                  ? [
+            // Crop tags — every crop from this farmer's actual Crop Roster
+            // (farmer_crops, same source the Farmer side and Farmer
+            // Details both read), not just a 3-crop preview. Horizontal
+            // scroll rather than Wrap so a farmer with many crops doesn't
+            // blow out this card's height in the list.
+            if (farmer.primaryCrops.isEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.circular(AppConstants.radiusFull),
-                          border: Border.all(
-                            color: cs.outline.withValues(alpha: 0.25),
+                  horizontal: 10,
+                  vertical: 4,
                           ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  border: Border.all(color: cs.outline.withValues(alpha: 0.25)),
                         ),
                         child: Text(
                           l10n.farmerMgmtNoCropsRegistered,
@@ -1174,33 +1320,54 @@ class _FarmerCard extends StatelessWidget {
                             color: cs.outline,
                           ),
                         ),
+              )
+            else ...[
+              Text(
+                '${farmer.primaryCrops.length} crop${farmer.primaryCrops.length == 1 ? '' : 's'}',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurfaceVariant,
+                ),
                       ),
-                    ]
-                  : farmer.primaryCrops
-                      .take(3)
-                      .map((c) => Container(
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 26,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: farmer.primaryCrops.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (_, i) => Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                             decoration: BoxDecoration(
                               color: cs.primary.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(
-                                  AppConstants.radiusFull),
+                        AppConstants.radiusFull,
+                      ),
                             ),
+                    alignment: Alignment.center,
                             child: Text(
-                              c,
+                      farmer.primaryCrops[i],
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: cs.primary,
                               ),
                             ),
-                          ))
-                      .toList(),
             ),
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             Text(
               l10n.farmerMgmtLastActivity(farmer.lastHarvestLabel),
-              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 12),
             Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
@@ -1216,19 +1383,25 @@ class _FarmerCard extends StatelessWidget {
                 // source, and this Row has no other slack — without this,
                 // a long label pushes the sync-status pill on the right
                 // past the available width and overflows.
-                Flexible(child: _LoanIndicator(farmer: farmer, cs: cs)),
+                Flexible(
+                  child: _LoanIndicator(farmer: farmer, cs: cs),
+                ),
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: (farmer.isSynced
+                        color:
+                            (farmer.isSynced
                                 ? AppConstants.successGreen
                                 : cs.outline)
                             .withValues(alpha: 0.10),
-                        borderRadius:
-                            BorderRadius.circular(AppConstants.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1259,8 +1432,11 @@ class _FarmerCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded,
-                        color: cs.outline, size: 16),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: cs.outline,
+                      size: 16,
+                    ),
                   ],
                 ),
               ],
@@ -1342,8 +1518,11 @@ class _LoanIndicator extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.account_balance_wallet_outlined,
-                size: 15, color: AppConstants.successGreen),
+            const Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 15,
+              color: AppConstants.successGreen,
+            ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -1389,7 +1568,9 @@ class _LoanIndicator extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            isOverdue ? l10n.farmerMgmtOverdueBadge : l10n.farmerMgmtActiveBadge,
+            isOverdue
+                ? l10n.farmerMgmtOverdueBadge
+                : l10n.farmerMgmtActiveBadge,
             style: GoogleFonts.inter(
               fontSize: 9,
               fontWeight: FontWeight.w800,
@@ -1419,8 +1600,11 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 60),
       child: Column(
         children: [
-          Icon(Icons.group_off_outlined,
-              size: 48, color: cs.outline.withValues(alpha: 0.40)),
+          Icon(
+            Icons.group_off_outlined,
+            size: 48,
+            color: cs.outline.withValues(alpha: 0.40),
+          ),
           const SizedBox(height: 12),
           Text(
             hasFilters
@@ -1487,20 +1671,23 @@ class _FilterSheetState extends State<_FilterSheet> {
                 _Chip(
                   label: l10n.farmerMgmtAllFilter,
                   active: _state.statusFilter == null,
-                  onTap: () =>
-                      setState(() => _state = _state.copyWith(statusFilter: null)),
+                onTap: () => setState(
+                  () => _state = _state.copyWith(statusFilter: null),
+                ),
                   cs: cs,
                 ),
                 // Active / Inactive / Suspended / Pending / Rejected —
                 // Draft is intentionally not a filter (those rows aren't
                 // listed at all). Issue 5 / Decision D14.
-                ...MemberStatusExt.filterable.map((s) => _Chip(
+              ...MemberStatusExt.filterable.map(
+                (s) => _Chip(
                       label: _memberStatusLabel(l10n, s),
                       active: _state.statusFilter == s,
-                      onTap: () => setState(
-                          () => _state = _state.copyWith(statusFilter: s)),
+                  onTap: () =>
+                      setState(() => _state = _state.copyWith(statusFilter: s)),
                       cs: cs,
-                    )),
+                ),
+              ),
               ],
             ),
             const SizedBox(height: 20),
@@ -1518,13 +1705,15 @@ class _FilterSheetState extends State<_FilterSheet> {
                       setState(() => _state = _state.copyWith(cropFilter: null)),
                   cs: cs,
                 ),
-                ...widget.cropNames.map((c) => _Chip(
+              ...widget.cropNames.map(
+                (c) => _Chip(
                       label: c,
                       active: _state.cropFilter == c,
-                      onTap: () => setState(
-                          () => _state = _state.copyWith(cropFilter: c)),
+                  onTap: () =>
+                      setState(() => _state = _state.copyWith(cropFilter: c)),
                       cs: cs,
-                    )),
+                ),
+              ),
               ],
             ),
             const SizedBox(height: 20),
@@ -1542,13 +1731,16 @@ class _FilterSheetState extends State<_FilterSheet> {
                       setState(() => _state = _state.copyWith(loanFilter: null)),
                   cs: cs,
                 ),
-                ...LoanStatusSummary.values.map((loanStatus) => _Chip(
+              ...LoanStatusSummary.values.map(
+                (loanStatus) => _Chip(
                       label: _loanStatusLabel(l10n, loanStatus),
                       active: _state.loanFilter == loanStatus,
                       onTap: () => setState(
-                          () => _state = _state.copyWith(loanFilter: loanStatus)),
+                    () => _state = _state.copyWith(loanFilter: loanStatus),
+                  ),
                       cs: cs,
-                    )),
+                ),
+              ),
               ],
             ),
             const SizedBox(height: 20),
@@ -1573,8 +1765,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                       color: active
                           ? cs.primary.withValues(alpha: 0.08)
                           : cs.surfaceContainerHighest,
-                      borderRadius:
-                          BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                       border: Border.all(
                         color: active
                             ? cs.primary
@@ -1597,8 +1788,11 @@ class _FilterSheetState extends State<_FilterSheet> {
                           ),
                         ),
                         if (active)
-                          Icon(Icons.check_circle_rounded,
-                              size: 18, color: cs.primary),
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: cs.primary,
+                        ),
                       ],
                     ),
                   ),
@@ -1789,12 +1983,16 @@ class _FarmerActionsSheet extends StatelessWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: AppConstants.errorRed.withValues(alpha: 0.08),
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                  child: Text(l10n.farmerMgmtReasonLine(farmer.rejectionReason!.trim()),
+                  child: Text(
+                    l10n.farmerMgmtReasonLine(farmer.rejectionReason!.trim()),
                       style: GoogleFonts.inter(
-                          fontSize: 12, color: cs.onSurface, height: 1.4)),
+                      fontSize: 12,
+                      color: cs.onSurface,
+                      height: 1.4,
+                    ),
+                  ),
                 ),
               ),
             _ActionRow(
@@ -1876,10 +2074,7 @@ class _ActionRow extends StatelessWidget {
           children: [
             Icon(icon, size: 20, color: iconColor ?? color),
             const SizedBox(width: 14),
-            Text(
-              label,
-              style: GoogleFonts.inter(fontSize: 14, color: color),
-            ),
+            Text(label, style: GoogleFonts.inter(fontSize: 14, color: color)),
           ],
         ),
       ),

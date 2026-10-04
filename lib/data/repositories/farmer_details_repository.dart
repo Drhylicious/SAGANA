@@ -1,9 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/buyer_address_model.dart';
 import '../models/farmer_profile_model.dart';
 import '../models/farmer_member_model.dart';
 import '../models/loan_model.dart';
 import '../models/contribution_model.dart';
 import '../models/analytics_model.dart';
+import 'admin_activity_repository.dart';
 
 /// Admin-scoped repository for viewing a single farmer's complete profile.
 /// Read-only — admin does not edit farmer-owned data (farm details, photo).
@@ -11,6 +13,23 @@ import '../models/analytics_model.dart';
 /// sees exactly what the farmer sees about themselves.
 class FarmerDetailsRepository {
   final SupabaseClient _client = Supabase.instance.client;
+
+  /// The farmer's default address, which for an outsider applicant is the
+  /// address saved at registration. Null when none is saved. Staff can read
+  /// it only after supabase_schema_buyer_addresses_staff_read.sql is applied.
+  Future<BuyerAddressModel?> fetchDefaultAddress(String farmerId) async {
+    try {
+      final row = await _client
+          .from('buyer_addresses')
+          .select()
+          .eq('user_id', farmerId)
+          .eq('is_default', true)
+          .maybeSingle();
+      return row != null ? BuyerAddressModel.fromMap(row) : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ─── Full farmer profile (same shape as FarmerProfileModel) ──────────────
 
@@ -157,14 +176,20 @@ class FarmerDetailsRepository {
         }
       } catch (_) {}
 
-      final maxQty =
-          byCrop.values.isEmpty ? 1.0 : byCrop.values.reduce((a, b) => a > b ? a : b);
-      final breakdown = byCrop.entries
-          .map((e) => CropYieldBreakdown(
+      final maxQty = byCrop.values.isEmpty
+          ? 1.0
+          : byCrop.values.reduce((a, b) => a > b ? a : b);
+      final breakdown =
+          byCrop.entries
+              .map(
+                (e) => CropYieldBreakdown(
                 cropName: e.key,
                 quantityKg: e.value,
-                percentOfMax: maxQty > 0 ? (e.value / maxQty).clamp(0.0, 1.0) : 0,
-              ))
+                  percentOfMax: maxQty > 0
+                      ? (e.value / maxQty).clamp(0.0, 1.0)
+                      : 0,
+                ),
+              )
           .toList()
         ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
 
@@ -180,32 +205,60 @@ class FarmerDetailsRepository {
   }
 
   // ─── Harvest stats (record count + last entry date) ───────────────────────
+  // this_year_kg / unsynced_count added so _HarvestActivityCard's KPI row
+  // (Farmer Details' "Harvest" section) can match the farmer-facing Harvest
+  // History screen's own KPIs (Total Harvest / This Year's Yield / Sync
+  // Status) exactly, rather than the previous Records/Total KG/Last Entry
+  // structure, which didn't correspond to anything the farmer sees.
 
   Future<Map<String, dynamic>> fetchHarvestStats(String farmerId) async {
     try {
       final rows = await _client
           .from('harvest_records')
-          .select('quantity_kg, harvest_date, crop_name')
+          .select('quantity_kg, harvest_date, crop_name, is_synced')
           .eq('farmer_id', farmerId)
           .order('harvest_date', ascending: false);
 
       if (rows.isEmpty) {
-        return {'count': 0, 'total_kg': 0.0, 'last_entry': null, 'recent': []};
+        return {
+          'count': 0,
+          'total_kg': 0.0,
+          'this_year_kg': 0.0,
+          'unsynced_count': 0,
+          'last_entry': null,
+          'recent': [],
+        };
       }
 
+      final currentYear = DateTime.now().year;
       double totalKg = 0;
+      double thisYearKg = 0;
+      int unsyncedCount = 0;
       for (final r in rows) {
-        totalKg += (r['quantity_kg'] as num).toDouble();
+        final qty = (r['quantity_kg'] as num).toDouble();
+        totalKg += qty;
+        final harvestDate = DateTime.parse(r['harvest_date'] as String);
+        if (harvestDate.year == currentYear) thisYearKg += qty;
+        if (!(r['is_synced'] as bool? ?? true)) unsyncedCount++;
       }
 
       return {
         'count':       rows.length,
         'total_kg':    totalKg,
+        'this_year_kg': thisYearKg,
+        'unsynced_count': unsyncedCount,
         'last_entry':  rows.first['harvest_date'],
         'recent':      rows.take(3).toList(),
       };
     } catch (_) {
-      return {'count': 0, 'total_kg': 0.0, 'last_entry': null, 'recent': []};
+      return {
+        'count': 0,
+        'total_kg': 0.0,
+        'this_year_kg': 0.0,
+        'unsynced_count': 0,
+        'last_entry': null,
+        'recent': [],
+      };
     }
   }
 
@@ -227,7 +280,8 @@ class FarmerDetailsRepository {
   // ─── Contribution / Balik-Tangkilik (reuses MemberContribution) ───────────
 
   Future<MemberContribution?> fetchCurrentYearContribution(
-      String farmerId) async {
+    String farmerId,
+  ) async {
     try {
       final year = DateTime.now().year;
       final row = await _client
@@ -257,7 +311,9 @@ class FarmerDetailsRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchFarmerExpenses(String farmerId) async {
+  Future<List<Map<String, dynamic>>> fetchFarmerExpenses(
+    String farmerId,
+  ) async {
     try {
       final rows = await _client
           .from('farmer_expenses')
@@ -279,19 +335,22 @@ class FarmerDetailsRepository {
   // Results are flattened here so _ProgramsTab (which reads program['name']
   // and program['description']) doesn't need to know about the join shape.
 
-  Future<List<Map<String, dynamic>>> fetchAssignedPrograms(String farmerId) async {
+  Future<List<Map<String, dynamic>>> fetchAssignedPrograms(
+    String farmerId,
+  ) async {
     try {
       final rows = await _client
           .from('program_members')
-          .select('id, program_id, farmer_id, status, enrolled_at, '
+          .select(
+            'id, program_id, farmer_id, status, enrolled_at, '
                   'cooperative_programs(program_name, program_type, '
-                  'description, status, season_year)')
+            'description, status, season_year)',
+          )
           .eq('farmer_id', farmerId)
           .eq('status', 'active');
 
       return rows.map((row) {
-        final program =
-            row['cooperative_programs'] as Map<String, dynamic>?;
+        final program = row['cooperative_programs'] as Map<String, dynamic>?;
         return {
           'name': program?['program_name'] as String? ?? 'Program',
           'description': program?['description'] as String? ?? '',
@@ -316,14 +375,29 @@ class FarmerDetailsRepository {
     String? reason,
   }) async {
     if (status == 'suspended') {
-      await _client.rpc('suspend_member', params: {
+      await _client.rpc(
+        'suspend_member',
+        params: {
         'p_user_id': farmerId,
         'p_reason': (reason == null || reason.trim().isEmpty)
             ? 'Suspended by administrator'
             : reason.trim(),
-      });
+        },
+      );
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'suspended',
+        description: 'Suspended a member.',
+        referenceId: farmerId,
+      );
     } else {
       await _client.rpc('reactivate_member', params: {'p_user_id': farmerId});
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'reactivated',
+        description: 'Reactivated a member.',
+        referenceId: farmerId,
+      );
     }
   }
 

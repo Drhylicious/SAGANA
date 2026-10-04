@@ -15,7 +15,8 @@ class AdminListingModel {
   final double volumeKg;
   final double remainingKg;
   final double pricePerKg;
-  final String status; // pending_review | approved | changes_required | sold
+  final String
+  status; // pending_review | approved | withdrawn | sold | rejected
   final String? adminNotes;
   final String? batchId;
   final double? batchAvailableKg; // from inventory_batches
@@ -65,7 +66,6 @@ class AdminListingModel {
 
   bool get isPending => status == 'pending_review';
   bool get isApproved => status == 'approved';
-  bool get needsChanges => status == 'changes_required';
   bool get isSold => status == 'sold';
   bool get isRejected => status == 'rejected';
 
@@ -89,8 +89,6 @@ class AdminListingModel {
         return 'Pending';
       case 'approved':
         return 'Live';
-      case 'changes_required':
-        return 'Changes Required';
       case 'sold':
         return 'Sold';
       case 'rejected':
@@ -134,8 +132,18 @@ class AdminListingModel {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays == 1) return 'Yesterday';
     const m = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${m[createdAt.month - 1]} ${createdAt.day}';
   }
@@ -152,7 +160,8 @@ class AdminListingModel {
       // remaining_kg is the single source of truth for buyer-order
       // availability (see supabase_schema_marketplace_order_reservation_fix.sql).
       // Falls back to volume_kg if not selected/backfilled yet.
-      remainingKg: (map['remaining_kg'] as num?)?.toDouble() ??
+      remainingKg:
+          (map['remaining_kg'] as num?)?.toDouble() ??
           (map['volume_kg'] as num).toDouble(),
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
       status: map['status'] as String? ?? 'pending_review',
@@ -185,7 +194,6 @@ class ListingSummaryStats {
   final int total;
   final int pending;
   final int approved;
-  final int changesRequired;
   final int sold;
   final int rejected;
 
@@ -193,7 +201,6 @@ class ListingSummaryStats {
     required this.total,
     required this.pending,
     required this.approved,
-    required this.changesRequired,
     required this.sold,
     required this.rejected,
   });
@@ -202,7 +209,6 @@ class ListingSummaryStats {
     total: 0,
     pending: 0,
     approved: 0,
-    changesRequired: 0,
     sold: 0,
     rejected: 0,
   );
@@ -214,8 +220,35 @@ class AdminListingRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
   static const List<String> cropCategories = [
-    'Grain', 'Legume', 'Root & Spice Crop', 'Fruit', 'Tree Crop', 'Vegetable', 'Other',
+    'Grain',
+    'Legume',
+    'Root & Spice Crop',
+    'Fruit',
+    'Tree Crop',
+    'Vegetable',
+    'Other',
   ];
+
+  // A batch's available_kg already has THIS listing's own reservation
+  // subtracted out (applied atomically at creation by
+  // _apply_batch_reservation) — so comparing volumeKg straight against
+  // available_kg always looks like an over-commitment for the common case
+  // of a listing that reserved its entire batch (available_kg lands on 0).
+  // Adding the listing's own volume back reconstructs what was available
+  // right before this reservation was made, which is what "does this
+  // listing fit in its batch" actually needs to check — same reasoning as
+  // create_listing_screen's effectiveMax for a resubmit ceiling. Only
+  // withdrawn/rejected listings have released their reservation (see
+  // withdrawListing/rejectListing), so skip the adjustment there.
+  double? _adjustedBatchAvailable(
+    double? rawAvailableKg,
+    String status,
+    double volumeKg,
+  ) {
+    if (rawAvailableKg == null) return null;
+    if (status == 'withdrawn' || status == 'rejected') return rawAvailableKg;
+    return rawAvailableKg + volumeKg;
+  }
 
   Future<List<String>> fetchCropsByCategory({String? category}) async {
     try {
@@ -254,9 +287,10 @@ class AdminListingRepository {
   /// Pending Review now browses review *outcomes* (pending/approved/rejected),
   /// not just the open queue — a scoped fetch rather than reusing
   /// fetchAllListings, so this screen never accidentally shows
-  /// changes_required/sold/withdrawn listings that belong to All Listings.
+  /// sold/withdrawn listings that belong to All Listings.
   Future<List<AdminListingModel>> fetchReviewListings({
-    String? statusFilter, // null = pending_review + approved + rejected combined
+    String?
+    statusFilter, // null = pending_review + approved + rejected combined
     String? searchQuery,
     String? cropFilter,
     String? categoryFilter,
@@ -274,7 +308,9 @@ class AdminListingRepository {
       cropFilter: cropFilter,
       categoryFilter: categoryFilter,
     );
-    return all.where((l) => l.isPending || l.isApproved || l.isRejected).toList();
+    return all
+        .where((l) => l.isPending || l.isApproved || l.isRejected)
+        .toList();
   }
 
   Future<List<AdminListingModel>> _fetchListings({
@@ -308,7 +344,9 @@ class AdminListingRepository {
         query = query.eq('crop_name', cropFilter);
       }
       if (categoryFilter != null) {
-        final namesInCategory = await fetchCropsByCategory(category: categoryFilter);
+        final namesInCategory = await fetchCropsByCategory(
+          category: categoryFilter,
+        );
         if (namesInCategory.isEmpty) return [];
         query = query.inFilter('crop_name', namesInCategory);
       }
@@ -415,6 +453,7 @@ class AdminListingRepository {
         final history = historyMap[fid] ?? {};
         final cn = r['crop_name'] as String;
         final cropId = r['crop_id'] as String?;
+        final volumeKg = (r['volume_kg'] as num).toDouble();
 
         return AdminListingModel.fromMap({
           ...r,
@@ -422,9 +461,15 @@ class AdminListingRepository {
           'farmer_photo_url': info['profile_photo_url'] as String?,
           'listing_photo_url': r['photo_url'],
           'batch_id': r['inventory_batch_id'],
-          'batch_available_kg': batchId != null ? batchMap[batchId] : null,
+          'batch_available_kg': _adjustedBatchAvailable(
+            batchId != null ? batchMap[batchId] : null,
+            r['status'] as String? ?? 'pending_review',
+            volumeKg,
+          ),
           'market_ref_price': priceMap[cn],
-          'canonical_crop_name': cropId != null ? canonicalCropNames[cropId] : null,
+          'canonical_crop_name': cropId != null
+              ? canonicalCropNames[cropId]
+              : null,
           'farmer_total_submissions': history['total'] ?? 0,
           'farmer_approved_count': history['approved'] ?? 0,
           'farmer_rejected_count': history['rejected'] ?? 0,
@@ -457,7 +502,7 @@ class AdminListingRepository {
           .select('status')
           .neq('status', 'withdrawn');
 
-      int pending = 0, approved = 0, changes = 0, sold = 0, rejected = 0;
+      int pending = 0, approved = 0, sold = 0, rejected = 0;
       for (final r in rows) {
         switch (r['status'] as String?) {
           case 'pending_review':
@@ -465,9 +510,6 @@ class AdminListingRepository {
             break;
           case 'approved':
             approved++;
-            break;
-          case 'changes_required':
-            changes++;
             break;
           case 'sold':
             sold++;
@@ -481,7 +523,6 @@ class AdminListingRepository {
         total: rows.length,
         pending: pending,
         approved: approved,
-        changesRequired: changes,
         sold: sold,
         rejected: rejected,
       );
@@ -505,22 +546,12 @@ class AdminListingRepository {
 
   Future<void> approveListing(String listingId) async {
     await _client.rpc('approve_listing', params: {'p_listing_id': listingId});
-  }
-
-  /// "Changes Required" is not terminal — the listing stays alive and the
-  /// farmer is expected to edit and resubmit the same listing. The batch
-  /// reservation from create_listing_with_reservation() is intentionally
-  /// left in place here: releasing it would leave the stock unprotected
-  /// between "changes requested" and the farmer's resubmission, letting
-  /// another listing claim it out from under them.
-  Future<void> requestChanges({
-    required String listingId,
-    required String notes,
-  }) async {
-    await _client.rpc('request_listing_changes', params: {
-      'p_listing_id': listingId,
-      'p_notes': notes.trim(),
-    });
+    AdminActivityRepository().log(
+      module: 'listings',
+      actionType: 'approved',
+      description: 'Approved a marketplace listing.',
+      referenceId: listingId,
+    );
   }
 
   Future<AdminListingModel?> fetchListingById(String listingId) async {
@@ -560,9 +591,14 @@ class AdminListingRepository {
               .select('available_kg')
               .eq('id', batchId)
               .maybeSingle();
-          batchAvailableKg = batch?['available_kg'] != null
+          final rawAvailableKg = batch?['available_kg'] != null
               ? (batch!['available_kg'] as num).toDouble()
               : null;
+          batchAvailableKg = _adjustedBatchAvailable(
+            rawAvailableKg,
+            row['status'] as String? ?? 'pending_review',
+            (row['volume_kg'] as num).toDouble(),
+          );
         } catch (_) {}
       }
 
@@ -639,10 +675,10 @@ class AdminListingRepository {
     required String listingId,
     required String reason,
   }) async {
-    await _client.rpc('reject_listing', params: {
-      'p_listing_id': listingId,
-      'p_reason': reason.trim(),
-    });
+    await _client.rpc(
+      'reject_listing',
+      params: {'p_listing_id': listingId, 'p_reason': reason.trim()},
+    );
     AdminActivityRepository().log(
       module: 'listings',
       actionType: 'rejected',

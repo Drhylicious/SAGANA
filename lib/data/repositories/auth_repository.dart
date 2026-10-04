@@ -20,7 +20,6 @@ class AuthRepository {
     required String fullName,
     required String phoneNumber,
     required String role,
-    String? purok,
   }) async {
     return AuthService.register(
       username: email,
@@ -28,7 +27,6 @@ class AuthRepository {
       fullName: fullName,
       phoneNumber: phoneNumber,
       role: role,
-      purok: purok,
     );
   }
 

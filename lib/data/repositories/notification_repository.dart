@@ -12,6 +12,8 @@ class NotificationDraft {
   final String title;
   final String body;
   final DateTime? createdAt;
+  final String? routeOnTap;
+  final String? routeExtra;
 
   const NotificationDraft({
     required this.userId,
@@ -19,6 +21,8 @@ class NotificationDraft {
     required this.title,
     required this.body,
     this.createdAt,
+    this.routeOnTap,
+    this.routeExtra,
   });
 
   Map<String, dynamic> toRow(DateTime fallbackNow) => {
@@ -28,6 +32,8 @@ class NotificationDraft {
         'body': body,
         'is_read': false,
         'created_at': (createdAt ?? fallbackNow).toIso8601String(),
+    'route_on_tap': routeOnTap,
+    'route_extra': routeExtra,
       };
 }
 
@@ -47,6 +53,8 @@ class NotificationRepository {
     required String title,
     required String body,
     DateTime? createdAt,
+    String? routeOnTap,
+    String? routeExtra,
   }) {
     return createNotifications([
       NotificationDraft(
@@ -55,6 +63,8 @@ class NotificationRepository {
         title: title,
         body: body,
         createdAt: createdAt,
+        routeOnTap: routeOnTap,
+        routeExtra: routeExtra,
       ),
     ]);
   }
@@ -146,10 +156,7 @@ class NotificationRepository {
 
   Future<void> deleteAllNotifications() async {
     try {
-      await _client
-          .from('notifications')
-          .delete()
-          .eq('user_id', _userId);
+      await _client.from('notifications').delete().eq('user_id', _userId);
     } catch (e) {
       debugPrint('NotificationRepository.deleteAllNotifications failed: $e');
     }

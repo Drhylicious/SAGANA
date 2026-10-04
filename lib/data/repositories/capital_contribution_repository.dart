@@ -1,13 +1,30 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/contribution_model.dart';
+import 'admin_activity_repository.dart';
+import 'notification_repository.dart';
 
-/// Admin-side capital-share contribution management (Issue 4d).
+/// Capital-share contribution management (Issue 4d).
 ///
 /// The ₱100/month dues are a payment schedule toward the ₱2,000 annual
-/// capital share (Decision D1a) — the Admin records each actual payment
-/// here (Decision D1c); there is no date-based auto-accrual. Every write
-/// goes through capital_contribution_events; member_capital_shares
-/// (total_contribution / total_shares) is kept in sync by DB trigger.
+/// capital share (Decision D1a). Admin records most payments here
+/// directly (Decision D1c) via [recordContribution] — a raw insert,
+/// allowed only because "cce: admin manages all" grants admin full
+/// access to capital_contribution_events. There is no date-based
+/// auto-accrual; every write goes through capital_contribution_events,
+/// and member_capital_shares (total_contribution / total_shares) is kept
+/// in sync by DB trigger.
+///
+/// [fetchCapitalSummary] is read-only and RLS-safe for a farmer to call
+/// about their own account too ("… : farmer reads own" / "farmer reads"
+/// policies) — My Contribution reuses it directly (for the loan-
+/// eligibility progress display) rather than duplicating this logic.
+/// Farmer-initiated capital WRITES are deliberately not exposed anywhere
+/// — a farmer directly recording their own contribution was tried and
+/// reverted (see supabase_schema_farmer_membership_renewal_revert.sql)
+/// because it broke this app's rule that a real-money event only counts
+/// once admin (or a server-verified process) confirms it actually
+/// happened. Recording a farmer's payment, of any kind, always goes
+/// through admin via [recordContribution] — same as Loan Management.
 ///
 /// Write methods throw (they change money-adjacent state); reads swallow
 /// and return safe empties, matching the rest of the codebase.
@@ -33,6 +50,27 @@ class CapitalContributionRepository {
       'note': (note != null && note.trim().isNotEmpty) ? note.trim() : null,
       'recorded_by': _client.auth.currentUser?.id,
     });
+
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'contribution_recorded',
+      description:
+          'Recorded a capital contribution (₱${amount.toStringAsFixed(2)}).',
+      referenceId: farmerId,
+    );
+
+    try {
+      await NotificationRepository().createNotification(
+        userId: farmerId,
+        type: 'capital',
+        title: 'Capital Contribution Recorded',
+        body:
+            'Your capital contribution of ₱${amount.toStringAsFixed(2)} was recorded.',
+        routeOnTap: '/farmer/profile/contribution',
+      );
+    } catch (_) {
+      // Notification failure is non-fatal — the contribution was already recorded.
+    }
   }
 
   /// Ledger for one member, newest first.
@@ -47,9 +85,7 @@ class CapitalContributionRepository {
           .eq('farmer_id', farmerId)
           .order('created_at', ascending: false)
           .limit(limit);
-      return rows
-          .map((r) => CapitalContributionEvent.fromMap(r))
-          .toList();
+      return rows.map((r) => CapitalContributionEvent.fromMap(r)).toList();
     } catch (_) {
       return [];
     }
@@ -61,13 +97,17 @@ class CapitalContributionRepository {
     try {
       final shareRow = await _client
           .from('member_capital_shares')
-          .select('farmer_id, total_shares, share_value_per_unit, total_contribution')
+          .select(
+            'farmer_id, total_shares, share_value_per_unit, total_contribution',
+          )
           .eq('farmer_id', farmerId)
           .maybeSingle();
 
       final policyRow = await _client
           .from('loan_policy_settings')
-          .select('minimum_capital_contribution, monthly_dues_amount, annual_capital_share_target')
+          .select(
+            'minimum_capital_contribution, monthly_dues_amount, annual_capital_share_target',
+          )
           .eq('id', 1)
           .maybeSingle();
 
@@ -82,11 +122,13 @@ class CapitalContributionRepository {
       return MemberCapitalSummary(
         shares: shares,
         minimumForLoan:
-            (policyRow?['minimum_capital_contribution'] as num? ?? 2000).toDouble(),
-        monthlyDues:
-            (policyRow?['monthly_dues_amount'] as num? ?? 100).toDouble(),
+            (policyRow?['minimum_capital_contribution'] as num? ?? 2000)
+                .toDouble(),
+        monthlyDues: (policyRow?['monthly_dues_amount'] as num? ?? 100)
+            .toDouble(),
         annualShareTarget:
-            (policyRow?['annual_capital_share_target'] as num? ?? 2000).toDouble(),
+            (policyRow?['annual_capital_share_target'] as num? ?? 2000)
+                .toDouble(),
       );
     } catch (_) {
       return MemberCapitalSummary(
@@ -116,11 +158,9 @@ class MemberCapitalSummary {
     required this.annualShareTarget,
   });
 
-  bool get meetsLoanEligibility =>
-      shares.totalContribution >= minimumForLoan;
+  bool get meetsLoanEligibility => shares.totalContribution >= minimumForLoan;
 
-  double get loanShortfall =>
-      (minimumForLoan - shares.totalContribution)
+  double get loanShortfall => (minimumForLoan - shares.totalContribution)
           .clamp(0, double.infinity)
           .toDouble();
 

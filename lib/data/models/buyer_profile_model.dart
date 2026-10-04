@@ -8,10 +8,14 @@ import '../../core/l10n/app_localizations.dart';
 // needs AppLocalizations, which the model itself has no access to.
 String? buyerGenderLabel(AppLocalizations l10n, String? gender) {
   switch (gender) {
-    case 'male': return l10n.registerGenderMale;
-    case 'female': return l10n.registerGenderFemale;
-    case 'prefer_not_to_say': return l10n.registerGenderPreferNotToSay;
-    default: return null;
+    case 'male':
+      return l10n.registerGenderMale;
+    case 'female':
+      return l10n.registerGenderFemale;
+    case 'prefer_not_to_say':
+      return l10n.registerGenderPreferNotToSay;
+    default:
+      return null;
   }
 }
 
@@ -23,7 +27,9 @@ String? buyerGenderLabel(AppLocalizations l10n, String? gender) {
 // established in buyer_account_screen.dart's local _memberSinceLabel
 // bypass (removed now that this is the real fix).
 String buyerMemberSinceLabel(AppLocalizations l10n, DateTime memberSince) {
-  return l10n.buyerMemberSince(DateFormat('MMM y', l10n.localeName).format(memberSince));
+  return l10n.buyerMemberSince(
+    DateFormat('MMM y', l10n.localeName).format(memberSince),
+  );
 }
 
 /// Short form for admin-side cards ("Since Jun 2026") — buyerMemberSinceLabel
@@ -45,16 +51,11 @@ class BuyerProfileModel {
   final int completedOrders;
   final double totalSpent; // sum of total_price for completed orders
 
-  // purok: buyer-editable via Edit Profile (Admin-Profile & Settings
-  // consistency pass) — was previously only ever populated for the
-  // admin-side fetchAllBuyers()/fetchAdminView() paths; now also fetched/
-  // updated by the buyer's own fetchProfile()/updateProfile().
-  final String? purok;
   // accountStatus remains admin-view-only — left at its default ('active')
   // when this model represents a buyer's own fetchProfile().
   final String accountStatus; // 'active' | 'suspended'
 
-  // Admin-view-only, same convention as purok/accountStatus above — used
+  // Admin-view-only, same convention as accountStatus above — used
   // only to derive isInactive for Buyer Management's Inactive tab, same
   // 30-day-idle pattern already used for Members (see MemberStatus.derive
   // in farmer_member_model.dart). Sourced from the same shared
@@ -78,7 +79,6 @@ class BuyerProfileModel {
     required this.totalOrders,
     required this.completedOrders,
     required this.totalSpent,
-    this.purok,
     this.accountStatus = 'active',
     this.lastActiveAt,
     this.dateOfBirth,

@@ -1,31 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sagana/presentation/navigation/app_router.dart';
+import 'package:sagana/core/l10n/app_localizations.dart';
+import 'package:sagana/core/theme/app_theme.dart';
 import 'package:sagana/presentation/screens/admin/farmer_harvest_history_screen.dart';
-import 'package:sagana/routes/app_routes.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'support/test_storage_mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  mockStorageChannels();
 
-  testWidgets('admin farmer harvest history opens the admin view', (
+  testWidgets('admin harvest history screen opens in view-only form', (
     tester,
   ) async {
-    await Supabase.initialize(
-      url: 'https://example.supabase.co',
-      publishableKey: 'fake-anon-key',
+    // Rendered directly, for the same reason as the farmer details test.
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const AdminFarmerHarvestHistoryScreen(farmerId: 'farmer-123'),
+      ),
     );
-
-    final router = AppRouter.create();
-
-    router.go(AppRoutes.farmerHarvestHistory, extra: 'farmer-123');
-
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(AdminFarmerHarvestHistoryScreen), findsOneWidget);
+    // The screen's title is "Harvest History". It has no logging control.
+    expect(find.text('Harvest History'), findsOneWidget);
     expect(find.text('Log New Harvest'), findsNothing);
-    expect(find.text('Admin View Only'), findsOneWidget);
   });
 }

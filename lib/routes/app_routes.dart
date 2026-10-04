@@ -10,10 +10,10 @@ class AppRoutes {
 
   // ─── Farmer ──────────────────────────────────────────────────────────────────
   static const String farmerDashboard = '/farmer/dashboard';
-  static const String pendingHome          = '/farmer/pending/home';
+  static const String pendingHome = '/farmer/pending/home';
   static const String pendingNotifications = '/farmer/pending/notifications';
-  static const String pendingHelp          = '/farmer/pending/help';
-  static const String pendingProfile       = '/farmer/pending/profile';
+  static const String pendingProfile = '/farmer/pending/profile';
+  static const String pendingReview = '/farmer/pending/review';
   static const String farmerRecentActivity = '/farmer/activity';
   static const String farmerNotifications = '/farmer/notifications';
   static const String harvestHub = '/farmer/harvest';
@@ -26,15 +26,33 @@ class AppRoutes {
   static const String myListings = '/farmer/marketplace';
   static const String createListing = '/farmer/marketplace/create';
   static const String listingSuccess = '/farmer/marketplace/success';
+  static const String myListingDetail = '/farmer/marketplace/detail';
+  static const String farmerMarketplaceListingDetail =
+      '/farmer/marketplace/browse/details';
+  static const String farmerMarketplaceCart = '/farmer/marketplace/browse/cart';
+  static const String farmerMarketplaceCartResult =
+      '/farmer/marketplace/browse/cart/result';
+  static const String farmerMarketplaceOrderSuccess =
+      '/farmer/marketplace/browse/order-success';
+  static const String farmerMarketplaceCheckout =
+      '/farmer/marketplace/browse/checkout';
   static const String farmerAnalytics = '/farmer/analytics';
   static const String farmerProfile = '/farmer/profile';
   static const String editFarmDetails = '/farmer/profile/farm-details/edit';
   static const String myLoans = '/farmer/profile/loans';
   static const String myContribution = '/farmer/profile/contribution';
   static const String myExpenses = '/farmer/profile/expenses';
-  static const String myHarvestSummary = '/farmer/profile/harvest-summary';
+  // Primary Programs entry point — a search+filter browse screen (mirrors
+  // the Marketplace tab). The farmer's own enrolled programs live at
+  // myProgramsEnrolled instead, reached via an icon on this screen's top
+  // bar rather than being the primary route themselves.
   static const String myPrograms = '/farmer/profile/programs';
+  static const String myProgramsEnrolled = '/farmer/profile/programs/enrolled';
+  static const String programDetails = '/farmer/profile/programs/detail';
   static const String myMarketLinking = '/farmer/profile/market-linking';
+  static const String myTransactionHistory = '/farmer/profile/transactions';
+  static const String farmerMyOrders = '/farmer/profile/orders';
+  static const String farmerOrderDetail = '/farmer/profile/orders/detail';
   static const String farmerSettings = '/farmer/settings';
   static const String farmerEditProfile = '/farmer/profile/edit';
   static const String viewMarket = '/farmer/market-rates';
@@ -51,11 +69,13 @@ class AppRoutes {
   static const String farmerHarvestHistory = '/admin/farmers/harvest-history';
   static const String addNewMember = '/admin/farmers/add';
   static const String marketLinking = '/admin/farmers/market-linking';
+  static const String daAmadEnrollment =
+      '/admin/farmers/market-linking/enrollments';
   static const String pendingApprovals = '/admin/listings/pending';
   static const String allListings = '/admin/listings/all';
   static const String listingReview = '/admin/listings/review';
   static const String buyerManagement = '/admin/buyers';
-  static const String buyerDetails    = '/admin/buyers/details';
+  static const String buyerDetails = '/admin/buyers/details';
   static const String buyerOrderHistory = '/admin/buyers/order-history';
   static const String loanDashboard = '/admin/loans';
   static const String issueNewLoan = '/admin/loans/issue';
@@ -76,7 +96,7 @@ class AppRoutes {
   static const String adminEditProfile = '/admin/profile/edit';
   static const String adminNotifications = '/admin/notifications';
   static const String adminActivityLog = '/admin/activity';
-  static const String createOfficerAccount  = '/admin/members/add-officer';
+  static const String createOfficerAccount = '/admin/members/add-officer';
   static const String manageOfficerAccounts = '/admin/members/officer-accounts';
   static const String memberExpenseHistory = '/admin/members/expense-history';
 
@@ -98,36 +118,43 @@ class AppRoutes {
   static const String buyerNotifications = '/buyer/notifications';
   static const String buyerCart = '/buyer/browse/cart';
   static const String cartCheckoutResult = '/buyer/browse/cart/result';
+  static const String myAddresses = '/account/addresses';
+  static const String addEditAddress = '/account/addresses/edit';
+  static const String checkout = '/buyer/browse/checkout';
 
   // ─── Admin — New Quick-Action Routes ─────────────────────────────────────────
-  static const String adminInventory      = '/admin/inventory';
-  static const String cropManagement      = '/admin/crops';
+  static const String adminInventory = '/admin/inventory';
+  static const String cropManagement = '/admin/crops';
   static const String cropRequestApproval = '/admin/crops/requests';
-  static const String programManagement   = '/admin/programs';
+  static const String programManagement = '/admin/programs';
+  static const String programEnrollmentRequests =
+      '/admin/programs/enrollment-requests';
   static const String programPurchaseReview = '/admin/programs/purchases';
   static const String programProductCatalog = '/farmer/programs/products';
-  static const String loanItemManagement  = '/admin/loan-items';
-  static const String adminCalendar       = '/admin/calendar';
-  static const String broadcastHistory    = '/admin/broadcast-history';
+  static const String loanItemManagement = '/admin/loan-items';
+  static const String adminCalendar = '/admin/calendar';
+  static const String broadcastHistory = '/admin/broadcast-history';
 
   // ─── Admin — Members sub-routes ──────────────────────────────────────────────
-  static const String manageFarmerAccounts  = '/admin/members/farmer-accounts';
-  static const String manageAdminAccounts   = '/admin/members/admin-accounts';
-  static const String memberPrograms        = '/admin/members/programs';
+  static const String manageFarmerAccounts = '/admin/members/farmer-accounts';
+  static const String manageAdminAccounts = '/admin/members/admin-accounts';
+  static const String memberPrograms = '/admin/members/programs';
 
   // ─── Admin — Marketplace Dashboard ───────────────────────────────────────────
   static const String adminMarketplace = '/admin/marketplace';
-  static const String adminOrders      = '/admin/marketplace/orders';
+  static const String adminOrders = '/admin/marketplace/orders';
   static const String adminOrderDetail = '/admin/marketplace/orders/detail';
-  static const String offerToCooperative = '/admin/marketplace/offer-to-cooperative';
-  static const String offerDetail = '/admin/marketplace/offer-to-cooperative/detail';
+  static const String offerToCooperative =
+      '/admin/marketplace/offer-to-cooperative';
+  static const String offerDetail =
+      '/admin/marketplace/offer-to-cooperative/detail';
 
   // ─── Support & Info — shared across all roles ────────────────────────────────
   // Dedicated screens (Admin Profile & Settings Phase 7), replacing the
   // dialog versions previously shown from each role's Settings screen and
   // from the Navigation Drawer.
-  static const String aboutSagana      = '/support/about-sagana';
+  static const String aboutSagana = '/support/about-sagana';
   static const String aboutCooperative = '/support/about-cooperative';
-  static const String privacyPolicy    = '/support/privacy-policy';
-  static const String termsOfUse       = '/support/terms-of-use';
+  static const String privacyPolicy = '/support/privacy-policy';
+  static const String termsOfUse = '/support/terms-of-use';
 }

@@ -15,10 +15,14 @@ enum AnalyticsPeriod { thisMonth, thisSeason, thisYear, allTime }
 extension AnalyticsPeriodExt on AnalyticsPeriod {
   String get label {
     switch (this) {
-      case AnalyticsPeriod.thisMonth: return 'This Month';
-      case AnalyticsPeriod.thisSeason: return 'This Season';
-      case AnalyticsPeriod.thisYear: return 'This Year';
-      case AnalyticsPeriod.allTime: return 'All Time';
+      case AnalyticsPeriod.thisMonth:
+        return 'This Month';
+      case AnalyticsPeriod.thisSeason:
+        return 'This Season';
+      case AnalyticsPeriod.thisYear:
+        return 'This Year';
+      case AnalyticsPeriod.allTime:
+        return 'All Time';
     }
   }
 
@@ -36,6 +40,20 @@ extension AnalyticsPeriodExt on AnalyticsPeriod {
     }
   }
 }
+
+/// Display order for the period chips — deliberately independent of
+/// AnalyticsPeriod's declared enum order (thisMonth, thisSeason, thisYear,
+/// allTime), matching the same reasoning reportPeriodChipOrder documents
+/// for ReportPeriod (admin_reports_model.dart): other logic (startDate
+/// above) relies on the declaration order and shouldn't be touched, so the
+/// UI's own display order is kept as a separate constant. Matches Admin
+/// Analytics Dashboard's chip order (All Time first, This Month default).
+const analyticsPeriodChipOrder = [
+  AnalyticsPeriod.allTime,
+  AnalyticsPeriod.thisMonth,
+  AnalyticsPeriod.thisSeason,
+  AnalyticsPeriod.thisYear,
+];
 
 // ─── Farm Performance Summary ─────────────────────────────────────────────────
 
@@ -55,7 +73,10 @@ class FarmPerformanceSummary {
   double get netProfit => totalRevenue - totalExpenses;
 
   static const empty = FarmPerformanceSummary(
-    totalYieldKg: 0, totalRevenue: 0, totalExpenses: 0, cropBreakdown: [],
+    totalYieldKg: 0,
+    totalRevenue: 0,
+    totalExpenses: 0,
+    cropBreakdown: [],
   );
 }
 
@@ -99,6 +120,16 @@ class CropPriceCard {
   final double currentPrice;
   final double? previousPrice;
   final double? costPerKg;
+  // Sourced from crop_master.image_url via price_records.crop_id — the
+  // same catalog image Crop Management sets and Market Rates already
+  // displays (FarmerMarketRatesRepository/PriceRecordModel.cropImageUrl).
+  // Null when the crop has no catalog image or the row's crop_id never
+  // resolved; the widget falls back to a placeholder in that case.
+  final String? imageUrl;
+  // price_records.recorded_at for this crop+price_type's latest row —
+  // needed to show a "updated X ago" freshness line the same way Admin's
+  // Price Management _PriceCard already does for the identical field.
+  final DateTime? recordedAt;
 
   const CropPriceCard({
     required this.cropName,
@@ -106,13 +137,17 @@ class CropPriceCard {
     required this.currentPrice,
     this.previousPrice,
     this.costPerKg,
+    this.imageUrl,
+    this.recordedAt,
   });
 
   bool get isUp => previousPrice != null && currentPrice > previousPrice!;
   bool get isDown => previousPrice != null && currentPrice < previousPrice!;
-  double? get priceDiff => previousPrice != null ? currentPrice - previousPrice! : null;
+  double? get priceDiff =>
+      previousPrice != null ? currentPrice - previousPrice! : null;
 
-  double? get marginPerKg => costPerKg != null ? currentPrice - costPerKg! : null;
+  double? get marginPerKg =>
+      costPerKg != null ? currentPrice - costPerKg! : null;
   bool get hasPositiveMargin => (marginPerKg ?? 0) >= 0;
 }
 
@@ -131,7 +166,8 @@ class PlantingForecast {
   final String category;
   final double mostRecentCycleKg;
   final double? forecastNextCycleKg;
-  final String trend; // 'trending_up' | 'stable' | 'trending_down' | 'insufficient_data'
+  final String
+  trend; // 'trending_up' | 'stable' | 'trending_down' | 'insufficient_data'
   final int cyclesAvailable;
 
   const PlantingForecast({
@@ -143,7 +179,8 @@ class PlantingForecast {
     required this.cyclesAvailable,
   });
 
-  bool get hasForecast => forecastNextCycleKg != null && trend != 'insufficient_data';
+  bool get hasForecast =>
+      forecastNextCycleKg != null && trend != 'insufficient_data';
 
   // trendLabel/explanation used to live here as English-only getters. Moved
   // to planting_forecast_card.dart (forecastTrendLabel/forecastExplanation)

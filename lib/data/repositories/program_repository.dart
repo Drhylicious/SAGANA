@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/program_model.dart';
+import '../models/program_enrollment_request_model.dart';
 import 'admin_activity_repository.dart';
 
 class ProgramDuplicateNameException implements Exception {
@@ -43,19 +44,26 @@ class ProgramRepository {
 
       return programRows.map((r) {
         final id = r['id'] as String;
-        return CooperativeProgram.fromMap({...r, 'member_count': countByProgram[id] ?? 0});
+        return CooperativeProgram.fromMap({
+          ...r,
+          'member_count': countByProgram[id] ?? 0,
+        });
       }).toList();
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<ProgramMember>> fetchProgramMembers(String programId) async {
     try {
       final rows = await _client
           .from('program_members')
-          .select('id, program_id, farmer_id, status, enrolled_at, '
+          .select(
+            'id, program_id, farmer_id, status, enrolled_at, '
               'inventory_item_id, quantity_given, distributed_at, '
               'amount_returned, settled_at, distribution_outcome, '
-              'outcome_recorded_at, converted_loan_id')
+            'outcome_recorded_at, converted_loan_id',
+          )
           .eq('program_id', programId)
           .eq('status', 'active')
           .order('enrolled_at', ascending: false);
@@ -69,66 +77,47 @@ class ProgramRepository {
           .inFilter('user_id', farmerIds);
       final nameMap = {
         for (final r in infoRows)
-          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown'
+          r['user_id'] as String: r['full_name'] as String? ?? 'Unknown',
       };
 
-      return rows.map((r) => ProgramMember.fromMap({
+      return rows
+          .map(
+            (r) => ProgramMember.fromMap({
         ...r,
-        'user_information': {'full_name': nameMap[r['farmer_id'] as String] ?? 'Unknown'},
-      })).toList();
-    } catch (_) { return []; }
-  }
-
-  Future<List<Map<String, String>>> fetchUnenrolledFarmers(String programId) async {
-    try {
-      final enrolled = await _client
-          .from('program_members')
-          .select('farmer_id')
-          .eq('program_id', programId)
-          .eq('status', 'active');
-      final enrolledIds = enrolled.map((r) => r['farmer_id'] as String).toSet();
-
-      final allRoles = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'farmer')
-          .eq('status', 'active');
-
-      final unenrolledIds = allRoles
-          .map((r) => r['user_id'] as String)
-          .where((id) => !enrolledIds.contains(id))
+              'user_information': {
+                'full_name': nameMap[r['farmer_id'] as String] ?? 'Unknown',
+              },
+            }),
+          )
           .toList();
-
-      if (unenrolledIds.isEmpty) return [];
-
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', unenrolledIds);
-
-      return infoRows.map((r) => {
-        'id': r['user_id'] as String,
-        'name': r['full_name'] as String? ?? 'Unknown',
-      }).toList();
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   // Same bucket as uploadInventoryImage() (cooperative_inventory_images),
   // under a program_images/ prefix — see
   // supabase_schema_inventory_images_feature.sql. Upload-only, no camera
   // capture: a program isn't a physical item.
-  Future<String?> uploadProgramImage(Uint8List bytes, String fileExtension) async {
+  Future<String?> uploadProgramImage(
+    Uint8List bytes,
+    String fileExtension,
+  ) async {
     try {
       final uid = _client.auth.currentUser?.id;
       if (uid == null) return null;
       final path =
           '$uid/program_images/${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
-      await _client.storage.from('cooperative_inventory_images').uploadBinary(
+      await _client.storage
+          .from('cooperative_inventory_images')
+          .uploadBinary(
             path,
             bytes,
             fileOptions: const FileOptions(upsert: true),
           );
-      return _client.storage.from('cooperative_inventory_images').getPublicUrl(path);
+      return _client.storage
+          .from('cooperative_inventory_images')
+          .getPublicUrl(path);
     } catch (_) {
       return null;
     }
@@ -191,7 +180,9 @@ class ProgramRepository {
         description: 'Created program "${name.trim()}".',
       );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> updateProgram({
@@ -208,7 +199,9 @@ class ProgramRepository {
     String? imageUrl,
   }) async {
     try {
-      await _client.from('cooperative_programs').update({
+      await _client
+          .from('cooperative_programs')
+          .update({
         'program_name': name.trim(),
         'program_type': type.trim(),
         'benefit_type': benefitType,
@@ -219,7 +212,8 @@ class ProgramRepository {
         'distribution_category': distributionCategory,
         'program_purpose': programPurpose,
         'image_url': imageUrl,
-      }).eq('id', id);
+          })
+          .eq('id', id);
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'updated',
@@ -227,7 +221,9 @@ class ProgramRepository {
         referenceId: id,
       );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   // ─── Delete program ─────────────────────────────────────────────────────
@@ -244,8 +240,9 @@ class ProgramRepository {
           .select('distributed_at')
           .eq('program_id', programId);
       final memberCount = rows.length;
-      final distributedCount =
-          rows.where((r) => r['distributed_at'] != null).length;
+      final distributedCount = rows
+          .where((r) => r['distributed_at'] != null)
+          .length;
       return ProgramDeleteImpact(
         memberCount: memberCount,
         distributedCount: distributedCount,
@@ -273,48 +270,105 @@ class ProgramRepository {
         description: 'Deleted program "${row?['program_name'] ?? programId}".',
       );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
-  /// program_members has UNIQUE(program_id, farmer_id), and removeMember()
-  /// only ever soft-deletes (status='withdrawn') rather than deleting the
-  /// row — so a blind insert here would 409 the moment anyone tries to
-  /// re-enroll a farmer who was previously removed. Checking for an
-  /// existing row first and reactivating it (rather than inserting a
-  /// second one) fixes both that conflict and the member-count drift it
-  /// caused: fetchPrograms()'s count includes every row regardless of
-  /// status, so a leftover withdrawn row was inflating that count above
-  /// what the Members modal's active-only count showed.
-  Future<bool> enrollFarmer(String programId, String farmerId) async {
-    try {
-      final existing = await _client
-          .from('program_members')
-          .select('id, status')
-          .eq('program_id', programId)
-          .eq('farmer_id', farmerId)
-          .maybeSingle();
+  // ─── Program enrollment requests (farmer-initiated, Full Workflow) ────────
+  // Enrollment itself is now exclusively farmer-initiated (request) +
+  // admin-reviewed (respond) below — the old direct enrollFarmer()/
+  // _notifyEnrolled() admin-picks-a-farmer path was removed along with
+  // the "Enroll a Member" UI in program_management_screen.dart's Manage
+  // Members modal.
+  // See supabase_schema_program_enrollment_requests.sql. Structurally
+  // mirrors MarketLinkingRepository's DA-AMAD enrollment review methods
+  // (_fetchEnrollmentsByStatus/respondToEnrollment) — same two-step
+  // farmer-info join (program_enrollment_requests has no direct FK
+  // PostgREST can embed user_information through), same admin RPC pattern.
 
-      if (existing != null) {
-        if (existing['status'] == 'active') return false; // already enrolled
-        await _client.from('program_members').update({
-          'status': 'active',
-          'enrolled_at': DateTime.now().toIso8601String(),
-        }).eq('id', existing['id'] as String);
-        return true;
+  Future<List<ProgramEnrollmentRequest>> fetchPendingEnrollmentRequests() =>
+      _fetchEnrollmentRequestsByStatus('pending');
+
+  /// Admin: requests already reviewed (approved or rejected), most
+  /// recently reviewed first.
+  Future<List<ProgramEnrollmentRequest>>
+  fetchReviewedEnrollmentRequests() async {
+    final results = await Future.wait([
+      _fetchEnrollmentRequestsByStatus('approved'),
+      _fetchEnrollmentRequestsByStatus('rejected'),
+    ]);
+    final combined = [...results[0], ...results[1]]
+      ..sort(
+        (a, b) => (b.reviewedAt ?? b.submittedAt).compareTo(
+          a.reviewedAt ?? a.submittedAt,
+        ),
+      );
+    return combined;
       }
 
-      await _client.from('program_members').insert({
-        'program_id': programId,
-        'farmer_id': farmerId,
+  Future<List<ProgramEnrollmentRequest>> _fetchEnrollmentRequestsByStatus(
+    String status,
+  ) async {
+    try {
+      final rows = await _client
+          .from('program_enrollment_requests')
+          .select(
+            'id, farmer_id, program_id, status, admin_notes, submitted_at, reviewed_at, '
+            'cooperative_programs(program_name, image_url)',
+          )
+          .eq('status', status)
+          .order('submitted_at', ascending: status == 'pending');
+      if (rows.isEmpty) return [];
+
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
+      final infoRows = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', farmerIds);
+      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
+
+      return rows.map((r) {
+        final info = infoMap[r['farmer_id']];
+        return ProgramEnrollmentRequest.fromMap({
+          ...r,
+          'user_information': info,
       });
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> respondToEnrollmentRequest({
+    required String id,
+    required bool approve,
+    String? notes,
+  }) async {
+    try {
+      await _client.rpc(
+        'respond_to_program_enrollment_request',
+        params: {
+          'p_request_id': id,
+          'p_approve': approve,
+          if (notes != null && notes.isNotEmpty) 'p_notes': notes,
+        },
+      );
       AdminActivityRepository().log(
         module: 'programs',
-        actionType: 'enrolled',
-        description: 'Enrolled a farmer into a program.',
-        referenceId: programId,
+        actionType: approve ? 'approved' : 'rejected',
+        description: approve
+            ? 'Approved a farmer\'s program enrollment request.'
+            : 'Declined a farmer\'s program enrollment request.',
+        referenceId: id,
       );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> removeMember(String programMemberId) async {
@@ -323,8 +377,16 @@ class ProgramRepository {
           .from('program_members')
           .update({'status': 'withdrawn'})
           .eq('id', programMemberId);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'member_removed',
+        description: 'Removed a member from a program.',
+        referenceId: programMemberId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   // ─── Benefit distribution ───────────────────────────────────────────────
@@ -353,12 +415,21 @@ class ProgramRepository {
     required String inventoryItemId,
     required double quantity,
   }) async {
-    await _client.rpc('distribute_program_benefit', params: {
+    await _client.rpc(
+      'distribute_program_benefit',
+      params: {
       'p_program_member_id': programMemberId,
       'p_inventory_item_id': inventoryItemId,
       'p_quantity': quantity,
       'p_recorded_by': _client.auth.currentUser?.id,
-    });
+      },
+    );
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'benefit_distributed',
+      description: 'Distributed a program benefit to a member.',
+      referenceId: programMemberId,
+    );
   }
 
   // ─── Sales program products (Cooperative Product Sales Program) ────────
@@ -369,8 +440,10 @@ class ProgramRepository {
     try {
       final rows = await _client
           .from('program_products')
-          .select('id, program_id, inventory_item_id, unit_price, is_available, '
-              'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)')
+          .select(
+            'id, program_id, inventory_item_id, unit_price, is_available, '
+            'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)',
+          )
           .eq('program_id', programId)
           .order('created_at');
       return rows.map((r) {
@@ -384,7 +457,9 @@ class ProgramRepository {
           'image_url': inv?['image_url'],
         });
       }).toList();
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Active inventory items not already published to the Loan Item
@@ -411,7 +486,9 @@ class ProgramRepository {
           .where((r) => !loanItemIds.contains(r['id'] as String))
           .map((r) => DistributionItem.fromMap(r))
           .toList();
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<bool> addProgramProduct({
@@ -433,7 +510,9 @@ class ProgramRepository {
         referenceId: programId,
       );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> updateProgramProduct({
@@ -442,19 +521,35 @@ class ProgramRepository {
     required bool isAvailable,
   }) async {
     try {
-      await _client.from('program_products').update({
-        'unit_price': unitPrice,
-        'is_available': isAvailable,
-      }).eq('id', productId);
+      await _client
+          .from('program_products')
+          .update({'unit_price': unitPrice, 'is_available': isAvailable})
+          .eq('id', productId);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'product_updated',
+        description: 'Updated a sales program product.',
+        referenceId: productId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> removeProgramProduct(String productId) async {
     try {
       await _client.from('program_products').delete().eq('id', productId);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'product_removed',
+        description: 'Removed a product from a sales program.',
+        referenceId: productId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   // ─── Purchase review (Cooperative Product Sales Program) ────────────────
@@ -465,15 +560,20 @@ class ProgramRepository {
     try {
       final rows = await _client
           .from('program_product_purchases')
-          .select('id, program_id, product_id, farmer_id, quantity, unit_price, '
+          .select(
+            'id, program_id, product_id, farmer_id, quantity, unit_price, '
               'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
               'cooperative_programs(program_name), '
-              'program_products(cooperative_inventory(item_name, unit, image_url))')
+            'program_products(cooperative_inventory(item_name, unit, image_url))',
+          )
           .eq('status', status)
           .order('requested_at', ascending: status != 'pending');
       if (rows.isEmpty) return [];
 
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
       final infoRows = await _client
           .from('user_information')
           .select('user_id, full_name')
@@ -496,7 +596,9 @@ class ProgramRepository {
           'farmer_name': nameMap[r['farmer_id'] as String],
         });
       }).toList();
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Moves a pending purchase to 'paid' and deducts stock — see
@@ -505,7 +607,10 @@ class ProgramRepository {
   /// a stock-moving, real-money write failing silently would let inventory
   /// and the purchase record disagree.
   Future<void> confirmPurchase(String purchaseId) async {
-    await _client.rpc('confirm_program_purchase', params: {'p_purchase_id': purchaseId});
+    await _client.rpc(
+      'confirm_program_purchase',
+      params: {'p_purchase_id': purchaseId},
+    );
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'purchase_confirmed',
@@ -520,12 +625,20 @@ class ProgramRepository {
   // match the function overload and every cancellation silently failed.
   Future<bool> cancelPurchase(String purchaseId, String reason) async {
     try {
-      await _client.rpc('cancel_program_purchase', params: {
-        'p_purchase_id': purchaseId,
-        'p_reason': reason,
-      });
+      await _client.rpc(
+        'cancel_program_purchase',
+        params: {'p_purchase_id': purchaseId, 'p_reason': reason},
+      );
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'purchase_cancelled',
+        description: 'Cancelled a program product purchase.',
+        referenceId: purchaseId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   // ─── Revenue-share settlement ───────────────────────────────────────────
@@ -535,11 +648,21 @@ class ProgramRepository {
     required double amountReturned,
     String? adminNotes,
   }) async {
-    await _client.rpc('confirm_program_return', params: {
+    await _client.rpc(
+      'confirm_program_return',
+      params: {
       'p_program_member_id': programMemberId,
       'p_amount_returned': amountReturned,
       'p_admin_notes': adminNotes,
-    });
+      },
+    );
+    AdminActivityRepository().log(
+      module: 'programs',
+      actionType: 'return_confirmed',
+      description:
+          'Confirmed a revenue-share return (₱${amountReturned.toStringAsFixed(2)}).',
+      referenceId: programMemberId,
+    );
   }
 
   // ─── Distribution outcome (Phase 8 / Issue 3's Loan/ROI workflow) ───────
@@ -552,12 +675,23 @@ class ProgramRepository {
 
   Future<bool> recordThrivingOutcome(String programMemberId) async {
     try {
-      await _client.from('program_members').update({
+      await _client
+          .from('program_members')
+          .update({
         'distribution_outcome': 'thriving',
         'outcome_recorded_at': DateTime.now().toIso8601String(),
-      }).eq('id', programMemberId);
+          })
+          .eq('id', programMemberId);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'outcome_recorded',
+        description: 'Recorded a distribution outcome as thriving.',
+        referenceId: programMemberId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Converts a failed distribution into a farmer_loans entry via
@@ -572,14 +706,28 @@ class ProgramRepository {
     String? notes,
   }) async {
     try {
-      await _client.rpc('convert_program_distribution_to_loan', params: {
+      await _client.rpc(
+        'convert_program_distribution_to_loan',
+        params: {
         'p_program_member_id': programMemberId,
         'p_monthly_payment': monthlyPayment,
-        'p_next_payment_date': nextPaymentDate.toIso8601String().split('T').first,
+          'p_next_payment_date': nextPaymentDate
+              .toIso8601String()
+              .split('T')
+              .first,
         'p_notes': notes,
-      });
+        },
+      );
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'converted_to_loan',
+        description: 'Converted a failed distribution into a loan.',
+        referenceId: programMemberId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   // ─── Program activities ──────────────────────────────────────────────────
@@ -592,7 +740,9 @@ class ProgramRepository {
           .eq('program_id', programId)
           .order('activity_date', ascending: true);
       return rows.map((r) => ProgramActivity.fromMap(r)).toList();
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<bool> createActivity({
@@ -611,14 +761,30 @@ class ProgramRepository {
         'location': location?.trim(),
         'created_by': _client.auth.currentUser?.id,
       });
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'activity_created',
+        description: 'Scheduled "${title.trim()}" for a program.',
+        referenceId: programId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> deleteActivity(String activityId) async {
     try {
       await _client.from('program_activities').delete().eq('id', activityId);
+      AdminActivityRepository().log(
+        module: 'programs',
+        actionType: 'activity_deleted',
+        description: 'Deleted a program activity.',
+        referenceId: activityId,
+      );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 }

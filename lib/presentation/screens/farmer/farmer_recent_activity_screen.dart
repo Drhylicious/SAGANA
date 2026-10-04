@@ -7,8 +7,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../../core/utils/navigation_utils.dart';
-import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 
 class FarmerRecentActivityScreen extends StatefulWidget {
@@ -30,6 +28,16 @@ class _FarmerRecentActivityScreenState
   bool _isLoading = true;
   String _searchQuery = '';
   bool _isOnline = true;
+
+  // "Load More" pill at the end of the list — same pattern as Admin
+  // Recent Activity's own Load More. fetchActivity already supports
+  // offset/limit (it fetches a generous flat amount per source, combines,
+  // sorts, then applies skip/take — see DashboardRepository.fetchActivity),
+  // so each tap is a genuine incremental fetch, not just revealing more of
+  // an already-loaded batch.
+  int _page = 0;
+  static const _pageSize = 30;
+  bool _hasMore = true;
 
   @override
   void initState() {
@@ -55,17 +63,42 @@ class _FarmerRecentActivityScreenState
   }
 
   Future<void> _loadActivity() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _page = 0;
+      _allItems = [];
+      _hasMore = true;
+      _isLoading = true;
+    });
     try {
-      final items = await _repo.fetchActivity(limit: 50);
+      final items = await _repo.fetchActivity(limit: _pageSize, offset: 0);
       if (!mounted) return;
       setState(() {
         _allItems = items;
+        _hasMore = items.length == _pageSize;
         _applyFilter();
         _isLoading = false;
       });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    setState(() => _page++);
+    try {
+      final items = await _repo.fetchActivity(
+        limit: _pageSize,
+        offset: _page * _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _allItems.addAll(items);
+        _hasMore = items.length == _pageSize;
+        _applyFilter();
+      });
+    } catch (_) {
+      // Best-effort — the already-loaded page stays visible; the pill
+      // simply remains tappable for a retry.
     }
   }
 
@@ -131,7 +164,10 @@ class _FarmerRecentActivityScreenState
       body: Column(
         children: [
           if (!_isOnline)
-            const OfflineBanner(message: "You're offline — your activity history may not be up to date."),
+            const OfflineBanner(
+              message:
+                  "You're offline — your activity history may not be up to date.",
+            ),
           Expanded(
             child: Stack(
               children: [
@@ -148,11 +184,14 @@ class _FarmerRecentActivityScreenState
                             // Header + search + chips
                             SliverToBoxAdapter(
                               child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  16,
+                                  20,
+                                  0,
+                                ),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const SizedBox(height: 8),
                                     _SearchBar(controller: _searchController),
@@ -179,13 +218,18 @@ class _FarmerRecentActivityScreenState
                             // Loading shimmer
                             else if (_isLoading)
                               SliverPadding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  16,
+                                  20,
+                                  100,
+                                ),
                                 sliver: SliverList(
                                   delegate: SliverChildBuilderDelegate(
                                     (_, __) => Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
                                       child: _ActivityShimmer(),
                                     ),
                                     childCount: 5,
@@ -193,10 +237,14 @@ class _FarmerRecentActivityScreenState
                                 ),
                               )
                             // Grouped timeline
-                            else
+                            else ...[
                               SliverPadding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  16,
+                                  20,
+                                  0,
+                                ),
                                 sliver: SliverList(
                                   delegate: SliverChildBuilderDelegate((
                                     context,
@@ -207,12 +255,60 @@ class _FarmerRecentActivityScreenState
                                     return _DateGroup(
                                       label: label,
                                       items: group,
-                                      onLoanPayTap: () =>
-                                          context.pushRoute(AppRoutes.myLoans),
                                     );
                                   }, childCount: dateKeys.length),
                                 ),
                               ),
+                              // Load More pill — same pattern as Admin
+                              // Recent Activity. Stays enabled regardless of
+                              // search/filter (both are client-side, same as
+                              // Admin's own search) — each tap fetches the
+                              // next page of the unfiltered feed, then
+                              // _applyFilter() re-narrows the bigger set.
+                              if (_hasMore)
+                                SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      0,
+                                      20,
+                                      16,
+                                    ),
+                                    child: Center(
+                                      child: GestureDetector(
+                                        onTap: _loadMore,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              AppConstants.radiusFull,
+                                            ),
+                                            border: Border.all(
+                                              color: AppConstants.outline
+                                                  .withValues(alpha: 0.20),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Load more',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppConstants.primaryGreen,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 84),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -363,13 +459,8 @@ class _FilterChips extends StatelessWidget {
 class _DateGroup extends StatelessWidget {
   final String label;
   final List<ActivityItem> items;
-  final VoidCallback onLoanPayTap;
 
-  const _DateGroup({
-    required this.label,
-    required this.items,
-    required this.onLoanPayTap,
-  });
+  const _DateGroup({required this.label, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -391,7 +482,7 @@ class _DateGroup extends StatelessWidget {
         ...items.map(
           (item) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: _ActivityCard(item: item, onLoanPayTap: onLoanPayTap),
+            child: _ActivityCard(item: item),
           ),
         ),
         const SizedBox(height: 8),
@@ -406,9 +497,8 @@ class _DateGroup extends StatelessWidget {
 
 class _ActivityCard extends StatelessWidget {
   final ActivityItem item;
-  final VoidCallback onLoanPayTap;
 
-  const _ActivityCard({required this.item, required this.onLoanPayTap});
+  const _ActivityCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -472,18 +562,11 @@ class _ActivityCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Bottom row — value + status or action
-                    _CardBottom(item: item, onLoanPayTap: onLoanPayTap),
+                    // Bottom row — value + status
+                    _CardBottom(item: item),
                   ],
                 ),
               ),
-              // Chevron for orders
-              if (item.type == ActivityType.order)
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppConstants.outline,
-                  size: 20,
-                ),
             ],
           ),
         ),
@@ -505,65 +588,21 @@ class _ActivityCard extends StatelessWidget {
 
 class _CardBottom extends StatelessWidget {
   final ActivityItem item;
-  final VoidCallback onLoanPayTap;
 
-  const _CardBottom({required this.item, required this.onLoanPayTap});
+  const _CardBottom({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    // Order card: price + status
-    if (item.type == ActivityType.order) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            item.valueLabel ?? '',
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.secondaryContainer,
-            ),
-          ),
-          if (item.statusLabel != null)
-            Text(
-              item.statusLabel!,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-        ],
-      );
+    // Loan reminders are informational only — no in-app payment action.
+    // Loan payments are handled in person at the cooperative's scheduled
+    // meeting (first Sunday of each month), so this falls through to the
+    // same plain value/status rendering every other type uses below.
+
+    if (item.valueLabel == null && item.statusLabel == null) {
+      return const SizedBox.shrink();
     }
 
-    // Loan card: status badge + Pay Now
-    if (item.type == ActivityType.loan) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _StatusBadge(
-            label: item.statusLabel ?? 'Reminder',
-            color: AppConstants.errorRed,
-          ),
-          GestureDetector(
-            onTap: onLoanPayTap,
-            child: Text(
-              'Pay Now',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.primaryGreen,
-                decoration: TextDecoration.underline,
-                decorationColor: AppConstants.primaryGreen,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Harvest + Listing: status badge only
+    Widget? statusBadge;
     if (item.statusLabel != null) {
       final isAlert = item.isAlert;
       final isSuccess =
@@ -574,7 +613,8 @@ class _CardBottom extends StatelessWidget {
               item.statusLabel == 'Synced');
       final isWarning =
           item.statusLabel == 'Pending Sync' ||
-          item.statusLabel == 'Pending Review';
+          item.statusLabel == 'Pending Review' ||
+          item.statusLabel == 'Pending';
 
       Color badgeColor;
       if (isAlert) {
@@ -587,10 +627,32 @@ class _CardBottom extends StatelessWidget {
         badgeColor = AppConstants.primaryGreen;
       }
 
-      return _StatusBadge(label: item.statusLabel!, color: badgeColor);
+      statusBadge = _StatusBadge(label: item.statusLabel!, color: badgeColor);
     }
 
-    return const SizedBox.shrink();
+    // Fixed after Final Verification found it: this screen previously never
+    // rendered valueLabel at all (only Home's own _ActivityTile did), so the
+    // ₱ amount on Order Placed / Expense Added / Capital Reinvestment — and
+    // the kg amount on Harvest — was invisible here regardless of screen.
+    if (item.valueLabel == null) {
+      return statusBadge!;
+    }
+
+    final valueText = Text(
+      item.valueLabel!,
+      style: GoogleFonts.poppins(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        color: item.isAlert ? AppConstants.errorRed : AppConstants.charcoal,
+      ),
+    );
+
+    if (statusBadge == null) return valueText;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [valueText, statusBadge],
+    );
   }
 }
 
@@ -633,59 +695,93 @@ class _CardIcon extends StatelessWidget {
     Color bg;
     Color fg;
 
-    if (isAlert && type == ActivityType.loan) {
-      icon = Icons.account_balance_wallet_outlined;
-      bg = AppConstants.errorRed.withValues(alpha: 0.10);
-      fg = AppConstants.errorRed;
-    } else {
-      switch (type) {
-        case ActivityType.harvest:
-          icon = Icons.agriculture_rounded;
-          bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.order:
-          icon = Icons.shopping_cart_outlined;
-          bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
-          fg = AppConstants.amber;
-          break;
-        case ActivityType.listing:
-          icon = Icons.verified_outlined;
-          bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.loan:
-          icon = Icons.account_balance_wallet_outlined;
-          bg = AppConstants.errorRed.withValues(alpha: 0.10);
-          fg = AppConstants.errorRed;
-          break;
-        case ActivityType.cropRequest:
-          icon = Icons.local_florist_outlined;
-          bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
-              .withValues(alpha: 0.10);
-          fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
-          break;
-        case ActivityType.cropAdded:
-          icon = Icons.grass_rounded;
-          bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.informalSale:
-          icon = Icons.sell_outlined;
-          bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
-          fg = AppConstants.amber;
-          break;
-        case ActivityType.cooperativeSale:
-          icon = Icons.groups_outlined;
-          bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
-          fg = AppConstants.amber;
-          break;
-        case ActivityType.profile:
-          icon = Icons.person_outline_rounded;
-          bg = AppConstants.outline.withValues(alpha: 0.10);
-          fg = AppConstants.outline;
-          break;
-      }
+    switch (type) {
+      case ActivityType.harvest:
+        icon = Icons.agriculture_rounded;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.listing:
+        icon = Icons.verified_outlined;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.orderPlaced:
+        icon = Icons.shopping_cart_outlined;
+        bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
+        break;
+      case ActivityType.cropRequest:
+        icon = Icons.local_florist_outlined;
+        bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
+            .withValues(alpha: 0.10);
+        fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
+        break;
+      case ActivityType.cropAdded:
+        icon = Icons.grass_rounded;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.informalSale:
+        icon = Icons.sell_outlined;
+        bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
+        break;
+      case ActivityType.cropPhotoUpdated:
+        icon = Icons.photo_camera_outlined;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.cooperativeOffer:
+        icon = Icons.groups_outlined;
+        bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
+        break;
+      case ActivityType.marketLinkingEnrollment:
+        icon = Icons.handshake_outlined;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.gingerBatchSubmission:
+        icon = Icons.outbox_outlined;
+        bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
+        break;
+      case ActivityType.profile:
+        icon = Icons.person_outline_rounded;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+      case ActivityType.addressUpdated:
+        icon = Icons.location_on_outlined;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+      case ActivityType.expenseAdded:
+        icon = Icons.receipt_long_outlined;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+      case ActivityType.programEnrollment:
+        icon = Icons.assignment_turned_in_outlined;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.programPurchase:
+        icon = Icons.shopping_bag_outlined;
+        bg = AppConstants.secondaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.amber;
+        break;
+      case ActivityType.capitalReinvestment:
+        icon = Icons.savings_outlined;
+        bg = AppConstants.primaryContainer.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.syncCompleted:
+        icon = Icons.sync_rounded;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
     }
 
     return Container(
@@ -820,7 +916,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             hasSearch
                 ? 'Try a different search or filter'
-                : 'Your harvests, orders, and loan updates will appear here',
+                : 'Your harvests, listings, and loan updates will appear here',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 13, color: AppConstants.outline),
           ),

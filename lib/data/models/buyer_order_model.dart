@@ -1,3 +1,5 @@
+import 'farmer_crop_model.dart' show marketTypeLabelFor;
+
 class BuyerOrderModel {
   final String id;
   final String listingId;
@@ -18,6 +20,21 @@ class BuyerOrderModel {
   final String? batchNumber;
   final DateTime? harvestDate;
   final String? category;
+  final String?
+  marketType; // sp3_cooperative | da_amad_market | open_market — from inventory_batches.crop_type
+  final String? description;
+
+  // Fulfillment — set via set_order_fulfillment() once the order is
+  // approved (Listing Tab redesign, Phase 6). All null until the buyer
+  // makes a choice; delivery_* fields stay null for a pickup order.
+  final String? fulfillmentMethod; // 'pickup' | 'delivery' | null
+  final String? deliveryAddress;
+  final double? deliveryLatitude;
+  final double? deliveryLongitude;
+  final String? deliveryContactNumber;
+  final String? deliveryNotes;
+  final String? deliveryRecipientName;
+  final String? deliveryLabel;
 
   const BuyerOrderModel({
     required this.id,
@@ -35,7 +52,21 @@ class BuyerOrderModel {
     this.batchNumber,
     this.harvestDate,
     this.category,
+    this.marketType,
+    this.description,
+    this.fulfillmentMethod,
+    this.deliveryAddress,
+    this.deliveryLatitude,
+    this.deliveryLongitude,
+    this.deliveryContactNumber,
+    this.deliveryNotes,
+    this.deliveryRecipientName,
+    this.deliveryLabel,
   });
+
+  bool get hasFulfillmentChoice => fulfillmentMethod != null;
+  bool get isDelivery => fulfillmentMethod == 'delivery';
+  bool get isPickupChoice => fulfillmentMethod == 'pickup';
 
   String get displayName {
     final v = variety?.trim();
@@ -83,6 +114,8 @@ class BuyerOrderModel {
     return 'Harvested ${diff.inDays} days ago';
   }
 
+  String get marketTypeLabel => marketTypeLabelFor(marketType);
+
   factory BuyerOrderModel.fromMap(Map<String, dynamic> map) {
     return BuyerOrderModel(
       id: map['id'] as String,
@@ -102,6 +135,16 @@ class BuyerOrderModel {
           ? DateTime.parse(map['harvest_date'] as String)
           : null,
       category: map['category'] as String?,
+      marketType: map['market_type'] as String?,
+      description: map['description'] as String?,
+      fulfillmentMethod: map['fulfillment_method'] as String?,
+      deliveryAddress: map['delivery_address'] as String?,
+      deliveryLatitude: (map['delivery_latitude'] as num?)?.toDouble(),
+      deliveryLongitude: (map['delivery_longitude'] as num?)?.toDouble(),
+      deliveryContactNumber: map['delivery_contact_number'] as String?,
+      deliveryNotes: map['delivery_notes'] as String?,
+      deliveryRecipientName: map['delivery_recipient_name'] as String?,
+      deliveryLabel: map['delivery_label'] as String?,
     );
   }
 }

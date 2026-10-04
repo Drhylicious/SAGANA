@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 
 // ─── Period Filter ────────────────────────────────────────────────────────────
 
-enum ExpensePeriod { thisMonth, thisSeason, thisYear, allTime }
+// Declaration order is the display order of the filter chips
+// (ExpensePeriod.values, used directly by _PeriodFilter) — All Time first.
+enum ExpensePeriod { allTime, thisMonth, thisSeason, thisYear }
 
 extension ExpensePeriodExt on ExpensePeriod {
   String get label {
     switch (this) {
-      case ExpensePeriod.thisMonth: return 'This Month';
-      case ExpensePeriod.thisSeason: return 'This Season';
-      case ExpensePeriod.thisYear: return 'This Year';
-      case ExpensePeriod.allTime: return 'All Time';
+      case ExpensePeriod.thisMonth:
+        return 'This Month';
+      case ExpensePeriod.thisSeason:
+        return 'This Season';
+      case ExpensePeriod.thisYear:
+        return 'This Year';
+      case ExpensePeriod.allTime:
+        return 'All Time';
     }
   }
 
@@ -30,50 +36,67 @@ extension ExpensePeriodExt on ExpensePeriod {
 }
 
 // ─── Expense Categories ───────────────────────────────────────────────────────
-
-const List<String> expenseCategories = [
-  'Fertilizer',
-  'Labor',
-  'Seeds',
-  'Tools',
-  'Irrigation',
-  'Transport',
-  'Other',
-];
+// Category names now come from CategoryRepository.fetchExpenseCategories()
+// (expense_categories lookup table, supabase_schema_expense_categories.sql)
+// instead of a hardcoded list — a farmer can add a new one inline from the
+// Add Expense dropdown. categoryIcon()/categoryColor()/categoryBgColor()
+// below still switch on the raw string, with a generic fallback, so a
+// newly-added category displays sensibly without a code change.
 
 IconData categoryIcon(String category) {
   switch (category) {
-    case 'Fertilizer': return Icons.science_rounded;
-    case 'Labor': return Icons.groups_rounded;
-    case 'Seeds': return Icons.eco_rounded;
-    case 'Tools': return Icons.build_rounded;
-    case 'Irrigation': return Icons.water_drop_rounded;
-    case 'Transport': return Icons.local_shipping_rounded;
-    default: return Icons.category_rounded;
+    case 'Fertilizer':
+      return Icons.science_rounded;
+    case 'Labor':
+      return Icons.groups_rounded;
+    case 'Seeds':
+      return Icons.eco_rounded;
+    case 'Tools':
+      return Icons.build_rounded;
+    case 'Irrigation':
+      return Icons.water_drop_rounded;
+    case 'Transport':
+      return Icons.local_shipping_rounded;
+    default:
+      return Icons.category_rounded;
   }
 }
 
 Color categoryColor(String category) {
   switch (category) {
-    case 'Fertilizer': return const Color(0xFF00450D);   // primary green
-    case 'Labor': return const Color(0xFF835400);         // secondary amber
-    case 'Seeds': return const Color(0xFF00460E);         // tertiary
-    case 'Tools': return const Color(0xFFE65100);         // orange
-    case 'Irrigation': return const Color(0xFF01579B);    // blue
-    case 'Transport': return const Color(0xFF4A148C);     // purple
-    default: return const Color(0xFF717A6D);              // outline
+    case 'Fertilizer':
+      return const Color(0xFF00450D); // primary green
+    case 'Labor':
+      return const Color(0xFF835400); // secondary amber
+    case 'Seeds':
+      return const Color(0xFF00460E); // tertiary
+    case 'Tools':
+      return const Color(0xFFE65100); // orange
+    case 'Irrigation':
+      return const Color(0xFF01579B); // blue
+    case 'Transport':
+      return const Color(0xFF4A148C); // purple
+    default:
+      return const Color(0xFF717A6D); // outline
   }
 }
 
 Color categoryBgColor(String category) {
   switch (category) {
-    case 'Fertilizer': return const Color(0xFFACF4A4);
-    case 'Labor': return const Color(0xFFFFDDB5);
-    case 'Seeds': return const Color(0xFF98F994);
-    case 'Tools': return const Color(0xFFFFCCBC);
-    case 'Irrigation': return const Color(0xFFB3E5FC);
-    case 'Transport': return const Color(0xFFE1BEE7);
-    default: return const Color(0xFFCFE6F2);
+    case 'Fertilizer':
+      return const Color(0xFFACF4A4);
+    case 'Labor':
+      return const Color(0xFFFFDDB5);
+    case 'Seeds':
+      return const Color(0xFF98F994);
+    case 'Tools':
+      return const Color(0xFFFFCCBC);
+    case 'Irrigation':
+      return const Color(0xFFB3E5FC);
+    case 'Transport':
+      return const Color(0xFFE1BEE7);
+    default:
+      return const Color(0xFFCFE6F2);
   }
 }
 
@@ -82,6 +105,8 @@ Color categoryBgColor(String category) {
 class ExpenseModel {
   final String id;
   final String farmerId;
+  final String?
+  name; // nullable — absent on rows created before this field existed
   final String category;
   final String description;
   final double amount;
@@ -94,6 +119,7 @@ class ExpenseModel {
   const ExpenseModel({
     required this.id,
     required this.farmerId,
+    this.name,
     required this.category,
     required this.description,
     required this.amount,
@@ -108,10 +134,16 @@ class ExpenseModel {
   Color get color => categoryColor(category);
   Color get bgColor => categoryBgColor(category);
 
+  // Falls back to the category for expenses recorded before the Name
+  // field existed, so older rows still show a sensible title.
+  String get displayName =>
+      (name != null && name!.isNotEmpty) ? name! : category;
+
   factory ExpenseModel.fromMap(Map<String, dynamic> map) {
     return ExpenseModel(
       id: map['id'] as String,
       farmerId: map['farmer_id'] as String,
+      name: map['name'] as String?,
       category: map['category'] as String? ?? 'Other',
       description: map['description'] as String,
       amount: (map['amount'] as num).toDouble(),

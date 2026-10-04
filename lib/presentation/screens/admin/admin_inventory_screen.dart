@@ -16,7 +16,8 @@ import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/report_summary_widgets.dart' show ReportIconStatCard, ReportSectionCard;
+import '../../widgets/report_summary_widgets.dart'
+    show ReportIconStatCard, ReportSectionCard;
 import '../../widgets/management_modal.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
@@ -186,17 +187,25 @@ class _CoopInventoryRepository {
   // Same owner-folder upload idiom as uploadCropImage()/uploadListingPhoto(),
   // against the cooperative_inventory_images bucket provisioned in
   // supabase_schema_inventory_images_feature.sql.
-  Future<String?> uploadInventoryImage(Uint8List bytes, String fileExtension) async {
+  Future<String?> uploadInventoryImage(
+    Uint8List bytes,
+    String fileExtension,
+  ) async {
     try {
       final uid = _client.auth.currentUser?.id;
       if (uid == null) return null;
-      final path = '$uid/item_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
-      await _client.storage.from('cooperative_inventory_images').uploadBinary(
+      final path =
+          '$uid/item_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      await _client.storage
+          .from('cooperative_inventory_images')
+          .uploadBinary(
             path,
             bytes,
             fileOptions: const FileOptions(upsert: true),
           );
-      return _client.storage.from('cooperative_inventory_images').getPublicUrl(path);
+      return _client.storage
+          .from('cooperative_inventory_images')
+          .getPublicUrl(path);
     } catch (_) {
       return null;
     }
@@ -274,6 +283,12 @@ class _CoopInventoryRepository {
           .from('cooperative_inventory')
           .update({'reorder_level': level})
           .eq('id', id);
+      AdminActivityRepository().log(
+        module: 'inventory',
+        actionType: 'reorder_level_updated',
+        description: 'Updated the reorder level for an inventory item.',
+        referenceId: id,
+      );
       return true;
     } catch (_) {
       return false;
@@ -291,7 +306,9 @@ class _CoopInventoryRepository {
     String? imageUrl,
   }) async {
     try {
-      await _client.from('cooperative_inventory').update({
+      await _client
+          .from('cooperative_inventory')
+          .update({
         'item_name': name.trim(),
         'category': category,
         'unit': unit,
@@ -299,7 +316,8 @@ class _CoopInventoryRepository {
         'reorder_level': reorderLevel,
         'notes': notes?.trim(),
         'image_url': imageUrl,
-      }).eq('id', id);
+          })
+          .eq('id', id);
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'updated',
@@ -321,6 +339,12 @@ class _CoopInventoryRepository {
           .from('cooperative_inventory')
           .update({'is_active': false})
           .eq('id', id);
+      AdminActivityRepository().log(
+        module: 'inventory',
+        actionType: 'deactivated',
+        description: 'Deactivated an inventory item.',
+        referenceId: id,
+      );
       return true;
     } catch (_) {
       return false;
@@ -334,7 +358,10 @@ class _CoopInventoryRepository {
   // other failure.
   Future<_DeleteResult> deleteItem(String id) async {
     try {
-      await _client.rpc('delete_inventory_item', params: {'p_inventory_id': id});
+      await _client.rpc(
+        'delete_inventory_item',
+        params: {'p_inventory_id': id},
+      );
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'deleted',
@@ -375,6 +402,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   bool _isLoading = true;
   bool _isOnline = true;
   String? _categoryFilter;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   static const _units = [
     'bag',
@@ -397,7 +426,16 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -415,17 +453,29 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   }
 
   List<InventoryItem> get _filtered {
-    if (_categoryFilter == null) return _items;
-    return _items.where((i) => i.category == _categoryFilter).toList();
+    return _items.where((i) {
+      final matchesCategory =
+          _categoryFilter == null || i.category == _categoryFilter;
+      final matchesSearch =
+          _searchQuery.isEmpty ||
+          i.itemName.toLowerCase().contains(_searchQuery);
+      return matchesCategory && matchesSearch;
+    }).toList();
   }
+
+  // Filter chips only ever show a category that currently has at least one
+  // item — unlike _categories (the full master list, still used as-is for
+  // the Add/Edit item category dropdown). Filtering _categories down rather
+  // than deriving straight from _items keeps the master table's ordering.
+  List<String> get _activeCategories =>
+      _categories.where((c) => _items.any((i) => i.category == c)).toList();
 
   // Depleted (0 on hand) is always at or below any reorder level, so it
   // always needs replenishment — counted here regardless of whether a
   // reorder level has even been configured yet. A non-depleted item only
   // counts once its own reorder level is set and its stock has fallen to
   // or below it (that's what isLow checks).
-  int get _lowStockCount =>
-      _items.where((i) => i.isDepleted || i.isLow).length;
+  int get _lowStockCount => _items.where((i) => i.isDepleted || i.isLow).length;
 
   void _showAddSheet() {
     final l10n = AppLocalizations.of(context);
@@ -456,8 +506,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 builder: (_) => const _PhotoSourceSheet(),
               );
               if (source == null) return;
-              final picked = await ImagePicker()
-                  .pickImage(source: source, imageQuality: 80);
+              final picked = await ImagePicker().pickImage(
+                source: source,
+                imageQuality: 80,
+              );
               if (picked == null) return;
               final bytes = await picked.readAsBytes();
               setSheet(() {
@@ -474,7 +526,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               String? imageUrl;
               if (pickedImageBytes != null) {
                 imageUrl = await _repo.uploadInventoryImage(
-                    pickedImageBytes!, pickedImageExt ?? 'jpg');
+                  pickedImageBytes!,
+                  pickedImageExt ?? 'jpg',
+                );
               }
               final ok = await _repo.addItem(
                 name: nameCtrl.text,
@@ -493,9 +547,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               ScaffoldMessenger.of(this.context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    ok
-                        ? l10n.adminInvItemAdded
-                        : l10n.adminInvItemSaveError,
+                    ok ? l10n.adminInvItemAdded : l10n.adminInvItemSaveError,
                   ),
                   backgroundColor: ok
                       ? AppConstants.successGreen
@@ -561,10 +613,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    Text('Item Photo (optional)',
+                    Text(
+                      'Item Photo (optional)',
                         style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: pickImage,
@@ -576,9 +631,14 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                               .colorScheme
                               .surfaceContainerHighest
                               .withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                           border: Border.all(
-                              color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.2)),
+                            color: Theme.of(
+                              ctx,
+                            ).colorScheme.outline.withValues(alpha: 0.2),
+                          ),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: pickedImageBytes != null
@@ -586,13 +646,22 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                             : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add_photo_alternate_outlined,
-                                      color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                                  Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    color: Theme.of(
+                                      ctx,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text('Tap to add a photo',
+                                  Text(
+                                    'Tap to add a photo',
                                       style: GoogleFonts.inter(
                                           fontSize: 12,
-                                          color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                                      color: Theme.of(
+                                        ctx,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
                                 ],
                               ),
                       ),
@@ -721,7 +790,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 ),
               ),
               footer: ManagementModalActions(
-                primaryLabel: isSaving ? l10n.adminInvSaving : l10n.adminInvAddItem,
+                primaryLabel: isSaving
+                    ? l10n.adminInvSaving
+                    : l10n.adminInvAddItem,
                 isLoading: isSaving,
                 onPrimary: submit,
               ),
@@ -832,7 +903,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               footer: ManagementModalActions(
                 primaryLabel: isSaving
                     ? l10n.adminInvSaving
-                    : (existing == null ? l10n.adminInvPublish : l10n.adminInvUpdate),
+                    : (existing == null
+                          ? l10n.adminInvPublish
+                          : l10n.adminInvUpdate),
                 isLoading: isSaving,
                 onPrimary: submit,
               ),
@@ -865,8 +938,14 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               if (ok) _load();
               ScaffoldMessenger.of(this.context).showSnackBar(
                 SnackBar(
-                  content: Text(ok ? l10n.adminInvStockUpdated : l10n.adminInvFailedTryAgain),
-                  backgroundColor: ok ? AppConstants.successGreen : AppConstants.errorRed,
+                  content: Text(
+                    ok
+                        ? l10n.adminInvStockUpdated
+                        : l10n.adminInvFailedTryAgain,
+                  ),
+                  backgroundColor: ok
+                      ? AppConstants.successGreen
+                      : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
               );
@@ -874,7 +953,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
 
             return ManagementModalShell(
               title: l10n.adminInvReorderAt,
-              subtitle: '${item.itemName} · Current: ${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
+              subtitle:
+                  '${item.itemName} · Current: ${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -882,7 +962,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   Text(
                     'This is the minimum stock level that flags this item as low '
                     'stock and triggers the reorder alert.',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   TextField(
@@ -892,7 +975,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       labelText: '${l10n.adminInvReorderLevel} *',
                       suffixText: item.unit,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                     ],
@@ -900,7 +985,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 ],
               ),
               footer: ManagementModalActions(
-                primaryLabel: isSaving ? l10n.adminInvSaving : l10n.adminInvUpdate,
+                primaryLabel: isSaving
+                    ? l10n.adminInvSaving
+                    : l10n.adminInvUpdate,
                 isLoading: isSaving,
                 onPrimary: submit,
               ),
@@ -942,7 +1029,11 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               if (ok) _load();
               ScaffoldMessenger.of(this.context).showSnackBar(
                 SnackBar(
-                  content: Text(ok ? l10n.adminInvStockUpdated : l10n.adminInvFailedTryAgain),
+                  content: Text(
+                    ok
+                        ? l10n.adminInvStockUpdated
+                        : l10n.adminInvFailedTryAgain,
+                  ),
                   backgroundColor: ok
                       ? AppConstants.successGreen
                       : AppConstants.errorRed,
@@ -1003,7 +1094,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 ],
               ),
               footer: ManagementModalActions(
-                primaryLabel: isSaving ? l10n.adminInvSaving : l10n.adminInvConfirmAdjustment,
+                primaryLabel: isSaving
+                    ? l10n.adminInvSaving
+                    : l10n.adminInvConfirmAdjustment,
                 isLoading: isSaving,
                 onPrimary: submit,
               ),
@@ -1148,9 +1241,11 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: item.itemName);
     final costCtrl = TextEditingController(
-        text: item.unitCost != null ? item.unitCost!.toStringAsFixed(2) : '');
-    final reorderCtrl =
-        TextEditingController(text: item.reorderLevel.toStringAsFixed(0));
+      text: item.unitCost != null ? item.unitCost!.toStringAsFixed(2) : '',
+    );
+    final reorderCtrl = TextEditingController(
+      text: item.reorderLevel.toStringAsFixed(0),
+    );
     final notesCtrl = TextEditingController(text: item.notes ?? '');
     String? selectedCategory = item.category;
     String? selectedUnit = item.unit;
@@ -1172,8 +1267,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 builder: (_) => const _PhotoSourceSheet(),
               );
               if (source == null) return;
-              final picked = await ImagePicker()
-                  .pickImage(source: source, imageQuality: 80);
+              final picked = await ImagePicker().pickImage(
+                source: source,
+                imageQuality: 80,
+              );
               if (picked == null) return;
               final bytes = await picked.readAsBytes();
               setSheet(() {
@@ -1190,7 +1287,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               String? imageUrl = existingImageUrl;
               if (pickedImageBytes != null) {
                 imageUrl = await _repo.uploadInventoryImage(
-                    pickedImageBytes!, pickedImageExt ?? 'jpg');
+                  pickedImageBytes!,
+                  pickedImageExt ?? 'jpg',
+                );
               }
               final ok = await _repo.updateItem(
                 id: item.id,
@@ -1276,10 +1375,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    Text('Item Photo (optional)',
+                    Text(
+                      'Item Photo (optional)',
                         style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: pickImage,
@@ -1291,18 +1393,27 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                               .colorScheme
                               .surfaceContainerHighest
                               .withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                           border: Border.all(
-                              color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.2)),
+                            color: Theme.of(
+                              ctx,
+                            ).colorScheme.outline.withValues(alpha: 0.2),
+                          ),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: pickedImageBytes != null
                             ? Image.memory(pickedImageBytes!, fit: BoxFit.cover)
-                            : (existingImageUrl != null && existingImageUrl!.isNotEmpty
+                            : (existingImageUrl != null &&
+                                      existingImageUrl!.isNotEmpty
                                 ? Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      Image.network(existingImageUrl!, fit: BoxFit.cover),
+                                        Image.network(
+                                          existingImageUrl!,
+                                          fit: BoxFit.cover,
+                                        ),
                                       Positioned(
                                         top: 6,
                                         right: 6,
@@ -1317,23 +1428,36 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                               color: Colors.black54,
                                               shape: BoxShape.circle,
                                             ),
-                                            child: const Icon(Icons.close_rounded,
-                                                size: 16, color: Colors.white),
+                                              child: const Icon(
+                                                Icons.close_rounded,
+                                                size: 16,
+                                                color: Colors.white,
+                                              ),
                                           ),
                                         ),
                                       ),
                                     ],
                                   )
                                 : Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.add_photo_alternate_outlined,
-                                          color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                                        Icon(
+                                          Icons.add_photo_alternate_outlined,
+                                          color: Theme.of(
+                                            ctx,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
                                       const SizedBox(height: 4),
-                                      Text('Tap to add a photo',
+                                        Text(
+                                          'Tap to add a photo',
                                           style: GoogleFonts.inter(
                                               fontSize: 12,
-                                              color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                                            color: Theme.of(
+                                              ctx,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
                                     ],
                                   )),
                       ),
@@ -1367,7 +1491,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(
+                                    ctx,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               const SizedBox(height: 6),
@@ -1384,9 +1510,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   ),
                                 ),
                                 keyboardType:
-                                    const TextInputType.numberWithOptions(decimal: true),
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d*'),
+                                  ),
                                 ],
                                 validator: (value) {
                                   if ((value ?? '').trim().isEmpty) {
@@ -1410,9 +1540,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         hintText: l10n.adminInvReorderHint,
                         suffixText: l10n.adminInvUnitsSuffix,
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
                       ],
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
@@ -1435,7 +1569,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 ),
               ),
               footer: ManagementModalActions(
-                primaryLabel: isSaving ? l10n.adminInvSaving : l10n.adminInvUpdate,
+                primaryLabel: isSaving
+                    ? l10n.adminInvSaving
+                    : l10n.adminInvUpdate,
                 isLoading: isSaving,
                 onPrimary: submit,
               ),
@@ -1457,8 +1593,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: Text('Delete "${item.itemName}"?',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        title: Text(
+          'Delete "${item.itemName}"?',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
         content: Text(
           'This permanently deletes this item, including its full stock '
           'transaction history. If it\'s currently published to the Loan '
@@ -1472,7 +1610,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Continue', style: TextStyle(color: AppConstants.errorRed)),
+            child: const Text(
+              'Continue',
+              style: TextStyle(color: AppConstants.errorRed),
+            ),
           ),
         ],
       ),
@@ -1495,7 +1636,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppConstants.errorRed),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.errorRed,
+            ),
             onPressed: () => Navigator.pop(dialogCtx, true),
             child: const Text('Delete Permanently'),
           ),
@@ -1536,8 +1679,12 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
         if (ok) _load();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ok ? 'Item deactivated.' : l10n.adminInvFailedTryAgain),
-            backgroundColor: ok ? AppConstants.successGreen : AppConstants.errorRed,
+            content: Text(
+              ok ? 'Item deactivated.' : l10n.adminInvFailedTryAgain,
+            ),
+            backgroundColor: ok
+                ? AppConstants.successGreen
+                : AppConstants.errorRed,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -1580,14 +1727,22 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   // no icon at all. Same accepted tradeoff as FarmerCropModel.iconForCategory.
   IconData _categoryIcon(String category) {
     switch (category) {
-      case 'Fertilizer':             return Icons.eco_rounded;
-      case 'Seeds':                  return Icons.grass_rounded;
-      case 'Animal Feeds':           return Icons.pets_rounded;
-      case 'Pesticide':              return Icons.bug_report_rounded;
-      case 'Tools & Equipment':      return Icons.handyman_rounded;
-      case 'Harvest Stock':          return Icons.agriculture_rounded;
-      case 'Livestock':              return Icons.cruelty_free_rounded;
-      default:                       return Icons.inventory_2_rounded;
+      case 'Fertilizer':
+        return Icons.eco_rounded;
+      case 'Seeds':
+        return Icons.grass_rounded;
+      case 'Animal Feeds':
+        return Icons.pets_rounded;
+      case 'Pesticide':
+        return Icons.bug_report_rounded;
+      case 'Tools & Equipment':
+        return Icons.handyman_rounded;
+      case 'Harvest Stock':
+        return Icons.agriculture_rounded;
+      case 'Livestock':
+        return Icons.cruelty_free_rounded;
+      default:
+        return Icons.inventory_2_rounded;
     }
   }
 
@@ -1724,14 +1879,34 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                     icon: Icons.category_rounded,
                                     accent: AppConstants.primaryGreen,
                                     label: l10n.reportsCategories,
-                                    value: '${{for (final i in _items) i.category}.length}',
+                                    value:
+                                        '${{for (final i in _items) i.category}.length}',
                                   ),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 10),
-                          // Category filter
+                          // Search bar
+                          TextField(
+                            controller: _searchCtrl,
+                            decoration: InputDecoration(
+                              hintText: l10n.adminInvSearchHint,
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              filled: true,
+                              fillColor: sagana.cardBackground,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusLg,
+                                ),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Category filter — only shows a category that
+                          // currently has at least one item (_activeCategories),
+                          // updating live as the catalog changes.
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             padding: EdgeInsets.zero,
@@ -1740,17 +1915,19 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                 _Chip(
                                   label: l10n.reportsAll,
                                   selected: _categoryFilter == null,
-                                  onTap: () => setState(() => _categoryFilter = null),
+                                  onTap: () =>
+                                      setState(() => _categoryFilter = null),
                                   cs: cs,
                                   sagana: sagana,
                                 ),
-                                ...{for (final i in _items) i.category}.map(
+                                ..._activeCategories.map(
                                   (cat) => Padding(
                                     padding: const EdgeInsets.only(left: 8),
                                     child: _Chip(
                                       label: cat,
                                       selected: _categoryFilter == cat,
-                                      onTap: () => setState(() => _categoryFilter = cat),
+                                      onTap: () =>
+                                          setState(() => _categoryFilter = cat),
                                       cs: cs,
                                       sagana: sagana,
                                     ),
@@ -1861,27 +2038,45 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                           // circle — too small to actually
                                           // see the photo).
                                           borderRadius: BorderRadius.circular(
-                                              AppConstants.radiusMd),
+                                              AppConstants.radiusMd,
+                                            ),
                                           child: SizedBox(
                                             width: 68,
                                             height: 68,
-                                            child: (item.imageUrl != null &&
+                                              child:
+                                                  (item.imageUrl != null &&
                                                     item.imageUrl!.isNotEmpty)
                                                 ? Image.network(
                                                     item.imageUrl!,
                                                     fit: BoxFit.cover,
-                                                    errorBuilder: (_, __, ___) => Container(
-                                                        color: stockColor.withValues(alpha: 0.12),
+                                                      errorBuilder:
+                                                          (
+                                                            _,
+                                                            __,
+                                                            ___,
+                                                          ) => Container(
+                                                            color: stockColor
+                                                                .withValues(
+                                                                  alpha: 0.12,
+                                                                ),
                                                         child: Icon(
-                                                          _categoryIcon(item.category),
+                                                              _categoryIcon(
+                                                                item.category,
+                                                              ),
                                                           color: stockColor,
                                                           size: 28,
-                                                        )),
+                                                            ),
+                                                          ),
                                                   )
                                                 : Container(
-                                                    color: stockColor.withValues(alpha: 0.12),
+                                                      color: stockColor
+                                                          .withValues(
+                                                            alpha: 0.12,
+                                                          ),
                                                     child: Icon(
-                                                      _categoryIcon(item.category),
+                                                        _categoryIcon(
+                                                          item.category,
+                                                        ),
                                                       color: stockColor,
                                                       size: 28,
                                                     ),
@@ -1963,46 +2158,80 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                     icon: Icon(
                                                       Icons.more_vert_rounded,
                                                       size: 20,
-                                                      color: cs.onSurfaceVariant,
+                                                      color:
+                                                          cs.onSurfaceVariant,
                                                     ),
                                                     onSelected: (value) {
                                                       switch (value) {
                                                         case 'edit':
                                                           _showEditSheet(item);
                                                         case 'adjust':
-                                                          if (_isOnline) _showAdjustSheet(item);
+                                                          if (_isOnline)
+                                                            _showAdjustSheet(
+                                                              item,
+                                                            );
                                                         case 'publish':
-                                                          if (_isOnline) _showLoanCatalogSheet(item);
+                                                          if (_isOnline)
+                                                            _showLoanCatalogSheet(
+                                                              item,
+                                                            );
                                                         case 'history':
-                                                          _showTransactionHistory(item);
+                                                          _showTransactionHistory(
+                                                            item,
+                                                          );
                                                         case 'delete':
-                                                          if (_isOnline) _confirmDeleteItem(item);
+                                                          if (_isOnline)
+                                                            _confirmDeleteItem(
+                                                              item,
+                                                            );
                                                       }
                                                     },
                                                     itemBuilder: (ctx) => [
                                                       PopupMenuItem(
                                                         value: 'edit',
-                                                        child: _menuRow(Icons.edit_outlined, 'Edit Item', cs.onSurface),
+                                                        child: _menuRow(
+                                                          Icons.edit_outlined,
+                                                          'Edit Item',
+                                                          cs.onSurface,
+                                                        ),
                                                       ),
                                                       PopupMenuItem(
                                                         value: 'adjust',
                                                         enabled: _isOnline,
-                                                        child: _menuRow(Icons.tune_rounded, l10n.adminInvAdjustStockTitle, cs.onSurface),
+                                                        child: _menuRow(
+                                                          Icons.tune_rounded,
+                                                          l10n.adminInvAdjustStockTitle,
+                                                          cs.onSurface,
+                                                        ),
                                                       ),
                                                       PopupMenuItem(
                                                         value: 'publish',
                                                         enabled: _isOnline,
-                                                        child: _menuRow(Icons.request_page_rounded, l10n.adminInvPublish, cs.onSurface),
+                                                        child: _menuRow(
+                                                          Icons
+                                                              .request_page_rounded,
+                                                          l10n.adminInvPublish,
+                                                          cs.onSurface,
+                                                        ),
                                                       ),
                                                       PopupMenuItem(
                                                         value: 'history',
-                                                        child: _menuRow(Icons.history_rounded, l10n.adminInvHistoryAction, cs.onSurface),
+                                                        child: _menuRow(
+                                                          Icons.history_rounded,
+                                                          l10n.adminInvHistoryAction,
+                                                          cs.onSurface,
+                                                        ),
                                                       ),
                                                       const PopupMenuDivider(),
                                                       PopupMenuItem(
                                                         value: 'delete',
                                                         enabled: _isOnline,
-                                                        child: _menuRow(Icons.delete_outline_rounded, 'Delete Item', AppConstants.errorRed),
+                                                        child: _menuRow(
+                                                          Icons
+                                                              .delete_outline_rounded,
+                                                          'Delete Item',
+                                                          AppConstants.errorRed,
+                                                        ),
                                                       ),
                                                     ],
                                                   ),
@@ -2018,18 +2247,21 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                               // "bag") to overflow rather
                                               // than just wrap awkwardly.
                                               SingleChildScrollView(
-                                                scrollDirection: Axis.horizontal,
+                                                scrollDirection:
+                                                    Axis.horizontal,
                                                 child: Row(
                                                 children: [
                                                   _StockStat(
-                                                    label: l10n.adminInvOnHand,
+                                                      label:
+                                                          l10n.adminInvOnHand,
                                                     value:
                                                         '${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
                                                     color: stockColor,
                                                   ),
                                                   const SizedBox(width: 16),
                                                   _StockStat(
-                                                    label: l10n.adminInvAvailable,
+                                                      label: l10n
+                                                          .adminInvAvailable,
                                                     value:
                                                         '${item.available.toStringAsFixed(1)} ${item.unit}',
                                                     color: cs.onSurface,
@@ -2059,12 +2291,15 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                               )
                                                         : null,
                                                     child: _StockStat(
-                                                      label: l10n.adminInvReorderAt,
-                                                      value: item.reorderLevel >
+                                                        label: l10n
+                                                            .adminInvReorderAt,
+                                                        value:
+                                                            item.reorderLevel >
                                                               0
                                                           ? '${item.reorderLevel.toStringAsFixed(0)} ${item.unit}'
                                                           : 'Not set',
-                                                      color: item.reorderLevel >
+                                                        color:
+                                                            item.reorderLevel >
                                                               0
                                                           ? cs.onSurfaceVariant
                                                           : AppConstants
@@ -2084,7 +2319,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                       Text(
                                                         '₱${item.unitCost!.toStringAsFixed(2)} / ${item.unit}',
                                                         maxLines: 1,
-                                                        overflow: TextOverflow.ellipsis,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
                                                         style: GoogleFonts.inter(
                                                           fontSize: 11,
                                                           color: cs
@@ -2106,9 +2342,14 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                         null)
                                                       Flexible(
                                                         child: Text(
-                                                          l10n.adminInvLastRestocked(_formatDate(item.lastRestockedAt!)),
+                                                          l10n.adminInvLastRestocked(
+                                                            _formatDate(
+                                                              item.lastRestockedAt!,
+                                                            ),
+                                                          ),
                                                           maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                           style: GoogleFonts.inter(
                                                             fontSize: 11,
                                                             color: cs
@@ -2189,20 +2430,35 @@ class _PhotoSourceSheet extends StatelessWidget {
           children: [
             const SizedBox(height: 8),
             Container(
-              width: 36, height: 4,
+                width: 36,
+                height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_camera_rounded, color: AppConstants.primaryGreen),
-              title: Text('Take Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                leading: const Icon(
+                  Icons.photo_camera_rounded,
+                  color: AppConstants.primaryGreen,
+                ),
+                title: Text(
+                  'Take Photo',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                ),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_rounded, color: AppConstants.primaryGreen),
-              title: Text('Upload Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                leading: const Icon(
+                  Icons.photo_library_rounded,
+                  color: AppConstants.primaryGreen,
+                ),
+                title: Text(
+                  'Upload Photo',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                ),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             const SizedBox(height: 8),

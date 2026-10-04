@@ -262,6 +262,8 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   // gradient header) instead of a separate floating card. ───────────────
   Widget _buildHeroContent(BuildContext context, FarmerMarketRateModel rate, IconData icon) {
     final l10n = AppLocalizations.of(context);
+    final imageUrl = rate.cropImageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return ClipRRect(
       borderRadius: const BorderRadius.only(
         bottomLeft: Radius.circular(32),
@@ -275,13 +277,21 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 60,
-              height: 60,
+              width: 88,
+              height: 88,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(22),
               ),
-              child: Icon(icon, color: Colors.white, size: 28),
+              child: hasImage
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(icon, color: Colors.white, size: 36),
+                    )
+                  : Icon(icon, color: Colors.white, size: 36),
             ),
             const SizedBox(width: 16),
             Expanded(

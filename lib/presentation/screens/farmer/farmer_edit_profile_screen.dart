@@ -17,7 +17,7 @@ import '../../widgets/change_password_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 
-/// Farmer Edit Profile — name, phone, purok, photo, Change Password.
+/// Farmer Edit Profile — name, phone, photo, Change Password.
 /// Route: /farmer/profile/edit. Mirrors AdminEditProfileScreen exactly;
 /// replaces the bottom-sheet edit form and photo picker that previously
 /// lived inline in FarmerProfileScreen/FarmerSettingsScreen.
@@ -25,7 +25,8 @@ class FarmerEditProfileScreen extends StatefulWidget {
   const FarmerEditProfileScreen({super.key});
 
   @override
-  State<FarmerEditProfileScreen> createState() => _FarmerEditProfileScreenState();
+  State<FarmerEditProfileScreen> createState() =>
+      _FarmerEditProfileScreenState();
 }
 
 class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
@@ -40,15 +41,14 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   bool _isOnline = true;
   bool _loadFailed = false;
   String? _photoUrl;
-  String? _selectedPurok;
   DateTime? _dateOfBirth;
   String? _gender; // male | female | prefer_not_to_say
 
   Map<String, String> _genderOptions(AppLocalizations l10n) => {
-        'male': l10n.registerGenderMale,
-        'female': l10n.registerGenderFemale,
-        'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
-      };
+    'male': l10n.registerGenderMale,
+    'female': l10n.registerGenderFemale,
+    'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
+  };
 
   @override
   void initState() {
@@ -74,15 +74,15 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       _loadFailed = false;
     });
     try {
-      final profile =
-          await _repo.fetchProfile().timeout(const Duration(seconds: 15));
+      final profile = await _repo.fetchProfile().timeout(
+        const Duration(seconds: 15),
+      );
       if (!mounted) return;
       setState(() {
         _nameController.text = profile?.fullName ?? '';
         _phoneController.text = profile?.phoneNumber ?? '';
         _emailController.text = profile?.contactEmail ?? '';
         _photoUrl = profile?.profilePhotoUrl;
-        _selectedPurok = profile?.purok;
         _dateOfBirth = profile?.dateOfBirth;
         _gender = profile?.gender;
         _isLoading = false;
@@ -97,7 +97,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
     if (picked == null) return;
 
     setState(() => _isUploadingPhoto = true);
@@ -113,9 +116,9 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       FarmerProfileStateService.instance.refresh();
     } else if (mounted) {
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.photoUploadFailed)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.photoUploadFailed)));
     }
   }
 
@@ -123,14 +126,20 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     final l10n = AppLocalizations.of(context);
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.fullNameEmpty), backgroundColor: AppConstants.errorRed),
+        SnackBar(
+          content: Text(l10n.fullNameEmpty),
+          backgroundColor: AppConstants.errorRed,
+        ),
       );
       return;
     }
     if (_dateOfBirth != null) {
       final now = DateTime.now();
       final eighteenth = DateTime(
-          _dateOfBirth!.year + 18, _dateOfBirth!.month, _dateOfBirth!.day);
+        _dateOfBirth!.year + 18,
+        _dateOfBirth!.month,
+        _dateOfBirth!.day,
+      );
       if (eighteenth.isAfter(now)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -146,7 +155,6 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       await _repo.updateBasicInfo(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
-        purok: _selectedPurok,
         contactEmail: _emailController.text.trim(),
         dateOfBirth: _dateOfBirth,
         gender: _gender,
@@ -154,7 +162,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       FarmerProfileStateService.instance.refresh();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.profileUpdated), backgroundColor: AppConstants.successGreen),
+        SnackBar(
+          content: Text(l10n.profileUpdated),
+          backgroundColor: AppConstants.successGreen,
+        ),
       );
       context.pop();
     } catch (e) {
@@ -172,6 +183,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
+    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
@@ -179,7 +191,10 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       body: Column(
         children: [
           if (!_isOnline)
-            const OfflineBanner(message: "You're offline — you won't be able to save changes until you're reconnected."),
+            const OfflineBanner(
+              message:
+                  "You're offline — you won't be able to save changes until you're reconnected.",
+            ),
           // When the banner is showing, it already occupies the space the
           // status bar inset would otherwise reserve, so that inset is
           // removed here to avoid double top-padding between the banner
@@ -191,50 +206,117 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
             child: AppBar(
               backgroundColor: sagana.scaffoldBackground,
               elevation: 0,
-              leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-              title: Text(l10n.editProfile,
-                  style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+              // Same circular back button FarmerTopBar renders (40x40
+              // circle, card-background fill, primary-tinted border) — the
+              // plain BackButton this replaced didn't match Edit Farm
+              // Details' header.
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: GestureDetector(
+                  onTap: () => context.pop(),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: sagana.cardBackground,
+                      border: Border.all(
+                        color: cs.primary.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Icon(Icons.arrow_back_rounded, color: cs.primary),
+                  ),
+                ),
+              ),
+              title: Text(
+                l10n.editProfile,
+                style: GoogleFonts.poppins(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
               actions: [
                 TextButton(
                   onPressed: _isSaving ? null : _save,
-                  child: Text(l10n.save,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                  child: Text(
+                    l10n.save,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.primaryGreen,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
+          // Matches FarmerTopBar's own divider color exactly (cs.outline at
+          // 20% alpha) — sagana.glassBorder (tried first) is meant for the
+          // blurred-glass header style and read as nearly invisible here.
+          // Drawn as a plain sibling rather than via AppBar's own `bottom:`
+          // slot — this AppBar is a bare widget inside a Column (not
+          // Scaffold.appBar), and AppBar's `bottom` relies on a bounded
+          // height being handed down the way Scaffold provides it; without
+          // that, it crashes with "RenderFlex children have non-zero flex
+          // but incoming height constraints are unbounded." A plain
+          // Container next to it needs no such assumption.
+          Container(height: 1, color: cs.outline.withValues(alpha: 0.20)),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _loadFailed
                 ? _EditProfileLoadError(onRetry: _load, isOnline: _isOnline)
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 40),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppConstants.spacingSafeH,
+                      16,
+                      AppConstants.spacingSafeH,
+                      40,
+                    ),
                     children: [
                       Center(
                         child: Stack(
                           children: [
                             ProfileAvatar(
                               photoUrl: _photoUrl,
-                              displayName: _nameController.text.isNotEmpty ? _nameController.text : l10n.defaultFarmerName,
+                              displayName: _nameController.text.isNotEmpty
+                                  ? _nameController.text
+                                  : l10n.defaultFarmerName,
                               radius: 56,
                             ),
                             if (_isUploadingPhoto)
                               Positioned.fill(
                                 child: Container(
-                                  decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
-                                  child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black38,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
                                 ),
                               )
                             else
                               Positioned(
-                                bottom: 0, right: 0,
+                                bottom: 0,
+                                right: 0,
                                 child: GestureDetector(
                                   onTap: _pickPhoto,
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
-                                    decoration: const BoxDecoration(color: AppConstants.primaryGreen, shape: BoxShape.circle),
-                                    child: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                                    decoration: const BoxDecoration(
+                                      color: AppConstants.primaryGreen,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -245,8 +327,14 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                       Center(
                         child: TextButton(
                           onPressed: _isUploadingPhoto ? null : _pickPhoto,
-                          child: Text(l10n.changePhoto,
-                              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+                          child: Text(
+                            l10n.changePhoto,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppConstants.primaryGreen,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -271,15 +359,6 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                         label: l10n.phoneNumber,
                         prefixIcon: Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 16),
-                      AppDropdownField<String>(
-                        value: AppConstants.payanasPuroks.contains(_selectedPurok) ? _selectedPurok : null,
-                        hintText: l10n.addMemberSelectHint,
-                        labelText: l10n.adminProfilePurok,
-                        items: AppConstants.payanasPuroks,
-                        itemLabel: (s) => s,
-                        onChanged: (v) => setState(() => _selectedPurok = v),
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -323,18 +402,22 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                       const SizedBox(height: 24),
                       SectionLabel(label: l10n.sectionSecurity),
                       const SizedBox(height: 8),
-                      SettingsCard(children: [
-                        SettingsRow(
-                          icon: Icons.lock_reset_rounded,
-                          iconColor: AppConstants.primaryGreen,
-                          title: l10n.changePassword,
-                          subtitle: l10n.updatePasswordSubtitle,
-                          onTap: () => AppDialog.show<void>(
-                            context: context,
-                            child: ChangePasswordDialog(onSuccess: _repo.logPasswordChanged),
+                      SettingsCard(
+                        children: [
+                          SettingsRow(
+                            icon: Icons.lock_reset_rounded,
+                            iconColor: AppConstants.primaryGreen,
+                            title: l10n.changePassword,
+                            subtitle: l10n.updatePasswordSubtitle,
+                            onTap: () => AppDialog.show<void>(
+                              context: context,
+                              child: ChangePasswordDialog(
+                                onSuccess: _repo.logPasswordChanged,
+                              ),
+                            ),
                           ),
-                        ),
-                      ]),
+                        ],
+                      ),
                     ],
                   ),
           ),
@@ -433,10 +516,12 @@ class _FarmerLabeledDateField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: onTap,
@@ -457,7 +542,9 @@ class _FarmerLabeledDateField extends StatelessWidget {
                     maxLines: 1,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: hasValue ? cs.onSurface : cs.onSurfaceVariant.withValues(alpha: 0.7),
+                      color: hasValue
+                          ? cs.onSurface
+                          : cs.onSurfaceVariant.withValues(alpha: 0.7),
                     ),
                   ),
                 ),

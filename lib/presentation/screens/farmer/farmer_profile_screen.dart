@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../widgets/map_attribution_links.dart';
+import '../../../core/constants/osm_config.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/farmer_profile_model.dart';
+import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
+import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
@@ -32,19 +37,22 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   final _repo = FarmerProfileRepository();
   final _notifRepo = NotificationRepository();
   final _marketLinkingRepo = MarketLinkingRepository();
-  final _picker = ImagePicker();
+  final _dashboardRepo = DashboardRepository();
 
   FarmerProfileModel? _profile;
   double _outstandingLoans = 0;
   double _monthExpenses = 0;
-  int _harvestCount = 0;
+  // Relocated from the Farmer Home tab — same DashboardRepository.
+  // fetchSummary() call Home itself uses, so this is the identical
+  // figure, not a second independent computation of "this year's yield".
+  double _annualYieldKg = 0;
+  double _annualEarnings = 0;
   int _unsyncedCount = 0;
   int _unreadCount = 0;
   int _programCount = 0;
   int _marketLinkingCount = 0;
   bool _isLoading = true;
   bool _farmDetailsExpanded = true;
-  bool _isUploadingPhoto = false;
   bool _isOnline = true;
 
   @override
@@ -80,54 +88,35 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _repo.fetchProfile(),
       _repo.fetchOutstandingLoans(),
       _repo.fetchThisMonthExpenses(),
-      _repo.fetchHarvestRecordCount(),
       _notifRepo.fetchUnreadCount(),
       _repo.fetchMyProgramCount(),
-      _marketLinkingRepo.fetchMyEnrollmentCount(),
+      _marketLinkingRepo.fetchMySubmissionCount(),
+      _marketLinkingRepo.fetchHasGingerCrop(),
+      _dashboardRepo.fetchSummary(),
     ]);
     if (!mounted) return;
     setState(() {
       _profile = results[0] as FarmerProfileModel?;
       _outstandingLoans = results[1] as double;
       _monthExpenses = results[2] as double;
-      _harvestCount = results[3] as int;
-      _unreadCount = results[4] as int;
-      _programCount = results[5] as int;
-      _marketLinkingCount = results[6] as int;
+      _unreadCount = results[3] as int;
+      _programCount = results[4] as int;
+      // "DA-AMAD Market Linking" shows for anyone who's ever submitted a
+      // Ginger sale OR currently grows Ginger — the latter so a farmer who
+      // hasn't touched Market Linking yet can still discover the
+      // enrollment flow, not just farmers with existing submission history.
+      _marketLinkingCount = (results[5] as int) > 0 || (results[6] as bool)
+          ? 1
+          : 0;
+      final summary = results[7] as DashboardSummaryModel;
+      _annualYieldKg = summary.annualYieldKg;
+      _annualEarnings = summary.annualEarnings;
       _unsyncedCount = HiveService.getUnsyncedCount();
       _isLoading = false;
     });
 
     if (_profile != null) {
       FarmerProfileStateService.instance.updateProfile(_profile!);
-    }
-  }
-
-  Future<void> _pickProfilePhoto() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (picked == null) return;
-
-    setState(() => _isUploadingPhoto = true);
-    final Uint8List bytes = await picked.readAsBytes();
-    final ext = picked.name.split('.').last;
-    final url = await _repo.updatePhoto(
-      imageBytes: bytes,
-      fileExtension: ext,
-    );
-    if (!mounted) return;
-    setState(() => _isUploadingPhoto = false);
-
-    if (url != null) {
-      _loadData();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to upload photo. Please try again.'),
-        ),
-      );
     }
   }
 
@@ -152,9 +141,14 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
               Navigator.pop(context);
               context.pushRoute(AppRoutes.editFarmDetails);
             },
+            onMyAddresses: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.myAddresses);
+            },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onAboutOrganization: () =>
+                context.pushRoute(AppRoutes.aboutCooperative),
             onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
             onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
           );
@@ -163,7 +157,10 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       body: Column(
         children: [
           if (!_isOnline)
-            const OfflineBanner(message: "You're offline — some actions, like changing your photo, require an internet connection."),
+            const OfflineBanner(
+              message:
+                  "You're offline — some actions, like changing your photo, require an internet connection.",
+            ),
           Expanded(
             child: Stack(
               children: [
@@ -171,136 +168,155 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                   children: [
                     const SizedBox(height: 64),
                     Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadData,
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppConstants.primaryGreen,
-                          ),
-                        )
-                      : _profile == null
-                      ? _ProfileLoadError(onRetry: _loadData, isOnline: _isOnline)
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 5),
-                          children: [
-                            _ProfileHeaderCard(
-                              profile: _profile!,
-                              unsyncedCount: _unsyncedCount,
-                              isUploadingPhoto: _isUploadingPhoto,
-                              onEditPhoto: _pickProfilePhoto,
-                              onSyncTap: () async {
-                                final isOnline = await ConnectivityService
-                                    .instance
-                                    .checkConnectivity();
-                                if (!isOnline) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'No internet connection. Records will sync automatically once you\'re back online.',
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadData,
+                        child: _isLoading
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppConstants.primaryGreen,
+                                ),
+                              )
+                            : _profile == null
+                            ? _ProfileLoadError(
+                                onRetry: _loadData,
+                                isOnline: _isOnline,
+                              )
+                            : ListView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  16,
+                                  20,
+                                  5,
+                                ),
+                                children: [
+                                  _ProfileHeaderCard(
+                                    profile: _profile!,
+                                    unsyncedCount: _unsyncedCount,
+                                    onSyncTap: () async {
+                                      final isOnline = await ConnectivityService
+                                          .instance
+                                          .checkConnectivity();
+                                      if (!isOnline) {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'No internet connection. Records will sync automatically once you\'re back online.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Syncing records...'),
+                                        ),
+                                      );
+                                      // No explicit _loadData() call here anymore —
+                                      // SyncService.syncPending() now broadcasts via
+                                      // AppEventService.notify() on completion,
+                                      // which this screen already listens for
+                                      // (_onDataChanged). Calling both was a
+                                      // redundant double-fetch (Final Verification,
+                                      // item 2).
+                                      await SyncService.syncPending();
+                                    },
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _FarmDetailsSection(
+                                    profile: _profile!,
+                                    expanded: _farmDetailsExpanded,
+                                    onToggle: () => setState(
+                                      () => _farmDetailsExpanded =
+                                          !_farmDetailsExpanded,
+                                    ),
+                                    onEdit: () async {
+                                      await context.pushRoute(
+                                        AppRoutes.editFarmDetails,
+                                      );
+                                      if (mounted) _loadData();
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _AnnualStatsRow(
+                                    annualYieldKg: _annualYieldKg,
+                                    annualEarnings: _annualEarnings,
+                                    isLoading: _isLoading,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _FarmRecordsSection(
+                                    outstandingLoans: _outstandingLoans,
+                                    monthExpenses: _monthExpenses,
+                                    onLoansTap: () =>
+                                        context.pushRoute(AppRoutes.myLoans),
+                                    onExpensesTap: () =>
+                                        context.pushRoute(AppRoutes.myExpenses),
+                                    onTransactionHistoryTap: () =>
+                                        context.pushRoute(
+                                          AppRoutes.myTransactionHistory,
+                                        ),
+                                    onMyOrdersTap: () => context.pushRoute(
+                                      AppRoutes.farmerMyOrders,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const _CooperativeBenefitsHeader(),
+                                  _RecordRow(
+                                    icon: Icons.volunteer_activism_rounded,
+                                    title: 'Programs',
+                                    subtitle:
+                                        '$_programCount active program${_programCount == 1 ? '' : 's'}',
+                                    onTap: () =>
+                                        context.pushRoute(AppRoutes.myPrograms),
+                                  ),
+                                  if (_marketLinkingCount > 0) ...[
+                                    const SizedBox(height: 8),
+                                    _RecordRow(
+                                      icon: Icons.eco_rounded,
+                                      title: 'DA-AMAD Market Linking',
+                                      subtitle: 'View your enrollment status',
+                                      onTap: () => context.pushRoute(
+                                        AppRoutes.myMarketLinking,
                                       ),
                                     ),
-                                  );
-                                  return;
-                                }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Syncing records...'),
+                                  ],
+                                  const SizedBox(height: 8),
+                                  _RecordRow(
+                                    icon: Icons.groups_outlined,
+                                    title: 'Balik-Tangkilik & Capital Share',
+                                    subtitle:
+                                        'Capital Shares: ₱${_profile!.capitalShares.toStringAsFixed(2)}',
+                                    onTap: () => context.pushRoute(
+                                      AppRoutes.myContribution,
+                                    ),
                                   ),
-                                );
-                                // No explicit _loadData() call here anymore —
-                                // SyncService.syncPending() now broadcasts via
-                                // AppEventService.notify() on completion,
-                                // which this screen already listens for
-                                // (_onDataChanged). Calling both was a
-                                // redundant double-fetch (Final Verification,
-                                // item 2).
-                                await SyncService.syncPending();
-                              },
-                            ),
-                            const SizedBox(height: 14),
-                            _FarmDetailsSection(
-                              profile: _profile!,
-                              expanded: _farmDetailsExpanded,
-                              onToggle: () => setState(
-                                () => _farmDetailsExpanded =
-                                    !_farmDetailsExpanded,
+                                  const SizedBox(height: 20),
+                                ],
                               ),
-                              onEdit: () async {
-                                await context.pushRoute(
-                                  AppRoutes.editFarmDetails,
-                                );
-                                if (mounted) _loadData();
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            _FarmRecordsSection(
-                              outstandingLoans: _outstandingLoans,
-                              monthExpenses: _monthExpenses,
-                              harvestCount: _harvestCount,
-                              onLoansTap: () =>
-                                  context.pushRoute(AppRoutes.myLoans),
-                              onExpensesTap: () =>
-                                  context.pushRoute(AppRoutes.myExpenses),
-                              onHarvestSummaryTap: () =>
-                                  context.pushRoute(AppRoutes.myHarvestSummary),
-                            ),
-                            const SizedBox(height: 20),
-                            const _CooperativeBenefitsHeader(),
-                            _RecordRow(
-                              icon: Icons.volunteer_activism_rounded,
-                              iconColor: AppConstants.programPurple,
-                              title: 'Programs',
-                              subtitle:
-                                  '$_programCount active program${_programCount == 1 ? '' : 's'}',
-                              onTap: () =>
-                                  context.pushRoute(AppRoutes.myPrograms),
-                            ),
-                            if (_marketLinkingCount > 0) ...[
-                              const SizedBox(height: 8),
-                              _RecordRow(
-                                icon: Icons.eco_rounded,
-                                iconColor: AppConstants.primaryGreen,
-                                title: 'DA-AMAD Market Linking',
-                                subtitle: 'View your enrollment status',
-                                onTap: () => context
-                                    .pushRoute(AppRoutes.myMarketLinking),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            _RecordRow(
-                              icon: Icons.groups_outlined,
-                              iconColor: AppConstants.primaryGreen,
-                              title: 'Balik-Tangkilik & Capital Share',
-                              subtitle:
-                                  'Capital Shares: ₱${_profile!.capitalShares.toStringAsFixed(2)}',
-                              onTap: () =>
-                                  context.pushRoute(AppRoutes.myContribution),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: 'Profile',
-              profilePhotoUrl: _profile?.profilePhotoUrl,
-              unreadCount: _unreadCount,
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              enableMenu: true,
-            ),
-          ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: 'Profile',
+                    profilePhotoUrl: _profile?.profilePhotoUrl,
+                    unreadCount: _unreadCount,
+                    hideProfileAvatar: true,
+                    onProfileTap: () {},
+                    onNotificationTap: () =>
+                        context.pushRoute(AppRoutes.farmerNotifications),
+                    enableMenu: true,
+                  ),
+                ),
               ],
             ),
           ),
@@ -317,33 +333,50 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
 class _ProfileHeaderCard extends StatelessWidget {
   final FarmerProfileModel profile;
   final int unsyncedCount;
-  final bool isUploadingPhoto;
-  final VoidCallback onEditPhoto;
   final VoidCallback onSyncTap;
 
   const _ProfileHeaderCard({
     required this.profile,
     required this.unsyncedCount,
-    required this.isUploadingPhoto,
-    required this.onEditPhoto,
     required this.onSyncTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Account standing is coordinated with the Admin Members module —
+    // accountStatus is the raw user_roles.status value Admin's own
+    // suspend/reactivate RPCs write, not a Farmer-side concept. 'inactive'
+    // (a login-recency derivation) is deliberately never surfaced here,
+    // per the existing rule that it's an Admin-facing indicator only —
+    // anything other than a manual suspension displays as Active.
+    final isSuspended = profile.accountStatus == 'suspended';
+    // "Farmer Member" is a distinct concept from account standing —
+    // farmer_profiles.is_verified, set once by Admin after SP3 membership
+    // verification. Shown only for verified members, independent of
+    // whether the account is currently active or suspended.
+    final isApprovedMember = profile.isVerified;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusXl),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.75),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.80),
+                AppConstants.primaryGreen.withValues(alpha: 0.06),
+              ],
+            ),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
+            border: Border.all(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.14),
+            ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
+                color: const Color(0xFF455A64).withValues(alpha: 0.06),
                 blurRadius: 16,
               ),
             ],
@@ -351,274 +384,235 @@ class _ProfileHeaderCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ProfileAvatar(
-                    photoUrl: profile.profilePhotoUrl,
-                    displayName: profile.fullName,
-                    radius: 40,
-                    onTap: isUploadingPhoto ? null : onEditPhoto,
-                    badge: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppConstants.primaryGreen,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: isUploadingPhoto
-                          ? const SizedBox(
-                              width: 10,
-                              height: 10,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.camera_alt_rounded,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                    ),
+              // A slim brand-accent bar along the top edge — enough to
+              // read as "SAGANA" without turning the card into a banner.
+              Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppConstants.radiusXl),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppConstants.primaryGreen,
+                      AppConstants.primaryGreen.withValues(alpha: 0.35),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status badge in its own full-width row, right-aligned
+                    // — "upper-right of the header," not squeezed in beside
+                    // the name (that approach forced long names into an
+                    // ugly mid-word wrap/truncation, since the badge was
+                    // eating into the name's available width). This way the
+                    // avatar+name row below gets the entire card width to
+                    // itself. Exactly one badge now — Active vs. Suspended
+                    // is a single account-status fact, not two things to
+                    // show at once.
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _StatusBadge(
+                          label: isSuspended ? 'SUSPENDED' : 'ACTIVE',
+                          color: isSuspended
+                              ? AppConstants.errorRed
+                              : AppConstants.successGreen,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            Text(
-                              profile.fullName,
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppConstants.onSurface,
-                              ),
-                            ),
-                            if (profile.accountStatus == 'suspended')
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.errorRed.withValues(
-                                    alpha: 0.10,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusFull,
-                                  ),
-                                  border: Border.all(
-                                    color: AppConstants.errorRed.withValues(
-                                      alpha: 0.20,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'ACCOUNT SUSPENDED',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppConstants.errorRed,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ),
-                            if (profile.isVerified)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.successGreen.withValues(
-                                    alpha: 0.10,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusFull,
-                                  ),
-                                  border: Border.all(
-                                    color: AppConstants.successGreen.withValues(
-                                      alpha: 0.20,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'ACTIVE MEMBER',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppConstants.successGreen,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              )
-                            else
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.warningAmber.withValues(
-                                    alpha: 0.10,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusFull,
-                                  ),
-                                  border: Border.all(
-                                    color: AppConstants.warningAmber.withValues(
-                                      alpha: 0.20,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'PENDING VERIFICATION',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppConstants.warningAmber,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ),
-                          ],
+                        // Not editable here — per design, the avatar can
+                        // only be changed via Edit Profile, which has its
+                        // own working photo picker. No onTap/badge means no
+                        // affordance suggesting this is tappable.
+                        ProfileAvatar(
+                          photoUrl: profile.profilePhotoUrl,
+                          displayName: profile.fullName,
+                          radius: 40,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          profile.memberId != null
-                              ? 'Member since ${profile.memberSinceLabel} • ${profile.memberId}'
-                              : 'Member since ${profile.memberSinceLabel}',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppConstants.onSurfaceVariant,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                profile.fullName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppConstants.onSurface,
+                                ),
+                              ),
+                              // Only shown for verified members — a
+                              // distinct fact from account standing above,
+                              // never implied by it.
+                              if (isApprovedMember) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Farmer Member',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppConstants.primaryGreen,
+                                  ),
+                                ),
+                              ],
+                              // Contact info — email if set, else phone,
+                              // both if both are set, nothing if neither
+                              // is. contactEmail (the farmer's own entered
+                              // address), never the synthetic
+                              // username@sagana.local auth address.
+                              if ((profile.contactEmail?.isNotEmpty ?? false) ||
+                                  (profile.phoneNumber?.isNotEmpty ??
+                                      false)) ...[
+                                const SizedBox(height: 10),
+                                if (profile.contactEmail?.isNotEmpty ?? false)
+                                  _ContactLine(
+                                    icon: Icons.email_outlined,
+                                    text: profile.contactEmail!,
+                                  ),
+                                if (profile.phoneNumber?.isNotEmpty ??
+                                    false) ...[
+                                  const SizedBox(height: 3),
+                                  _ContactLine(
+                                    icon: Icons.phone_outlined,
+                                    text: profile.phoneNumber!,
+                                  ),
+                                ],
+                              ],
+                            ],
                           ),
                         ),
-                        if (profile.purok != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.location_on_outlined,
-                                size: 14,
-                                color: AppConstants.onSurfaceVariant,
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Sync status
+                    if (unsyncedCount > 0)
+                      GestureDetector(
+                        onTap: onSyncTap,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppConstants.warningAmber.withValues(
+                              alpha: 0.08,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusMd,
+                            ),
+                            border: Border.all(
+                              color: AppConstants.warningAmber.withValues(
+                                alpha: 0.25,
                               ),
-                              const SizedBox(width: 3),
-                              Expanded(
-                                child: Text(
-                                  profile.purok!,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: AppConstants.onSurfaceVariant,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.sync_problem_rounded,
+                                    size: 18,
+                                    color: AppConstants.warningAmber,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    '$unsyncedCount unsynced record${unsyncedCount == 1 ? '' : 's'}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppConstants.warningAmber,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'SYNC NOW',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppConstants.warningAmber,
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Sync status
-              if (unsyncedCount > 0)
-                GestureDetector(
-                  onTap: onSyncTap,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppConstants.warningAmber.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                      border: Border.all(
-                        color: AppConstants.warningAmber.withValues(
-                          alpha: 0.25,
                         ),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.sync_problem_rounded,
-                              size: 18,
-                              color: AppConstants.warningAmber,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              '$unsyncedCount unsynced record${unsyncedCount == 1 ? '' : 's'}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: AppConstants.warningAmber,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          'SYNC NOW',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppConstants.warningAmber,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (unsyncedCount > 0) const SizedBox(height: 14),
-
-              // Profile completion
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      profile.isComplete
-                          ? 'Profile complete'
-                          : 'Profile ${profile.completionPercentInt}% complete — tap Edit to finish',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: profile.completionPercent,
-                  minHeight: 7,
-                  backgroundColor: const Color(0xFFCFE6F2),
-                  valueColor: const AlwaysStoppedAnimation(
-                    AppConstants.primaryGreen,
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// A "boxed" status indicator (small rounded-rect, not a full pill) —
+// referencing the style Admin already uses for member status, per the
+// requested redesign, without copying Admin's card layout itself.
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _StatusBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _ContactLine({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: AppConstants.onSurfaceVariant),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -713,7 +707,16 @@ class _FarmDetailsSection extends StatelessWidget {
                           child: _DetailField(
                             label: 'Land Area',
                             value: profile.landAreaHectares != null
-                                ? '${profile.landAreaHectares!.toStringAsFixed(1)} hectares'
+                                ? '${profile.landAreaHectares!.toStringAsFixed(1)} ha'
+                                : 'Not set',
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _DetailField(
+                            label: 'Years Farming',
+                            value: profile.yearsFarming != null
+                                ? '${profile.yearsFarming}'
                                 : 'Not set',
                           ),
                         ),
@@ -765,11 +768,14 @@ class _FarmDetailsSection extends StatelessWidget {
                             ),
                           ),
                           children: [
+                            const OsmMapAttribution(),
                             fm.TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.sp3coop.sagana',
-                              tileProvider: fm.NetworkTileProvider(),
+                              tileProvider: fm.NetworkTileProvider(
+                                headers: {'User-Agent': kOsmTileUserAgent},
+                              ),
                               // flutter_map cancels in-flight tile requests
                               // for tiles that go out of view (e.g. the
                               // screen is closed mid-fetch) — expected, not
@@ -847,61 +853,35 @@ class _FarmDetailsSection extends StatelessWidget {
                                 .toList(),
                           ),
                     const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: AppConstants.onSurfaceVariant,
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: onEdit,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: AppConstants.primaryGreen.withValues(
+                                alpha: 0.40,
                               ),
-                              children: [
-                                const TextSpan(text: 'Years Farming: '),
-                                TextSpan(
-                                  text: profile.yearsFarming != null
-                                      ? '${profile.yearsFarming} years'
-                                      : 'Not set',
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppConstants.onSurface,
-                                  ),
-                                ),
-                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusMd,
+                            ),
+                          ),
+                          child: Text(
+                            'Edit Farm Details',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppConstants.primaryGreen,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        // CORRECT: GestureDetector + Container instead of OutlinedButton
-                        GestureDetector(
-                          onTap: onEdit,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppConstants.primaryGreen.withValues(
-                                  alpha: 0.40,
-                                ),
-                              ),
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusMd,
-                              ),
-                            ),
-                            child: Text(
-                              'Edit Farm Details',
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: AppConstants.primaryGreen,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -960,24 +940,133 @@ class _DetailField extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Annual Stats Row — relocated from the Farmer Home tab (Final
+// Verification round). Same DashboardRepository.fetchSummary() figures
+// Home itself used, just displayed here now instead — not a second,
+// independent computation of "this year's yield/earnings".
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AnnualStatsRow extends StatelessWidget {
+  final double annualYieldKg;
+  final double annualEarnings;
+  final bool isLoading;
+
+  const _AnnualStatsRow({
+    required this.annualYieldKg,
+    required this.annualEarnings,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final year = DateTime.now().year;
+    return Row(
+      children: [
+        Expanded(
+          child: _AnnualStatTile(
+            icon: Icons.eco_rounded,
+            color: AppConstants.primaryGreen,
+            label: AppLocalizations.of(context).farmerDashAnnualYield(year),
+            value: isLoading
+                ? '—'
+                : '${NumberFormat('#,##0').format(annualYieldKg)} kg',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _AnnualStatTile(
+            icon: Icons.payments_rounded,
+            color: AppConstants.buyerBlue,
+            label: AppLocalizations.of(context).farmerDashAnnualEarnings(year),
+            value: isLoading
+                ? '—'
+                : '₱${NumberFormat('#,##0').format(annualEarnings)}',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AnnualStatTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+
+  const _AnnualStatTile({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppConstants.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Farm Records Section
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FarmRecordsSection extends StatelessWidget {
   final double outstandingLoans;
   final double monthExpenses;
-  final int harvestCount;
   final VoidCallback onLoansTap;
   final VoidCallback onExpensesTap;
-  final VoidCallback onHarvestSummaryTap;
+  final VoidCallback onTransactionHistoryTap;
+  final VoidCallback onMyOrdersTap;
 
   const _FarmRecordsSection({
     required this.outstandingLoans,
     required this.monthExpenses,
-    required this.harvestCount,
     required this.onLoansTap,
     required this.onExpensesTap,
-    required this.onHarvestSummaryTap,
+    required this.onTransactionHistoryTap,
+    required this.onMyOrdersTap,
   });
 
   @override
@@ -998,7 +1087,6 @@ class _FarmRecordsSection extends StatelessWidget {
         ),
         _RecordRow(
           icon: Icons.eco_outlined,
-          iconColor: AppConstants.tertiaryContainer,
           title: 'Input Loans',
           subtitle: outstandingLoans > 0
               ? '₱${outstandingLoans.toStringAsFixed(2)} outstanding'
@@ -1008,19 +1096,23 @@ class _FarmRecordsSection extends StatelessWidget {
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.receipt_outlined,
-          iconColor: AppConstants.amber,
           title: 'Expenses',
           subtitle: '₱${monthExpenses.toStringAsFixed(2)} this month',
           onTap: onExpensesTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
-          icon: Icons.grass_rounded,
-          iconColor: AppConstants.primaryGreen,
-          title: 'Harvest Summary',
-          subtitle:
-              '$harvestCount harvest record${harvestCount == 1 ? '' : 's'}',
-          onTap: onHarvestSummaryTap,
+          icon: Icons.receipt_long_outlined,
+          title: 'Transaction History',
+          subtitle: 'Your sales across every selling channel',
+          onTap: onTransactionHistoryTap,
+        ),
+        const SizedBox(height: 8),
+        _RecordRow(
+          icon: Icons.shopping_bag_outlined,
+          title: 'Orders',
+          subtitle: 'Orders you\'ve placed on the Marketplace',
+          onTap: onMyOrdersTap,
         ),
       ],
     );
@@ -1050,16 +1142,18 @@ class _CooperativeBenefitsHeader extends StatelessWidget {
   }
 }
 
+// Icon rendering intentionally has no per-row color — a single neutral
+// tone for every row, matching farmer_bottom_nav.dart's established
+// "simple, non-colorful" icon convention instead of the previous
+// per-item rainbow of tinted circular backgrounds.
 class _RecordRow extends StatelessWidget {
   final IconData icon;
-  final Color iconColor;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
   const _RecordRow({
     required this.icon,
-    required this.iconColor,
     required this.title,
     required this.subtitle,
     required this.onTap,
@@ -1090,10 +1184,10 @@ class _RecordRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.10),
+                  color: AppConstants.outline.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
+                child: Icon(icon, color: AppConstants.primaryGreen, size: 20),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1171,9 +1265,7 @@ class _ProfileLoadError extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              isOnline
-                  ? 'Could not load your profile'
-                  : 'You\'re offline',
+              isOnline ? 'Could not load your profile' : 'You\'re offline',
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,

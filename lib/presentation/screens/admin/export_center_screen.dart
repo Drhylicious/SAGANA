@@ -11,6 +11,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
+import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/services/csv_export_service.dart';
 import '../../../data/services/pdf_export_service.dart';
@@ -100,13 +101,21 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
 
     setState(() => _isGenerating = true);
     try {
-      final ReportExportService service = _format == 'pdf' ? _pdfService : _csvService;
+      final ReportExportService service = _format == 'pdf'
+          ? _pdfService
+          : _csvService;
       final paths = await service.generateExports(
         modules: _selectedModules,
         period: _period,
         contributionYear: _contributionYear,
       );
       _loadHistory();
+      AdminActivityRepository().log(
+        module: 'reports',
+        actionType: 'exported',
+        description:
+            'Generated a ${_format.toUpperCase()} export (${_selectedModules.length} report${_selectedModules.length == 1 ? '' : 's'}).',
+      );
       if (!mounted) return;
       _showSnack(l10n.exportGenerated(paths.length));
 
@@ -142,12 +151,18 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
+        backgroundColor: isError
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+      ),
+    );
   }
 
   @override
@@ -172,27 +187,52 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
               children: [
                 _buildPresets(context, l10n, cs, sagana),
                 const SizedBox(height: AppConstants.spacingSectionV),
-                Text(l10n.exportSelectReports, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+                Text(
+                  l10n.exportSelectReports,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: cs.onSurface,
+                  ),
+                ),
                 const SizedBox(height: AppConstants.spacingSm),
                 _buildModuleGrid(context, cs, sagana),
                 const SizedBox(height: AppConstants.spacingSectionV),
-                Text(l10n.exportFormatLabel, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+                Text(
+                  l10n.exportFormatLabel,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: cs.onSurface,
+                  ),
+                ),
                 const SizedBox(height: AppConstants.spacingSm),
                 _buildFormatChips(cs),
                 const SizedBox(height: AppConstants.spacingSectionV),
-                Text(l10n.exportPeriod, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+                Text(
+                  l10n.exportPeriod,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: cs.onSurface,
+                  ),
+                ),
                 const SizedBox(height: AppConstants.spacingSm),
                 _buildPeriodChips(l10n, cs),
                 if (_needsYearSelector) ...[
                   const SizedBox(height: AppConstants.spacingMd),
                   Text(
                     l10n.exportYearForContributionReport,
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: AppConstants.spacingSm),
                   YearFilterSelector(
                     selectedYear: _contributionYear,
-                    onYearSelected: (y) => setState(() => _contributionYear = y),
+                    onYearSelected: (y) =>
+                        setState(() => _contributionYear = y),
                     years: _availableContributionYears,
                     selectedColor: AppConstants.buyerBlue,
                   ),
@@ -210,7 +250,14 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                   onPressed: _generate,
                 ),
                 const SizedBox(height: AppConstants.spacingSectionV),
-                Text(l10n.exportRecentExports, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+                Text(
+                  l10n.exportRecentExports,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: cs.onSurface,
+                  ),
+                ),
                 const SizedBox(height: AppConstants.spacingSm),
                 if (_history.isEmpty)
                   ReportEmptyState(message: l10n.exportNoHistoryYet)
@@ -235,7 +282,9 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -249,7 +298,11 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
               Expanded(
                 child: Text(
                   l10n.reportsExportCenter,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
             ],
@@ -274,7 +327,11 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     );
   }
 
-  Widget _presetCard(CompliancePreset preset, ColorScheme cs, SaganaColors sagana) {
+  Widget _presetCard(
+    CompliancePreset preset,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     return GestureDetector(
       onTap: () => _applyPreset(preset),
       child: Container(
@@ -287,16 +344,33 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(preset.label, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
+            Text(
+              preset.label,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: cs.onSurface,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(preset.description, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+            Text(
+              preset.description,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildModuleGrid(BuildContext context, ColorScheme cs, SaganaColors sagana) {
+  Widget _buildModuleGrid(
+    BuildContext context,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -304,21 +378,31 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       mainAxisSpacing: AppConstants.spacingMd,
       crossAxisSpacing: AppConstants.spacingMd,
       childAspectRatio: 1.5,
-      children: ReportModuleType.values.map((m) => _moduleCard(m, cs, sagana)).toList(),
+      children: ReportModuleType.values
+          .map((m) => _moduleCard(m, cs, sagana))
+          .toList(),
     );
   }
 
-  Widget _moduleCard(ReportModuleType module, ColorScheme cs, SaganaColors sagana) {
+  Widget _moduleCard(
+    ReportModuleType module,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     final selected = _selectedModules.contains(module);
     return GestureDetector(
       onTap: () => _toggleModule(module),
       child: Container(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
         decoration: BoxDecoration(
-          color: selected ? AppConstants.primaryGreen.withValues(alpha: 0.08) : sagana.cardBackground,
+          color: selected
+              ? AppConstants.primaryGreen.withValues(alpha: 0.08)
+              : sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
           border: Border.all(
-            color: selected ? AppConstants.primaryGreen : cs.outline.withValues(alpha: 0.10),
+            color: selected
+                ? AppConstants.primaryGreen
+                : cs.outline.withValues(alpha: 0.10),
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -331,12 +415,20 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
               children: [
                 Icon(module.icon, color: AppConstants.primaryGreen, size: 20),
                 if (selected)
-                  const Icon(Icons.check_circle_rounded, color: AppConstants.primaryGreen, size: 18),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: AppConstants.primaryGreen,
+                    size: 18,
+                  ),
               ],
             ),
             Text(
               module.label,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: cs.onSurface,
+              ),
             ),
           ],
         ),
@@ -356,7 +448,11 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         return Padding(
           padding: const EdgeInsets.only(right: 8),
           child: ChoiceChip(
-            avatar: Icon(icon, size: 15, color: active ? Colors.white : cs.onSurfaceVariant),
+            avatar: Icon(
+              icon,
+              size: 15,
+              color: active ? Colors.white : cs.onSurfaceVariant,
+            ),
             label: Text(label, style: GoogleFonts.inter(fontSize: 12)),
             selected: active,
             onSelected: (_) => setState(() => _format = entry.key),
@@ -378,11 +474,16 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(
+                reportPeriodLabel(l10n, p),
+                style: GoogleFonts.inter(fontSize: 12),
+              ),
               selected: active,
               onSelected: (_) => setState(() => _period = p),
               selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(color: active ? Colors.white : cs.onSurface),
+              labelStyle: TextStyle(
+                color: active ? Colors.white : cs.onSurface,
+              ),
             ),
           );
         }).toList(),
@@ -407,7 +508,9 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       child: Row(
         children: [
           Icon(
-            entry.format == 'pdf' ? Icons.picture_as_pdf_rounded : Icons.table_chart_rounded,
+            entry.format == 'pdf'
+                ? Icons.picture_as_pdf_rounded
+                : Icons.table_chart_rounded,
             color: AppConstants.primaryGreen,
             size: 20,
           ),
@@ -418,12 +521,19 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
               children: [
                 Text(
                   entry.moduleLabels.join(', '),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${entry.periodLabel} • ${DateFormat('MMM d, h:mm a').format(entry.generatedAt)}',
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

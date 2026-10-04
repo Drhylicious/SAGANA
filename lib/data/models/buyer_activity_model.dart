@@ -26,6 +26,12 @@ class BuyerActivityItem {
   // for order-type items.
   final String? orderStatus;
 
+  // Order-type items only — the listing's own photo_url, so activity cards
+  // can show the actual product image instead of a generic icon. Null for
+  // profile-type items (and for orders whose listing has no photo), in
+  // which case the card falls back to its default icon.
+  final String? imageUrl;
+
   const BuyerActivityItem({
     required this.id,
     required this.type,
@@ -35,5 +41,6 @@ class BuyerActivityItem {
     this.statusLabel,
     required this.timestamp,
     this.orderStatus,
+    this.imageUrl,
   });
 }

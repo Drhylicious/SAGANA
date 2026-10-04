@@ -5,15 +5,18 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cart_item_model.dart';
+import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/repositories/buyer_marketplace_repository.dart';
-import '../../../data/services/app_event_service.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
 
 class CartScreen extends StatefulWidget {
-  const CartScreen({super.key});
+  // Phase 9 — reused as-is for the Farmer Marketplace tab's cart; only the
+  // post-checkout destination route differs (see _checkout()).
+  final bool isFarmerContext;
+  const CartScreen({super.key, this.isFarmerContext = false});
 
   @override
   State<CartScreen> createState() => _CartScreenState();
@@ -28,9 +31,15 @@ class _CartScreenState extends State<CartScreen> {
 
   bool _isLoading = true;
   bool _isCheckingOut = false;
-  int _checkoutIndex = 0;
-  int _checkoutTotal = 0;
+  // Cart UI overhaul — selection checkboxes are always visible (not just in
+  // Edit Mode); they drive which items go to Checkout. Edit Mode reuses the
+  // exact same selection set, just for bulk delete instead — see
+  // _toggleEditMode(), which clears selection on every mode switch so a
+  // "select to delete" choice can never silently carry into "select to
+  // checkout" or vice versa.
+  bool _isEditMode = false;
   List<CartItemModel> _items = [];
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -44,11 +53,56 @@ class _CartScreenState extends State<CartScreen> {
     if (!mounted) return;
     setState(() {
       _items = items;
+      _selectedIds.removeWhere((id) => !items.any((i) => i.listingId == id));
       _isLoading = false;
     });
   }
 
-  double get _grandTotal => _items.fold(0.0, (sum, i) => sum + i.subtotal);
+  double get _selectedTotal => _items
+      .where((i) => _selectedIds.contains(i.listingId))
+      .fold(0.0, (sum, i) => sum + i.subtotal);
+
+  bool get _allSelected => _items.isNotEmpty && _selectedIds.length == _items.length;
+
+  void _toggleEditMode() {
+    setState(() {
+      _isEditMode = !_isEditMode;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleItem(String listingId) {
+    setState(() {
+      if (_selectedIds.contains(listingId)) {
+        _selectedIds.remove(listingId);
+      } else {
+        _selectedIds.add(listingId);
+      }
+    });
+  }
+
+  void _toggleSelectAll() {
+    setState(() {
+      if (_allSelected) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds
+          ..clear()
+          ..addAll(_items.map((i) => i.listingId));
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    for (final id in _selectedIds.toList()) {
+      await _cartService.removeItem(id);
+    }
+    setState(() {
+      _selectedIds.clear();
+      _isEditMode = false;
+    });
+    _load();
+  }
 
   Future<void> _updateQuantity(CartItemModel item, double delta) async {
     // Lower bound must never exceed availableKgSnapshot — a hardcoded 1.0
@@ -64,6 +118,7 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _removeItem(CartItemModel item) async {
     await _cartService.removeItem(item.listingId);
+    _selectedIds.remove(item.listingId);
     _load();
   }
 
@@ -74,19 +129,34 @@ class _CartScreenState extends State<CartScreen> {
   // overselling without this step — this exists purely so the buyer sees
   // an accurate number up front instead of only discovering drift via a
   // checkout-time failure.
+  //
+  // Cart UI overhaul: only SELECTED items are checked/reserved/checked out
+  // — unselected items are left completely untouched in the cart, per
+  // explicit direction.
   Future<void> _checkout() async {
+    if (_selectedIds.isEmpty) {
+      await AppDialog.show<void>(
+        context: context,
+        child: const _NoItemsSelectedDialog(),
+      );
+      return;
+    }
+
     final l10n = AppLocalizations.of(context);
     setState(() => _isCheckingOut = true);
 
+    final selectedItems = _items.where((i) => _selectedIds.contains(i.listingId)).toList();
+
     final liveStock = await _marketRepo.fetchCurrentRemainingKg(
-      _items.map((i) => i.listingId).toList(),
+      selectedItems.map((i) => i.listingId).toList(),
     );
 
     final adjustments = <String>[];
-    for (final item in List<CartItemModel>.from(_items)) {
+    for (final item in List<CartItemModel>.from(selectedItems)) {
       final live = liveStock[item.listingId] ?? 0.0;
       if (live <= 0) {
         await _cartService.removeItem(item.listingId);
+        _selectedIds.remove(item.listingId);
         adjustments.add(l10n.buyerCartAdjustedRemoved(item.displayName));
       } else if (live < item.quantityKg) {
         await _cartService.updateQuantity(item.listingId, live);
@@ -109,43 +179,21 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    final confirmed = await AppDialog.show<bool>(
-      context: context,
-      child: _CartCheckoutDialog(items: _items, total: _grandTotal),
-    );
-    if (confirmed != true || !mounted) {
-      setState(() => _isCheckingOut = false);
-      return;
-    }
-
-    final succeeded = <CartItemModel>[];
-    final failed = <(CartItemModel, String)>[];
-    setState(() => _checkoutTotal = _items.length);
-
-    // Reused entirely — same atomic RPC every single-item order already
-    // uses. No new order workflow, no new RPC.
-    for (final item in _items) {
-      setState(() => _checkoutIndex = succeeded.length + failed.length + 1);
-      try {
-        await _marketRepo.placeOrder(listingId: item.listingId, quantityKg: item.quantityKg);
-        succeeded.add(item);
-        await _cartService.removeItem(item.listingId);
-      } catch (e) {
-        failed.add((item, e.toString().replaceFirst('Exception: ', '')));
-      }
-    }
-
-    if (succeeded.isNotEmpty) {
-      AppEventService.instance.notifyOrderPlaced();
-    }
-
-    if (!mounted) return;
+    // Checkout + My Addresses (Phase 6b): the confirmation dialog and the
+    // per-item placeOrder loop both moved to the shared CheckoutScreen,
+    // which is where fulfillment is now chosen and where the placement
+    // progress ("Placing X of Y") is shown instead. This screen's job
+    // stops at handing over a stock-accurate, selection-scoped item list.
     setState(() => _isCheckingOut = false);
-
-    context.pushReplacement(AppRoutes.cartCheckoutResult, extra: {
-      'succeeded': succeeded,
-      'failed': failed,
-    });
+    if (!mounted) return;
+    final finalItems = _items.where((i) => _selectedIds.contains(i.listingId)).toList();
+    context.push(
+      widget.isFarmerContext ? AppRoutes.farmerMarketplaceCheckout : AppRoutes.checkout,
+      extra: {
+        'items': finalItems,
+        'isCartCheckout': true,
+      },
+    );
   }
 
   @override
@@ -159,8 +207,20 @@ class _CartScreenState extends State<CartScreen> {
         backgroundColor: sagana.scaffoldBackground,
         elevation: 0,
         leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.buyerCartTitle,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+        title: Text(
+          _items.isEmpty ? l10n.buyerCartTitle : '${l10n.buyerCartTitle} (${_items.length})',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+        ),
+        actions: [
+          if (_items.isNotEmpty)
+            TextButton(
+              onPressed: _toggleEditMode,
+              child: Text(
+                _isEditMode ? l10n.buyerCartDone : l10n.buyerCartEdit,
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+              ),
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -175,13 +235,16 @@ class _CartScreenState extends State<CartScreen> {
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, i) => _CartItemTile(
                           item: _items[i],
+                          selected: _selectedIds.contains(_items[i].listingId),
+                          swipeToDeleteEnabled: !_isEditMode,
+                          onToggleSelect: () => _toggleItem(_items[i].listingId),
                           onIncrement: () => _updateQuantity(_items[i], 1),
                           onDecrement: () => _updateQuantity(_items[i], -1),
                           onRemove: () => _removeItem(_items[i]),
                         ),
                       ),
                     ),
-                    _buildCheckoutBar(l10n),
+                    _buildBottomBar(l10n),
                   ],
                 ),
     );
@@ -209,59 +272,83 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildCheckoutBar(AppLocalizations l10n) {
-    // Phase 8, item 3: checkout is still sequential, isolated per-item
-    // place_order() calls (deliberately kept — Phase 5, item 3 — safer
-    // error isolation than a batched call). This only makes that existing
-    // sequence visible instead of a single opaque button spinner, for a
-    // large cart on a slow connection.
-    final showingProgress = _isCheckingOut && _checkoutTotal > 0;
-
+  Widget _buildBottomBar(AppLocalizations l10n) {
+    // The per-item placement progress ("Placing X of Y") that used to show
+    // here moved to CheckoutScreen (Phase 6b) — this bar's own _isCheckingOut
+    // now only covers the brief stock-refresh step before navigating there.
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 10, 20, 14),
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
+        border: Border(top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10))),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, -3))],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showingProgress) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(l10n.buyerCartPlacingOrder(_checkoutIndex, _checkoutTotal),
-                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-              child: LinearProgressIndicator(
-                value: _checkoutIndex / _checkoutTotal,
-                minHeight: 6,
-                backgroundColor: AppConstants.outline.withValues(alpha: 0.15),
-                color: AppConstants.primaryGreen,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Expanded (not a trailing Spacer): this is the one shrinkable
+            // slot in the row. The Total price and the checkout/delete
+            // button on the right must never truncate, so they stay as
+            // plain, naturally-sized children — if space ever runs out,
+            // it's this "Select All" label that gives way first, not them.
+            Expanded(
+              child: GestureDetector(
+                onTap: _toggleSelectAll,
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _allSelected,
+                      activeColor: AppConstants.primaryGreen,
+                      onChanged: (_) => _toggleSelectAll(),
+                    ),
+                    Flexible(
+                      child: Text(l10n.buyerCartSelectAll,
+                          overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 13)),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 14),
-          ] else ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(l10n.buyerCartItemCount(_items.length),
-                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
-                Text('₱${_grandTotal.toStringAsFixed(2)}',
-                    style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
-              ],
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(width: 8),
+            if (_isEditMode)
+              OutlinedButton(
+                onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppConstants.errorRed,
+                  side: BorderSide(color: _selectedIds.isEmpty ? AppConstants.outline.withValues(alpha: 0.3) : AppConstants.errorRed),
+                  // The app-wide OutlinedButtonThemeData forces minimumSize
+                  // to Size(double.infinity, 52) — fine when this button is
+                  // the sole child of a full-width SizedBox, but here it's a
+                  // plain Row child, so that infinite width has to be
+                  // overridden or layout crashes with "BoxConstraints forces
+                  // an infinite width".
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                child: Text(l10n.buyerCartDelete),
+              )
+            else ...[
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(l10n.buyerCartTotalLabel, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                  Text('₱${_selectedTotal.toStringAsFixed(2)}',
+                      style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                ],
+              ),
+              const SizedBox(width: 12),
+              PrimaryButton(
+                label: l10n.buyerCartProceedCheckoutCount(_selectedIds.length),
+                isLoading: _isCheckingOut,
+                onPressed: _isCheckingOut ? null : _checkout,
+                expand: false,
+              ),
+            ],
           ],
-          SizedBox(
-            width: double.infinity,
-            child: PrimaryButton(label: l10n.buyerCartProceedCheckout, isLoading: _isCheckingOut, onPressed: _isCheckingOut ? null : _checkout),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -269,12 +356,18 @@ class _CartScreenState extends State<CartScreen> {
 
 class _CartItemTile extends StatelessWidget {
   final CartItemModel item;
+  final bool selected;
+  final bool swipeToDeleteEnabled;
+  final VoidCallback onToggleSelect;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onRemove;
 
   const _CartItemTile({
     required this.item,
+    required this.selected,
+    required this.swipeToDeleteEnabled,
+    required this.onToggleSelect,
     required this.onIncrement,
     required this.onDecrement,
     required this.onRemove,
@@ -284,7 +377,7 @@ class _CartItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dismissible(
       key: ValueKey(item.listingId),
-      direction: DismissDirection.endToStart,
+      direction: swipeToDeleteEnabled ? DismissDirection.endToStart : DismissDirection.none,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -297,10 +390,17 @@ class _CartItemTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+          border: selected ? Border.all(color: AppConstants.primaryGreen, width: 1.5) : AppConstants.cardBorder,
+          boxShadow: AppConstants.cardShadow,
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Checkbox(
+              value: selected,
+              activeColor: AppConstants.primaryGreen,
+              onChanged: (_) => onToggleSelect(),
+            ),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusSm),
               child: item.photoUrl != null
@@ -315,6 +415,17 @@ class _CartItemTile extends StatelessWidget {
                   Text(item.displayName, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
                   Text('₱${item.pricePerKg.toStringAsFixed(2)}/kg',
                       style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                  if (item.category != null || item.marketType != null) ...[
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (item.category != null) _CartTag(item.category!),
+                        if (item.marketType != null) _CartTag(marketTypeLabelFor(item.marketType)),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -353,6 +464,72 @@ class _CartItemTile extends StatelessWidget {
   }
 }
 
+// Small pill for Category/Market Type on the cart tile — same info a buyer
+// already saw on Listing Details, carried through so the cart isn't a
+// stripped-down summary of what they were looking at.
+class _CartTag extends StatelessWidget {
+  final String label;
+  const _CartTag(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppConstants.infoBlueBg.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+      ),
+      child: Text(label,
+          style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppConstants.infoBlueFg)),
+    );
+  }
+}
+
+class _NoItemsSelectedDialog extends StatelessWidget {
+  const _NoItemsSelectedDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: AppConstants.cardBorder,
+          boxShadow: AppConstants.cardShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: AppConstants.warningAmber),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(l10n.buyerCartNoSelectionTitle,
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(l10n.buyerCartNoSelectionBody,
+                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: PrimaryButton(label: l10n.buyerCartNoSelectionOk, onPressed: () => Navigator.pop(context)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StockChangedDialog extends StatelessWidget {
   final List<String> messages;
   const _StockChangedDialog({required this.messages});
@@ -365,7 +542,12 @@ class _StockChangedDialog extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 24),
         padding: const EdgeInsets.all(20),
         constraints: const BoxConstraints(maxHeight: 420),
-        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: AppConstants.cardBorder,
+          boxShadow: AppConstants.cardShadow,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,70 +583,6 @@ class _StockChangedDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: PrimaryButton(label: l10n.buyerCartReviewCart, onPressed: () => Navigator.pop(context)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CartCheckoutDialog extends StatelessWidget {
-  final List<CartItemModel> items;
-  final double total;
-  const _CartCheckoutDialog({required this.items, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        padding: const EdgeInsets.all(20),
-        constraints: const BoxConstraints(maxHeight: 480),
-        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.buyerCartConfirmOrderTitle, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800)),
-            Text(l10n.buyerCartItemsFrom(items.length, AppConstants.cooperativeName),
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-            const SizedBox(height: 12),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: items.map((item) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(child: Text('${item.displayName} × ${_fmtCartQty(item.quantityKg)}kg', style: GoogleFonts.inter(fontSize: 12))),
-                        Text('₱${item.subtotal.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  )).toList(),
-                ),
-              ),
-            ),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(l10n.buyerCartTotalLabel, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                Text('₱${total.toStringAsFixed(2)}', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(l10n.buyerCartPickupNotice(AppConstants.cooperativeLocation),
-                style: GoogleFonts.inter(fontSize: 11, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.cancel))),
-                const SizedBox(width: 12),
-                Expanded(child: PrimaryButton(label: l10n.buyerCartConfirm, height: 44, onPressed: () => Navigator.pop(context, true))),
-              ],
             ),
           ],
         ),

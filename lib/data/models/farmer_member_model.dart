@@ -132,8 +132,8 @@ extension LoanStatusSummaryExt on LoanStatusSummary {
 class FarmerMemberModel {
   final String userId;
   final String fullName;
-  final String? memberId;
-  final String? purok;
+  final String? contactEmail;
+  final String? phoneNumber;
   final String? profilePhotoUrl;
   final MemberStatus memberStatus;
   final bool isVerified;
@@ -151,8 +151,8 @@ class FarmerMemberModel {
   const FarmerMemberModel({
     required this.userId,
     required this.fullName,
-    this.memberId,
-    this.purok,
+    this.contactEmail,
+    this.phoneNumber,
     this.profilePhotoUrl,
     required this.memberStatus,
     required this.isVerified,
@@ -169,6 +169,20 @@ class FarmerMemberModel {
   });
 
   bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
+
+  /// Members-list card subtitle: email if present, else phone, else both
+  /// (email first) if both are present, else null (nothing shown) — never
+  /// the farmer's address, which used to be shown here.
+  String? get contactLine {
+    final email = contactEmail?.trim();
+    final phone = phoneNumber?.trim();
+    final hasEmail = email != null && email.isNotEmpty;
+    final hasPhone = phone != null && phone.isNotEmpty;
+    if (hasEmail && hasPhone) return '$email • $phone';
+    if (hasEmail) return email;
+    if (hasPhone) return phone;
+    return null;
+  }
 
   bool get hasOutstandingLoan => outstandingLoanBalance > 0;
 
@@ -224,8 +238,8 @@ class FarmerMemberModel {
     return FarmerMemberModel(
       userId: map['user_id'] as String,
       fullName: map['full_name'] as String? ?? 'Farmer',
-      memberId: map['member_id'] as String?,
-      purok: map['purok'] as String?,
+      contactEmail: map['contact_email'] as String?,
+      phoneNumber: map['phone_number'] as String?,
       profilePhotoUrl: map['profile_photo_url'] as String?,
       memberStatus: MemberStatusExt.derive(
         map['member_status'] as String?,
@@ -314,7 +328,7 @@ class MemberSummaryStats {
 
 // ─── Filter & Sort State ──────────────────────────────────────────────────────
 
-enum FarmerSortOption { nameAZ, recentHarvest, memberId, loanBalance }
+enum FarmerSortOption { nameAZ, recentHarvest, loanBalance }
 
 extension FarmerSortOptionExt on FarmerSortOption {
   String get label {
@@ -323,8 +337,6 @@ extension FarmerSortOptionExt on FarmerSortOption {
         return 'Name (A–Z)';
       case FarmerSortOption.recentHarvest:
         return 'Recent Harvest';
-      case FarmerSortOption.memberId:
-        return 'Member ID';
       case FarmerSortOption.loanBalance:
         return 'Loan Balance';
     }

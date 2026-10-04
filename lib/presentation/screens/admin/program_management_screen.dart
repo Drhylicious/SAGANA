@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/program_model.dart';
+import '../../../data/models/program_enrollment_request_model.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/program_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -18,7 +19,8 @@ import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/material_list_tile.dart';
-import '../../widgets/report_summary_widgets.dart' show ReportIconStatCard, ReportSectionCard;
+import '../../widgets/report_summary_widgets.dart'
+    show ReportIconStatCard, ReportSectionCard;
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
@@ -37,19 +39,48 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   List<CooperativeProgram> _programs = [];
   List<String> _inventoryCategories = [];
   int _pendingPurchaseCount = 0;
+  int _pendingEnrollmentRequestCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
+  String? _purposeFilter;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   static const _statusOptions = ['active', 'completed', 'suspended'];
+
+  // program_purpose is a DB-constrained 2-value column
+  // (distribution/sales) — the right, stable basis for these chips.
+  // program_type (the separate free-text field used for each card's
+  // icon/color) is intentionally not touched here.
+  List<CooperativeProgram> get _displayedPrograms {
+    return _programs.where((p) {
+      final matchesPurpose =
+          _purposeFilter == null || p.programPurpose == _purposeFilter;
+      final matchesSearch =
+          _searchQuery.isEmpty ||
+          p.programName.toLowerCase().contains(_searchQuery);
+      return matchesPurpose && matchesSearch;
+    }).toList();
+  }
 
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen(
-        (v) { if (mounted) setState(() => _isOnline = v); });
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -58,51 +89,74 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       _repo.fetchPrograms(),
       _categoryRepo.fetchInventoryCategories(),
       _repo.fetchPurchasesByStatus('pending'),
+      _repo.fetchPendingEnrollmentRequests(),
     ]);
     if (!mounted) return;
     setState(() {
       _programs = results[0] as List<CooperativeProgram>;
       _inventoryCategories = results[1] as List<String>;
       _pendingPurchaseCount = (results[2] as List<ProgramPurchase>).length;
+      _pendingEnrollmentRequestCount =
+          (results[3] as List<ProgramEnrollmentRequest>).length;
       _isLoading = false;
     });
   }
 
   Color _typeColor(String type) {
     switch (type) {
-      case 'crop':       return AppConstants.primaryGreen;
-      case 'peanut':     return AppConstants.warningAmber;
-      case 'production': return AppConstants.buyerBlue;
-      case 'livestock':  return const Color(0xFF8D6E63);
-      default:           return AppConstants.programPurple;
+      case 'crop':
+        return AppConstants.primaryGreen;
+      case 'peanut':
+        return AppConstants.warningAmber;
+      case 'production':
+        return AppConstants.buyerBlue;
+      case 'livestock':
+        return const Color(0xFF8D6E63);
+      default:
+        return AppConstants.programPurple;
     }
   }
 
   IconData _typeIcon(String type) {
     switch (type) {
-      case 'crop':       return Icons.grass_rounded;
-      case 'peanut':     return Icons.eco_rounded;
-      case 'production': return Icons.factory_rounded;
-      case 'livestock':  return Icons.pets_rounded;
-      default:           return Icons.star_rounded;
+      case 'crop':
+        return Icons.grass_rounded;
+      case 'peanut':
+        return Icons.eco_rounded;
+      case 'production':
+        return Icons.factory_rounded;
+      case 'livestock':
+        return Icons.pets_rounded;
+      default:
+        return Icons.star_rounded;
     }
   }
 
   String _statusLabel(AppLocalizations l10n, String status) {
     switch (status) {
-      case 'active':    return l10n.programMgmtStatusActive;
-      case 'completed': return l10n.programMgmtStatusCompleted;
-      case 'suspended': return l10n.programMgmtStatusSuspended;
-      default:          return status.toUpperCase();
+      case 'active':
+        return l10n.programMgmtStatusActive;
+      case 'completed':
+        return l10n.programMgmtStatusCompleted;
+      case 'suspended':
+        return l10n.programMgmtStatusSuspended;
+      default:
+        return status.toUpperCase();
     }
   }
 
   String _statusLabelTitleCase(AppLocalizations l10n, String status) {
     switch (status) {
-      case 'active':    return l10n.programMgmtStatusActiveTc;
-      case 'completed': return l10n.programMgmtStatusCompletedTc;
-      case 'suspended': return l10n.programMgmtStatusSuspendedTc;
-      default:          return status.isEmpty ? status : status[0].toUpperCase() + status.substring(1);
+      case 'active':
+        return l10n.programMgmtStatusActiveTc;
+      case 'completed':
+        return l10n.programMgmtStatusCompletedTc;
+      case 'suspended':
+        return l10n.programMgmtStatusSuspendedTc;
+      default:
+        return status.isEmpty
+            ? status
+            : status[0].toUpperCase() + status.substring(1);
     }
   }
 
@@ -114,10 +168,14 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
 
   Color _statusColor(String status, ColorScheme cs) {
     switch (status) {
-      case 'active':    return AppConstants.successGreen;
-      case 'completed': return AppConstants.buyerBlue;
-      case 'suspended': return AppConstants.errorRed;
-      default:          return cs.outline;
+      case 'active':
+        return AppConstants.successGreen;
+      case 'completed':
+        return AppConstants.buyerBlue;
+      case 'suspended':
+        return AppConstants.errorRed;
+      default:
+        return cs.outline;
     }
   }
 
@@ -139,8 +197,10 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: Text(l10n.programMgmtDeleteTitle(program.programName),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        title: Text(
+          l10n.programMgmtDeleteTitle(program.programName),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
         content: Text(impactMessage, style: GoogleFonts.inter(fontSize: 13)),
         actions: [
           TextButton(
@@ -149,7 +209,10 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: Text(l10n.commonDelete, style: const TextStyle(color: AppConstants.errorRed)),
+            child: Text(
+              l10n.commonDelete,
+              style: const TextStyle(color: AppConstants.errorRed),
+            ),
           ),
         ],
       ),
@@ -172,9 +235,13 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     final typeCtrl = TextEditingController(text: existing?.programType ?? '');
     final descCtrl = TextEditingController(text: existing?.description ?? '');
     final budgetCtrl = TextEditingController(
-        text: existing?.budget != null ? existing!.budget!.toStringAsFixed(2) : '');
+      text: existing?.budget != null
+          ? existing!.budget!.toStringAsFixed(2)
+          : '',
+    );
     final returnPercentCtrl = TextEditingController(
-        text: existing?.expectedReturnPercent?.toString() ?? '');
+      text: existing?.expectedReturnPercent?.toString() ?? '',
+    );
     String selectedStatus = existing?.status ?? 'active';
     String selectedBenefitType = existing?.benefitType ?? 'grant';
     String? selectedDistributionCategory = existing?.distributionCategory;
@@ -189,11 +256,14 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       context: context,
       builder: (ctx) {
         final l10n = AppLocalizations.of(ctx);
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           // Upload-only — no camera capture, a program isn't a physical item.
           Future<void> pickImage() async {
-            final picked = await ImagePicker()
-                .pickImage(source: ImageSource.gallery, imageQuality: 80);
+              final picked = await ImagePicker().pickImage(
+                source: ImageSource.gallery,
+                imageQuality: 80,
+              );
             if (picked == null) return;
             final bytes = await picked.readAsBytes();
             setSheet(() {
@@ -211,7 +281,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
             String? imageUrl = existingImageUrl;
             if (pickedImageBytes != null) {
               imageUrl = await _repo.uploadProgramImage(
-                  pickedImageBytes!, pickedImageExt ?? 'jpg');
+                  pickedImageBytes!,
+                  pickedImageExt ?? 'jpg',
+                );
             }
             bool ok;
             if (existing == null) {
@@ -220,7 +292,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                   name: nameCtrl.text,
                   type: typeCtrl.text.trim(),
                   benefitType: selectedBenefitType,
-                  expectedReturnPercent: double.tryParse(returnPercentCtrl.text),
+                    expectedReturnPercent: double.tryParse(
+                      returnPercentCtrl.text,
+                    ),
                   description: descCtrl.text.isEmpty ? null : descCtrl.text,
                   budget: budget,
                   distributionCategory: selectedDistributionCategory,
@@ -230,7 +304,11 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
               } on ProgramDuplicateNameException catch (e) {
                 setSheet(() => isSaving = false);
                 if (!ctx.mounted) return;
-                AppToast.show(ctx, 'A program named "${e.programName}" already exists.', isError: true);
+                  AppToast.show(
+                    ctx,
+                    'A program named "${e.programName}" already exists.',
+                    isError: true,
+                  );
                 return;
               }
             } else {
@@ -239,7 +317,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                 name: nameCtrl.text,
                 type: typeCtrl.text.trim(),
                 benefitType: selectedBenefitType,
-                expectedReturnPercent: double.tryParse(returnPercentCtrl.text),
+                  expectedReturnPercent: double.tryParse(
+                    returnPercentCtrl.text,
+                  ),
                 description: descCtrl.text.isEmpty ? null : descCtrl.text,
                 budget: budget,
                 status: selectedStatus,
@@ -264,7 +344,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           }
 
           return ManagementModalShell(
-            title: existing == null ? l10n.programMgmtNewTitle : l10n.programMgmtEditTitle,
+              title: existing == null
+                  ? l10n.programMgmtNewTitle
+                  : l10n.programMgmtEditTitle,
             body: Form(
               key: formKey,
               child: Column(
@@ -301,10 +383,13 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  Text('Program Photo (optional)',
+                    Text(
+                      'Program Photo (optional)',
                       style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: pickImage,
@@ -316,18 +401,27 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                             .colorScheme
                             .surfaceContainerHighest
                             .withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                         border: Border.all(
-                            color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.2)),
+                            color: Theme.of(
+                              ctx,
+                            ).colorScheme.outline.withValues(alpha: 0.2),
+                          ),
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: pickedImageBytes != null
                           ? Image.memory(pickedImageBytes!, fit: BoxFit.cover)
-                          : (existingImageUrl != null && existingImageUrl!.isNotEmpty
+                            : (existingImageUrl != null &&
+                                      existingImageUrl!.isNotEmpty
                               ? Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    Image.network(existingImageUrl!, fit: BoxFit.cover),
+                                        Image.network(
+                                          existingImageUrl!,
+                                          fit: BoxFit.cover,
+                                        ),
                                     Positioned(
                                       top: 6,
                                       right: 6,
@@ -342,23 +436,36 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                             color: Colors.black54,
                                             shape: BoxShape.circle,
                                           ),
-                                          child: const Icon(Icons.close_rounded,
-                                              size: 16, color: Colors.white),
+                                              child: const Icon(
+                                                Icons.close_rounded,
+                                                size: 16,
+                                                color: Colors.white,
+                                              ),
                                         ),
                                       ),
                                     ),
                                   ],
                                 )
                               : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.add_photo_alternate_outlined,
-                                        color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                                        Icon(
+                                          Icons.add_photo_alternate_outlined,
+                                          color: Theme.of(
+                                            ctx,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
                                     const SizedBox(height: 4),
-                                    Text('Tap to upload a photo',
+                                        Text(
+                                          'Tap to upload a photo',
                                         style: GoogleFonts.inter(
                                             fontSize: 12,
-                                            color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                                            color: Theme.of(
+                                              ctx,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
                                   ],
                                 )),
                     ),
@@ -374,15 +481,19 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       value: selectedPurpose,
                       hintText: 'Select a purpose',
                       labelText: 'Program Purpose *',
-                      helperText: 'Distribution: the existing benefit/loan '
+                        helperText:
+                            'Distribution: the existing benefit/loan '
                           'workflow. Sales: the cooperative sells its own '
                           'products to enrolled members.',
                       items: const ['distribution', 'sales'],
                       itemLabel: (v) => v == 'sales'
                           ? 'Product Sales'
                           : 'Distribution (benefit/loan)',
-                      onChanged: (v) => setSheet(() => selectedPurpose = v ?? selectedPurpose),
-                      validator: (v) => v == null ? 'Purpose is required' : null,
+                        onChanged: (v) => setSheet(
+                          () => selectedPurpose = v ?? selectedPurpose,
+                        ),
+                        validator: (v) =>
+                            v == null ? 'Purpose is required' : null,
                     ),
                   ],
                   if (selectedPurpose == 'distribution') ...[
@@ -394,8 +505,10 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       helperText: l10n.programMgmtDistributesFromHelper,
                       items: categoryOptions,
                       itemLabel: (c) => c,
-                      onChanged: (v) => setSheet(() => selectedDistributionCategory = v),
-                      validator: (v) => v == null ? l10n.programMgmtCategoryRequired : null,
+                        onChanged: (v) =>
+                            setSheet(() => selectedDistributionCategory = v),
+                        validator: (v) =>
+                            v == null ? l10n.programMgmtCategoryRequired : null,
                     ),
                     const SizedBox(height: 12),
                     AppDropdownField<String>(
@@ -406,11 +519,16 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       itemLabel: (v) => v == 'grant'
                           ? l10n.programMgmtBenefitGrant
                           : l10n.programMgmtBenefitRevenueShare,
-                      onChanged: (v) => setSheet(() => selectedBenefitType = v ?? selectedBenefitType),
-                      validator: (v) => v == null ? l10n.programMgmtBenefitTypeRequired : null,
+                        onChanged: (v) => setSheet(
+                          () => selectedBenefitType = v ?? selectedBenefitType,
+                        ),
+                        validator: (v) => v == null
+                            ? l10n.programMgmtBenefitTypeRequired
+                            : null,
                     ),
                   ],
-                  if (selectedPurpose == 'distribution' && selectedBenefitType == 'revenue_share') ...[
+                    if (selectedPurpose == 'distribution' &&
+                        selectedBenefitType == 'revenue_share') ...[
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: returnPercentCtrl,
@@ -419,9 +537,13 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                         hintText: l10n.programMgmtExpectedReturnHint,
                         suffixText: '%',
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d*'),
+                          ),
                       ],
                     ),
                   ],
@@ -433,7 +555,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       labelText: l10n.programMgmtStatusLabel,
                       items: _statusOptions,
                       itemLabel: (s) => _statusLabelTitleCase(l10n, s),
-                      onChanged: (v) => setSheet(() => selectedStatus = v ?? selectedStatus),
+                        onChanged: (v) => setSheet(
+                          () => selectedStatus = v ?? selectedStatus,
+                        ),
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -444,13 +568,18 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                       hintText: '0.00',
                       prefixText: '₱ ',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
                     ],
                     validator: (value) {
                       if ((value ?? '').trim().isEmpty) return null;
-                      if (!isValidCurrencyValue(value)) return l10n.adminInvEnterValidAmount;
+                        if (!isValidCurrencyValue(value))
+                          return l10n.adminInvEnterValidAmount;
                       return null;
                     },
                   ),
@@ -476,7 +605,8 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
               onPrimary: submit,
             ),
           );
-        });
+          },
+        );
       },
     );
   }
@@ -532,6 +662,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    final displayedPrograms = _displayedPrograms;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -552,33 +683,39 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                 height: 64 + MediaQuery.of(context).padding.top,
                 padding: EdgeInsets.only(
                     top: MediaQuery.of(context).padding.top,
-                    left: 8, right: 8),
+                  left: 8,
+                  right: 8,
+                ),
                 decoration: BoxDecoration(
                   color: sagana.glassBackground,
-                  border: Border(
-                      bottom: BorderSide(color: sagana.glassBorder)),
+                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
                 ),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.arrow_back_rounded,
-                          color: cs.onSurface),
+                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
                       onPressed: () => context.pop(),
                     ),
                     Expanded(
                       child: Text(
                         l10n.programMgmtTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: cs.onSurface),
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
                         IconButton(
-                          icon: Icon(Icons.receipt_long_rounded, color: cs.onSurface),
+                          icon: Icon(
+                            Icons.receipt_long_rounded,
+                            color: cs.onSurface,
+                          ),
                           tooltip: 'Purchase Requests',
                           onPressed: () => context
                               .push(AppRoutes.programPurchaseReview)
@@ -589,15 +726,63 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                             top: 6,
                             right: 6,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppConstants.errorRed,
-                                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusFull,
+                                ),
                               ),
                               child: Text(
                                 '$_pendingPurchaseCount',
                                 style: GoogleFonts.inter(
-                                    fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.how_to_reg_rounded,
+                            color: cs.onSurface,
+                          ),
+                          tooltip: 'Enrollment Requests',
+                          onPressed: () => context
+                              .push(AppRoutes.programEnrollmentRequests)
+                              .then((_) => _load()),
+                        ),
+                        if (_pendingEnrollmentRequestCount > 0)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppConstants.errorRed,
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusFull,
+                                ),
+                              ),
+                              child: Text(
+                                '$_pendingEnrollmentRequestCount',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -612,19 +797,24 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           if (!_isOnline)
             Container(
               color: AppConstants.warningAmber,
-              padding: const EdgeInsets.symmetric(
-                  vertical: 6, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.cloud_off_rounded,
-                      size: 14, color: AppConstants.charcoal),
+                  const Icon(
+                    Icons.cloud_off_rounded,
+                    size: 14,
+                    color: AppConstants.charcoal,
+                  ),
                   const SizedBox(width: 6),
-                  Text(l10n.cropMgmtOfflineNotice,
+                  Text(
+                    l10n.cropMgmtOfflineNotice,
                       style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.charcoal)),
+                      color: AppConstants.charcoal,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -634,7 +824,9 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                 ? const Center(
                     child: CircularProgressIndicator(
                         color: AppConstants.primaryGreen,
-                        strokeWidth: 2))
+                      strokeWidth: 2,
+                    ),
+                  )
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
@@ -701,68 +893,162 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                           ),
                           const SizedBox(height: 16),
                         ],
+                        if (_programs.isNotEmpty) ...[
+                          // Search bar
+                          TextField(
+                            controller: _searchCtrl,
+                            decoration: InputDecoration(
+                              hintText: l10n.programMgmtSearchHint,
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              filled: true,
+                              fillColor: sagana.cardBackground,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.radiusLg,
+                                ),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Filter chips — All | Distribution | Sales,
+                          // backed by the DB-constrained program_purpose
+                          // column (exactly 2 values, locked once a program
+                          // is created).
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            padding: EdgeInsets.zero,
+                            child: Row(
+                              children: [
+                                _PurposeChip(
+                                  label: l10n.reportsAll,
+                                  isSelected: _purposeFilter == null,
+                                  onTap: () =>
+                                      setState(() => _purposeFilter = null),
+                                  cs: cs,
+                                  sagana: sagana,
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: _PurposeChip(
+                                    label: l10n.programMgmtFilterDistribution,
+                                    isSelected:
+                                        _purposeFilter == 'distribution',
+                                    onTap: () => setState(
+                                      () => _purposeFilter = 'distribution',
+                                    ),
+                                    cs: cs,
+                                    sagana: sagana,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: _PurposeChip(
+                                    label: l10n.programMgmtFilterSales,
+                                    isSelected: _purposeFilter == 'sales',
+                                    onTap: () => setState(
+                                      () => _purposeFilter = 'sales',
+                                    ),
+                                    cs: cs,
+                                    sagana: sagana,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         if (_programs.isEmpty)
-                          Column(children: [
+                          Column(
+                            children: [
                             const SizedBox(height: 60),
                             Center(
-                              child: Column(children: [
-                                Icon(Icons.people_alt_rounded,
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.people_alt_rounded,
                                     size: 48,
-                                    color: cs.onSurfaceVariant),
+                                      color: cs.onSurfaceVariant,
+                                    ),
                                 const SizedBox(height: 12),
-                                Text(l10n.programMgmtNoProgramsYet,
+                                    Text(
+                                      l10n.programMgmtNoProgramsYet,
                                     style: GoogleFonts.inter(
                                         fontSize: 14,
-                                        color: cs.onSurfaceVariant)),
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
                                 const SizedBox(height: 8),
                                 TextButton(
-                                  onPressed: () =>
-                                      _showProgramSheet(null),
+                                      onPressed: () => _showProgramSheet(null),
                                   child: Text(l10n.programMgmtCreateFirst),
                                 ),
-                              ]),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        else if (displayedPrograms.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 40),
+                            child: Center(
+                              child: Text(
+                                l10n.programMgmtNoProgramsMatchFilter,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: cs.onSurfaceVariant,
+                                ),
                             ),
-                          ])
+                            ),
+                          )
                         else
                           ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             padding: EdgeInsets.zero,
-                            itemCount: _programs.length,
+                            itemCount: displayedPrograms.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (_, i) {
-                              final p = _programs[i];
+                              final p = displayedPrograms[i];
                               final color = _typeColor(p.programType);
                               final icon = _typeIcon(p.programType);
-                              final statusColor =
-                                  _statusColor(p.status, cs);
+                              final statusColor = _statusColor(p.status, cs);
 
                               return Container(
                                 decoration: BoxDecoration(
                                   color: sagana.cardBackground,
-                                  borderRadius:
-                                      BorderRadius.circular(AppConstants.radiusLg),
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusLg,
+                                  ),
                                   border: Border.all(
-                                      color: cs.outline.withValues(alpha: 0.10)),
+                                    color: cs.outline.withValues(alpha: 0.10),
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.04),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.04,
+                                      ),
                                       blurRadius: 8,
                                     ),
                                   ],
                                 ),
                                 child: IntrinsicHeight(
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       Container(
                                         width: 4,
                                         decoration: BoxDecoration(
                                           color: color,
                                           borderRadius: const BorderRadius.only(
-                                            topLeft: Radius.circular(AppConstants.radiusLg),
-                                            bottomLeft: Radius.circular(AppConstants.radiusLg),
+                                            topLeft: Radius.circular(
+                                              AppConstants.radiusLg,
+                                            ),
+                                            bottomLeft: Radius.circular(
+                                              AppConstants.radiusLg,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -770,9 +1056,13 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                         child: Padding(
                                           padding: const EdgeInsets.all(16),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                              Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                            children: [
                                                 Container(
                                                   // Matches Loan Item Catalog's approved 68x68
                                                   // rounded-square presentation — was 40x40, too
@@ -780,61 +1070,106 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                                   width: 68,
                                                   height: 68,
                                                   decoration: BoxDecoration(
-                                                    color: color.withValues(alpha: 0.12),
-                                                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                                      color: color.withValues(
+                                                        alpha: 0.12,
                                                   ),
-                                                  clipBehavior: Clip.antiAlias,
-                                                  child: (p.imageUrl != null && p.imageUrl!.isNotEmpty)
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            AppConstants
+                                                                .radiusMd,
+                                                          ),
+                                                    ),
+                                                    clipBehavior:
+                                                        Clip.antiAlias,
+                                                    child:
+                                                        (p.imageUrl != null &&
+                                                            p
+                                                                .imageUrl!
+                                                                .isNotEmpty)
                                                       ? Image.network(
                                                           p.imageUrl!,
                                                           fit: BoxFit.cover,
-                                                          errorBuilder: (_, __, ___) =>
-                                                              Icon(icon, color: color, size: 28),
+                                                            errorBuilder:
+                                                                (_, __, ___) =>
+                                                                    Icon(
+                                                                      icon,
+                                                                      color:
+                                                                          color,
+                                                                      size: 28,
+                                                                    ),
                                                         )
-                                                      : Icon(icon, color: color, size: 28),
+                                                        : Icon(
+                                                            icon,
+                                                            color: color,
+                                                            size: 28,
+                                                          ),
                                                 ),
                                                 const SizedBox(width: 12),
                                                 Expanded(
                                                   child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
                                                     children: [
                                                       Text(
                                                         p.programName,
-                                                        style: GoogleFonts.poppins(
+                                                          style:
+                                                              GoogleFonts.poppins(
                                                           fontSize: 14,
-                                                          fontWeight: FontWeight.w700,
-                                                          color: cs.onSurface,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                                color: cs
+                                                                    .onSurface,
                                                         ),
                                                       ),
                                                       Text(
                                                         '${p.programType.isEmpty ? l10n.programMgmtCustomProgram : p.programType} · ${p.seasonYear}',
                                                         style: GoogleFonts.inter(
                                                           fontSize: 11,
-                                                          color: cs.onSurfaceVariant,
+                                                            color: cs
+                                                                .onSurfaceVariant,
                                                         ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
                                                 Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 3,
+                                                        ),
                                                   decoration: BoxDecoration(
-                                                    color: statusColor.withValues(alpha: 0.12),
-                                                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                                                      color: statusColor
+                                                          .withValues(
+                                                            alpha: 0.12,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            AppConstants
+                                                                .radiusFull,
+                                                          ),
                                                   ),
                                                   child: Text(
-                                                    _statusLabel(l10n, p.status),
+                                                      _statusLabel(
+                                                        l10n,
+                                                        p.status,
+                                                      ),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 9,
-                                                      fontWeight: FontWeight.w700,
+                                                        fontWeight:
+                                                            FontWeight.w700,
                                                       color: statusColor,
                                                       letterSpacing: 0.4,
                                                     ),
                                                   ),
                                                 ),
-                                              ]),
+                                                ],
+                                              ),
                                               if (p.description != null) ...[
                                                 const SizedBox(height: 10),
                                                 Text(
@@ -844,58 +1179,104 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                                     color: cs.onSurfaceVariant,
                                                   ),
                                                   maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ],
                                               const SizedBox(height: 12),
-                                              Row(children: [
-                                                Icon(Icons.people_rounded, size: 14, color: cs.onSurfaceVariant),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.people_rounded,
+                                                    size: 14,
+                                                    color: cs.onSurfaceVariant,
+                                                  ),
                                                 const SizedBox(width: 4),
                                                 Flexible(
                                                   child: Text(
-                                                    _memberCountLabel(l10n, p.memberCount),
+                                                      _memberCountLabel(
+                                                        l10n,
+                                                        p.memberCount,
+                                                      ),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 12,
-                                                      color: cs.onSurfaceVariant,
+                                                        color:
+                                                            cs.onSurfaceVariant,
                                                     ),
                                                   ),
                                                 ),
                                                 if (p.budget != null) ...[
                                                   const SizedBox(width: 14),
-                                                  Icon(Icons.account_balance_rounded, size: 14, color: cs.onSurfaceVariant),
+                                                    Icon(
+                                                      Icons
+                                                          .account_balance_rounded,
+                                                      size: 14,
+                                                      color:
+                                                          cs.onSurfaceVariant,
+                                                    ),
                                                   const SizedBox(width: 4),
                                                   Flexible(
                                                     child: Text(
-                                                      l10n.programMgmtBudgetSuffix(p.budget!.toStringAsFixed(0)),
+                                                        l10n.programMgmtBudgetSuffix(
+                                                          p.budget!
+                                                              .toStringAsFixed(
+                                                                0,
+                                                              ),
+                                                        ),
                                                       maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
                                                       style: GoogleFonts.inter(
                                                         fontSize: 12,
-                                                        color: cs.onSurfaceVariant,
+                                                          color: cs
+                                                              .onSurfaceVariant,
                                                       ),
                                                     ),
                                                   ),
                                                 ],
-                                              ]),
+                                                ],
+                                              ),
                                               const SizedBox(height: 12),
                                               // Action row
-                                              Row(children: [
+                                              Row(
+                                                children: [
                                                 Expanded(
                                                   child: GestureDetector(
-                                                    onTap: () => _showMembersSheet(p),
+                                                      onTap: () =>
+                                                          _showMembersSheet(p),
                                                     child: Container(
-                                                      padding: const EdgeInsets.symmetric(vertical: 9),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 9,
+                                                            ),
                                                       decoration: BoxDecoration(
-                                                        color: cs.primary.withValues(alpha: 0.08),
-                                                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                                          color: cs.primary
+                                                              .withValues(
+                                                                alpha: 0.08,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                AppConstants
+                                                                    .radiusMd,
+                                                              ),
                                                       ),
                                                       child: Row(
-                                                        mainAxisAlignment: MainAxisAlignment.center,
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .center,
                                                         children: [
-                                                          Icon(Icons.group_rounded, size: 16, color: cs.primary),
-                                                          const SizedBox(width: 6),
+                                                            Icon(
+                                                              Icons
+                                                                  .group_rounded,
+                                                              size: 16,
+                                                              color: cs.primary,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 6,
+                                                            ),
                                                           // Flexible + ellipsis: "Pamahalaan ang
                                                           // Miyembro" is noticeably longer than
                                                           // "Manage Members" and this Row has no
@@ -906,11 +1287,16 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                                             child: Text(
                                                               l10n.programMgmtManageMembersAction,
                                                               maxLines: 1,
-                                                              overflow: TextOverflow.ellipsis,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
                                                               style: GoogleFonts.poppins(
                                                                 fontSize: 12,
-                                                                fontWeight: FontWeight.w600,
-                                                                color: cs.primary,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color: cs
+                                                                      .primary,
                                                               ),
                                                             ),
                                                           ),
@@ -921,64 +1307,129 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                                                 ),
                                                 const SizedBox(width: 10),
                                                 GestureDetector(
-                                                  onTap: () => _showProgramSheet(p),
+                                                    onTap: () =>
+                                                        _showProgramSheet(p),
                                                   child: Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 9,
+                                                          ),
                                                     decoration: BoxDecoration(
-                                                      color: cs.surfaceContainerHighest,
-                                                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                                        color: cs
+                                                            .surfaceContainerHighest,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              AppConstants
+                                                                  .radiusMd,
+                                                            ),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            Icons.edit_rounded,
+                                                            size: 16,
+                                                            color: cs
+                                                                .onSurfaceVariant,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 6,
                                                     ),
-                                                    child: Row(children: [
-                                                      Icon(Icons.edit_rounded, size: 16, color: cs.onSurfaceVariant),
-                                                      const SizedBox(width: 6),
                                                       Text(
                                                         l10n.programMgmtEditAction,
                                                         style: GoogleFonts.poppins(
                                                           fontSize: 12,
-                                                          fontWeight: FontWeight.w600,
-                                                          color: cs.onSurfaceVariant,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color: cs
+                                                                  .onSurfaceVariant,
                                                         ),
                                                       ),
-                                                    ]),
+                                                        ],
+                                                      ),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 10),
                                                 GestureDetector(
-                                                  onTap: () => _confirmDeleteProgram(p),
+                                                    onTap: () =>
+                                                        _confirmDeleteProgram(
+                                                          p,
+                                                        ),
                                                   child: Container(
-                                                    padding: const EdgeInsets.all(9),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            9,
+                                                          ),
                                                     decoration: BoxDecoration(
-                                                      color: AppConstants.errorRed.withValues(alpha: 0.08),
-                                                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                                        color: AppConstants
+                                                            .errorRed
+                                                            .withValues(
+                                                              alpha: 0.08,
                                                     ),
-                                                    child: const Icon(Icons.delete_outline_rounded,
-                                                        size: 16, color: AppConstants.errorRed),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              AppConstants
+                                                                  .radiusMd,
                                                   ),
                                                 ),
-                                              ]),
+                                                      child: const Icon(
+                                                        Icons
+                                                            .delete_outline_rounded,
+                                                        size: 16,
+                                                        color: AppConstants
+                                                            .errorRed,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                               if (p.isSalesProgram) ...[
                                                 const SizedBox(height: 10),
                                                 GestureDetector(
-                                                  onTap: () => _showProductsSheet(p),
+                                                  onTap: () =>
+                                                      _showProductsSheet(p),
                                                   child: Container(
                                                     width: double.infinity,
-                                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 9,
+                                                        ),
                                                     decoration: BoxDecoration(
-                                                      color: AppConstants.successGreen.withValues(alpha: 0.08),
-                                                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                                                      color: AppConstants
+                                                          .successGreen
+                                                          .withValues(
+                                                            alpha: 0.08,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            AppConstants
+                                                                .radiusMd,
+                                                          ),
                                                     ),
                                                     child: Row(
-                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .center,
                                                       children: [
-                                                        const Icon(Icons.storefront_rounded,
-                                                            size: 16, color: AppConstants.successGreen),
-                                                        const SizedBox(width: 6),
+                                                        const Icon(
+                                                          Icons
+                                                              .storefront_rounded,
+                                                          size: 16,
+                                                          color: AppConstants
+                                                              .successGreen,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
                                                         Text(
                                                           'Manage Products',
                                                           style: GoogleFonts.poppins(
                                                             fontSize: 12,
-                                                            fontWeight: FontWeight.w600,
-                                                            color: AppConstants.successGreen,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: AppConstants
+                                                                .successGreen,
                                                           ),
                                                         ),
                                                       ],
@@ -1031,7 +1482,8 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppConstants.spacingSm),
+        separatorBuilder: (_, __) =>
+            const SizedBox(width: AppConstants.spacingSm),
         itemBuilder: (_, i) => SizedBox(width: 180, child: cards[i]),
       ),
     );
@@ -1047,13 +1499,11 @@ class _ProgramProductsModalBody extends StatefulWidget {
   final CooperativeProgram program;
   final ProgramRepository repo;
 
-  const _ProgramProductsModalBody({
-    required this.program,
-    required this.repo,
-  });
+  const _ProgramProductsModalBody({required this.program, required this.repo});
 
   @override
-  State<_ProgramProductsModalBody> createState() => _ProgramProductsModalBodyState();
+  State<_ProgramProductsModalBody> createState() =>
+      _ProgramProductsModalBodyState();
 }
 
 class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
@@ -1090,7 +1540,9 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
     // Excludes items already added to this program — fetchEligibleInventoryForSaleProgram()
     // already excludes anything in the Loan Item Catalog.
     final addedIds = _products.map((p) => p.inventoryItemId).toSet();
-    final available = _eligibleItems.where((i) => !addedIds.contains(i.id)).toList();
+    final available = _eligibleItems
+        .where((i) => !addedIds.contains(i.id))
+        .toList();
     if (available.isEmpty) {
       _showSnack(
         'No eligible inventory items — either none are active, or they\'re '
@@ -1106,7 +1558,8 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
     showManagementModal(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           bool isSaving = false;
 
           Future<void> submit() async {
@@ -1122,7 +1575,10 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (ok) _load();
-            _showSnack(ok ? 'Product added' : 'Could not add product.', isError: !ok);
+              _showSnack(
+                ok ? 'Product added' : 'Could not add product.',
+                isError: !ok,
+              );
           }
 
           return ManagementModalShell(
@@ -1153,13 +1609,19 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
                       prefixText: '₱ ',
                       hintText: '0.00',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
                     ],
                     validator: (v) {
-                      if ((v ?? '').trim().isEmpty) return 'Price is required';
-                      if (!isValidCurrencyValue(v)) return 'Enter a valid amount';
+                        if ((v ?? '').trim().isEmpty)
+                          return 'Price is required';
+                        if (!isValidCurrencyValue(v))
+                          return 'Enter a valid amount';
                       return null;
                     },
                   ),
@@ -1172,7 +1634,8 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
               onPrimary: submit,
             ),
           );
-        });
+          },
+        );
       },
     );
   }
@@ -1190,8 +1653,10 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: Text('Remove "${product.itemName}"?',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        title: Text(
+          'Remove "${product.itemName}"?',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
         content: Text(
           'This removes it from the sales program — it will no longer be '
           'available for purchase. Past purchases of it are not affected.',
@@ -1204,7 +1669,10 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Remove', style: TextStyle(color: AppConstants.errorRed)),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: AppConstants.errorRed),
+            ),
           ),
         ],
       ),
@@ -1225,7 +1693,9 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen)),
+        child: Center(
+          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+        ),
       );
     }
 
@@ -1256,12 +1726,20 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.add_circle_outline_rounded,
-                    size: 16, color: AppConstants.primaryGreen),
+                  const Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: 16,
+                    color: AppConstants.primaryGreen,
+                  ),
                 const SizedBox(width: 6),
-                Text('Add Product',
+                  Text(
+                    'Add Product',
                     style: GoogleFonts.poppins(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.primaryGreen,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1271,15 +1749,23 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
-              child: Text('No products yet. Add one from inventory.',
-                  style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
+                child: Text(
+                  'No products yet. Add one from inventory.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
             ),
           )
         else
           for (final product in _products) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               decoration: BoxDecoration(
                 color: product.isAvailable
                     ? AppConstants.successGreen.withValues(alpha: 0.05)
@@ -1296,24 +1782,34 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
                   // a specific item), fetched through the existing
                   // program_products -> cooperative_inventory join.
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                     child: SizedBox(
                       width: 68,
                       height: 68,
-                      child: (product.imageUrl != null && product.imageUrl!.isNotEmpty)
+                        child:
+                            (product.imageUrl != null &&
+                                product.imageUrl!.isNotEmpty)
                           ? Image.network(
                               product.imageUrl!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
                                 color: cs.surfaceContainerHighest,
-                                child: Icon(Icons.storefront_rounded,
-                                    size: 28, color: cs.outline.withValues(alpha: 0.4)),
+                                  child: Icon(
+                                    Icons.storefront_rounded,
+                                    size: 28,
+                                    color: cs.outline.withValues(alpha: 0.4),
+                                  ),
                               ),
                             )
                           : Container(
                               color: cs.surfaceContainerHighest,
-                              child: Icon(Icons.storefront_rounded,
-                                  size: 28, color: cs.outline.withValues(alpha: 0.4)),
+                                child: Icon(
+                                  Icons.storefront_rounded,
+                                  size: 28,
+                                  color: cs.outline.withValues(alpha: 0.4),
+                                ),
                             ),
                     ),
                   ),
@@ -1322,13 +1818,21 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(product.itemName,
-                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
+                          Text(
+                            product.itemName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         const SizedBox(height: 2),
                         Text(
                           '₱${product.unitPrice.toStringAsFixed(2)} / ${product.unit} · '
                           '${product.quantityOnHand.toStringAsFixed(0)} in stock',
-                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
                         ),
                       ],
                     ),
@@ -1354,11 +1858,18 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppConstants.errorRed),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 20,
+                        color: AppConstants.errorRed,
+                      ),
                     onPressed: () => _remove(product),
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
                   ),
                 ],
               ),
@@ -1376,21 +1887,17 @@ class _ProgramMembersModalBody extends StatefulWidget {
   final CooperativeProgram program;
   final ProgramRepository repo;
 
-  const _ProgramMembersModalBody({
-    required this.program,
-    required this.repo,
-  });
+  const _ProgramMembersModalBody({required this.program, required this.repo});
 
   @override
-  State<_ProgramMembersModalBody> createState() => _ProgramMembersModalBodyState();
+  State<_ProgramMembersModalBody> createState() =>
+      _ProgramMembersModalBodyState();
 }
 
 class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   List<ProgramMember> _members = [];
-  List<Map<String, String>> _unenrolled = [];
   List<DistributionItem> _items = [];
   bool _isLoading = true;
-  String? _selectedFarmerId;
 
   @override
   void initState() {
@@ -1406,30 +1913,31 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
     setState(() => _isLoading = true);
     final results = await Future.wait([
       widget.repo.fetchProgramMembers(widget.program.id),
-      widget.repo.fetchUnenrolledFarmers(widget.program.id),
       widget.repo.fetchDistributionItems(),
     ]);
     if (!mounted) return;
     setState(() {
       _members = results[0] as List<ProgramMember>;
-      _unenrolled = results[1] as List<Map<String, String>>;
-      _items = results[2] as List<DistributionItem>;
+      _items = results[1] as List<DistributionItem>;
       _isLoading = false;
     });
   }
 
-  Future<void> _enroll() async {
-    if (_selectedFarmerId == null) return;
-    final ok = await widget.repo.enrollFarmer(widget.program.id, _selectedFarmerId!);
-    if (ok) {
-      setState(() => _selectedFarmerId = null);
-      _loadMembers();
-    }
-  }
-
   String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
@@ -1474,7 +1982,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       context: context,
       builder: (ctx) {
         final l10n = AppLocalizations.of(ctx);
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           bool isSaving = false;
 
           Future<void> submit() async {
@@ -1489,7 +1998,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               );
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
-              _showSnack(l10n.programMgmtBenefitDistributed(member.farmerName));
+                _showSnack(
+                  l10n.programMgmtBenefitDistributed(member.farmerName),
+                );
               _loadMembers();
             } catch (_) {
               setSheet(() => isSaving = false);
@@ -1516,7 +2027,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                     itemLabel: (id) {
                       final i = eligibleItems.firstWhere((e) => e.id == id);
                       return l10n.programMgmtItemOnHand(
-                          i.itemName, i.quantityOnHand.toStringAsFixed(1), i.unit);
+                          i.itemName,
+                          i.quantityOnHand.toStringAsFixed(1),
+                          i.unit,
+                        );
                     },
                     onChanged: (v) => setSheet(() => selectedItemId = v),
                   ),
@@ -1525,20 +2039,29 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                     controller: qtyCtrl,
                     decoration: InputDecoration(
                       labelText: selected != null
-                          ? l10n.programMgmtQuantityWithUnitLabel(selected.unit)
+                            ? l10n.programMgmtQuantityWithUnitLabel(
+                                selected.unit,
+                              )
                           : l10n.programMgmtQuantityLabel,
                       hintText: '0.00',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
                     ],
                     validator: (value) {
                       final v = double.tryParse(value ?? '');
-                      if (v == null || v <= 0) return l10n.programMgmtInvalidQuantity;
+                        if (v == null || v <= 0)
+                          return l10n.programMgmtInvalidQuantity;
                       if (selected != null && v > selected.quantityOnHand) {
                         return l10n.programMgmtOnlyAvailable(
-                            selected.quantityOnHand.toStringAsFixed(1), selected.unit);
+                            selected.quantityOnHand.toStringAsFixed(1),
+                            selected.unit,
+                          );
                       }
                       return null;
                     },
@@ -1547,12 +2070,15 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               ),
             ),
             footer: ManagementModalActions(
-              primaryLabel: isSaving ? l10n.programMgmtDistributingAction : l10n.programMgmtDistributeAction,
+                primaryLabel: isSaving
+                    ? l10n.programMgmtDistributingAction
+                    : l10n.programMgmtDistributeAction,
               isLoading: isSaving,
               onPrimary: submit,
             ),
           );
-        });
+          },
+        );
       },
     );
   }
@@ -1568,7 +2094,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       context: context,
       builder: (ctx) {
         final l10n = AppLocalizations.of(ctx);
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           bool isSaving = false;
 
           Future<void> submit() async {
@@ -1602,8 +2129,13 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
                     child: Text(
-                      l10n.programMgmtCoopPolicy('${widget.program.expectedReturnPercent}'),
-                      style: GoogleFonts.inter(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        l10n.programMgmtCoopPolicy(
+                          '${widget.program.expectedReturnPercent}',
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                     ),
                   ),
                 Form(
@@ -1619,12 +2151,17 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                       hintText: '0.00',
                       prefixText: '₱ ',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d*'),
+                            ),
                     ],
                     validator: (value) {
-                      if (!isValidCurrencyValue(value)) return l10n.adminInvEnterValidAmount;
+                            if (!isValidCurrencyValue(value))
+                              return l10n.adminInvEnterValidAmount;
                       return null;
                     },
                   ),
@@ -1643,12 +2180,15 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               ],
             ),
             footer: ManagementModalActions(
-              primaryLabel: isSaving ? l10n.saving : l10n.programMgmtConfirmReturnAction,
+                primaryLabel: isSaving
+                    ? l10n.saving
+                    : l10n.programMgmtConfirmReturnAction,
               isLoading: isSaving,
               onPrimary: submit,
             ),
           );
-        });
+          },
+        );
       },
     );
   }
@@ -1674,7 +2214,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
             children: [
               Text(
                 l10n.programMgmtOutcomeQuestion,
-                style: GoogleFonts.inter(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -1682,16 +2225,23 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.trending_up_rounded),
                   label: Text(l10n.programMgmtThriving),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppConstants.successGreen),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppConstants.successGreen,
+                  ),
                   onPressed: () async {
-                    final ok = await widget.repo.recordThrivingOutcome(member.id);
+                    final ok = await widget.repo.recordThrivingOutcome(
+                      member.id,
+                    );
                     if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     if (ok) {
                       _showSnack(l10n.programMgmtOutcomeThrivingRecorded);
                       _loadMembers();
                     } else {
-                      _showSnack(l10n.programMgmtRecordOutcomeFailed, isError: true);
+                      _showSnack(
+                        l10n.programMgmtRecordOutcomeFailed,
+                        isError: true,
+                      );
                     }
                   },
                 ),
@@ -1700,9 +2250,17 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  icon: Icon(Icons.trending_down_rounded, color: AppConstants.errorRed),
-                  label: Text(l10n.programMgmtFailedConvertToLoan, style: const TextStyle(color: AppConstants.errorRed)),
-                  style: OutlinedButton.styleFrom(side: const BorderSide(color: AppConstants.errorRed)),
+                  icon: Icon(
+                    Icons.trending_down_rounded,
+                    color: AppConstants.errorRed,
+                  ),
+                  label: Text(
+                    l10n.programMgmtFailedConvertToLoan,
+                    style: const TextStyle(color: AppConstants.errorRed),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppConstants.errorRed),
+                  ),
                   onPressed: () {
                     Navigator.pop(ctx);
                     _showConvertToLoanSheet(member);
@@ -1726,7 +2284,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
       context: context,
       builder: (ctx) {
         final l10n = AppLocalizations.of(ctx);
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           bool isSaving = false;
 
           Future<void> submit() async {
@@ -1760,7 +2319,10 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                 children: [
                   Text(
                     l10n.programMgmtConvertExplainer,
-                    style: GoogleFonts.inter(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -1770,18 +2332,28 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                       hintText: '0.00',
                       prefixText: '₱ ',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
                     ],
                     validator: (value) {
-                      if (!isValidCurrencyValue(value)) return l10n.adminInvEnterValidAmount;
+                        if (!isValidCurrencyValue(value))
+                          return l10n.adminInvEnterValidAmount;
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
-                  Text(l10n.programMgmtNextPaymentDateLabel,
-                      style: GoogleFonts.inter(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                    Text(
+                      l10n.programMgmtNextPaymentDateLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: () async {
@@ -1789,16 +2361,28 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                         context: ctx,
                         initialDate: nextPaymentDate,
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
                       );
-                      if (picked != null) setSheet(() => nextPaymentDate = picked);
+                        if (picked != null)
+                          setSheet(() => nextPaymentDate = picked);
                     },
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.4)),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                          border: Border.all(
+                            color: Theme.of(
+                              ctx,
+                            ).colorScheme.outline.withValues(alpha: 0.4),
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                       ),
                       child: Text(_formatDate(nextPaymentDate)),
                     ),
@@ -1816,12 +2400,15 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
               ),
             ),
             footer: ManagementModalActions(
-              primaryLabel: isSaving ? l10n.programMgmtCreatingAction : l10n.programMgmtCreateLoanAction,
+                primaryLabel: isSaving
+                    ? l10n.programMgmtCreatingAction
+                    : l10n.programMgmtCreateLoanAction,
               isLoading: isSaving,
               onPrimary: submit,
             ),
           );
-        });
+          },
+        );
       },
     );
   }
@@ -1840,68 +2427,43 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                 ? l10n.programMgmtLoadingMembers
                 : (_members.length == 1
                     ? l10n.programMgmtMembersEnrolledCountOne(_members.length)
-                    : l10n.programMgmtMembersEnrolledCountOther(_members.length)),
+                      : l10n.programMgmtMembersEnrolledCountOther(
+                          _members.length,
+                        )),
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ),
-        if (_unenrolled.isNotEmpty)
-          Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              // end, not the Row default (center) — AppDropdownField
-              // renders its label above the field box, so centering
-              // against its full height (label + box) put the button
-              // visibly above the box instead of level with it.
-              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(
-                  child: AppDropdownField<String>(
-                    value: _selectedFarmerId,
-                    hintText: l10n.programMgmtEnrollMemberLabel,
-                    labelText: l10n.programMgmtEnrollMemberLabel,
-                    items: _unenrolled.map((f) => f['id']!).toList(),
-                    itemLabel: (id) {
-                      final f = _unenrolled.firstWhere((e) => e['id'] == id);
-                      return f['name'] ?? l10n.programMgmtUnknownFarmer;
-                    },
-                    onChanged: (v) => setState(() => _selectedFarmerId = v),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _selectedFarmerId != null ? _enroll : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _selectedFarmerId != null
-                          ? AppConstants.primaryGreen
-                          : cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                    ),
-                    child: Text(
-                      l10n.programMgmtEnrollAction,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: _selectedFarmerId != null ? Colors.white : cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
+        // "Enroll a Member" (unenrolled-farmer dropdown + Enroll button)
+        // was removed from here — enrollment is now farmer-initiated via
+        // the Enrollment Requests review queue (Full Workflow); this modal
+        // now only shows already-enrolled members and their per-member
+        // actions.
           const SizedBox(height: 8),
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: AppConstants.primaryGreen, strokeWidth: 2))
+                  child: CircularProgressIndicator(
+                    color: AppConstants.primaryGreen,
+                    strokeWidth: 2,
+                  ),
+                )
                 : _members.isEmpty
                     ? Center(
-                        child: Text(l10n.programMgmtNoMembersYet,
-                            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)))
+                  child: Text(
+                    l10n.programMgmtNoMembersYet,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                         itemCount: _members.length,
-                        separatorBuilder: (_, __) =>
-                            Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.08),
+                  ),
                         itemBuilder: (_, i) {
                           final m = _members[i];
                           final initials = m.farmerName
@@ -1912,7 +2474,9 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                               .take(2)
                               .join()
                               .toUpperCase();
-                          final item = m.inventoryItemId != null ? _itemsById[m.inventoryItemId] : null;
+                    final item = m.inventoryItemId != null
+                        ? _itemsById[m.inventoryItemId]
+                        : null;
 
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1922,21 +2486,38 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                 CircleAvatar(
                                   radius: 18,
                                   backgroundColor: AppConstants.primaryContainer,
-                                  child: Text(initials,
+                            child: Text(
+                              initials,
                                       style: GoogleFonts.poppins(
-                                          fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(m.farmerName,
+                                Text(
+                                  m.farmerName,
                                           style: GoogleFonts.inter(
-                                              fontSize: 13, fontWeight: FontWeight.w500, color: cs.onSurface)),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
                                       const SizedBox(height: 2),
-                                      Text(l10n.programMgmtEnrolledOn(_formatDate(m.enrolledAt)),
-                                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                                Text(
+                                  l10n.programMgmtEnrolledOn(
+                                    _formatDate(m.enrolledAt),
+                                  ),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
                                       if (m.isDistributed) ...[
                                         const SizedBox(height: 2),
                                         Text(
@@ -1948,34 +2529,42 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                           style: GoogleFonts.inter(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
-                                              color: AppConstants.primaryGreen),
+                                      color: AppConstants.primaryGreen,
+                                    ),
                                         ),
                                       ],
                                       if (m.isSettled) ...[
                                         const SizedBox(height: 2),
                                         Text(
                                           l10n.programMgmtSettledLine(
-                                            m.amountReturned?.toStringAsFixed(2) ?? '',
+                                      m.amountReturned?.toStringAsFixed(2) ??
+                                          '',
                                             _formatDate(m.settledAt!),
                                           ),
                                           style: GoogleFonts.inter(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
-                                              color: AppConstants.successGreen),
+                                      color: AppConstants.successGreen,
+                                    ),
                                         ),
                                       ],
                                       if (m.isOutcomeRecorded) ...[
                                         const SizedBox(height: 2),
                                         Text(
                                           m.isFailed
-                                              ? l10n.programMgmtOutcomeFailedLine(_formatDate(m.outcomeRecordedAt!))
-                                              : l10n.programMgmtOutcomeThrivingLine(_formatDate(m.outcomeRecordedAt!)),
+                                        ? l10n.programMgmtOutcomeFailedLine(
+                                            _formatDate(m.outcomeRecordedAt!),
+                                          )
+                                        : l10n.programMgmtOutcomeThrivingLine(
+                                            _formatDate(m.outcomeRecordedAt!),
+                                          ),
                                           style: GoogleFonts.inter(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
                                               color: m.isFailed
                                                   ? AppConstants.errorRed
-                                                  : AppConstants.successGreen),
+                                          : AppConstants.successGreen,
+                                    ),
                                         ),
                                       ],
                                       const SizedBox(height: 8),
@@ -2002,7 +2591,8 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                                   color: AppConstants.errorRed,
                                                   filled: false,
                                                   onTap: () async {
-                                                    final ok = await widget.repo.removeMember(m.id);
+                                              final ok = await widget.repo
+                                                  .removeMember(m.id);
                                                     if (ok) _loadMembers();
                                                   },
                                                 ),
@@ -2010,36 +2600,47 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                             : [
                                           if (!m.isDistributed)
                                             _ActionChip(
-                                              label: l10n.programMgmtDistributeAction,
+                                              label: l10n
+                                                  .programMgmtDistributeAction,
                                               color: AppConstants.primaryGreen,
                                               filled: true,
-                                              onTap: () => _showDistributeSheet(m),
+                                              onTap: () =>
+                                                  _showDistributeSheet(m),
                                             )
                                           else if (!m.isOutcomeRecorded)
                                             _ActionChip(
-                                              label: l10n.programMgmtRecordOutcomeAction,
+                                              label: l10n
+                                                  .programMgmtRecordOutcomeAction,
                                               color: AppConstants.buyerBlue,
                                               filled: true,
-                                              onTap: () => _showRecordOutcomeSheet(m),
+                                              onTap: () =>
+                                                  _showRecordOutcomeSheet(m),
                                             )
-                                          else if (m.isThriving && widget.program.isRevenueShare && !m.isSettled)
+                                          else if (m.isThriving &&
+                                              widget.program.isRevenueShare &&
+                                              !m.isSettled)
                                             _ActionChip(
-                                              label: l10n.programMgmtRecordReturnAction,
+                                              label: l10n
+                                                  .programMgmtRecordReturnAction,
                                               color: AppConstants.warningAmber,
                                               filled: true,
-                                              onTap: () => _showRecordReturnSheet(m),
+                                              onTap: () =>
+                                                  _showRecordReturnSheet(m),
                                             )
                                           else if (m.isFailed)
                                             _ActionChip(
-                                              label: l10n.programMgmtConvertedToLoanLabel,
+                                              label: l10n
+                                                  .programMgmtConvertedToLoanLabel,
                                               color: AppConstants.programPurple,
                                               filled: false,
                                               onTap: null,
-                                              icon: Icons.request_quote_outlined,
+                                              icon:
+                                                  Icons.request_quote_outlined,
                                             )
                                           else
                                             _ActionChip(
-                                              label: widget.program.isRevenueShare
+                                              label:
+                                                  widget.program.isRevenueShare
                                                   ? l10n.programMgmtSettledLabel
                                                   : l10n.programMgmtThriving,
                                               color: AppConstants.successGreen,
@@ -2053,11 +2654,13 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                           // haven't received anything yet.
                                           if (!m.isDistributed)
                                             _ActionChip(
-                                              label: l10n.programMgmtRemoveAction,
+                                              label:
+                                                  l10n.programMgmtRemoveAction,
                                               color: AppConstants.errorRed,
                                               filled: false,
                                               onTap: () async {
-                                                final ok = await widget.repo.removeMember(m.id);
+                                                final ok = await widget.repo
+                                                    .removeMember(m.id);
                                                 if (ok) _loadMembers();
                                               },
                                             ),
@@ -2122,7 +2725,8 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
       context: context,
       builder: (ctx) {
         final l10n = AppLocalizations.of(ctx);
-        return StatefulBuilder(builder: (ctx, setSheet) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
           bool isSaving = false;
 
           Future<void> submit() async {
@@ -2150,15 +2754,25 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
                 children: [
                   TextFormField(
                     controller: titleCtrl,
-                    decoration: InputDecoration(labelText: l10n.programMgmtActivityTitleLabel),
-                    validator: (v) => (v ?? '').trim().isEmpty ? l10n.programMgmtActivityTitleRequired : null,
+                      decoration: InputDecoration(
+                        labelText: l10n.programMgmtActivityTitleLabel,
+                      ),
+                      validator: (v) => (v ?? '').trim().isEmpty
+                          ? l10n.programMgmtActivityTitleRequired
+                          : null,
                   ),
                   const SizedBox(height: 12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.programMgmtActivityDateLabel(
-                        '${selectedDate.month}/${selectedDate.day}/${selectedDate.year}')),
-                    trailing: const Icon(Icons.calendar_today_rounded, size: 18),
+                      title: Text(
+                        l10n.programMgmtActivityDateLabel(
+                          '${selectedDate.month}/${selectedDate.day}/${selectedDate.year}',
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 18,
+                      ),
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: ctx,
@@ -2166,37 +2780,57 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2100),
                       );
-                      if (picked != null) setSheet(() => selectedDate = picked);
+                        if (picked != null)
+                          setSheet(() => selectedDate = picked);
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: locationCtrl,
-                    decoration: InputDecoration(labelText: l10n.programMgmtLocationLabel),
+                      decoration: InputDecoration(
+                        labelText: l10n.programMgmtLocationLabel,
+                      ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: descCtrl,
-                    decoration: InputDecoration(labelText: l10n.programMgmtDescOptionalLabel),
+                      decoration: InputDecoration(
+                        labelText: l10n.programMgmtDescOptionalLabel,
+                      ),
                     maxLines: 2,
                   ),
                 ],
               ),
             ),
             footer: ManagementModalActions(
-              primaryLabel: isSaving ? l10n.saving : l10n.programMgmtAddActivityAction,
+                primaryLabel: isSaving
+                    ? l10n.saving
+                    : l10n.programMgmtAddActivityAction,
               isLoading: isSaving,
               onPrimary: submit,
             ),
           );
-        });
+          },
+        );
       },
     );
   }
 
   String _formatDate(DateTime dt) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
@@ -2219,26 +2853,53 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen, strokeWidth: 2))
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppConstants.primaryGreen,
+                    strokeWidth: 2,
+                  ),
+                )
               : _activities.isEmpty
                   ? Center(
-                      child: Text(l10n.programMgmtNoActivitiesYet,
-                          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)))
+                  child: Text(
+                    l10n.programMgmtNoActivitiesYet,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                )
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                       itemCount: _activities.length,
-                      separatorBuilder: (_, __) => Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: cs.outline.withValues(alpha: 0.08),
+                  ),
                       itemBuilder: (_, i) {
                         final a = _activities[i];
                         return MaterialListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text(a.title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500)),
+                      title: Text(
+                        a.title,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                           subtitle: Text(
                             '${_formatDate(a.activityDate)}${a.location != null ? ' · ${a.location}' : ''}',
-                            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
                           ),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppConstants.errorRed),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: AppConstants.errorRed,
+                        ),
                             onPressed: () async {
                               final ok = await widget.repo.deleteActivity(a.id);
                               if (ok) _load();
@@ -2299,6 +2960,49 @@ class _ActionChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+// Same filter-chip style already established for Inventory Management,
+// Loan Item Catalog, and Crop Management — a separate local copy here
+// rather than a shared extraction, matching that same convention.
+class _PurposeChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _PurposeChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? cs.primary : sagana.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+          border: Border.all(
+            color: isSelected ? cs.primary : cs.outline.withValues(alpha: 0.20),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : cs.onSurfaceVariant,
+          ),
         ),
       ),
     );

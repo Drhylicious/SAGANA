@@ -7,9 +7,12 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/repositories/expense_repository.dart';
+import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/app_dropdown_field.dart';
+import '../../widgets/app_toast.dart';
 
 class MyExpensesScreen extends StatefulWidget {
   const MyExpensesScreen({super.key});
@@ -20,11 +23,11 @@ class MyExpensesScreen extends StatefulWidget {
 
 class _MyExpensesScreenState extends State<MyExpensesScreen> {
   final _repo = ExpenseRepository();
+  final _categoryRepo = CategoryRepository();
 
   List<ExpenseModel> _expenses = [];
   List<CategoryBreakdown> _breakdown = [];
-  double _thisMonthTotal = 0;
-  double _allTimeTotal = 0;
+  List<String> _categories = [];
   ExpensePeriod _period = ExpensePeriod.thisMonth;
   bool _isLoading = true;
   bool _isOnline = true;
@@ -43,22 +46,22 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
       if (mounted) setState(() => _isOnline = online);
     });
     _loadData();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final categories = await _categoryRepo.fetchExpenseCategories();
+    if (!mounted) return;
+    setState(() => _categories = categories);
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _repo.fetchExpenses(_period),
-      _repo.fetchThisMonthTotal(),
-      _repo.fetchAllTimeTotal(),
-    ]);
+    final expenses = await _repo.fetchExpenses(_period);
     if (!mounted) return;
-    final expenses = results[0] as List<ExpenseModel>;
     setState(() {
       _expenses = expenses;
       _breakdown = _repo.buildBreakdown(expenses);
-      _thisMonthTotal = results[1] as double;
-      _allTimeTotal = results[2] as double;
       _isLoading = false;
     });
   }
@@ -68,18 +71,47 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
     await _loadData();
   }
 
+  // Period total is the sum of every non-subsidy category's total for the
+  // currently selected period — the same figure the Category Breakdown
+  // card already shows per-category, just summed. No separate query.
+  double get _periodTotal =>
+      _breakdown.fold(0.0, (sum, b) => sum + b.total);
+
+  // Breakdown is already sorted descending by total (buildBreakdown()),
+  // so the first entry with real spending is the top category. Purely
+  // subsidy categories sit at total == 0 and are skipped.
+  CategoryBreakdown? get _topCategory {
+    for (final b in _breakdown) {
+      if (b.total > 0) return b;
+    }
+    return null;
+  }
+
+  int get _subsidyCountThisPeriod =>
+      _expenses.where((e) => e.isSubsidy).length;
+
+  int get _entryCountThisPeriod => _expenses.length;
+
   void _showAddExpense() {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AddExpenseSheet(
+      builder: (_) => _AddExpenseDialog(
+        repo: _repo,
+        categoryRepo: _categoryRepo,
+        categories: _categories,
+        onCategoriesChanged: (updated) => setState(() => _categories = updated),
         onSaved: () {
           Navigator.pop(context);
           _loadData();
         },
-        repo: _repo,
       ),
+    );
+  }
+
+  void _showExpenseDetail(ExpenseModel expense) {
+    showDialog(
+      context: context,
+      builder: (_) => _ExpenseDetailDialog(expense: expense),
     );
   }
 
@@ -106,8 +138,9 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
                     children: [
                       // Summary cards
                       _SummaryCards(
-                        thisMonth: _thisMonthTotal,
-                        allTime: _allTimeTotal,
+                        periodTotal: _periodTotal,
+                        topCategory: _topCategory,
+                        entryCount: _entryCountThisPeriod,
                         isLoading: _isLoading,
                       ),
                       const SizedBox(height: 16),
@@ -125,9 +158,13 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Subsidy banner
-                      const _SubsidyBanner(),
-                      const SizedBox(height: 20),
+                      // Subsidy banner — only shown when this period
+                      // actually has subsidized entries, with a real
+                      // count rather than static, crop-specific text.
+                      if (!_isLoading && _subsidyCountThisPeriod > 0) ...[
+                        _SubsidyBanner(count: _subsidyCountThisPeriod),
+                        const SizedBox(height: 20),
+                      ],
 
                       // Transactions
                       Text(
@@ -154,7 +191,10 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
                         ..._expenses.map(
                           (e) => Padding(
                             padding: const EdgeInsets.only(bottom: 10),
-                            child: _ExpenseRow(expense: e),
+                            child: GestureDetector(
+                              onTap: () => _showExpenseDetail(e),
+                              child: _ExpenseRow(expense: e),
+                            ),
                           ),
                         ),
                     ],
@@ -198,112 +238,102 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Top App Bar
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Summary Cards
+// Summary Cards — mirrors Admin Marketplace tab's _KpiStrip/_KpiTile pattern
+// (marketplace_dashboard_screen.dart) exactly: fixed-width tinted tiles in a
+// horizontal strip, icon badge + label + big value, consistent sizing.
+// Replaces the old, always month/all-time-scoped "This Month" / "All Time"
+// cards, which duplicated the period filter directly below them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SummaryCards extends StatelessWidget {
-  final double thisMonth;
-  final double allTime;
+  final double periodTotal;
+  final CategoryBreakdown? topCategory;
+  final int entryCount;
   final bool isLoading;
 
   const _SummaryCards({
-    required this.thisMonth,
-    required this.allTime,
+    required this.periodTotal,
+    required this.topCategory,
+    required this.entryCount,
     required this.isLoading,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _SummaryCard(
-            label: 'This Month',
-            value: thisMonth,
-            valueColor: AppConstants.primaryGreen,
-            isLoading: isLoading,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _SummaryCard(
-            label: 'All Time',
-            value: allTime,
-            valueColor: AppConstants.charcoal,
-            isLoading: isLoading,
-            tinted: true,
-          ),
-        ),
-      ],
+    final tiles = [
+      _KpiTile(
+        'Period Total',
+        isLoading ? '—' : '₱${NumberFormat('#,##0').format(periodTotal)}',
+        AppConstants.primaryGreen,
+        Icons.payments_rounded,
+      ),
+      _KpiTile(
+        'Top Category',
+        isLoading ? '—' : (topCategory?.category ?? 'None yet'),
+        topCategory != null ? categoryColor(topCategory!.category) : AppConstants.outline,
+        topCategory != null ? categoryIcon(topCategory!.category) : Icons.category_outlined,
+      ),
+      _KpiTile(
+        'Entries',
+        isLoading ? '—' : '$entryCount',
+        AppConstants.buyerBlue,
+        Icons.receipt_long_rounded,
+      ),
+    ];
+
+    return SizedBox(
+      height: 98,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: tiles.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final t = tiles[i];
+          return Container(
+            width: 112,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: t.color.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: t.color.withValues(alpha: 0.18)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: t.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                  ),
+                  child: Icon(t.icon, size: 14, color: t.color),
+                ),
+                const SizedBox(height: 6),
+                Text(t.label,
+                    style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant, height: 1.2),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(t.value,
+                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800, color: AppConstants.onSurface),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+class _KpiTile {
   final String label;
-  final double value;
-  final Color valueColor;
-  final bool isLoading;
-  final bool tinted;
-
-  const _SummaryCard({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-    required this.isLoading,
-    this.tinted = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: tinted
-            ? const Color(0xFFE6F6FF).withValues(alpha: 0.50)
-            : Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF455A64).withValues(alpha: 0.05),
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppConstants.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 6),
-          isLoading
-              ? Container(
-                  width: 100,
-                  height: 22,
-                  color: const Color(0xFFE8E8E8),
-                )
-              : Text(
-                  '₱${NumberFormat('#,##0.00').format(value)}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: valueColor,
-                  ),
-                ),
-        ],
-      ),
-    );
-  }
+  final String value;
+  final Color color;
+  final IconData icon;
+  const _KpiTile(this.label, this.value, this.color, this.icon);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -479,11 +509,14 @@ class _CategoryBreakdownCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Subsidy Banner
+// Subsidy Banner — now a real, period-scoped count instead of static,
+// crop-specific text (which named Palay/Peanut/MAO/SP3 regardless of what
+// the farmer actually grows, and showed no number at all).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SubsidyBanner extends StatelessWidget {
-  const _SubsidyBanner();
+  final int count;
+  const _SubsidyBanner({required this.count});
 
   @override
   Widget build(BuildContext context) {
@@ -518,11 +551,9 @@ class _SubsidyBanner extends StatelessWidget {
                       color: AppConstants.onSurface,
                     ),
                   ),
-                  const TextSpan(
-                    text:
-                        'Seeds and fertilizer for Palay are covered by MAO. '
-                        'Seeds for Peanut are provided by SP3. '
-                        'These do not affect your totals.',
+                  TextSpan(
+                    text: '$count subsidized ${count == 1 ? 'input' : 'inputs'} '
+                        'this period — these do not affect your totals above.',
                   ),
                 ],
               ),
@@ -544,22 +575,15 @@ class _ExpenseRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    final card = Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: expense.isSubsidy
-            ? Border(
-                left: const BorderSide(
-                  color: AppConstants.successGreen,
-                  width: 4,
-                ),
-                top: BorderSide(color: Colors.white.withValues(alpha: 0.40)),
-                right: BorderSide(color: Colors.white.withValues(alpha: 0.40)),
-                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.40)),
+        borderRadius: expense.isSubsidy
+            ? const BorderRadius.horizontal(
+                right: Radius.circular(AppConstants.radiusLg),
               )
-            : Border.all(color: Colors.white.withValues(alpha: 0.40)),
+            : BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF455A64).withValues(alpha: 0.05),
@@ -587,12 +611,15 @@ class _ExpenseRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        expense.category,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppConstants.onSurface,
+                      Expanded(
+                        child: Text(
+                          expense.displayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppConstants.onSurface,
+                          ),
                         ),
                       ),
                       if (expense.isSubsidy) ...[
@@ -626,7 +653,8 @@ class _ExpenseRow extends StatelessWidget {
                     ],
                   ),
                   Text(
-                    expense.description,
+                    '${expense.category} · ${expense.description}',
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: AppConstants.onSurfaceVariant,
@@ -642,6 +670,7 @@ class _ExpenseRow extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               '₱${NumberFormat('#,##0.00').format(expense.amount)}',
               style: GoogleFonts.poppins(
@@ -652,38 +681,178 @@ class _ExpenseRow extends StatelessWidget {
                     : AppConstants.onSurface,
               ),
             ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded,
+                size: 18, color: AppConstants.outline),
           ],
         ),
+      ),
+    );
+
+    if (!expense.isSubsidy) return SizedBox(width: double.infinity, child: card);
+
+    // A single BoxDecoration can't mix a borderRadius with a non-uniform
+    // Border (different colors per side) — Flutter throws "A borderRadius
+    // can only be given on borders with uniform colors." at paint time.
+    // The subsidy accent is drawn as a separate colored stripe instead,
+    // with the card itself using a uniform border + right-only radius.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 4,
+            decoration: const BoxDecoration(
+              color: AppConstants.successGreen,
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(AppConstants.radiusLg),
+              ),
+            ),
+          ),
+          Expanded(child: card),
+        ],
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Add Expense Bottom Sheet
+// Expense Detail Dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AddExpenseSheet extends StatefulWidget {
-  final VoidCallback onSaved;
-  final ExpenseRepository repo;
-
-  const _AddExpenseSheet({required this.onSaved, required this.repo});
+class _ExpenseDetailDialog extends StatelessWidget {
+  final ExpenseModel expense;
+  const _ExpenseDetailDialog({required this.expense});
 
   @override
-  State<_AddExpenseSheet> createState() => _AddExpenseSheetState();
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      ),
+      title: Text(
+        expense.displayName,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _DetailRow(label: 'Category', value: expense.category),
+          _DetailRow(label: 'Description', value: expense.description),
+          _DetailRow(
+            label: 'Amount',
+            value: '₱${NumberFormat('#,##0.00').format(expense.amount)}',
+          ),
+          _DetailRow(
+            label: 'Date',
+            value: DateFormat('MMM d, yyyy').format(expense.expenseDate),
+          ),
+          _DetailRow(
+            label: 'Covered by Subsidy',
+            value: expense.isSubsidy ? 'Yes' : 'No',
+          ),
+          if (!expense.isSynced)
+            const _DetailRow(label: 'Sync Status', value: 'Pending'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Close',
+            style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _AddExpenseSheetState extends State<_AddExpenseSheet> {
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Add Expense Dialog (was a bottom sheet — converted to a dialog per
+// explicit request, an intentional exception to this codebase's usual
+// bottom-sheet-first modal convention for this one screen)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AddExpenseDialog extends StatefulWidget {
+  final VoidCallback onSaved;
+  final ExpenseRepository repo;
+  final CategoryRepository categoryRepo;
+  final List<String> categories;
+  final ValueChanged<List<String>> onCategoriesChanged;
+
+  const _AddExpenseDialog({
+    required this.onSaved,
+    required this.repo,
+    required this.categoryRepo,
+    required this.categories,
+    required this.onCategoriesChanged,
+  });
+
+  @override
+  State<_AddExpenseDialog> createState() => _AddExpenseDialogState();
+}
+
+class _AddExpenseDialogState extends State<_AddExpenseDialog> {
+  final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _amountController = TextEditingController(text: '0.00');
 
-  String _category = 'Fertilizer';
+  late List<String> _categories;
+  String? _category;
   DateTime _date = DateTime.now();
   bool _isSubsidy = false;
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    _categories = widget.categories;
+    _category = _categories.isNotEmpty ? _categories.first : null;
+  }
+
+  @override
   void dispose() {
+    _nameController.dispose();
     _descController.dispose();
     _amountController.dispose();
     super.dispose();
@@ -708,43 +877,61 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  Future<String?> _addNewCategory() async {
+    final name = await promptForNewOptionName(
+      context,
+      title: 'Add Expense Category',
+      hintText: 'e.g. Livestock Feed',
+    );
+    if (name == null) return null;
+    final added = await widget.categoryRepo.addExpenseCategory(name);
+    if (added == null) return null;
+    if (!_categories.contains(added)) {
+      setState(() => _categories = [..._categories, added]);
+      widget.onCategoriesChanged(_categories);
+    }
+    return added;
+  }
+
   Future<void> _save() async {
+    if (_category == null) {
+      AppToast.show(context, 'Please select a category.', isError: true);
+      return;
+    }
+    if (_nameController.text.trim().isEmpty) {
+      AppToast.show(context, 'Please enter a name.', isError: true);
+      return;
+    }
     if (_descController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description.')),
-      );
+      AppToast.show(context, 'Please enter a description.', isError: true);
       return;
     }
     final amountText = _amountController.text.trim();
     final amount = double.tryParse(amountText) ?? 0;
     if (!_isSubsidy && (!isValidCurrencyValue(amountText) || amount <= 0)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount.')),
-      );
+      AppToast.show(context, 'Please enter a valid amount.', isError: true);
       return;
     }
     setState(() => _isSaving = true);
     try {
       final result = await widget.repo.addExpense(
-        category: _category,
+        name: _nameController.text.trim(),
+        category: _category!,
         description: _descController.text.trim(),
         amount: amount,
         expenseDate: _date,
         isSubsidy: _isSubsidy,
       );
       if (mounted) {
-        // Shown on the sheet's own context before it's popped by
+        // Shown on the dialog's own context before it's popped by
         // widget.onSaved() below — so the farmer knows this was queued,
         // not lost (Phase 2 / U2, closes the gap where an offline
-        // expense used to just fail with no queuing).
+        // expense used to just fail with no queuing). AppToast (not a
+        // ScaffoldMessenger SnackBar) since a SnackBar fired from inside
+        // a dialog's own context renders behind the dialog, not in front
+        // of it — see app_toast.dart's doc comment.
         if (!result.isSynced) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Saved offline — will sync once you\'re back online.',
-              ),
-            ),
-          );
+          AppToast.show(context, 'Saved offline — will sync once you\'re back online.');
         }
         // Broadcasts to Profile (and any other listening screen) so the
         // "This month's expenses" tile doesn't go stale after adding an
@@ -757,54 +944,48 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     } catch (_) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save. Please try again.')),
-        );
+        AppToast.show(context, 'Failed to save. Please try again.', isError: true);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       ),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppConstants.offWhite,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      title: Text(
+        'Add New Expense',
+        style: GoogleFonts.poppins(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppConstants.primaryGreen,
         ),
+      ),
+      content: SizedBox(
+        width: 400,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: AppConstants.outline.withValues(alpha: 0.30),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Text(
-                'Add New Expense',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
-                ),
-              ),
-              const SizedBox(height: 20),
-
               // Category
+              AppDropdownField<String>(
+                value: _category,
+                hintText: 'Select a category',
+                labelText: 'Category',
+                items: _categories,
+                itemLabel: (c) => c,
+                onChanged: (v) => setState(() => _category = v),
+                addNewLabel: 'Add New Category',
+                onAddNew: _addNewCategory,
+              ),
+              const SizedBox(height: 16),
+
+              // Name
               Text(
-                'Category',
+                'Name',
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -812,39 +993,17 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                 ),
               ),
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  border: Border.all(
-                    color: AppConstants.outline.withValues(alpha: 0.20),
+              TextField(
+                controller: _nameController,
+                style: GoogleFonts.inter(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Urea Fertilizer',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _category,
-                    isExpanded: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    onChanged: (v) => setState(() => _category = v!),
-                    items: expenseCategories
-                        .map(
-                          (c) => DropdownMenuItem(
-                            value: c,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  categoryIcon(c),
-                                  size: 18,
-                                  color: categoryColor(c),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(c, style: GoogleFonts.inter(fontSize: 14)),
-                              ],
-                            ),
-                          ),
-                        )
-                        .toList(),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
                 ),
               ),
@@ -862,176 +1021,91 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               const SizedBox(height: 8),
               TextField(
                 controller: _descController,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AppConstants.onSurface,
-                ),
+                style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'e.g. Hired help for harvesting',
-                  hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppConstants.outline.withValues(alpha: 0.50),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    borderSide: BorderSide(
-                      color: AppConstants.outline.withValues(alpha: 0.20),
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    borderSide: BorderSide(
-                      color: AppConstants.outline.withValues(alpha: 0.20),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                    borderSide: const BorderSide(
-                      color: AppConstants.primaryGreen,
-                      width: 2,
-                    ),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 14,
+                    vertical: 12,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Amount + Date row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Amount (₱)',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _amountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9.]'),
-                            ),
-                          ],
-                          enabled: !_isSubsidy,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: AppConstants.onSurface,
-                          ),
-                          decoration: InputDecoration(
-                            prefixText: '₱ ',
-                            filled: true,
-                            fillColor: _isSubsidy
-                                ? const Color(0xFFF1F5F9)
-                                : Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusLg,
-                              ),
-                              borderSide: BorderSide(
-                                color: AppConstants.outline.withValues(
-                                  alpha: 0.20,
-                                ),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusLg,
-                              ),
-                              borderSide: BorderSide(
-                                color: AppConstants.outline.withValues(
-                                  alpha: 0.20,
-                                ),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusLg,
-                              ),
-                              borderSide: const BorderSide(
-                                color: AppConstants.primaryGreen,
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Date',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        GestureDetector(
-                          onTap: _pickDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusLg,
-                              ),
-                              border: Border.all(
-                                color: AppConstants.outline.withValues(
-                                  alpha: 0.20,
-                                ),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  DateFormat('MMM d').format(_date),
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: AppConstants.onSurface,
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.calendar_today_rounded,
-                                  size: 16,
-                                  color: AppConstants.primaryGreen,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              // Amount
+              Text(
+                'Amount (₱)',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
+                enabled: !_isSubsidy,
+                style: GoogleFonts.inter(fontSize: 14),
+                decoration: InputDecoration(
+                  prefixText: '₱ ',
+                  filled: _isSubsidy,
+                  fillColor: const Color(0xFFF1F5F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Date
+              Text(
+                'Date',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickDate,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    border: Border.all(
+                      color: AppConstants.outline.withValues(alpha: 0.30),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        DateFormat('MMM d, yyyy').format(_date),
+                        style: GoogleFonts.inter(fontSize: 14),
+                      ),
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 16,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -1044,7 +1118,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE6F6FF),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1082,48 +1156,47 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppConstants.primaryGreen,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppConstants.primaryGreen
-                        .withValues(alpha: 0.60),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          'Save Expense',
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                ),
-              ),
             ],
           ),
         ),
       ),
+      // A single Row action (rather than two separate `actions` entries)
+      // so Cancel/Save always render side by side — AlertDialog's default
+      // OverflowBar stacks its actions vertically once their combined
+      // width doesn't fit, which is what was happening here.
+      actions: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Colors.white,
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : const Text('Save Expense'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

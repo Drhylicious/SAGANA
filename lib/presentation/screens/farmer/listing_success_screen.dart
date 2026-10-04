@@ -2,12 +2,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
+
+// Carries the batch-level context (Market Type, Batch Number) that
+// MarketplaceListingModel itself doesn't own — those live on
+// InventoryBatchModel. create_listing_screen.dart already has the selected
+// batch in hand at submission time, so it's passed through here rather
+// than re-fetched, keeping the model itself a faithful mirror of its own
+// DB row instead of being bloated with joined data it doesn't write.
+class ListingSuccessArgs {
+  final MarketplaceListingModel listing;
+  final String? batchNumber;
+  final String? marketType;
+  // Phase 11 — same rationale as batchNumber/marketType: category lives on
+  // InventoryBatchModel, not MarketplaceListingModel, so it's passed
+  // through from the already-in-hand selected batch rather than re-fetched.
+  final String? category;
+
+  const ListingSuccessArgs({
+    required this.listing,
+    this.batchNumber,
+    this.marketType,
+    this.category,
+  });
+}
 
 class ListingSuccessScreen extends StatefulWidget {
   final Object? initialArg;
@@ -23,6 +47,9 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   final _repo = ListingRepository();
 
   MarketplaceListingModel? _listing;
+  String? _batchNumber;
+  String? _marketType;
+  String? _category;
   bool _isWithdrawing = false;
 
   late final AnimationController _animController;
@@ -45,8 +72,14 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     // Navigator.push(..., settings: RouteSettings(...)), which is not how
     // this screen is reached now that create_listing_screen.dart navigates
     // here via context.pushReplacementRoute).
-    if (widget.initialArg is MarketplaceListingModel) {
-      _listing = widget.initialArg as MarketplaceListingModel;
+    final arg = widget.initialArg;
+    if (arg is ListingSuccessArgs) {
+      _listing = arg.listing;
+      _batchNumber = arg.batchNumber;
+      _marketType = arg.marketType;
+      _category = arg.category;
+    } else if (arg is MarketplaceListingModel) {
+      _listing = arg;
     }
 
     _animController = AnimationController(
@@ -185,7 +218,13 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
                         opacity: _cardAnim,
                         child: SlideTransition(
                           position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(_cardAnim),
-                          child: _SummaryCard(listing: listing, estimatedRevenue: _estimatedRevenue),
+                          child: _SummaryCard(
+                            listing: listing,
+                            batchNumber: _batchNumber,
+                            marketType: _marketType,
+                            category: _category,
+                            estimatedRevenue: _estimatedRevenue,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -204,7 +243,7 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
               ),
             ],
           ),
-          Positioned(top: 0, left: 0, right: 0, child: FarmerTopBar(title: 'Submission Success', profilePhotoUrl: null, onProfileTap: () {}, onNotificationTap: () => context.pushRoute(AppRoutes.farmerNotifications), onSettingsTap: null,)),
+          Positioned(top: 0, left: 0, right: 0, child: FarmerTopBar(title: 'Submission Success', profilePhotoUrl: null, hideProfileAvatar: true, onProfileTap: () {}, onNotificationTap: () {}, showNotificationButton: false, onSettingsTap: null,)),
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: FadeTransition(
@@ -264,21 +303,25 @@ class _HeaderSection extends StatelessWidget {
 
 class _SummaryCard extends StatelessWidget {
   final MarketplaceListingModel listing;
+  final String? batchNumber;
+  final String? marketType;
+  final String? category;
   final double estimatedRevenue;
 
-  const _SummaryCard({required this.listing, required this.estimatedRevenue});
+  const _SummaryCard({
+    required this.listing,
+    required this.batchNumber,
+    required this.marketType,
+    required this.category,
+    required this.estimatedRevenue,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [BoxShadow(color: AppConstants.infoBlueFg.withValues(alpha: 0.05), blurRadius: 16)],
-      ),
+      decoration: flatCardDecoration(context),
       child: Column(
         children: [
           // Header row
@@ -331,10 +374,46 @@ class _SummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // Quantity row
+          // Full recap of what was entered/selected in Create Listing, so
+          // the farmer can verify the submission before moving on.
           _SummaryRow(label: 'Quantity', value: '${listing.volumeKg.toStringAsFixed(0)} kg'),
           const SizedBox(height: 12),
           _SummaryRow(label: 'Price per Unit', value: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg'),
+          if (marketType != null) ...[
+            const SizedBox(height: 12),
+            _SummaryRow(label: 'Market Type', value: marketTypeLabelFor(marketType)),
+          ],
+          if (category != null && category!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _SummaryRow(label: 'Category', value: category!),
+          ],
+          if (batchNumber != null && batchNumber!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _SummaryRow(label: 'Batch Number', value: batchNumber!),
+          ],
+          if (listing.description != null && listing.description!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppConstants.offWhite,
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                border: Border.all(color: AppConstants.outline.withValues(alpha: 0.10)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('DESCRIPTION',
+                      style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600,
+                          color: AppConstants.onSurfaceVariant.withValues(alpha: 0.70), letterSpacing: 1.0)),
+                  const SizedBox(height: 6),
+                  Text(listing.description!,
+                      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurface, height: 1.5)),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
 
           // Estimated revenue
@@ -407,7 +486,16 @@ class _SummaryRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant)),
-          Text(value, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500, color: AppConstants.onSurface)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500, color: AppConstants.onSurface),
+            ),
+          ),
         ],
       ),
     );
@@ -494,7 +582,7 @@ class _BottomActions extends StatelessWidget {
                   disabledBackgroundColor: Colors.transparent,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
                 ),
-                child: Text('View My Listings',
+                child: Text('View Listing',
                     style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white)),
               ),
             ),
@@ -514,13 +602,25 @@ class _BottomActions extends StatelessWidget {
                   style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500)),
             ),
           ),
-          const SizedBox(height: 6),
-          TextButton(
-            onPressed: isWithdrawing ? null : onWithdraw,
-            child: isWithdrawing
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.errorRed))
-                : Text('Withdraw Submission',
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: AppConstants.errorRed)),
+          const SizedBox(height: 12),
+          // Wrapped in its own red-outlined container so this destructive
+          // action reads as clearly separated from the two primary actions
+          // above, rather than sitting as a bare text link beneath them.
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: isWithdrawing ? null : onWithdraw,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppConstants.errorRed,
+                side: BorderSide(color: AppConstants.errorRed.withValues(alpha: 0.50)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+              ),
+              child: isWithdrawing
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.errorRed))
+                  : Text('Withdraw Submission',
+                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: AppConstants.errorRed)),
+            ),
           ),
         ],
       ),

@@ -15,14 +15,14 @@ class PriceManagementRepository {
 
   Future<List<PriceRecordModel>> fetchLatestPricePerCrop() async {
     try {
-      // Embeds crop_master's image via the real crop_id FK — Price
-      // Management only ever references this image, never uploads or
+      // Embeds crop_master's image + category via the real crop_id FK —
+      // Price Management only ever references these, never uploads or
       // stores its own copy. Left-join semantics (crop_id is nullable on
-      // very old rows) mean a row with no linked crop just gets a null
-      // image rather than being excluded.
+      // very old rows) mean a row with no linked crop just gets nulls
+      // rather than being excluded.
       final rows = await _client
           .from('price_records')
-          .select('*, crop_master(image_url)')
+          .select('*, crop_master(image_url, category)')
           .order('recorded_at', ascending: false);
 
       final Map<String, PriceRecordModel> latest = {};
@@ -35,7 +35,9 @@ class PriceManagementRepository {
       return latest.values.toList()
         ..sort((a, b) => a.cropName.compareTo(b.cropName));
     } catch (e) {
-      debugPrint('PriceManagementRepository.fetchLatestPricePerCrop failed: $e');
+      debugPrint(
+        'PriceManagementRepository.fetchLatestPricePerCrop failed: $e',
+      );
       return [];
     }
   }
@@ -89,8 +91,9 @@ class PriceManagementRepository {
           .order('recorded_at', ascending: false)
           .limit(10);
 
-      final fallback =
-          fallbackRows.map((r) => PriceRecordModel.fromMap(r)).toList();
+      final fallback = fallbackRows
+          .map((r) => PriceRecordModel.fromMap(r))
+          .toList();
       return fallback.reversed.toList();
     } catch (e) {
       debugPrint('PriceManagementRepository.fetchTrendForCrop failed: $e');
@@ -146,6 +149,14 @@ class PriceManagementRepository {
         .select()
         .single();
 
+    AdminActivityRepository().log(
+      module: 'prices',
+      actionType: 'recorded',
+      description:
+          'Recorded a $priceType price for "${cropName.trim()}" (₱${price.toStringAsFixed(2)}/$unit).',
+      referenceId: cropId,
+    );
+
     return PriceRecordModel.fromMap(row);
   }
 
@@ -153,6 +164,12 @@ class PriceManagementRepository {
 
   Future<void> deletePriceRecord(String id) async {
     await _client.from('price_records').delete().eq('id', id);
+    AdminActivityRepository().log(
+      module: 'prices',
+      actionType: 'deleted',
+      description: 'Deleted a price record.',
+      referenceId: id,
+    );
   }
 
   // ─── Fetch crops available for pricing ─────────────────────────────────────
@@ -187,8 +204,10 @@ class PriceManagementRepository {
       final results = await Future.wait([
         _client
             .from('marketplace_listings')
-            .select('id, farmer_id, crop_name, variety, volume_kg, '
-                'remaining_kg, price_per_kg, photo_url')
+            .select(
+              'id, farmer_id, crop_name, variety, volume_kg, '
+              'remaining_kg, price_per_kg, photo_url',
+            )
             .eq('status', 'approved')
             .order('crop_name'),
         _client.from('crop_master').select('crop_name, crop_type'),
@@ -225,14 +244,15 @@ class PriceManagementRepository {
     required double newPrice,
   }) async {
     try {
-      await _client.rpc('admin_update_listing_price', params: {
-        'p_listing_id': listingId,
-        'p_new_price': newPrice,
-      });
+      await _client.rpc(
+        'admin_update_listing_price',
+        params: {'p_listing_id': listingId, 'p_new_price': newPrice},
+      );
       AdminActivityRepository().log(
         module: 'prices',
         actionType: 'updated',
-        description: 'Updated a cooperative market listing price to ₱${newPrice.toStringAsFixed(2)}.',
+        description:
+            'Updated a cooperative market listing price to ₱${newPrice.toStringAsFixed(2)}.',
         referenceId: listingId,
       );
       return true;
@@ -241,22 +261,20 @@ class PriceManagementRepository {
     }
   }
 
-  // ─── Crop categories (for Buyer's Price tab filter panel) ─────────────────
-  // Small, purpose-built addition — not importing Farmer's CropRepository,
-  // which would cross a role boundary this whole review has been careful
-  // about (CropRepository/farmer_market_rates_repository were both
-  // confirmed unused-by-Buyer earlier). Scoped to crop_id → category only,
-  // since that's all the filter panel needs.
-  Future<Map<String, String>> fetchCropCategories() async {
+  // ─── Notification recipient count (for the pre-save preview note) ─────────
+  // Mirrors broadcastPriceNotification()'s own recipient query exactly, so
+  // the count shown to the admin before saving always matches who will
+  // actually be notified — was previously a hardcoded "52" placeholder.
+  Future<int> fetchNotificationRecipientCount() async {
     try {
-      final rows = await _client.from('crop_master').select('id, category');
-      return {
-        for (final r in rows)
-          r['id'] as String: r['category'] as String? ?? 'Other',
-      };
-    } catch (e) {
-      debugPrint('PriceManagementRepository.fetchCropCategories failed: $e');
-      return {};
+      final rows = await _client
+          .from('user_roles')
+          .select('user_id')
+          .inFilter('role', ['farmer', 'buyer'])
+          .eq('status', 'active');
+      return rows.length;
+    } catch (_) {
+      return 0;
     }
   }
 
@@ -297,9 +315,11 @@ class PriceManagementRepository {
           userId: r['user_id'] as String,
           type: 'price',
           title: 'Price Update: $cropName',
-          body: 'SP3 Admin updated the price of $cropName '
+          body:
+              'SP3 Admin updated the price of $cropName '
               'to ₱${newPrice.toStringAsFixed(2)}/$unit. $tabHint',
           createdAt: now,
+          routeOnTap: isBuyer ? '/buyer/prices' : '/farmer/analytics',
         );
       }).toList();
 

@@ -8,11 +8,16 @@ class PriceRecordModel {
   final double? previousPrice;
   final DateTime recordedAt;
   final String? recordedBy;
-  final String? source; // Reference document: Board Resolution, DA Bulletin, etc.
+  final String?
+  source; // Reference document: Board Resolution, DA Bulletin, etc.
   // Referenced from crop_master via crop_id — Price Management never owns
   // or uploads this, only displays it. Null until the admin sets an image
   // on the crop in Crop Management.
   final String? cropImageUrl;
+  // Also referenced from crop_master via crop_id — read-only display only,
+  // same as cropImageUrl. Null when fetched via a query that doesn't embed
+  // crop_master (e.g. history), or for a very old crop_id-less row.
+  final String? cropCategory;
 
   const PriceRecordModel({
     required this.id,
@@ -26,6 +31,7 @@ class PriceRecordModel {
     this.recordedBy,
     this.source,
     this.cropImageUrl,
+    this.cropCategory,
   });
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -67,7 +73,11 @@ class PriceRecordModel {
       source:        map['source'] as String?,
       // Present only when fetched via a query that embeds crop_master
       // (fetchLatestPricePerCrop) — absent (null) elsewhere, e.g. history.
-      cropImageUrl:  (map['crop_master'] as Map<String, dynamic>?)?['image_url'] as String?,
+      cropImageUrl:
+          (map['crop_master'] as Map<String, dynamic>?)?['image_url']
+              as String?,
+      cropCategory:
+          (map['crop_master'] as Map<String, dynamic>?)?['category'] as String?,
     );
   }
 

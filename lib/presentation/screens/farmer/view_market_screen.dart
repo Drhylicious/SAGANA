@@ -5,13 +5,11 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
-import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/farmer_market_rates_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
-import '../../widgets/management_modal.dart';
 
 class ViewMarketScreen extends StatefulWidget {
   const ViewMarketScreen({super.key});
@@ -22,18 +20,14 @@ class ViewMarketScreen extends StatefulWidget {
 
 class _ViewMarketScreenState extends State<ViewMarketScreen> {
   final _ratesRepo = FarmerMarketRatesRepository();
-  final _cropRepo = CropRepository();
   final _searchController = TextEditingController();
 
   List<FarmerMarketRateModel> _rates = [];
-  List<Map<String, dynamic>> _cropCatalog = [];
   bool _isLoading = true;
   bool _isOnline = true;
 
   // ─── Active filters ─────────────────────────────────────────────────────
-  String? _marketType;   // price_type chip — independent of the panel below
-  String? _cropCategory; // filter panel
-  String? _cropId;       // filter panel
+  String? _marketType; // price_type chip: All / Cooperative Market / Public Market
 
   @override
   void initState() {
@@ -54,46 +48,21 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _ratesRepo.fetchMarketRates(
-        marketType: _marketType,
-        cropCategory: _cropCategory,
-        cropId: _cropId,
-        searchQuery: _searchController.text.trim().isEmpty
-            ? null
-            : _searchController.text.trim(),
-      ),
-      _cropRepo.fetchCropCatalog(),
-    ]);
+    final rates = await _ratesRepo.fetchMarketRates(
+      marketType: _marketType,
+      searchQuery: _searchController.text.trim().isEmpty
+          ? null
+          : _searchController.text.trim(),
+    );
     if (!mounted) return;
     setState(() {
-      _rates = results[0] as List<FarmerMarketRateModel>;
-      _cropCatalog = results[1] as List<Map<String, dynamic>>;
+      _rates = rates;
       _isLoading = false;
     });
   }
 
   void _setMarketType(String? type) {
     setState(() => _marketType = type);
-    _load();
-  }
-
-  bool get _hasPanelFilters => _cropCategory != null || _cropId != null;
-
-  Future<void> _openFilterPanel() async {
-    final result = await showManagementModal<_FilterResult>(
-      context: context,
-      builder: (_) => _FilterPanel(
-        cropCatalog: _cropCatalog,
-        initialCategory: _cropCategory,
-        initialCropId: _cropId,
-      ),
-    );
-    if (result == null) return; // dismissed without applying
-    setState(() {
-      _cropCategory = result.cropCategory;
-      _cropId = result.cropId;
-    });
     _load();
   }
 
@@ -142,51 +111,12 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
   Widget _buildSearchRow(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: AppTextField(
-              controller: _searchController,
-              label: l10n.buyerPriceSearchLabel,
-              hint: l10n.buyerPriceSearchHint,
-              prefixIcon: Icons.search,
-              onChanged: (_) => _load(),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: AppConstants.white,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(
-                    color: AppConstants.outline.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.tune_rounded),
-                  color: AppConstants.primaryGreen,
-                  onPressed: _openFilterPanel,
-                ),
-              ),
-              if (_hasPanelFilters)
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: AppConstants.errorRed,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
+      child: AppTextField(
+        controller: _searchController,
+        label: l10n.buyerPriceSearchLabel,
+        hint: l10n.buyerPriceSearchHint,
+        prefixIcon: Icons.search,
+        onChanged: (_) => _load(),
       ),
     );
   }
@@ -249,7 +179,6 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
 
     if (_rates.isEmpty) {
       final hasActiveFilter = _marketType != null ||
-          _hasPanelFilters ||
           _searchController.text.trim().isNotEmpty;
       return Center(
         child: Padding(
@@ -308,82 +237,109 @@ class _MarketRateListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final color = MarketTypeDisplay.color(context, rate.priceType);
     final imageUrl = rate.cropImageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
     return GestureDetector(
       onTap: onTap,
-      child: GlassCard(
+      child: Container(
         padding: const EdgeInsets.all(14),
+        decoration: flatCardDecoration(context),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Same crop image Crop Management/Price Management show —
-            // referenced only, never uploaded from here. Falls back to the
-            // market-type-colored icon when the crop has none set.
+            // referenced only, never uploaded from here. Sized to match
+            // Admin All Listings' thumbnail so the crop is clearly
+            // recognizable, not a cramped icon-sized square.
             ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: Container(
-                width: 44,
-                height: 44,
-                color: color.withValues(alpha: 0.12),
-                child: (imageUrl != null && imageUrl.isNotEmpty)
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: SizedBox(
+                width: 72,
+                height: 72,
+                child: hasImage
                     ? Image.network(
                         imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            Icon(Icons.storefront_outlined, color: color, size: 20),
+                        errorBuilder: (_, __, ___) => Container(
+                          color: color.withValues(alpha: 0.12),
+                          child: Icon(Icons.eco_outlined, size: 28, color: color),
+                        ),
                       )
-                    : Icon(Icons.storefront_outlined, color: color, size: 20),
+                    : Container(
+                        color: color.withValues(alpha: 0.12),
+                        child: Icon(Icons.eco_outlined, size: 28, color: color),
+                      ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    rate.cropName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.charcoal,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          rate.cropName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppConstants.charcoal,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        ),
+                        child: Text(
+                          MarketTypeDisplay.label(l10n, rate.priceType),
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 6),
                   Text(
-                    '${MarketTypeDisplay.label(l10n, rate.priceType)} · ${l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n))}',
+                    l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: AppConstants.onSurfaceVariant,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    rate.formattedPrice,
+                    style: GoogleFonts.poppins(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppConstants.primaryGreen,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Text(
-              rate.formattedPrice,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right_rounded, color: cs.outline, size: 20),
           ],
         ),
       ),
     );
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Filter panel — Crop Category + Crop, independent of the Market Type
-// chips above, per the earlier terminology decision. Opened via
-// showManagementModal() as a centered dialog rather than a bottom sheet.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FilterResult {
-  final String? cropCategory;
-  final String? cropId;
-  const _FilterResult({this.cropCategory, this.cropId});
 }
 
 class _Shimmer extends StatefulWidget {
@@ -450,192 +406,6 @@ class _ShimmerState extends State<_Shimmer>
                   .surfaceContainerHighest
                   .withValues(alpha: 0.35),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterPanel extends StatefulWidget {
-  final List<Map<String, dynamic>> cropCatalog;
-  final String? initialCategory;
-  final String? initialCropId;
-
-  const _FilterPanel({
-    required this.cropCatalog,
-    this.initialCategory,
-    this.initialCropId,
-  });
-
-  @override
-  State<_FilterPanel> createState() => _FilterPanelState();
-}
-
-class _FilterPanelState extends State<_FilterPanel> {
-  String? _category;
-  String? _cropId;
-
-  @override
-  void initState() {
-    super.initState();
-    _category = widget.initialCategory;
-    _cropId = widget.initialCropId;
-  }
-
-  List<Map<String, dynamic>> get _cropsForCategory {
-    if (_category == null) return widget.cropCatalog;
-    return widget.cropCatalog
-        .where((c) => c['category'] == _category)
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    return ManagementModalShell(
-      title: l10n.farmerMarketFilterTitle,
-      subtitle: l10n.buyerPriceFilterPanelSubtitle,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.buyerPriceFilterCategoryLabel,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              color: cs.outline,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: {for (final c in widget.cropCatalog) c['category'] as String}
-                .toList()
-                .map((cat) {
-              final selected = _category == cat;
-              return _Chip(
-                label: cat,
-                active: selected,
-                cs: cs,
-                onTap: () => setState(() {
-                  _category = selected ? null : cat;
-                  // Dropping the category may orphan a crop selection
-                  // that no longer belongs to it — clear it rather
-                  // than silently filtering on a mismatched pair.
-                  if (_cropId != null &&
-                      !_cropsForCategory.any((c) => c['id'] == _cropId)) {
-                    _cropId = null;
-                  }
-                }),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            l10n.buyerPriceFilterCropLabel,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              color: cs.outline,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (_cropsForCategory.isEmpty)
-            Text(l10n.listingFilterNoCropsInCategory,
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant))
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _cropsForCategory.map((c) {
-                final cropId = c['id'] as String;
-                final selected = _cropId == cropId;
-                return _Chip(
-                  label: c['crop_name'] as String,
-                  active: selected,
-                  cs: cs,
-                  onTap: () => setState(() => _cropId = selected ? null : cropId),
-                );
-              }).toList(),
-            ),
-        ],
-      ),
-      footer: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: BorderSide(color: cs.outline.withValues(alpha: 0.30)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-              ),
-              onPressed: () =>
-                  Navigator.of(context).pop(const _FilterResult()),
-              child: Text(
-                l10n.buyerPriceResetAll,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(
-                _FilterResult(cropCategory: _category, cropId: _cropId),
-              ),
-              child: Text(
-                l10n.buyerPriceApplyFilters,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-
-  const _Chip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            color: active ? Colors.white : cs.onSurfaceVariant,
           ),
         ),
       ),

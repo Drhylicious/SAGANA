@@ -70,6 +70,14 @@ class MemberContribution {
   final double estimatedPurchasePatronage;
   final double? actualPurchasePatronage;
 
+  /// Null | 'pending_cash' | 'pending_capital' | 'cash_confirmed' | 'capital_confirmed'.
+  /// The farmer's own choice for this year's finalized payout, submitted
+  /// via request_payout_decision() — only takes real effect (a capital
+  /// ledger entry) once an admin calls confirm_payout_decision(). Exactly
+  /// one decision is ever allowed per farmer per year.
+  final String? payoutDecision;
+  final double? payoutDecisionAmount;
+
   const MemberContribution({
     required this.id,
     required this.farmerId,
@@ -91,9 +99,18 @@ class MemberContribution {
     this.programPurchasesAmount = 0,
     this.estimatedPurchasePatronage = 0,
     this.actualPurchasePatronage,
+    this.payoutDecision,
+    this.payoutDecisionAmount,
   });
 
   bool get isPaid => status == 'paid';
+
+  bool get hasPendingPayoutDecision =>
+      payoutDecision == 'pending_cash' || payoutDecision == 'pending_capital';
+  bool get hasConfirmedPayoutDecision =>
+      payoutDecision == 'cash_confirmed' ||
+      payoutDecision == 'capital_confirmed';
+  bool get hasAnyPayoutDecision => payoutDecision != null;
 
   /// Offer to Cooperative (sales) source only.
   double get estimatedOfferToCoopTotal =>
@@ -134,8 +151,8 @@ class MemberContribution {
       peanutSalesAmount: (map['peanut_sales_amount'] as num? ?? 0).toDouble(),
       otherCropsQtyKg: (map['other_crops_qty_kg'] as num? ?? 0).toDouble(),
       otherCropsAmount: (map['other_crops_amount'] as num? ?? 0).toDouble(),
-      estimatedBalikTangkilik:
-          (map['estimated_balik_tangkilik'] as num? ?? 0).toDouble(),
+      estimatedBalikTangkilik: (map['estimated_balik_tangkilik'] as num? ?? 0)
+          .toDouble(),
       estimatedInterestOnCapital:
           (map['estimated_interest_on_capital'] as num? ?? 0).toDouble(),
       actualBalikTangkilik: map['actual_balik_tangkilik'] != null
@@ -149,8 +166,12 @@ class MemberContribution {
           : null,
       status: map['status'] as String? ?? 'pending',
       reinvestedAmount: (map['reinvested_amount'] as num? ?? 0).toDouble(),
-      programPurchasesAmount:
-          (map['program_purchases_amount'] as num? ?? 0).toDouble(),
+      payoutDecision: map['payout_decision'] as String?,
+      payoutDecisionAmount: map['payout_decision_amount'] != null
+          ? (map['payout_decision_amount'] as num).toDouble()
+          : null,
+      programPurchasesAmount: (map['program_purchases_amount'] as num? ?? 0)
+          .toDouble(),
       estimatedPurchasePatronage:
           (map['estimated_purchase_patronage'] as num? ?? 0).toDouble(),
       actualPurchasePatronage: map['actual_purchase_patronage'] != null
@@ -197,10 +218,9 @@ class CapitalSharesModel {
     return CapitalSharesModel(
       farmerId: map['farmer_id'] as String,
       totalShares: map['total_shares'] as int? ?? 0,
-      shareValuePerUnit:
-          (map['share_value_per_unit'] as num? ?? 2000).toDouble(),
-      totalContribution:
-          (map['total_contribution'] as num? ?? 0).toDouble(),
+      shareValuePerUnit: (map['share_value_per_unit'] as num? ?? 2000)
+          .toDouble(),
+      totalContribution: (map['total_contribution'] as num? ?? 0).toDouble(),
     );
   }
 }
@@ -211,7 +231,8 @@ class CapitalContributionEvent {
   final String id;
   final String farmerId;
   final double amount;
-  final String source; // member_payment | patronage_capital | manual_adjustment | opening_balance
+  final String
+  source; // member_payment | patronage_capital | manual_adjustment | opening_balance
   final String? note;
   final DateTime createdAt;
 
@@ -263,10 +284,10 @@ class CoopAnnualTotal {
     return CoopAnnualTotal(
       year: map['year'] as int,
       totalCoopSales: (map['total_coop_sales'] as num? ?? 0).toDouble(),
-      distributableSurplus:
-          (map['distributable_surplus'] as num? ?? 0).toDouble(),
-      interestRatePercent:
-          (map['interest_rate_percent'] as num? ?? 7).toDouble(),
+      distributableSurplus: (map['distributable_surplus'] as num? ?? 0)
+          .toDouble(),
+      interestRatePercent: (map['interest_rate_percent'] as num? ?? 7)
+          .toDouble(),
       afsFinalized: map['afs_finalized'] as bool? ?? false,
       totalProgramSales: (map['total_program_sales'] as num? ?? 0).toDouble(),
       distributableProgramSurplus:
@@ -274,5 +295,3 @@ class CoopAnnualTotal {
     );
   }
 }
-
-

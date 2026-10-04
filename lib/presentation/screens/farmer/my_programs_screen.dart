@@ -5,7 +5,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/farmer_top_bar.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -67,6 +66,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
               const SizedBox(height: 64),
               if (!_isOnline)
                 const OfflineBanner(message: "You're offline — your program enrollment details may not be up to date."),
+              const SizedBox(height: 4),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -76,10 +76,11 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
                           child: CircularProgressIndicator(color: AppConstants.primaryGreen))
                       : _programs.isEmpty
                           ? ListView(children: const [
-                              SizedBox(height: 120),
+                              SizedBox(height: 80),
                               Center(
                                 child: Text(
-                                  'You are not enrolled in any programs yet.',
+                                  'You are not enrolled in any programs yet.\n'
+                                  'Go back to Programs to browse and request one.',
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -128,12 +129,19 @@ class _ProgramCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple;
+    // A single BoxDecoration can't mix a borderRadius with a non-uniform
+    // Border (different colors per side) — Flutter throws "A borderRadius
+    // can only be given on borders with uniform colors." at paint time.
+    // This card only rounds its right corners (border: uniform, radius-
+    // safe) and sits beside a separate colored stripe widget, added at
+    // the return GestureDetector(...) below.
     final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.50)),
+        color: Colors.white,
+        borderRadius: const BorderRadius.horizontal(right: Radius.circular(AppConstants.radiusLg)),
+        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.10)),
         boxShadow: [
           BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.05), blurRadius: 8),
         ],
@@ -144,11 +152,11 @@ class _ProgramCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 36, height: 36,
+                width: 48, height: 48,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: (entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple)
-                      .withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: (entry.programImageUrl != null && entry.programImageUrl!.isNotEmpty)
@@ -157,43 +165,58 @@ class _ProgramCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Icon(
                           entry.isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
-                          color: entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple,
-                          size: 18,
+                          color: accent,
+                          size: 22,
                         ),
                       )
                     : Icon(
                         entry.isSalesProgram ? Icons.storefront_rounded : Icons.volunteer_activism_rounded,
-                        color: entry.isSalesProgram ? AppConstants.successGreen : AppConstants.programPurple,
-                        size: 18,
+                        color: accent,
+                        size: 22,
                       ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(entry.programName,
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppConstants.programPurple.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(entry.programName,
+                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 3),
+                    Text(
+                      entry.isSalesProgram ? 'Sales Program' : 'Distribution Program',
+                      style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant),
+                    ),
+                  ],
                 ),
-                child: Text(statusLabel(entry.enrollmentStatus),
-                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                        color: AppConstants.programPurple)),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    ),
+                    child: Text(statusLabel(entry.enrollmentStatus),
+                        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                            color: accent)),
+                  ),
+                  const SizedBox(height: 4),
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 18, color: AppConstants.outline),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
+          const SizedBox(height: 12),
           if (entry.isSalesProgram) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Tap to view available products',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-                const Icon(Icons.chevron_right_rounded, color: AppConstants.onSurfaceVariant, size: 18),
-              ],
-            ),
+            Text('Tap for program details & available products',
+                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
           ] else if (!entry.isDistributed)
             Text('Awaiting distribution',
                 style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant))
@@ -257,14 +280,35 @@ class _ProgramCard extends StatelessWidget {
       ),
     );
 
-    if (!entry.isSalesProgram || entry.enrollmentStatus != 'active') return card;
-
+    // Every enrolled program now opens Program Details (Full Workflow) —
+    // previously only sales-purpose active programs were tappable at all;
+    // a distribution/benefit program row did nothing on tap.
     return GestureDetector(
       onTap: () => context.push(
-        AppRoutes.programProductCatalog,
-        extra: {'programId': entry.programId, 'programName': entry.programName},
+        AppRoutes.programDetails,
+        extra: {'entry': entry},
       ),
-      child: card,
+      // IntrinsicHeight, not a bare Row — CrossAxisAlignment.stretch tries
+      // to stretch children to the Row's own height, but inside a
+      // ListView.separated item that height is unbounded (0..Infinity),
+      // which crashes with "BoxConstraints forces an infinite height."
+      // IntrinsicHeight measures the tallest child first and constrains
+      // the Row to that real height instead.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppConstants.radiusLg)),
+              ),
+            ),
+            Expanded(child: card),
+          ],
+        ),
+      ),
     );
   }
 }

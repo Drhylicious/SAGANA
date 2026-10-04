@@ -23,13 +23,20 @@ class SyncService {
   static void startAutoSync() {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(_syncInterval, (_) async {
-      if (!HiveService.getBackgroundSync(userId: AppSettingsService.instance.currentUserId)) return;
+      if (!HiveService.getBackgroundSync(
+        userId: AppSettingsService.instance.currentUserId,
+      ))
+        return;
       await syncPending();
     });
 
     // Listen for connectivity restored
     ConnectivityService.instance.onConnectivityChanged.listen((isOnline) {
-      if (isOnline && HiveService.getBackgroundSync(userId: AppSettingsService.instance.currentUserId)) syncPending();
+      if (isOnline &&
+          HiveService.getBackgroundSync(
+            userId: AppSettingsService.instance.currentUserId,
+          ))
+        syncPending();
     });
   }
 
@@ -57,6 +64,14 @@ class SyncService {
       // only on next manual refresh — closes the gap noted in the
       // Final Verification (Section 4).
       AppEventService.instance.notify();
+      // Records "the app last successfully checked in with the server" —
+      // recorded on every clean run, even one with nothing queued, so
+      // Home can show a farmer a plain answer to "is this still working?"
+      // rather than only ever showing an item count.
+      await HiveService.setLastSyncTime(
+        DateTime.now(),
+        userId: AppSettingsService.instance.currentUserId,
+      );
     } catch (_) {
       // Silently fail — will retry on next interval
     } finally {

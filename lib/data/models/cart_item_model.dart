@@ -8,6 +8,11 @@ class CartItemModel {
   final String? variety;
   final double pricePerKg;
   final String? photoUrl;
+  // Display-only, same as the rest of this snapshot — shown on the cart
+  // tile so a buyer/farmer sees the same listing details there as on
+  // Listing Details, without a second network round-trip.
+  final String? category;
+  final String? marketType;
 
   /// Stock at the moment this was added — a display hint only.
   /// place_order() re-checks real stock at checkout regardless.
@@ -21,6 +26,8 @@ class CartItemModel {
     this.variety,
     required this.pricePerKg,
     this.photoUrl,
+    this.category,
+    this.marketType,
     required this.availableKgSnapshot,
     required this.quantityKg,
   });
@@ -40,6 +47,8 @@ class CartItemModel {
         'variety': variety,
         'price_per_kg': pricePerKg,
         'photo_url': photoUrl,
+    'category': category,
+    'market_type': marketType,
         'available_kg_snapshot': availableKgSnapshot,
         'quantity_kg': quantityKg,
       };
@@ -51,6 +60,8 @@ class CartItemModel {
       variety: map['variety'] as String?,
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
       photoUrl: map['photo_url'] as String?,
+      category: map['category'] as String?,
+      marketType: map['market_type'] as String?,
       availableKgSnapshot: (map['available_kg_snapshot'] as num).toDouble(),
       quantityKg: (map['quantity_kg'] as num).toDouble(),
     );

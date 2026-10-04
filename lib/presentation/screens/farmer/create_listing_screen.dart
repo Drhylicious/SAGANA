@@ -2,10 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/inventory_batch_model.dart';
-import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
@@ -13,11 +12,42 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import 'listing_success_screen.dart' show ListingSuccessArgs;
+
+// FilteringTextInputFormatter.allow with an anchored (^) pattern only ever
+// re-validates from the start of the string, via allMatches() — once a
+// field already holds a 2-decimal value like "20.00" (as Asking Price does
+// immediately after the market-price auto-fill), any further keystroke
+// appended after that silently fails to match and gets dropped, even
+// though the field is genuinely focused and the cursor blinks normally.
+// This formatter instead validates the WHOLE new value on every edit and
+// simply rejects the edit (keeping the old value) if it doesn't match —
+// the correct pattern for a bounded-decimal field.
+class _DecimalInputFormatter extends TextInputFormatter {
+  // Optional upper bound — when set (Quantity, bounded by the batch's real
+  // available stock), any edit whose parsed value would exceed it is
+  // rejected outright instead of being typeable and only clamped later on
+  // blur/submit. Price has no such ceiling, so it omits this and keeps its
+  // original format-only behavior.
+  final double? max;
+  const _DecimalInputFormatter({this.max});
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+    if (!RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)) return oldValue;
+    final ceiling = max;
+    if (ceiling != null) {
+      final parsed = double.tryParse(newValue.text);
+      if (parsed != null && parsed > ceiling) return oldValue;
+    }
+    return newValue;
+  }
+}
 
 class CreateListingScreen extends StatefulWidget {
-  // Either an InventoryBatchModel (preselected from Manage Inventory's
-  // disposal sheet) or a MarketplaceListingModel (resubmitting a
-  // changes_required listing), or null (opened with no preselection).
+  // An InventoryBatchModel (preselected from Manage Inventory's disposal
+  // sheet), or null (opened with no preselection).
   final Object? initialArg;
 
   const CreateListingScreen({super.key, this.initialArg});
@@ -30,18 +60,27 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _inventoryRepo = InventoryRepository();
   final _listingRepo = ListingRepository();
   final _dashboardRepo = DashboardRepository();
-  final _picker = ImagePicker();
 
-  final _titleController = TextEditingController();
   final _quantityController = TextEditingController();
   final _priceController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  // Select-all-on-focus for both — without this, tapping into a field
+  // that's already pre-filled (quantity defaults to the batch's full
+  // available stock; price auto-fills from the market reference) places
+  // the cursor at the END of the existing text, per Flutter's default
+  // focus behavior. Every further keystroke then lands past the decimal
+  // formatter's cap and gets correctly rejected, which looks and feels
+  // exactly like the field is locked — because there's no way to just tap
+  // and type to replace a pre-filled value otherwise. This is the actual,
+  // complete fix; the earlier formatter fix alone was correct but not
+  // sufficient on its own.
+  final _quantityFocusNode = FocusNode();
+  final _priceFocusNode = FocusNode();
 
   List<InventoryBatchModel> _batches = [];
   InventoryBatchModel? _selectedBatch;
-  MarketplaceListingModel? _editingListing; // non-null when resubmitting
 
   double? _marketPrice;
-  XFile? _photo;
   bool _isLoadingBatches = true;
   bool _isSubmitting = false;
   bool _isOnline = true;
@@ -64,35 +103,26 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     // populated by raw Navigator.push(..., settings: RouteSettings(...)),
     // which is not how this screen is reached).
     final arg = widget.initialArg;
-    if (arg is MarketplaceListingModel) {
-      _editingListing = arg;
-      _titleController.text = arg.displayName;
-      _quantityController.text = arg.volumeKg.toStringAsFixed(0);
-      _priceController.text = arg.pricePerKg.toStringAsFixed(2);
-      // Resubmit path: fetch the listing's *own* reserved batch directly,
-      // bypassing fetchAvailableBatches()'s status filter. That filter only
-      // returns 'available'/'low_stock' batches, but the batch behind a
-      // changes_required listing is almost always 'reserved' (fully
-      // committed to this pending listing) — so it would never appear
-      // there, and falling back to fetchAvailableBatches().first would
-      // silently validate "Max: X kg" and the market price against an
-      // unrelated batch.
-      if (arg.inventoryBatchId != null) {
-        _loadEditingBatch(arg.inventoryBatchId!);
-      } else {
-        _isLoadingBatches = false;
-      }
-    } else {
-      if (arg is InventoryBatchModel) _batchWasPreselected = true;
-      _loadBatches(preselect: arg is InventoryBatchModel ? arg : null);
+    if (arg is InventoryBatchModel) _batchWasPreselected = true;
+    _loadBatches(preselect: arg is InventoryBatchModel ? arg : null);
+
+    _quantityFocusNode.addListener(() => _selectAllOnFocus(_quantityFocusNode, _quantityController));
+    _priceFocusNode.addListener(() => _selectAllOnFocus(_priceFocusNode, _priceController));
+  }
+
+  void _selectAllOnFocus(FocusNode node, TextEditingController controller) {
+    if (node.hasFocus && controller.text.isNotEmpty) {
+      controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
     }
   }
 
   @override
   void dispose() {
-    _titleController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
+    _descriptionController.dispose();
+    _quantityFocusNode.dispose();
+    _priceFocusNode.dispose();
     super.dispose();
   }
 
@@ -112,52 +142,23 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     if (initial != null) _onBatchSelected(initial);
   }
 
-  /// Loads the specific batch a `changes_required` listing already reserved
-  /// stock against, regardless of that batch's current status.
-  Future<void> _loadEditingBatch(String batchId) async {
-    setState(() => _isLoadingBatches = true);
-    final batch = await _inventoryRepo.fetchBatchById(batchId);
-    if (!mounted) return;
-    setState(() {
-      _batches = batch != null ? [batch] : [];
-      _selectedBatch = batch;
-      _isLoadingBatches = false;
-    });
-    // Safe to reuse _onBatchSelected here: _editingListing is already set,
-    // so its "don't overwrite quantity/price" branch applies — this just
-    // picks up the market-price lookup for the correct crop.
-    if (batch != null) _onBatchSelected(batch);
-  }
-
   Future<void> _onBatchSelected(InventoryBatchModel batch) async {
     setState(() {
       _selectedBatch = batch;
-      if (_editingListing == null) {
-        _quantityController.text = batch.availableKg.toStringAsFixed(0);
-      }
+      _quantityController.text = batch.availableKg.toStringAsFixed(0);
     });
-    final price = await _dashboardRepo.fetchLatestPriceForCrop(batch.cropName);
+    final price = await _dashboardRepo.fetchLatestPriceForCrop(
+      batch.cropName,
+      priceType: batch.cropType,
+    );
     if (!mounted) return;
     setState(() {
       _marketPrice = price;
-      if (_editingListing == null && price != null && _priceController.text.isEmpty) {
+      if (price != null && _priceController.text.isEmpty) {
         _priceController.text = price.toStringAsFixed(2);
       }
     });
   }
-
-  Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _PhotoSourceSheet(),
-    );
-    if (source == null) return;
-    final picked = await _picker.pickImage(source: source, imageQuality: 80);
-    if (picked != null && mounted) setState(() => _photo = picked);
-  }
-
-  void _removePhoto() => setState(() => _photo = null);
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -179,21 +180,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       return;
     }
 
-    // When editing, _selectedBatch.availableKg already has this listing's
-    // own reservation subtracted out (it's a real batch fetched via
-    // fetchBatchById, not a fresh unreserved one) — so the ceiling here
-    // must add back what the farmer already holds. Otherwise a farmer
-    // resubmitting at their existing quantity, or a small increase, would
-    // be wrongly capped at only what's available *elsewhere*.
-    if (_editingListing != null) {
-      final effectiveMax = _selectedBatch!.availableKg + _editingListing!.volumeKg;
-      if (qty > effectiveMax) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Quantity cannot exceed your available stock (${effectiveMax.toStringAsFixed(0)} kg).')),
-        );
-        return;
-      }
-    } else if (qty > _selectedBatch!.availableKg) {
+    if (qty > _selectedBatch!.availableKg) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Quantity cannot exceed available stock (${_selectedBatch!.availableKg.toStringAsFixed(0)} kg).')),
       );
@@ -207,52 +194,54 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       return;
     }
 
+    if (_descriptionController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a description for this listing.')),
+      );
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     setState(() => _isSubmitting = true);
 
     try {
-      String? photoUrl = _editingListing?.photoUrl;
-      if (_photo != null) {
-        final Uint8List bytes = await _photo!.readAsBytes();
-        final ext = _photo!.name.split('.').last;
-        photoUrl = await _listingRepo.uploadListingPhoto(
-          batchNumber: _selectedBatch!.batchNumber,
-          imageBytes: bytes,
-          fileExtension: ext,
-        );
-      }
+      // Photo is no longer farmer-uploaded here — the Crop Roster is the
+      // single source of truth for a crop's image (per explicit product
+      // direction), so this is always whatever the selected batch already
+      // resolved (InventoryRepository, via fetchFarmerCropImageMap): the
+      // farmer's own crop photo if set, else the crop_master catalog
+      // photo, else none.
+      final photoUrl = _selectedBatch?.displayImageUrl;
 
-      MarketplaceListingModel submittedListing;
-      if (_editingListing != null) {
-        submittedListing = await _listingRepo.resubmitListing(
-          listingId: _editingListing!.id,
-          pricePerKg: price,
-          volumeKg: qty,
-          photoUrl: photoUrl,
-        );
-      } else {
-        submittedListing = await _listingRepo.createListing(
-          cropName: _selectedBatch!.cropName,
-          variety: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-          pricePerKg: price,
-          volumeKg: qty,
-          inventoryBatchId: _selectedBatch!.id,
-          photoUrl: photoUrl,
-        );
-      }
+      final submittedListing = await _listingRepo.createListing(
+        cropName: _selectedBatch!.cropName,
+        pricePerKg: price,
+        volumeKg: qty,
+        inventoryBatchId: _selectedBatch!.id,
+        photoUrl: photoUrl,
+        description: _descriptionController.text.trim(),
+      );
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      context.pushReplacementRoute(AppRoutes.listingSuccess, extra: submittedListing);
+      context.pushReplacementRoute(
+        AppRoutes.listingSuccess,
+        extra: ListingSuccessArgs(
+          listing: submittedListing,
+          batchNumber: _selectedBatch?.batchNumber,
+          marketType: _selectedBatch?.cropType,
+          category: _selectedBatch?.category,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      // resubmit_listing_with_reservation raises when an increased quantity
-      // exceeds real available stock, and create_listing_with_reservation
-      // raises when the crop is Ginger (DA-AMAD-exclusive, sold only
-      // through Market Linking) — surface both specifically instead of a
-      // generic message, since they're actionable, expected failures
-      // rather than network/server errors.
+      // create_listing_with_reservation raises when the submitted quantity
+      // exceeds real available stock, and separately when the crop is
+      // Ginger (DA-AMAD-exclusive, sold only through Market Linking) —
+      // surface both specifically instead of a generic message, since
+      // they're actionable, expected failures rather than network/server
+      // errors.
       final errorText = e.toString();
       final message = errorText.contains('Not enough available quantity')
           ? 'Not enough available stock for that quantity. Please lower it and try again.'
@@ -297,7 +286,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       const SizedBox(height: 24),
 
                       // ── Section 1: Batch source ─────────────────────────
-                      if (_editingListing == null && !_batchWasPreselected) ...[
+                      if (!_batchWasPreselected) ...[
                         const _SectionLabel(number: 1, title: 'Choose What to Sell'),
                         const SizedBox(height: 10),
                         _isLoadingBatches
@@ -312,20 +301,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                                   ),
                         const SizedBox(height: 24),
                       ],
-                      if (_editingListing == null && _batchWasPreselected && _selectedBatch != null) ...[
+                      if (_batchWasPreselected && _selectedBatch != null) ...[
                         const _SectionLabel(number: 1, title: 'What You\'re Selling'),
                         const SizedBox(height: 10),
                         _PreselectedBatchBanner(batch: _selectedBatch!),
                         const SizedBox(height: 24),
-                      ],
-                      if (_editingListing != null) ...[
-                        const _SectionLabel(number: 1, title: 'What You\'re Selling'),
-                        const SizedBox(height: 10),
-                        if (_isLoadingBatches)
-                          const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen)))
-                        else if (_selectedBatch != null)
-                          _PreselectedBatchBanner(batch: _selectedBatch!),
-                        const SizedBox(height: 14),
                       ],
 
                       // Auto-filled details
@@ -334,24 +314,19 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         const SizedBox(height: 24),
                       ],
 
-                      // ── Section 2: Price & quantity + photo ─────────────
-                      const _SectionLabel(number: 2, title: 'Set Your Price & Add a Photo'),
+                      // ── Section 2: Price & quantity ─────────────────────
+                      const _SectionLabel(number: 2, title: 'Set Your Price & Quantity'),
                       const SizedBox(height: 10),
                       _FormCard(
-                        titleController: _titleController,
+                        cropName: _selectedBatch?.cropName ?? '',
+                        photoUrl: _selectedBatch?.displayImageUrl,
                         quantityController: _quantityController,
                         priceController: _priceController,
-                        maxQty: _editingListing != null
-                            ? (_selectedBatch != null
-                                ? _selectedBatch!.availableKg + _editingListing!.volumeKg
-                                : null)
-                            : _selectedBatch?.availableKg,
+                        descriptionController: _descriptionController,
+                        quantityFocusNode: _quantityFocusNode,
+                        priceFocusNode: _priceFocusNode,
+                        maxQty: _selectedBatch?.availableKg,
                         marketPrice: _marketPrice,
-                        photo: _photo,
-                        existingPhotoUrl: _editingListing?.photoUrl,
-                        isResubmit: _editingListing != null,
-                        onPickPhoto: _pickPhoto,
-                        onRemovePhoto: _removePhoto,
                         onChanged: () => setState(() {}),
                       ),
                       const SizedBox(height: 24),
@@ -360,27 +335,22 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       const _SectionLabel(number: 3, title: 'Review Before Submitting'),
                       const SizedBox(height: 10),
                       _LivePreviewCard(
-                        title: _titleController.text.trim().isEmpty
-                            ? (_selectedBatch?.cropName ?? '')
-                            : _titleController.text.trim(),
                         cropName: _selectedBatch?.cropName ?? '',
+                        photoUrl: _selectedBatch?.displayImageUrl,
                         quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
                         price: double.tryParse(_priceController.text.trim()) ?? 0,
-                        photo: _photo,
-                        existingPhotoUrl: _editingListing?.photoUrl,
                         estimatedRevenue: _estimatedRevenue,
                       ),
                       const SizedBox(height: 20),
 
                       // ── What happens next preview ───────────────────────
-                      _WhatHappensNextCard(isResubmit: _editingListing != null),
+                      const _WhatHappensNextCard(),
                       const SizedBox(height: 24),
 
                       // Bottom actions
                       _BottomActions(
                         isOnline: _isOnline,
                         isSubmitting: _isSubmitting,
-                        isResubmit: _editingListing != null,
                         canSubmit: _selectedBatch != null,
                         onSubmit: _handleSubmit,
                         onViewListings: () => Navigator.of(context).pop(),
@@ -394,7 +364,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           Positioned(
             top: 0, left: 0, right: 0,
             child: FarmerTopBar(
-              title: _editingListing != null ? 'Edit Listing' : 'Create Listing',
+              title: 'Create Listing',
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -652,18 +622,30 @@ class _AutoFilledGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      // Avoid stretching children vertically inside an unbounded
-      // SingleChildScrollView; use `start` so the row doesn't try to
-      // expand to infinite height (causes BoxConstraints error).
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _DetailChip(label: 'Crop Name', value: batch.cropName)),
-        const SizedBox(width: 10),
-        Expanded(child: _DetailChip(label: 'Batch Number', value: batch.batchNumber)),
-        const SizedBox(width: 10),
-        Expanded(child: _DetailChip(label: 'Available Stock', value: '${batch.availableKg.toStringAsFixed(0)} kg')),
-      ],
+    // Was a 2-row/2-col grid with Category left alone on its own row below
+    // (nothing to pair it with) — that orphaned row was exactly what read
+    // as uneven. A single horizontally-scrollable row of consistently-
+    // sized chips fixes both the unevenness and the cramping a 4-in-a-row
+    // fixed layout ran into once Market Type's longer label was added.
+    final chips = <Widget>[
+      _DetailChip(label: 'Crop Name', value: batch.cropName),
+      if (batch.category != null) _DetailChip(label: 'Category', value: batch.category!),
+      _DetailChip(label: 'Market Type', value: marketTypeLabelFor(batch.cropType)),
+      _DetailChip(label: 'Batch Number', value: batch.batchNumber),
+      _DetailChip(label: 'Available Stock', value: '${batch.availableKg.toStringAsFixed(0)} kg'),
+    ];
+    return SizedBox(
+      // 64 clipped the two-line chip content by ~1px on some font metrics
+      // (Column's mainAxisAlignment: center leaves no slack once padding
+      // is subtracted) — a few extra px of headroom fixes it outright
+      // rather than trimming padding/font size to fit exactly.
+      height: 68,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) => chips[i],
+      ),
     );
   }
 }
@@ -676,6 +658,7 @@ class _DetailChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: 118,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppConstants.infoBlueBg.withValues(alpha: 0.30),
@@ -704,29 +687,27 @@ class _DetailChip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FormCard extends StatelessWidget {
-  final TextEditingController titleController;
+  final String cropName;
+  final String? photoUrl;
   final TextEditingController quantityController;
   final TextEditingController priceController;
+  final TextEditingController descriptionController;
+  final FocusNode quantityFocusNode;
+  final FocusNode priceFocusNode;
   final double? maxQty;
   final double? marketPrice;
-  final XFile? photo;
-  final String? existingPhotoUrl;
-  final bool isResubmit;
-  final VoidCallback onPickPhoto;
-  final VoidCallback onRemovePhoto;
   final VoidCallback onChanged;
 
   const _FormCard({
-    required this.titleController,
+    required this.cropName,
+    required this.photoUrl,
     required this.quantityController,
     required this.priceController,
+    required this.descriptionController,
+    required this.quantityFocusNode,
+    required this.priceFocusNode,
     required this.maxQty,
     required this.marketPrice,
-    required this.photo,
-    required this.existingPhotoUrl,
-    required this.isResubmit,
-    required this.onPickPhoto,
-    required this.onRemovePhoto,
     required this.onChanged,
   });
 
@@ -747,15 +728,13 @@ class _FormCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
-              const _FieldLabel('Listing Title', optional: true),
+              // Title — locked, always the selected crop's own name. Not a
+              // farmer-editable field: per explicit product direction, the
+              // listing title must reflect exactly what was selected in
+              // Step 1, never a disconnected value a farmer typed in.
+              const _FieldLabel('Listing Title'),
               const SizedBox(height: 8),
-              TextField(
-                controller: titleController,
-                onChanged: (_) => onChanged(),
-                style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                decoration: _inputDecoration(hint: 'e.g. Premium Dried Peanut'),
-              ),
+              _LockedField(value: cropName),
               const SizedBox(height: 18),
 
               // Quantity + Price row
@@ -770,18 +749,12 @@ class _FormCard extends StatelessWidget {
                         const SizedBox(height: 8),
                         TextField(
                           controller: quantityController,
+                          focusNode: quantityFocusNode,
                           onChanged: (_) => onChanged(),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                          ],
+                          inputFormatters: [_DecimalInputFormatter(max: maxQty)],
                           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
                           decoration: _inputDecoration(hint: '0.00', suffix: 'kg'),
-                        ),
-                        if (isResubmit) Padding(
-                          padding: const EdgeInsets.only(top: 4, left: 2),
-                          child: Text('You can adjust this amount before resubmitting.',
-                              style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
                         ),
                         if (maxQty != null) Padding(
                           padding: const EdgeInsets.only(top: 4, left: 2),
@@ -800,11 +773,10 @@ class _FormCard extends StatelessWidget {
                         const SizedBox(height: 8),
                         TextField(
                           controller: priceController,
+                          focusNode: priceFocusNode,
                           onChanged: (_) => onChanged(),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                          ],
+                          inputFormatters: [_DecimalInputFormatter()],
                           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
                           decoration: _inputDecoration(hint: '0.00', prefix: '₱', suffix: '/kg'),
                         ),
@@ -826,15 +798,42 @@ class _FormCard extends StatelessWidget {
               ),
               const SizedBox(height: 18),
 
-              // Photo upload
+              // Description — required, per-listing copy the farmer
+              // writes fresh each time (not a catalog-level description
+              // shared across every listing of that crop). Shown to
+              // buyers on Listing Details and to the farmer on their own
+              // listing detail / Submission Success screens.
+              Row(
+                children: [
+                  const _FieldLabel('Description'),
+                  const SizedBox(width: 4),
+                  Text('*',
+                      style: GoogleFonts.poppins(
+                          fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.errorRed)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: descriptionController,
+                onChanged: (_) => onChanged(),
+                minLines: 3,
+                maxLines: 5,
+                maxLength: 300,
+                style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+                decoration: _inputDecoration(
+                  hint: 'Describe your product — quality, sourcing, sun-dried, etc.',
+                ).copyWith(counterStyle: GoogleFonts.inter(fontSize: 10, color: AppConstants.outline)),
+              ),
+              const SizedBox(height: 4),
+
+              // Photo — locked, sourced from the Crop Roster via the
+              // selected batch. No upload control: per explicit product
+              // direction, a listing must never carry a different image
+              // than the crop's own registered photo, to avoid
+              // inconsistent product images across the system.
               const _FieldLabel('Product Photo'),
               const SizedBox(height: 8),
-              _PhotoUpload(
-                photo: photo,
-                existingPhotoUrl: existingPhotoUrl,
-                onPick: onPickPhoto,
-                onRemove: onRemovePhoto,
-              ),
+              _PhotoPreview(photoUrl: photoUrl),
             ],
           ),
         ),
@@ -890,141 +889,84 @@ class _FieldLabel extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Photo Upload
+// Locked Field — read-only display for a value derived from the selected crop
 // ─────────────────────────────────────────────────────────────────────────────
 
-// SAGANA is mobile-first — farmers get a choice between photographing the
-// crop directly and picking an existing photo, rather than only gallery
-// access (the previous behavior).
-class _PhotoSourceSheet extends StatelessWidget {
+class _LockedField extends StatelessWidget {
+  final String value;
+  const _LockedField({required this.value});
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36, height: 4,
-              decoration: BoxDecoration(
-                color: AppConstants.outline.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(2),
-              ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppConstants.outline.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline_rounded, size: 16, color: AppConstants.outline),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_rounded, color: AppConstants.primaryGreen),
-              title: Text('Take Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_rounded, color: AppConstants.primaryGreen),
-              title: Text('Choose from Gallery', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _PhotoUpload extends StatelessWidget {
-  final XFile? photo;
-  final String? existingPhotoUrl;
-  final VoidCallback onPick;
-  final VoidCallback onRemove;
+// ─────────────────────────────────────────────────────────────────────────────
+// Photo Preview — read-only, sourced from the selected batch's crop image
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _PhotoUpload({
-    required this.photo,
-    required this.existingPhotoUrl,
-    required this.onPick,
-    required this.onRemove,
-  });
+class _PhotoPreview extends StatelessWidget {
+  final String? photoUrl;
+  const _PhotoPreview({required this.photoUrl});
 
-  bool get _hasImage => photo != null || (existingPhotoUrl != null && existingPhotoUrl!.isNotEmpty);
+  bool get _hasImage => photoUrl != null && photoUrl!.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
-    if (_hasImage) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        width: double.infinity,
+        height: 140,
+        child: _hasImage
+            ? Image.network(
+                photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholder(),
+              )
+            : _placeholder(),
+      ),
+    );
+  }
+
+  Widget _placeholder() => Container(
+        color: AppConstants.infoBlueBg,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: double.infinity,
-              height: 140,
-              child: photo != null
-                  ? Image.network(photo!.path, fit: BoxFit.cover)
-                  : Image.network(existingPhotoUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: AppConstants.infoBlueBg)),
-            ),
-            Positioned(
-              top: 8, right: 8,
-              child: GestureDetector(
-                onTap: onRemove,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.60), shape: BoxShape.circle),
-                  child: const Icon(Icons.close_rounded, size: 16, color: Colors.white),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 8, right: 8,
-              child: GestureDetector(
-                onTap: onPick,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.60), borderRadius: BorderRadius.circular(20)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.edit_rounded, size: 12, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text('Change', style: GoogleFonts.inter(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w500)),
-                  ]),
-                ),
-              ),
+            const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 28),
+            const SizedBox(height: 6),
+            Text(
+              'No photo available',
+              style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
             ),
           ],
         ),
       );
-    }
-
-    return GestureDetector(
-      onTap: onPick,
-      child: Container(
-        width: double.infinity,
-        height: 110,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.50),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppConstants.outline.withValues(alpha: 0.30), width: 2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add_a_photo_outlined, color: AppConstants.primaryGreen, size: 28),
-            const SizedBox(height: 6),
-            Text('Upload Clear Product Photo',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen)),
-            const SizedBox(height: 2),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text('Adding a clear photo improves your chances of approval.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1032,27 +974,23 @@ class _PhotoUpload extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LivePreviewCard extends StatelessWidget {
-  final String title;
   final String cropName;
+  final String? photoUrl;
   final double quantity;
   final double price;
-  final XFile? photo;
-  final String? existingPhotoUrl;
   final double estimatedRevenue;
 
   const _LivePreviewCard({
-    required this.title,
     required this.cropName,
+    required this.photoUrl,
     required this.quantity,
     required this.price,
-    required this.photo,
-    required this.existingPhotoUrl,
     required this.estimatedRevenue,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = photo != null || (existingPhotoUrl != null && existingPhotoUrl!.isNotEmpty);
+    final hasImage = photoUrl != null && photoUrl!.isNotEmpty;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppConstants.radiusXl),
@@ -1077,9 +1015,7 @@ class _LivePreviewCard extends StatelessWidget {
                       child: SizedBox(
                         width: 80, height: 80,
                         child: hasImage
-                            ? (photo != null
-                                ? Image.network(photo!.path, fit: BoxFit.cover)
-                                : Image.network(existingPhotoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder()))
+                            ? Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
                             : _placeholder(),
                       ),
                     ),
@@ -1089,17 +1025,9 @@ class _LivePreviewCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(title.isEmpty ? 'Listing Title' : title,
-                                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 2),
-                              Text(cropName,
-                                  style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                            ],
-                          ),
+                          Text(cropName.isEmpty ? 'Listing Title' : cropName,
+                              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1163,8 +1091,7 @@ class _LivePreviewCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WhatHappensNextCard extends StatelessWidget {
-  final bool isResubmit;
-  const _WhatHappensNextCard({required this.isResubmit});
+  const _WhatHappensNextCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1178,9 +1105,7 @@ class _WhatHappensNextCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            isResubmit
-                ? 'Your updated listing goes back to the cooperative admin for a fresh review.'
-                : 'Your listing enters the cooperative admin\'s review queue before it appears to buyers.',
+            'Your listing enters the cooperative admin\'s review queue before it appears to buyers.',
             style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
           ),
           const SizedBox(height: 14),
@@ -1198,7 +1123,6 @@ class _WhatHappensNextCard extends StatelessWidget {
 class _BottomActions extends StatelessWidget {
   final bool isOnline;
   final bool isSubmitting;
-  final bool isResubmit;
   final bool canSubmit;
   final VoidCallback onSubmit;
   final VoidCallback onViewListings;
@@ -1206,7 +1130,6 @@ class _BottomActions extends StatelessWidget {
   const _BottomActions({
     required this.isOnline,
     required this.isSubmitting,
-    required this.isResubmit,
     required this.canSubmit,
     required this.onSubmit,
     required this.onViewListings,
@@ -1256,7 +1179,7 @@ class _BottomActions extends StatelessWidget {
                             children: [
                               const Icon(Icons.send_rounded, color: Colors.white, size: 18),
                               const SizedBox(width: 8),
-                              Text(isResubmit ? 'Resubmit for Review' : 'Submit for Review',
+                              Text('Submit for Review',
                                   style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white)),
                             ],
                           ),
@@ -1279,7 +1202,7 @@ class _BottomActions extends StatelessWidget {
               children: [
                 const Icon(Icons.list_alt_rounded, size: 18),
                 const SizedBox(width: 8),
-                Text('View My Listings', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)),
+                Text('View Listing', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)),
               ],
             ),
           ),

@@ -24,20 +24,29 @@ import '../../presentation/screens/farmer/farmer_notifications_screen.dart';
 import '../../presentation/screens/farmer/farmer_profile_screen.dart';
 import '../../presentation/screens/farmer/farmer_recent_activity_screen.dart';
 import '../../presentation/screens/farmer/farmer_settings_screen.dart';
+import '../../presentation/screens/farmer/farmer_transaction_history_screen.dart';
 import '../../presentation/screens/farmer/farmer_edit_profile_screen.dart';
 import '../../presentation/screens/farmer/harvest_entry_form_screen.dart';
 import '../../presentation/screens/farmer/harvest_history_screen.dart';
 import '../../presentation/screens/farmer/harvest_hub_screen.dart';
+import '../../presentation/screens/farmer/farmer_listing_detail_screen.dart';
+import '../../presentation/screens/farmer/farmer_orders_screen.dart';
 import '../../presentation/screens/farmer/listing_success_screen.dart';
 import '../../presentation/screens/farmer/manage_inventory_screen.dart';
 import '../../presentation/screens/farmer/my_contribution_screen.dart';
 import '../../presentation/screens/farmer/my_expenses_screen.dart';
-import '../../presentation/screens/farmer/my_harvest_summary_screen.dart';
 import '../../presentation/screens/farmer/my_listings_screen.dart';
+import '../../data/models/marketplace_listing_model.dart';
 import '../../presentation/screens/farmer/my_loans_screen.dart';
 import '../../presentation/screens/farmer/my_programs_screen.dart';
+import '../../presentation/screens/farmer/browse_programs_screen.dart';
+import '../../presentation/screens/farmer/program_details_screen.dart';
+import '../../data/models/farmer_profile_model.dart';
+import '../../data/models/program_model.dart';
+import '../../data/models/program_enrollment_request_model.dart';
 import '../../presentation/screens/farmer/my_market_linking_screen.dart';
 import '../../presentation/screens/farmer/pending_applicant_screen.dart';
+import '../../presentation/screens/farmer/pending_review_details_screen.dart';
 import '../../presentation/screens/admin/admin_dashboard_screen.dart';
 import '../../presentation/screens/admin/add_new_member_screen.dart';
 import '../../presentation/screens/admin/admin_activity_screen.dart';
@@ -54,6 +63,7 @@ import '../../presentation/screens/admin/program_purchase_review_screen.dart';
 import '../../presentation/screens/farmer/program_product_catalog_screen.dart';
 import '../../presentation/screens/admin/loan_item_management_screen.dart';
 import '../../presentation/screens/admin/program_management_screen.dart';
+import '../../presentation/screens/admin/program_enrollment_requests_screen.dart';
 import '../../presentation/screens/admin/admin_inventory_screen.dart';
 import '../../presentation/screens/admin/farmer_details_screen.dart';
 import '../../presentation/screens/admin/loan_dashboard_screen.dart';
@@ -65,6 +75,7 @@ import '../../presentation/screens/admin/pending_approvals_screen.dart';
 import '../../presentation/screens/admin/price_management_screen.dart';
 import '../../presentation/screens/admin/supply_chain_map_screen.dart';
 import '../../presentation/screens/admin/market_linking_screen.dart';
+import '../../presentation/screens/admin/da_amad_enrollment_screen.dart';
 import '../../presentation/screens/admin/listing_review_screen.dart';
 import '../../presentation/screens/admin/operational_reports_screen.dart';
 import '../../presentation/screens/admin/record_payment_screen.dart';
@@ -105,6 +116,10 @@ import '../../presentation/screens/buyer/price_monitoring_screen.dart';
 import '../../presentation/screens/buyer/buyer_account_screen.dart';
 import '../../presentation/screens/buyer/buyer_edit_profile_screen.dart';
 import '../../presentation/screens/buyer/buyer_settings_screen.dart';
+import '../../presentation/screens/buyer/my_addresses_screen.dart';
+import '../../presentation/screens/buyer/add_edit_address_screen.dart';
+import '../../presentation/screens/buyer/checkout_screen.dart';
+import '../../data/models/buyer_address_model.dart';
 import '../../presentation/screens/buyer/buyer_recent_activity_screen.dart';
 import '../../presentation/screens/buyer/buyer_notifications_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
@@ -349,14 +364,6 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.myHarvestSummary,
-          parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => AppPageTransitions.slideForward(
-            key: s.pageKey,
-            child: const MyHarvestSummaryScreen(),
-          ),
-        ),
-        GoRoute(
           path: AppRoutes.myContribution,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -369,8 +376,32 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
+            child: const BrowseProgramsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myProgramsEnrolled,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
             child: const MyProgramsScreen(),
           ),
+        ),
+        GoRoute(
+          path: AppRoutes.programDetails,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: ProgramDetailsScreen(
+                entry: extra?['entry'] as MyProgramEntry?,
+                program: extra?['program'] as CooperativeProgram?,
+                existingRequest:
+                    extra?['existingRequest'] as ProgramEnrollmentRequest?,
+              ),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.myMarketLinking,
@@ -378,6 +409,33 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const MyMarketLinkingScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myTransactionHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const FarmerTransactionHistoryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerMyOrders,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const FarmerOrdersScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerOrderDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: OrderDetailScreen(
+              orderId: s.extra as String,
+              isFarmerContext: true,
+            ),
           ),
         ),
         GoRoute(
@@ -445,6 +503,16 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.scaleIn(
             key: s.pageKey,
             child: ListingSuccessScreen(initialArg: s.extra),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myListingDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: FarmerListingDetailScreen(
+              listing: s.extra as MarketplaceListingModel,
+            ),
           ),
         ),
         GoRoute(
@@ -537,6 +605,14 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const ProgramPurchaseReviewScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.programEnrollmentRequests,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const ProgramEnrollmentRequestsScreen(),
           ),
         ),
         GoRoute(
@@ -833,6 +909,14 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.daAmadEnrollment,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const DaAmadEnrollmentScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.issueNewLoan,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -964,7 +1048,7 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.pendingHelp,
+          path: AppRoutes.pendingProfile,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => NoTransitionPage(
             key: s.pageKey,
@@ -972,11 +1056,11 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: AppRoutes.pendingProfile,
+          path: AppRoutes.pendingReview,
           parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (c, s) => NoTransitionPage(
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: const PendingApplicantScreen(initialTab: 3),
+            child: const PendingReviewDetailsScreen(),
           ),
         ),
         StatefulShellRoute.indexedStack(
@@ -1072,7 +1156,7 @@ class AppRouter {
             // instead of crashing on the unguarded extra cast.
             final extra = state.extra;
             if (extra is! Map<String, dynamic> ||
-                extra['succeeded'] is! List<CartItemModel> ||
+                extra['succeeded'] is! List<(CartItemModel, String)> ||
                 extra['failed'] is! List<(CartItemModel, String)>) {
               return AppRoutes.myOrders;
             }
@@ -1083,8 +1167,16 @@ class AppRouter {
             return AppPageTransitions.slideForward(
               key: s.pageKey,
               child: CartCheckoutResultScreen(
-                succeeded: extra['succeeded'] as List<CartItemModel>,
+                succeeded: extra['succeeded'] as List<(CartItemModel, String)>,
                 failed: extra['failed'] as List<(CartItemModel, String)>,
+                fulfillmentMethod: extra['fulfillmentMethod'] as String?,
+                deliveryAddress: extra['deliveryAddress'] as String?,
+                deliveryContactNumber:
+                    extra['deliveryContactNumber'] as String?,
+                deliveryRecipientName:
+                    extra['deliveryRecipientName'] as String?,
+                deliveryLabel: extra['deliveryLabel'] as String?,
+                deliveryNotes: extra['deliveryNotes'] as String?,
               ),
             );
           },
@@ -1094,9 +1186,106 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: OrderSuccessScreen(orderId: s.extra as String),
+            child: OrderSuccessScreen(orderIds: s.extra as List<String>),
           ),
         ),
+        GoRoute(
+          path: AppRoutes.checkout,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: CheckoutScreen(
+                items: extra['items'] as List<CartItemModel>,
+                isCartCheckout: extra['isCartCheckout'] as bool,
+              ),
+            );
+          },
+        ),
+
+        // ─── Farmer Marketplace tab (Phase 9) — farmer-as-buyer reuses the
+        // exact Buyer screens above; only isFarmerContext differs, which
+        // controls the self-purchase guard and each screen's "next step"
+        // destinations. ──────────────────────────────────────────────────
+        GoRoute(
+          path: AppRoutes.farmerMarketplaceListingDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: ListingDetailsScreen(
+              listingId: s.extra as String,
+              isFarmerContext: true,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerMarketplaceCart,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const CartScreen(isFarmerContext: true),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerMarketplaceCartResult,
+          parentNavigatorKey: rootNavigatorKey,
+          redirect: (context, state) {
+            final extra = state.extra;
+            if (extra is! Map<String, dynamic> ||
+                extra['succeeded'] is! List<(CartItemModel, String)> ||
+                extra['failed'] is! List<(CartItemModel, String)>) {
+              return AppRoutes.myListings;
+            }
+            return null;
+          },
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: CartCheckoutResultScreen(
+                succeeded: extra['succeeded'] as List<(CartItemModel, String)>,
+                failed: extra['failed'] as List<(CartItemModel, String)>,
+                fulfillmentMethod: extra['fulfillmentMethod'] as String?,
+                deliveryAddress: extra['deliveryAddress'] as String?,
+                deliveryContactNumber:
+                    extra['deliveryContactNumber'] as String?,
+                deliveryRecipientName:
+                    extra['deliveryRecipientName'] as String?,
+                deliveryLabel: extra['deliveryLabel'] as String?,
+                deliveryNotes: extra['deliveryNotes'] as String?,
+                isFarmerContext: true,
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.farmerMarketplaceOrderSuccess,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: OrderSuccessScreen(
+              orderIds: s.extra as List<String>,
+              isFarmerContext: true,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerMarketplaceCheckout,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: CheckoutScreen(
+                items: extra['items'] as List<CartItemModel>,
+                isCartCheckout: extra['isCartCheckout'] as bool,
+                isFarmerContext: true,
+              ),
+            );
+          },
+        ),
+
         GoRoute(
           path: AppRoutes.orderDetail,
           parentNavigatorKey: rootNavigatorKey,
@@ -1111,6 +1300,24 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const BuyerEditProfileScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myAddresses,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyAddressesScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.addEditAddress,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: AddEditAddressScreen(
+              existing: s.extra as BuyerAddressModel?,
+            ),
           ),
         ),
         GoRoute(
@@ -1295,15 +1502,17 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: Builder(builder: (context) {
-              final l10n = AppLocalizations.of(context);
-              return SupportInfoScreen(
-                icon: Icons.support_agent_rounded,
-                iconColor: AppConstants.buyerBlue,
-                title: l10n.aboutCooperative,
-                body: l10n.aboutCooperativeBody,
-              );
-            }),
+            child: Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                return SupportInfoScreen(
+                  icon: Icons.support_agent_rounded,
+                  iconColor: AppConstants.buyerBlue,
+                  title: l10n.aboutCooperative,
+                  body: l10n.aboutCooperativeBody,
+                );
+              },
+            ),
           ),
         ),
         GoRoute(
@@ -1311,15 +1520,17 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: Builder(builder: (context) {
-              final l10n = AppLocalizations.of(context);
-              return SupportInfoScreen(
-                icon: Icons.privacy_tip_outlined,
-                iconColor: AppConstants.amber,
-                title: l10n.privacyPolicy,
-                body: l10n.privacyPolicyBody,
-              );
-            }),
+            child: Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                return SupportInfoScreen(
+                  icon: Icons.privacy_tip_outlined,
+                  iconColor: AppConstants.amber,
+                  title: l10n.privacyPolicy,
+                  body: l10n.privacyPolicyBody,
+                );
+              },
+            ),
           ),
         ),
         GoRoute(
@@ -1327,15 +1538,17 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: Builder(builder: (context) {
-              final l10n = AppLocalizations.of(context);
-              return SupportInfoScreen(
-                icon: Icons.gavel_rounded,
-                iconColor: AppConstants.onSurfaceVariant,
-                title: l10n.termsOfUse,
-                body: l10n.termsOfUseBody,
-              );
-            }),
+            child: Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                return SupportInfoScreen(
+                  icon: Icons.gavel_rounded,
+                  iconColor: AppConstants.onSurfaceVariant,
+                  title: l10n.termsOfUse,
+                  body: l10n.termsOfUseBody,
+                );
+              },
+            ),
           ),
         ),
       ],

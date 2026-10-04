@@ -6,7 +6,6 @@ class UserModel {
   final String? fullName;
   final String? phoneNumber;
   final String? profilePhotoUrl;
-  final String? purok;
   final DateTime? createdAt;
 
   const UserModel({
@@ -17,7 +16,6 @@ class UserModel {
     this.fullName,
     this.phoneNumber,
     this.profilePhotoUrl,
-    this.purok,
     this.createdAt,
   });
 
@@ -42,7 +40,6 @@ class UserModel {
       fullName: map['full_name'] as String?,
       phoneNumber: map['phone_number'] as String?,
       profilePhotoUrl: map['profile_photo_url'] as String?,
-      purok: map['purok'] as String?,
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'] as String)
           : null,
@@ -58,7 +55,6 @@ class UserModel {
       'full_name': fullName,
       'phone_number': phoneNumber,
       'profile_photo_url': profilePhotoUrl,
-      'purok': purok,
       'created_at': createdAt?.toIso8601String(),
     };
   }
@@ -71,7 +67,6 @@ class UserModel {
     String? fullName,
     String? phoneNumber,
     String? profilePhotoUrl,
-    String? purok,
     DateTime? createdAt,
   }) {
     return UserModel(
@@ -82,7 +77,6 @@ class UserModel {
       fullName: fullName ?? this.fullName,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
-      purok: purok ?? this.purok,
       createdAt: createdAt ?? this.createdAt,
     );
   }

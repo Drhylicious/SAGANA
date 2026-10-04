@@ -5,7 +5,6 @@
 class MemberDistributionRow {
   final String farmerId;
   final String farmerName;
-  final String memberId;
   final double totalSalesAmount;
   final double sharePercent;
   final int totalShares;
@@ -34,10 +33,16 @@ class MemberDistributionRow {
   final double estimatedPurchasePatronage;
   final double? actualPurchasePatronage;
 
+  /// Null | 'pending_cash' | 'pending_capital' | 'cash_confirmed' | 'capital_confirmed'.
+  /// Only meaningful once [isPaid] — the farmer's own choice of what to do
+  /// with a finalized payout, submitted via request_payout_decision() and
+  /// only taking real effect once an admin calls confirm_payout_decision().
+  final String? payoutDecision;
+  final double? payoutDecisionAmount;
+
   const MemberDistributionRow({
     required this.farmerId,
     required this.farmerName,
-    required this.memberId,
     required this.totalSalesAmount,
     required this.sharePercent,
     required this.totalShares,
@@ -58,13 +63,23 @@ class MemberDistributionRow {
     this.purchaseSharePercent = 0,
     this.estimatedPurchasePatronage = 0,
     this.actualPurchasePatronage,
+    this.payoutDecision,
+    this.payoutDecisionAmount,
   });
 
   double get estimatedTotal =>
       estimatedBalikTangkilik + estimatedInterest + estimatedPurchasePatronage;
   double get actualTotal =>
-      (actualBalikTangkilik ?? 0) + (actualInterest ?? 0) + (actualPurchasePatronage ?? 0);
+      (actualBalikTangkilik ?? 0) +
+      (actualInterest ?? 0) +
+      (actualPurchasePatronage ?? 0);
   bool get isPaid => status == 'paid';
+
+  bool get hasPendingPayoutDecision =>
+      payoutDecision == 'pending_cash' || payoutDecision == 'pending_capital';
+  bool get hasConfirmedPayoutDecision =>
+      payoutDecision == 'cash_confirmed' ||
+      payoutDecision == 'capital_confirmed';
 }
 
 class BalikTangkilikYearSummary {
@@ -99,10 +114,10 @@ class BalikTangkilikYearSummary {
   double get totalEstimatedPayout =>
       rows.fold(0, (sum, r) => sum + r.estimatedTotal);
 
-  double get totalActualPayout =>
-      rows.fold(0, (sum, r) => sum + r.actualTotal);
+  double get totalActualPayout => rows.fold(0, (sum, r) => sum + r.actualTotal);
 
-  int get contributingMemberCount => rows.where((r) => r.totalSalesAmount > 0).length;
+  int get contributingMemberCount =>
+      rows.where((r) => r.totalSalesAmount > 0).length;
 
   /// Percent difference between the admin-entered totalCoopSales and the
   /// live sum of individual member sales transactions. Null when there's
@@ -122,7 +137,8 @@ class BalikTangkilikYearSummary {
   bool get hasSignificantSalesDivergence =>
       salesDivergencePercent != null && salesDivergencePercent!.abs() > 5;
 
-  factory BalikTangkilikYearSummary.empty(int year) => BalikTangkilikYearSummary(
+  factory BalikTangkilikYearSummary.empty(int year) =>
+      BalikTangkilikYearSummary(
         year: year,
         totalCoopSales: 0,
         liveTotalCoopSales: 0,

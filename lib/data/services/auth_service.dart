@@ -2,10 +2,18 @@ import 'dart:async' show unawaited;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../../core/constants/app_constants.dart';
+import '../models/buyer_address_model.dart';
 import '../models/user_model.dart';
 import 'app_settings_service.dart';
 import 'hive_service.dart';
 import 'sync_service.dart';
+
+/// Thrown when a failed self-registration could not be rolled back. The
+/// account may still exist, so the user is asked to contact the cooperative.
+/// Carries no technical detail; the cause is logged where it happened.
+class RegistrationNotCancelledException implements Exception {
+  const RegistrationNotCancelledException();
+}
 
 class AuthService {
   AuthService._();
@@ -80,21 +88,38 @@ class AuthService {
     bool mustChangePassword = false;
     bool pendingAcknowledgement = false;
     try {
+      // suspension_reason wasn't previously selected here at all, so the
+      // reason branch below always read null even though the column was
+      // populated — the suspended-farmer message never actually showed
+      // the admin's reason. Fixed alongside extending this guard to buyer.
       final statusRow = await _client
           .from('user_roles')
-          .select('status, must_change_password, pending_acknowledgement')
+          .select(
+            'status, must_change_password, pending_acknowledgement, suspension_reason',
+          )
           .eq('user_id', response.user!.id)
           .single();
-      if (role == 'farmer') {
+
         memberStatus = statusRow['status'] as String? ?? 'active';
+      if (role == 'farmer') {
         pendingAcknowledgement =
             statusRow['pending_acknowledgement'] as bool? ?? false;
+      }
 
-        // Blocked statuses — Suspended stops login with the recorded
-        // reason (Issue 5 / Decision D17). Draft/Pending/Rejected still
-        // log in: they land on the Pending Applicant screen. Inactive is
-        // derived, never a stored value, and never blocks.
-        if (memberStatus == 'suspended') {
+      // Blocked statuses — Suspended stops login with the recorded reason
+      // (Issue 5 / Decision D17), for any role that can be suspended by
+      // suspend_member/reactivate_member (Farmer and Buyer both write
+      // through those same RPCs onto this same user_roles.status column —
+      // this check was previously farmer-only, meaning a suspended buyer
+      // could still log in freely; Admin's "Suspend Account" action was a
+      // UI-only status flip with no actual access control behind it).
+      // Draft/Pending/Rejected are farmer-application-only statuses and
+      // still log in (they land on the Pending Applicant screen); a buyer
+      // is always created directly as 'active', so 'suspended' is the
+      // only non-'active' status that can ever occur for one. Inactive is
+      // derived, never a stored value, and never blocks either role.
+      if ((role == 'farmer' || role == 'buyer') &&
+          memberStatus == 'suspended') {
           final reason = statusRow['suspension_reason'] as String?;
           await _client.auth.signOut();
           throw AuthException(
@@ -105,7 +130,6 @@ class AuthService {
                     'Please contact the cooperative for assistance.',
           );
         }
-      }
       mustChangePassword = statusRow['must_change_password'] as bool? ?? false;
     } catch (e) {
       // Re-throw a suspension AuthException; swallow only genuine
@@ -122,7 +146,7 @@ class AuthService {
 
     final infoResponse = await _client
         .from('user_information')
-        .select('full_name, phone_number, profile_photo_url, purok, username')
+        .select('full_name, phone_number, profile_photo_url, username')
         .eq('user_id', response.user!.id)
         .maybeSingle();
 
@@ -134,7 +158,6 @@ class AuthService {
       fullName: infoResponse?['full_name'] as String?,
       phoneNumber: infoResponse?['phone_number'] as String?,
       profilePhotoUrl: infoResponse?['profile_photo_url'] as String?,
-      purok: infoResponse?['purok'] as String?,
     );
 
     await HiveService.saveUserSession(
@@ -164,11 +187,15 @@ class AuthService {
     required String fullName,
     required String role, // 'farmer' | 'buyer'
     String? phoneNumber, // optional (Issue 1)
-    String? contactEmail, // optional (Issue 1) — stored in user_information only
-    String? purok,
+    String?
+    contactEmail, // optional (Issue 1) — stored in user_information only
     DateTime? dateOfBirth, // farmer personal info (Phase B) — 18+ enforced
     String? gender, // male | female | prefer_not_to_say
     String? registryId, // non-null if user matched SP3 registry
+    // Outsider Farmers only: address saved to buyer_addresses after the
+    // profile rows. Both must be non-null to write one.
+    BuyerAddressStructure? structuredAddress,
+    String? addressLine,
   }) async {
     final trimmedName = fullName.trim();
     final trimmedPhone = phoneNumber?.trim();
@@ -178,7 +205,10 @@ class AuthService {
     if (role == AppConstants.roleFarmer && dateOfBirth != null) {
       final now = DateTime.now();
       final eighteenthBirthday = DateTime(
-          dateOfBirth.year + 18, dateOfBirth.month, dateOfBirth.day);
+        dateOfBirth.year + 18,
+        dateOfBirth.month,
+        dateOfBirth.day,
+      );
       if (eighteenthBirthday.isAfter(now)) {
         throw const AuthException(
           'You must be at least 18 years old to register as a cooperative member.',
@@ -240,57 +270,64 @@ class AuthService {
         'full_name': trimmedName,
         // Phone and email are both optional now (Issue 1). Store NULL
         // rather than an empty string when not provided.
-        'phone_number':
-            (trimmedPhone != null && trimmedPhone.isNotEmpty) ? trimmedPhone : null,
+        'phone_number': (trimmedPhone != null && trimmedPhone.isNotEmpty)
+            ? trimmedPhone
+            : null,
         'contact_email':
             (trimmedContactEmail != null && trimmedContactEmail.isNotEmpty)
                 ? trimmedContactEmail
                 : null,
-        'purok': purok,
         'username': username.trim().toLowerCase(),
       });
 
       if (role == 'farmer') {
-        // Member ID (SP3-<year>-<seq>) is assigned ONLY to already-verified
-        // official members here. Outsiders stay NULL until an Admin
-        // approves their application (Phase C). This also removes the old
-        // bug where the login username was written as the Member ID.
-        String? memberId;
-        if (registryId != null) {
-          try {
-            final generated = await _client.rpc('generate_member_id');
-            if (generated is String && generated.isNotEmpty) {
-              memberId = generated;
-            }
-          } catch (_) {
-            // Non-fatal — Admin can assign it later from the member record.
-          }
-        }
-
         await _client.from('farmer_profiles').insert({
           'user_id': userId,
-          'member_id': memberId,
           'is_verified': registryId != null,
-          'date_of_birth':
-              dateOfBirth?.toIso8601String().split('T').first,
+          'date_of_birth': dateOfBirth?.toIso8601String().split('T').first,
           'gender': gender,
         });
-        // Mark registry as registered if applicable — via a SECURITY
-        // DEFINER RPC, not a direct table update. sp3_member_registry's
-        // RLS only grants write access to admins, so a plain client-side
-        // update here is silently dropped by RLS (0 rows affected, no
-        // error) — the account still gets created correctly, but the
-        // registry row is left stale (is_registered stays false). The RPC
-        // performs the same update bypassing RLS, scoped to the caller's
-        // own new account.
+        // Outsider Farmers: the address from the registration wizard. Runs
+        // inside this try, so a failure takes the same path as any other
+        // registration error.
+        if (structuredAddress != null && addressLine != null) {
+          try {
+            await _client.from('buyer_addresses').insert({
+              'user_id': userId,
+              'label': 'Home',
+              'recipient_name': trimmedName,
+              'contact_number':
+                  (trimmedPhone != null && trimmedPhone.isNotEmpty)
+                  ? trimmedPhone
+                  : null,
+              'address_line': addressLine,
+              'is_default': true,
+              ...structuredAddress.toColumns(),
+            });
+          } catch (e) {
+            debugPrint('AuthService.register: address save failed: $e');
+            // Rethrown into the catch below, which rolls the account back.
+            throw const AuthException(
+              'Your address could not be saved, so this registration was '
+              'cancelled. Please try again.',
+            );
+          }
+        }
+        // Official members only: creates the member_capital_shares row
+        // (₱0 opening balance — parity with create_farmer_account()/
+        // approve_member()) and links the registry row — inside one
+        // SECURITY DEFINER transaction, scoped to the caller's own new
+        // account only.
         if (registryId != null) {
           try {
-            await _client.rpc('link_sp3_registry', params: {
-              'p_registry_id': registryId,
-            });
+            await _client.rpc(
+              'finalize_official_membership',
+              params: {'p_registry_id': registryId},
+            );
           } catch (_) {
-            // Non-fatal — the account is still valid; an Admin can link
-            // the registry row manually if this ever fails.
+            // Non-fatal — the account is still valid; an Admin can finish
+            // membership setup later from the member record (Manage
+            // Membership) if this ever fails.
           }
         }
       } else if (role == 'buyer') {
@@ -303,12 +340,18 @@ class AuthService {
         role: role,
         status: registryId != null ? 'active' : 'pending',
         fullName: trimmedName,
-        phoneNumber:
-            (trimmedPhone != null && trimmedPhone.isNotEmpty) ? trimmedPhone : null,
-        purok: purok,
+        phoneNumber: (trimmedPhone != null && trimmedPhone.isNotEmpty)
+            ? trimmedPhone
+            : null,
       );
     } catch (e) {
+      // Technical detail stays in the log only.
+      debugPrint('AuthService.register failed after signup: $e');
+      // Roll back the account created above, so its username and email are
+      // freed and no unusable account is left behind.
+      final rolledBack = await _cancelFailedRegistration();
       await _client.auth.signOut();
+      if (!rolledBack) throw const RegistrationNotCancelledException();
       rethrow;
     }
   }
@@ -369,9 +412,10 @@ class AuthService {
   /// an OTP flow we couldn't actually confirm they're eligible for.
   static Future<bool> canUseOtpReset(String identifier) async {
     try {
-      final result = await _client.rpc('can_use_otp_reset', params: {
-        'p_identifier': identifier.trim(),
-      });
+      final result = await _client.rpc(
+        'can_use_otp_reset',
+        params: {'p_identifier': identifier.trim()},
+      );
       return result as bool? ?? false;
     } catch (_) {
       return false;
@@ -398,9 +442,10 @@ class AuthService {
   // signal either way.
 
   static Future<void> requestPasswordAssistance(String username) async {
-    await _client.rpc('request_password_assistance', params: {
-      'p_username': username.trim(),
-    });
+    await _client.rpc(
+      'request_password_assistance',
+      params: {'p_username': username.trim()},
+    );
   }
 
   // ── Check username availability ───────────────────────────────────────────────
@@ -437,7 +482,6 @@ class AuthService {
       final isAvailable = row['is_available'] as bool? ?? false;
       return Sp3RegistryResult(
         registryId: row['registry_id'] as String,
-        suggestedPurok: row['suggested_purok'] as String?,
         phone: (row['phone_number'] as String?)?.trim().isEmpty ?? true
             ? null
             : (row['phone_number'] as String).trim(),
@@ -491,6 +535,36 @@ class AuthService {
       return result as bool? ?? true;
     } catch (_) {
       return true;
+    }
+  }
+
+  /// Phone counterpart of [isEmailAvailable]: false when another account
+  /// already has this phone number. Fails open, like the email check.
+  static Future<bool> isPhoneAvailable(String phone) async {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) return true;
+    try {
+      final result = await _client.rpc(
+        'check_phone_available',
+        params: {'p_phone': trimmed},
+      );
+      return result as bool? ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Deletes the account created by the registration attempt that just
+  /// failed. Runs server-side (cancel_failed_registration) and only for the
+  /// signed-in user. Best-effort: a failure is logged, not thrown, so the
+  /// original error still reaches the user.
+  static Future<bool> _cancelFailedRegistration() async {
+    try {
+      await _client.rpc('cancel_failed_registration');
+      return true;
+    } catch (e) {
+      debugPrint('AuthService: could not roll back failed registration: $e');
+      return false;
     }
   }
 
@@ -566,17 +640,22 @@ class AuthService {
     try {
       final row = await _client
           .from('user_roles')
-          .select('status, pending_acknowledgement, rejection_reason, '
-              'suspension_reason')
+          .select(
+            'status, pending_acknowledgement, rejection_reason, '
+            'suspension_reason',
+          )
           .eq('user_id', userId)
           .single();
       status = row['status'] as String? ?? 'pending';
       pendingAck = row['pending_acknowledgement'] as bool? ?? false;
-      reason = (row['suspension_reason'] as String?) ??
+      reason =
+          (row['suspension_reason'] as String?) ??
           (row['rejection_reason'] as String?);
     } catch (e) {
-      debugPrint('AuthService.requireActiveMembership: could not reach '
-          'user_roles ($e) — falling back to cached status');
+      debugPrint(
+        'AuthService.requireActiveMembership: could not reach '
+        'user_roles ($e) — falling back to cached status',
+      );
       final cached = HiveService.getMemberStatus();
       if (cached != null && cached != 'active') {
         throw Exception(_statusMessage(cached, null));
@@ -626,7 +705,7 @@ class AuthService {
 
   /// Applicant submits (or resubmits) their membership application:
   /// draft|rejected -> pending. Returns the attempt number just used
-  /// (1..3). Throws with a human message if all attempts are spent or the
+  /// (no limit on resubmissions). Throws with a human message if the
   /// status does not allow submitting.
   static Future<int> submitApplication() async {
     final result = await _client.rpc('submit_application');
@@ -662,9 +741,10 @@ class AuthService {
   /// email" rather than blocking login for everyone.
   static Future<String> _resolveLoginEmail(String identifier) async {
     try {
-      final result = await _client.rpc('resolve_login_email', params: {
-        'p_identifier': identifier,
-      });
+      final result = await _client.rpc(
+        'resolve_login_email',
+        params: {'p_identifier': identifier},
+      );
       if (result is String && result.isNotEmpty) return result;
     } catch (_) {}
     return toAuthEmail(identifier);
@@ -675,7 +755,6 @@ class AuthService {
 
 class Sp3RegistryResult {
   final String registryId;
-  final String? suggestedPurok;
 
   /// Official contact phone from the registry, if recorded. Auto-filled
   /// into the Register screen (editable).
@@ -691,7 +770,6 @@ class Sp3RegistryResult {
 
   const Sp3RegistryResult({
     required this.registryId,
-    this.suggestedPurok,
     this.phone,
     this.email,
     this.alreadyRegistered = false,

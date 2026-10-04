@@ -84,6 +84,18 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
     await _repository.markAsRead(n.id);
   }
 
+  Future<void> _onNotifTap(NotificationModel n) async {
+    await _markAsRead(n);
+    if (!mounted) return;
+    if (n.routeOnTap != null) {
+      if (n.routeExtra != null) {
+        context.push(n.routeOnTap!, extra: n.routeExtra);
+      } else {
+        context.push(n.routeOnTap!);
+      }
+    }
+  }
+
   Future<void> _delete(NotificationModel n) async {
     setState(() => _all.removeWhere((x) => x.id == n.id));
     await _repository.deleteNotification(n.id);
@@ -193,7 +205,7 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
                                 child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
                               ),
                               onDismissed: (_) => _delete(n),
-                              child: _NotificationTile(notification: n, onTap: () => _markAsRead(n)),
+                              child: _NotificationTile(notification: n, onTap: () => _onNotifTap(n)),
                             );
                           },
                         ),
@@ -251,6 +263,7 @@ class _NotificationTile extends StatelessWidget {
       case NotificationType.cropRequest:
       case NotificationType.cooperativeOffer:
       case NotificationType.program:
+      case NotificationType.capital:
         return Icons.info_rounded;
     }
   }

@@ -9,6 +9,8 @@ import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/suspend_reason_dialog.dart';
 
 class BuyerDetailsScreen extends StatefulWidget {
   final String buyerId;
@@ -47,6 +49,76 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
     });
   }
 
+  // ─── Suspend flow — two-step (reason, then confirm), same shape as
+  // FarmerDetailsScreen's flow and BuyerManagementScreen's copy — all
+  // three now share promptSuspendReason from suspend_reason_dialog.dart.
+  // Reactivate stays single-tap, also matching Farmer. Replaces the
+  // previous direct, no-confirmation toggle this bottom-bar button used
+  // to perform.
+
+  Future<void> _suspendOrReactivate() async {
+    final l10n = AppLocalizations.of(context);
+    final buyer = _buyer!;
+    if (buyer.isActive) {
+      final reason = await promptSuspendReason(
+        context: context,
+        title: l10n.buyerDetailsSuspendTitle,
+        hint: l10n.buyerDetailsSuspendReasonHint,
+      );
+      if (reason == null || reason.trim().isEmpty || !mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dc) => AlertDialog(
+          title: Text(
+            l10n.farmerMgmtConfirmSuspensionTitle,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            '${l10n.buyerMgmtSuspendBuyerLine(buyer.fullName)}\n'
+            '${l10n.farmerMgmtSuspendOutcomeLine}\n'
+            '${l10n.farmerMgmtReasonLine(reason.trim())}',
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dc, false),
+              child: Text(l10n.farmerMgmtBack),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dc, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppConstants.errorRed,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(l10n.farmerMgmtSuspendAccountAction),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      try {
+        await _repo.setBuyerStatus(
+          buyerId: buyer.userId,
+          status: 'suspended',
+          reason: reason.trim(),
+        );
+      } catch (_) {
+        if (mounted)
+          AppToast.show(context, l10n.suspendActionError, isError: true);
+        return;
+      }
+    } else {
+      try {
+        await _repo.setBuyerStatus(buyerId: buyer.userId, status: 'active');
+      } catch (_) {
+        if (mounted)
+          AppToast.show(context, l10n.suspendActionError, isError: true);
+        return;
+      }
+    }
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n   = AppLocalizations.of(context);
@@ -67,7 +139,9 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
               child: _isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
-                          color: AppConstants.primaryGreen))
+                        color: AppConstants.primaryGreen,
+                      ),
+                    )
                   : _buyer == null
                       ? _NotFoundState(cs: cs)
                       : RefreshIndicator(
@@ -76,11 +150,9 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           child: ListView(
                             padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                             children: [
-                              _IdentityCard(
-                                  buyer: _buyer!, cs: cs, sagana: sagana),
+                          _IdentityCard(buyer: _buyer!, cs: cs, sagana: sagana),
                               const SizedBox(height: 16),
-                              _StatsRow(
-                                  buyer: _buyer!, cs: cs, sagana: sagana),
+                          _StatsRow(buyer: _buyer!, cs: cs, sagana: sagana),
                               const SizedBox(height: 16),
                               _RecentOrdersSection(
                                 orders: _recentOrders,
@@ -123,25 +195,22 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           },
                         ),
                         icon: const Icon(Icons.campaign_outlined, size: 18),
-                        label: Text(l10n.farmerDetailsNotifyAction,
+                        label: Text(
+                          l10n.farmerDetailsNotifyAction,
                             style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600)),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          await _repo.setBuyerStatus(
-                            buyerId: _buyer!.userId,
-                            status:
-                                _buyer!.isActive ? 'suspended' : 'active',
-                          );
-                          _load();
-                        },
+                        onPressed: _suspendOrReactivate,
                         style: _buyer!.isActive
                             ? ElevatedButton.styleFrom(
-                                backgroundColor: AppConstants.errorRed)
+                                backgroundColor: AppConstants.errorRed,
+                              )
                             : null,
                         icon: Icon(
                           _buyer!.isActive
@@ -150,9 +219,12 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           size: 18,
                         ),
                         label: Text(
-                          _buyer!.isActive ? l10n.buyerDetailsSuspendAction : l10n.buyerDetailsReactivateAction,
-                          style:
-                              GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                          _buyer!.isActive
+                              ? l10n.buyerDetailsSuspendAction
+                              : l10n.buyerDetailsReactivateAction,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -168,11 +240,7 @@ class _TopBar extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
   final ColorScheme cs;
-  const _TopBar({
-    required this.title,
-    required this.onBack,
-    required this.cs,
-  });
+  const _TopBar({required this.title, required this.onBack, required this.cs});
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +256,10 @@ class _TopBar extends StatelessWidget {
             child: Text(
               title,
               style: GoogleFonts.poppins(
-                  fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: cs.primary,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -207,8 +278,11 @@ class _IdentityCard extends StatelessWidget {
   final BuyerProfileModel buyer;
   final ColorScheme cs;
   final SaganaColors sagana;
-  const _IdentityCard(
-      {required this.buyer, required this.cs, required this.sagana});
+  const _IdentityCard({
+    required this.buyer,
+    required this.cs,
+    required this.sagana,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -227,12 +301,13 @@ class _IdentityCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _badgeColor(buyer, cs).withValues(alpha: 0.10),
-                  borderRadius:
-                      BorderRadius.circular(AppConstants.radiusFull),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
                   _badgeLabel(l10n, buyer),
@@ -269,15 +344,13 @@ class _IdentityCard extends StatelessWidget {
             buyer.fullName,
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-                fontSize: 20, fontWeight: FontWeight.w700, color: cs.onSurface),
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
           ),
-          const SizedBox(height: 2),
-          Text(
-            l10n.buyerDetailsSinceLine(buyerJoinedLabel(l10n, buyer.memberSince)) +
-            (buyer.purok != null ? ' • ${buyer.purok}' : ''),
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
           ),
+          // "Buyer since <date>" removed — not meaningful info for this
+          // card (Admin Buyer Management redesign).
           const SizedBox(height: 16),
           // Every Edit Profile field always renders here, populated or
           // not (placeholder "–" when empty) — previously phone/email
@@ -289,9 +362,23 @@ class _IdentityCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _fieldTile(Icons.email_rounded, l10n.emailAddress, buyer.contactEmail, cs)),
+                Expanded(
+                  child: _fieldTile(
+                    Icons.email_rounded,
+                    l10n.emailAddress,
+                    buyer.contactEmail,
+                    cs,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: _fieldTile(Icons.phone_rounded, l10n.adminProfilePhoneNumber, buyer.phoneNumber, cs)),
+                Expanded(
+                  child: _fieldTile(
+                    Icons.phone_rounded,
+                    l10n.adminProfilePhoneNumber,
+                    buyer.phoneNumber,
+                    cs,
+                  ),
+                ),
               ],
             ),
           ),
@@ -300,20 +387,37 @@ class _IdentityCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _fieldTile(Icons.cake_rounded, l10n.dateOfBirthLabel, buyer.dateOfBirthLabel, cs)),
+                Expanded(
+                  child: _fieldTile(
+                    Icons.cake_rounded,
+                    l10n.dateOfBirthLabel,
+                    buyer.dateOfBirthLabel,
+                    cs,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: _fieldTile(Icons.person_outline_rounded, l10n.addMemberGenderLabel, buyerGenderLabel(l10n, buyer.gender), cs)),
+                Expanded(
+                  child: _fieldTile(
+                    Icons.person_outline_rounded,
+                    l10n.addMemberGenderLabel,
+                    buyerGenderLabel(l10n, buyer.gender),
+                    cs,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          _fieldTile(Icons.map_outlined, l10n.adminProfilePurok, buyer.purok, cs),
         ],
       ),
     );
   }
 
-  Widget _fieldTile(IconData icon, String label, String? value, ColorScheme cs) {
+  Widget _fieldTile(
+    IconData icon,
+    String label,
+    String? value,
+    ColorScheme cs,
+  ) {
     final hasValue = value != null && value.isNotEmpty;
     return Container(
       width: double.infinity,
@@ -332,7 +436,10 @@ class _IdentityCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -344,7 +451,8 @@ class _IdentityCard extends StatelessWidget {
             style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: hasValue ? cs.onSurface : cs.onSurfaceVariant),
+              color: hasValue ? cs.onSurface : cs.onSurfaceVariant,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -360,7 +468,8 @@ class _IdentityCard extends StatelessWidget {
         style: GoogleFonts.poppins(
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: AppConstants.buyerBlue),
+          color: AppConstants.buyerBlue,
+        ),
       ),
     );
   }
@@ -382,33 +491,57 @@ class _StatsRow extends StatelessWidget {
   final BuyerProfileModel buyer;
   final ColorScheme cs;
   final SaganaColors sagana;
-  const _StatsRow(
-      {required this.buyer, required this.cs, required this.sagana});
+  const _StatsRow({
+    required this.buyer,
+    required this.cs,
+    required this.sagana,
+  });
 
+  // KPI-tile visual language — mirrors Admin Marketplace Dashboard's
+  // _KpiStrip/_KpiTile (icon chip + tinted border/bg per stat, bold value)
+  // instead of the flat neutral tile used previously, same restyle
+  // already applied to the Buyer's own Purchase Summary on their Profile
+  // tab. Values are unchanged — real order stats from fetchAdminView,
+  // never hardcoded.
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    Widget tile(String label, String value, IconData icon) => Expanded(
+    Widget tile(String label, String value, IconData icon, Color color) =>
+        Expanded(
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: sagana.cardBackground,
+              color: color.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+              border: Border.all(color: color.withValues(alpha: 0.18)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: 16, color: cs.primary),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                  ),
+                  child: Icon(icon, size: 14, color: color),
+                ),
                 const SizedBox(height: 8),
-                Text(value,
+                Text(
+                  value,
                     style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: cs.onSurface)),
-                Text(label,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(
+                  label,
                     style: GoogleFonts.inter(
-                        fontSize: 10, color: cs.onSurfaceVariant)),
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -416,14 +549,26 @@ class _StatsRow extends StatelessWidget {
 
     return Row(
       children: [
-        tile(l10n.buyerDetailsTotalOrders, '${buyer.totalOrders}',
-            Icons.shopping_bag_outlined),
+        tile(
+          l10n.buyerDetailsTotalOrders,
+          '${buyer.totalOrders}',
+          Icons.shopping_bag_rounded,
+          AppConstants.buyerBlue,
+        ),
         const SizedBox(width: 10),
-        tile(l10n.statCompleted, '${buyer.completedOrders}',
-            Icons.check_circle_outline_rounded),
+        tile(
+          l10n.statCompleted,
+          '${buyer.completedOrders}',
+          Icons.check_circle_rounded,
+          AppConstants.successGreen,
+        ),
         const SizedBox(width: 10),
-        tile(l10n.buyerDetailsTotalSpent, '₱${buyer.totalSpent.toStringAsFixed(0)}',
-            Icons.payments_outlined),
+        tile(
+          l10n.buyerDetailsTotalSpent,
+          '₱${buyer.totalSpent.toStringAsFixed(0)}',
+          Icons.payments_rounded,
+          AppConstants.primaryGreen,
+        ),
       ],
     );
   }
@@ -460,14 +605,26 @@ class _RecentOrdersSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(l10n.buyerOrderHistoryTitleGeneric,
-                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
+            Text(
+              l10n.buyerOrderHistoryTitleGeneric,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
+            ),
             const Spacer(),
             if (totalOrders > 0)
               GestureDetector(
                 onTap: onViewAll,
-                child: Text(l10n.listingsAllButton,
-                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
+                child: Text(
+                  l10n.listingsAllButton,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: cs.primary,
+                  ),
+                ),
               ),
           ],
         ),
@@ -481,8 +638,13 @@ class _RecentOrdersSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
             ),
-            child: Text(l10n.buyerOrderHistoryNoOrdersYet,
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+            child: Text(
+              l10n.buyerOrderHistoryNoOrdersYet,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           )
         else
           // Bounded height with its own internal scroll — up to 10 rows
@@ -512,15 +674,25 @@ class _RecentOrderRow extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onTap;
-  const _RecentOrderRow({required this.order, required this.cs, required this.sagana, required this.onTap});
+  const _RecentOrderRow({
+    required this.order,
+    required this.cs,
+    required this.sagana,
+    required this.onTap,
+  });
 
   Color get _statusColor {
     switch (order.status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending': return AppConstants.warningAmber;
-      case 'completed': return AppConstants.primaryGreen;
-      case 'cancelled': return AppConstants.errorRed;
-      default: return AppConstants.outline;
+      case 'approved':
+        return AppConstants.successGreen;
+      case 'pending':
+        return AppConstants.warningAmber;
+      case 'completed':
+        return AppConstants.primaryGreen;
+      case 'cancelled':
+        return AppConstants.errorRed;
+      default:
+        return AppConstants.outline;
     }
   }
 
@@ -541,15 +713,32 @@ class _RecentOrderRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(order.displayName,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface)),
-                  Text('${order.orderReference} · ${order.quantityKg.toStringAsFixed(0)} kg',
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+                  Text(
+                    order.displayName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  Text(
+                    '${order.orderReference} · ${order.quantityKg.toStringAsFixed(0)} kg',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Text('₱${order.totalPrice.toStringAsFixed(0)}',
-                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+            Text(
+              '₱${order.totalPrice.toStringAsFixed(0)}',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
             const SizedBox(width: 6),
             Icon(Icons.chevron_right_rounded, size: 18, color: cs.outline),
           ],
@@ -571,18 +760,23 @@ class _NotFoundState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_off_outlined,
-                size: 48, color: cs.outline.withValues(alpha: 0.4)),
+            Icon(
+              Icons.person_off_outlined,
+              size: 48,
+              color: cs.outline.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: 12),
-            Text(AppLocalizations.of(context).buyerDetailsNotFound,
+            Text(
+              AppLocalizations.of(context).buyerDetailsNotFound,
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: cs.onSurfaceVariant)),
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 }
-

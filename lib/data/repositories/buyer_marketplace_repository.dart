@@ -8,7 +8,7 @@ import 'crop_lookup.dart';
 
 /// Read-only, buyer-scoped access to the marketplace. Only ever returns
 /// approved listings — buyers have no reason to see, and RLS gives them
-/// no ability to see, pending/changes_required/rejected listings.
+/// no ability to see, pending/rejected listings.
 /// Deliberately its own repository rather than reusing AdminListingRepository,
 /// matching the codebase's existing precedent of one repository per role
 /// against the same table (listing_repository.dart for farmer-own-listings
@@ -58,8 +58,10 @@ class BuyerMarketplaceRepository {
     try {
       return _resolvePriceMap(await _priceRepo.fetchLatestPricePerCrop());
     } catch (e) {
-      debugPrint('BuyerMarketplaceRepository: price lookup failed ($e) — '
-          'market_ref_price will be missing');
+      debugPrint(
+        'BuyerMarketplaceRepository: price lookup failed ($e) — '
+        'market_ref_price will be missing',
+      );
       return {};
     }
   }
@@ -78,7 +80,7 @@ class BuyerMarketplaceRepository {
           .from('marketplace_listings')
           .select(
             'id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, '
-            'inventory_batch_id, photo_url, created_at',
+            'inventory_batch_id, photo_url, created_at, farmer_id, crop_type',
           )
           .eq('status', 'approved');
 
@@ -100,14 +102,16 @@ class BuyerMarketplaceRepository {
         try {
           final batchRows = await _client
               .from('inventory_batches')
-              .select('id, available_kg, status')
+              .select('id, available_kg, status, crop_type')
               .inFilter('id', batchIds);
           for (final b in batchRows) {
             batchMap[b['id'] as String] = b;
           }
         } catch (e) {
-          debugPrint('BuyerMarketplaceRepository.fetchApprovedListings: '
-              'batch lookup failed ($e) — available_kg will be missing');
+          debugPrint(
+            'BuyerMarketplaceRepository.fetchApprovedListings: '
+            'batch lookup failed ($e) — available_kg will be missing',
+          );
         }
       }
 
@@ -123,8 +127,10 @@ class BuyerMarketplaceRepository {
               c['category'] as String;
         }
       } catch (e) {
-        debugPrint('BuyerMarketplaceRepository.fetchApprovedListings: '
-            'category lookup failed ($e) — categories will be missing');
+        debugPrint(
+          'BuyerMarketplaceRepository.fetchApprovedListings: '
+          'category lookup failed ($e) — categories will be missing',
+        );
       }
 
       // ── Canonical crop names (Phase D — merges historical name variants,
@@ -139,6 +145,27 @@ class BuyerMarketplaceRepository {
       // ── Market reference prices (reused read-only, zero new code) ────────
       final priceMap = await _fetchPriceMap();
 
+      // ── Units sold (Buyer Browse-tab rework, Phase 3) — own try/catch so
+      // a missing/broken view degrades to 0 rather than failing the whole
+      // listings fetch (this method's outer catch returns [] on any
+      // uncaught exception).
+      final soldMap = <String, double>{};
+      try {
+        final listingIds = rows.map((r) => r['id'] as String).toList();
+        final soldRows = await _client
+            .from('marketplace_listing_units_sold')
+            .select('listing_id, sold_kg')
+            .inFilter('listing_id', listingIds);
+        for (final s in soldRows) {
+          soldMap[s['listing_id'] as String] = (s['sold_kg'] as num).toDouble();
+        }
+      } catch (e) {
+        debugPrint(
+          'BuyerMarketplaceRepository.fetchApprovedListings: '
+          'units-sold lookup failed ($e) — sold_kg will default to 0',
+        );
+      }
+
       return rows.map((r) {
         final batchId = r['inventory_batch_id'] as String?;
         final batch = batchId != null ? batchMap[batchId] : null;
@@ -149,9 +176,21 @@ class BuyerMarketplaceRepository {
           ...r,
           'category': categoryMap[cropNameLower],
           'available_kg': batch?['available_kg'],
+          // marketplace_listings.crop_type is the persisted, authoritative
+          // value (set by the trigger in
+          // supabase_schema_harvest_market_type_persistence.sql at
+          // creation time) — the batch's own crop_type is only a fallback
+          // for the rare pre-migration row that predates that column, or
+          // a listing whose inventory_batch_id is null. Reading only the
+          // batch value (as this used to) showed "Not yet assigned" for
+          // any listing without a linked batch, even though the listing
+          // itself already had a correct crop_type.
+          'market_type': r['crop_type'] ?? batch?['crop_type'],
           'market_ref_price': priceMap[cropNameLower],
-          'canonical_crop_name':
-              cropId != null ? canonicalCropNames[cropId] : null,
+          'canonical_crop_name': cropId != null
+              ? canonicalCropNames[cropId]
+              : null,
+          'sold_kg': soldMap[r['id'] as String],
         });
       }).toList();
     } catch (e) {
@@ -168,7 +207,7 @@ class BuyerMarketplaceRepository {
           .from('marketplace_listings')
           .select(
             'id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
-            'inventory_batch_id, photo_url, created_at',
+            'inventory_batch_id, photo_url, description, created_at, farmer_id, crop_type',
           )
           .eq('id', listingId)
           .eq('status', 'approved')
@@ -184,7 +223,9 @@ class BuyerMarketplaceRepository {
         try {
           batch = await _client
               .from('inventory_batches')
-              .select('available_kg, status, batch_number, harvest_record_id')
+              .select(
+                'available_kg, status, batch_number, harvest_record_id, crop_type',
+              )
               .eq('id', batchId)
               .maybeSingle();
 
@@ -200,8 +241,10 @@ class BuyerMarketplaceRepository {
             }
           }
         } catch (e) {
-          debugPrint('BuyerMarketplaceRepository.fetchListingById: '
-              'batch/harvest lookup failed ($e)');
+          debugPrint(
+            'BuyerMarketplaceRepository.fetchListingById: '
+            'batch/harvest lookup failed ($e)',
+          );
         }
       }
 
@@ -214,12 +257,30 @@ class BuyerMarketplaceRepository {
             .maybeSingle();
         category = crop?['category'] as String?;
       } catch (e) {
-        debugPrint('BuyerMarketplaceRepository.fetchListingById: '
-            'category lookup failed ($e)');
+        debugPrint(
+          'BuyerMarketplaceRepository.fetchListingById: '
+          'category lookup failed ($e)',
+        );
       }
 
       final priceMap = await _fetchPriceMap();
-      final marketRefPrice = priceMap[(row['crop_name'] as String).toLowerCase()];
+      final marketRefPrice =
+          priceMap[(row['crop_name'] as String).toLowerCase()];
+
+      double soldKg = 0;
+      try {
+        final soldRow = await _client
+            .from('marketplace_listing_units_sold')
+            .select('sold_kg')
+            .eq('listing_id', listingId)
+            .maybeSingle();
+        soldKg = (soldRow?['sold_kg'] as num?)?.toDouble() ?? 0;
+      } catch (e) {
+        debugPrint(
+          'BuyerMarketplaceRepository.fetchListingById: '
+          'units-sold lookup failed ($e) — sold_kg will default to 0',
+        );
+      }
 
       return BuyerListingModel.fromMap({
         ...row,
@@ -227,7 +288,11 @@ class BuyerMarketplaceRepository {
         'available_kg': batch?['available_kg'],
         'batch_number': batch?['batch_number'],
         'harvest_date': harvestDate?.toIso8601String(),
+        // Same fix as fetchApprovedListings() — prefer the listing's own
+        // persisted crop_type over the batch join.
+        'market_type': row['crop_type'] ?? batch?['crop_type'],
         'market_ref_price': marketRefPrice,
+        'sold_kg': soldKg,
       });
     } catch (e) {
       debugPrint('BuyerMarketplaceRepository.fetchListingById failed: $e');
@@ -282,7 +347,9 @@ class BuyerMarketplaceRepository {
           r['id'] as String: (r['remaining_kg'] as num).toDouble(),
       };
     } catch (e) {
-      debugPrint('BuyerMarketplaceRepository.fetchCurrentRemainingKg failed: $e');
+      debugPrint(
+        'BuyerMarketplaceRepository.fetchCurrentRemainingKg failed: $e',
+      );
       return {};
     }
   }
@@ -292,16 +359,41 @@ class BuyerMarketplaceRepository {
   // reason (e.g. insufficient stock), same convention as every other
   // money-touching write in this codebase.
 
+  // fulfillmentMethod/delivery* — Checkout + My Addresses (Phase 5):
+  // place_order() now accepts fulfillment atomically with order creation
+  // (supabase_schema_checkout_fulfillment.sql). Defaults to 'pickup'/null
+  // so any caller not yet updated to pass these (none remain after Phase
+  // 6, but this keeps the signature itself backward compatible) behaves
+  // exactly as before.
   Future<String> placeOrder({
     required String listingId,
     required double quantityKg,
+    String fulfillmentMethod = 'pickup',
+    String? deliveryAddress,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
+    String? deliveryContactNumber,
+    String? deliveryNotes,
+    String? deliveryRecipientName,
+    String? deliveryLabel,
   }) async {
     await AuthService.requireActiveMembership();
     try {
-      final result = await _client.rpc('place_order', params: {
+      final result = await _client.rpc(
+        'place_order',
+        params: {
         'p_listing_id': listingId,
         'p_quantity_kg': quantityKg,
-      });
+          'p_fulfillment_method': fulfillmentMethod,
+          'p_delivery_address': deliveryAddress,
+          'p_delivery_latitude': deliveryLatitude,
+          'p_delivery_longitude': deliveryLongitude,
+          'p_delivery_contact_number': deliveryContactNumber,
+          'p_delivery_notes': deliveryNotes,
+          'p_delivery_recipient_name': deliveryRecipientName,
+          'p_delivery_label': deliveryLabel,
+        },
+      );
       return result as String;
     } on PostgrestException catch (e) {
       throw Exception(e.message);

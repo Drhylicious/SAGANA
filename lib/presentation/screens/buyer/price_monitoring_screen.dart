@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/models/price_record_model.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
@@ -14,7 +15,6 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/shared_widgets.dart';
-import '../../widgets/management_modal.dart';
 
 class PriceMonitoringScreen extends StatefulWidget {
   const PriceMonitoringScreen({super.key});
@@ -33,14 +33,13 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
   bool _isLoading = true;
   List<PriceRecordModel> _latestPrices = [];
   Set<String> _listedCrops = {};
-  Map<String, String> _cropCategories = {}; // cropId -> category
   int _unreadCount = 0;
   BuyerProfileModel? _buyerProfile;
 
   // ─── Filters ────────────────────────────────────────────────────────────
+  // Search + the price-type chip row only — matches Farmer's View Market
+  // Rates screen exactly, which has no separate filter-panel affordance.
   String? _priceTypeFilter;   // price-source chip row — null = All
-  String? _categoryFilter;    // filter panel
-  String? _cropIdFilter;      // filter panel
 
   // ─── Exclusive inline expansion ─────────────────────────────────────────
   String? _expandedCropId;
@@ -72,15 +71,13 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     final results = await Future.wait([
       _priceRepo.fetchLatestPricePerCrop(),
       _marketRepo.fetchListedCropNames(),
-      _priceRepo.fetchCropCategories(),
       _notificationRepo.fetchUnreadCount(),
     ]);
     if (!mounted) return;
     setState(() {
       _latestPrices = results[0] as List<PriceRecordModel>;
       _listedCrops = results[1] as Set<String>;
-      _cropCategories = results[2] as Map<String, String>;
-      _unreadCount = results[3] as int;
+      _unreadCount = results[2] as int;
       _isLoading = false;
     });
   }
@@ -100,13 +97,9 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     return _latestPrices.where((p) {
       if (query.isNotEmpty && !p.cropName.toLowerCase().contains(query)) return false;
       if (_priceTypeFilter != null && p.priceType != _priceTypeFilter) return false;
-      if (_cropIdFilter != null && p.cropId != _cropIdFilter) return false;
-      if (_categoryFilter != null && _cropCategories[p.cropId] != _categoryFilter) return false;
       return true;
     }).toList();
   }
-
-  bool get _hasPanelFilters => _categoryFilter != null || _cropIdFilter != null;
 
   Future<void> _toggleExpand(String cropId) async {
     if (_expandedCropId == cropId) {
@@ -126,25 +119,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     });
   }
 
-  Future<void> _openFilterPanel() async {
-    final categories = _cropCategories.values.toSet().toList()..sort();
-    final result = await showManagementModal<_FilterResult>(
-      context: context,
-      builder: (_) => _PriceFilterPanel(
-        categories: categories,
-        crops: _latestPrices,
-        cropCategories: _cropCategories,
-        initialCategory: _categoryFilter,
-        initialCropId: _cropIdFilter,
-      ),
-    );
-    if (result == null) return;
-    setState(() {
-      _categoryFilter = result.category;
-      _cropIdFilter = result.cropId;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -161,6 +135,10 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
         onEditProfile: () {
           Navigator.pop(context);
           context.push(AppRoutes.buyerEditProfile);
+        },
+        onMyAddresses: () {
+          Navigator.pop(context);
+          context.push(AppRoutes.myAddresses);
         },
         onSignOut: () => confirmBuyerSignOut(context),
         onAboutSagana: () => context.push(AppRoutes.aboutSagana),
@@ -230,52 +208,27 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     );
   }
 
+  // Plain full-width search field, no separate filter-icon affordance —
+  // matches Farmer's View Market Rates screen exactly, which filters only
+  // by search text and the market-type chip row below.
   Widget _buildSearchRow(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: AppTextField(
-              controller: _searchController,
-              label: l10n.buyerPriceSearchLabel,
-              hint: l10n.buyerPriceSearchHint,
-              prefixIcon: Icons.search,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: context.saganaColors.cardBackground,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(color: AppConstants.outline.withValues(alpha: 0.5)),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.tune_rounded),
-                  color: AppConstants.primaryGreen,
-                  onPressed: _openFilterPanel,
-                ),
-              ),
-              if (_hasPanelFilters)
-                Positioned(
-                  top: -2, right: -2,
-                  child: Container(
-                    width: 10, height: 10,
-                    decoration: const BoxDecoration(color: AppConstants.errorRed, shape: BoxShape.circle),
-                  ),
-                ),
-            ],
-          ),
-        ],
+      child: AppTextField(
+        controller: _searchController,
+        label: l10n.buyerPriceSearchLabel,
+        hint: l10n.buyerPriceSearchHint,
+        prefixIcon: Icons.search,
       ),
     );
   }
 
+  // Same per-type coloring as Farmer's View Market Rates chip row
+  // (MarketTypeDisplay) — was always plain green regardless of which
+  // market type was selected, unlike Farmer's screen distinguishing
+  // Cooperative vs Public Market by color.
   Widget _buildPriceTypeChips(AppLocalizations l10n) {
-    const types = [null, 'open_market', 'sp3_cooperative'];
+    const types = [null, 'sp3_cooperative', 'open_market'];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH),
       child: SizedBox(
@@ -287,18 +240,19 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
           itemBuilder: (context, i) {
             final type = types[i];
             final selected = _priceTypeFilter == type;
-            final label = type == null ? l10n.buyerPriceFilterAll : _priceTypeLabel(type, l10n);
+            final label = type == null ? l10n.buyerPriceFilterAll : MarketTypeDisplay.label(l10n, type);
+            final color = type == null ? AppConstants.primaryGreen : MarketTypeDisplay.color(context, type);
             return ChoiceChip(
               label: Text(label),
               selected: selected,
               onSelected: (_) => setState(() => _priceTypeFilter = type),
               labelStyle: GoogleFonts.inter(
                 fontSize: 12, fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppConstants.onSurfaceVariant,
+                color: selected ? Colors.white : color,
               ),
-              selectedColor: AppConstants.primaryGreen,
-              backgroundColor: context.saganaColors.cardBackground,
-              side: BorderSide(color: AppConstants.outline.withValues(alpha: 0.3)),
+              selectedColor: color,
+              backgroundColor: color.withValues(alpha: 0.10),
+              side: BorderSide(color: color.withValues(alpha: 0.3)),
               showCheckmark: false,
             );
           },
@@ -344,8 +298,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
               onPressed: () => setState(() {
                 _searchController.clear();
                 _priceTypeFilter = null;
-                _categoryFilter = null;
-                _cropIdFilter = null;
               }),
               child: Text(l10n.buyerPriceClearFilters,
                   style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
@@ -354,17 +306,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
         ),
       ),
     );
-  }
-}
-
-// Buyer-local label mapping — deliberately not using
-// PriceRecordModel.priceTypeLabel, since that model is shared read-only
-// with Admin's PriceManagementRepository. Operates on the model's public
-// raw priceType field instead.
-String _priceTypeLabel(String type, AppLocalizations l10n) {
-  switch (type) {
-    case 'sp3_cooperative': return l10n.buyerPriceTypeSp3;
-    default:                return l10n.buyerPriceTypeMarketRef;
   }
 }
 
@@ -399,16 +340,17 @@ class _CropCard extends StatelessWidget {
         curve: Curves.easeInOut,
         child: Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: context.saganaColors.cardBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          // Same flatCardDecoration Farmer's View Market Rates tile uses —
+          // only the expanded-state accent border is Buyer-specific (this
+          // card expands in place; Farmer's pushes to a detail screen
+          // instead, so it has no equivalent state to mark).
+          decoration: flatCardDecoration(context).copyWith(
             border: isExpanded ? Border.all(color: AppConstants.primaryGreen, width: 1.5) : null,
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(l10n),
+              _buildHeader(context, l10n),
               if (isExpanded) ...[
                 const SizedBox(height: 10),
                 _buildStatusTag(l10n),
@@ -424,58 +366,95 @@ class _CropCard extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(AppLocalizations l10n) {
+  // Same row shape as Farmer's _MarketRateListTile — 72x72 crop image,
+  // name + market-type badge on one line, a relative "Updated X ago"
+  // line, then the price — so both screens genuinely read as the same
+  // presentation of the same underlying price_records data, not two
+  // different-looking pages that happen to show similar numbers.
+  Widget _buildHeader(BuildContext context, AppLocalizations l10n) {
+    final color = MarketTypeDisplay.color(context, price.priceType);
     final imageUrl = price.cropImageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Same crop image Admin's Price Management shows — referenced
         // only (from Crop Management), never uploaded from here.
         ClipRRect(
-          borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-          child: Container(
-            width: 40, height: 40,
-            color: AppConstants.limeGreen,
-            child: (imageUrl != null && imageUrl.isNotEmpty)
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          child: SizedBox(
+            width: 72, height: 72,
+            child: hasImage
                 ? Image.network(
                     imageUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.storefront_outlined, size: 18, color: AppConstants.primaryGreen),
+                    errorBuilder: (_, __, ___) => Container(
+                      color: color.withValues(alpha: 0.12),
+                      child: Icon(Icons.eco_outlined, size: 28, color: color),
+                    ),
                   )
-                : const Icon(Icons.storefront_outlined, size: 18, color: AppConstants.primaryGreen),
+                : Container(
+                    color: color.withValues(alpha: 0.12),
+                    child: Icon(Icons.eco_outlined, size: 28, color: color),
+                  ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(price.cropName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-              Text(_priceTypeLabel(price.priceType, l10n), style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      price.cropName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
+                    child: Text(MarketTypeDisplay.label(l10n, price.priceType),
+                        style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(price.recordedAt, l10n)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(price.formattedPrice,
+                      style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                  if (price.previousPrice != null) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      price.isUp ? Icons.arrow_upward_rounded : price.isDown ? Icons.arrow_downward_rounded : Icons.remove_rounded,
+                      size: 12,
+                      color: price.isUp ? AppConstants.successGreen : price.isDown ? AppConstants.errorRed : AppConstants.outline,
+                    ),
+                    Text('₱${price.priceDifference!.abs().toStringAsFixed(2)}',
+                        style: GoogleFonts.inter(fontSize: 10,
+                            color: price.isUp ? AppConstants.successGreen : price.isDown ? AppConstants.errorRed : AppConstants.outline)),
+                  ],
+                ],
+              ),
             ],
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(price.formattedPrice,
-                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
-            if (price.previousPrice != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    price.isUp ? Icons.arrow_upward_rounded : price.isDown ? Icons.arrow_downward_rounded : Icons.remove_rounded,
-                    size: 12,
-                    color: price.isUp ? AppConstants.successGreen : price.isDown ? AppConstants.errorRed : AppConstants.outline,
-                  ),
-                  Text('₱${price.priceDifference!.abs().toStringAsFixed(2)}',
-                      style: GoogleFonts.inter(fontSize: 10,
-                          color: price.isUp ? AppConstants.successGreen : price.isDown ? AppConstants.errorRed : AppConstants.outline)),
-                ],
-              ),
-          ],
-        ),
+        const SizedBox(width: 8),
+        Icon(isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+            color: Theme.of(context).colorScheme.outline, size: 22),
       ],
     );
   }
@@ -573,141 +552,4 @@ class _SparklinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
       oldDelegate.prices != prices || oldDelegate.color != color;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Filter panel — Category + Crop, mirroring Farmer's two-tier structure but
-// sourced from Buyer's own already-fetched price data + the new
-// fetchCropCategories() lookup, not a full separate crop-catalog fetch.
-// Deliberately simpler than Farmer's version: only crops that actually
-// have a price record appear here, since filtering to an empty category
-// wouldn't serve any purpose on this screen.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FilterResult {
-  final String? category;
-  final String? cropId;
-  const _FilterResult({this.category, this.cropId});
-}
-
-class _PriceFilterPanel extends StatefulWidget {
-  final List<String> categories;
-  final List<PriceRecordModel> crops;
-  final Map<String, String> cropCategories;
-  final String? initialCategory;
-  final String? initialCropId;
-
-  const _PriceFilterPanel({
-    required this.categories,
-    required this.crops,
-    required this.cropCategories,
-    this.initialCategory,
-    this.initialCropId,
-  });
-
-  @override
-  State<_PriceFilterPanel> createState() => _PriceFilterPanelState();
-}
-
-class _PriceFilterPanelState extends State<_PriceFilterPanel> {
-  String? _category;
-  String? _cropId;
-
-  @override
-  void initState() {
-    super.initState();
-    _category = widget.initialCategory;
-    _cropId = widget.initialCropId;
-  }
-
-  List<PriceRecordModel> get _cropsForCategory {
-    if (_category == null) return widget.crops;
-    return widget.crops.where((c) => widget.cropCategories[c.cropId] == _category).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return ManagementModalShell(
-      title: l10n.buyerPriceFilterPanelTitle,
-      subtitle: l10n.buyerPriceFilterPanelSubtitle,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.buyerPriceFilterCategoryLabel, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: widget.categories.map((cat) {
-              final selected = _category == cat;
-              return _FilterChip(
-                label: cat,
-                selected: selected,
-                onTap: () => setState(() {
-                  _category = selected ? null : cat;
-                  _cropId = null; // changing category clears the more-specific crop pick
-                }),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 18),
-          Text(l10n.buyerPriceFilterCropLabel, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: _cropsForCategory.map((c) {
-              final selected = _cropId == c.cropId;
-              return _FilterChip(
-                label: c.cropName,
-                selected: selected,
-                onTap: () => setState(() => _cropId = selected ? null : c.cropId),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-      footer: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context, const _FilterResult()),
-              child: Text(l10n.buyerPriceResetAll),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: PrimaryButton(
-              label: l10n.buyerPriceApplyFilters,
-              height: 44,
-              onPressed: () => Navigator.pop(context, _FilterResult(category: _category, cropId: _cropId)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppConstants.primaryGreen : AppConstants.limeGreen.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-        ),
-        child: Text(label,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppConstants.charcoal)),
-      ),
-    );
-  }
 }

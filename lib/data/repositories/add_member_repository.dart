@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_activity_repository.dart';
 
 /// Admin "Add New Member" repository.
 ///
@@ -31,7 +32,7 @@ class AddMemberRepository {
     required String password,
     required String fullName,
     String? phoneNumber,
-    String? purok,
+    String? contactEmail,
     DateTime? dateOfBirth,
     String? gender, // male | female | prefer_not_to_say
     double shareValuePerUnit = 2000,
@@ -39,11 +40,10 @@ class AddMemberRepository {
     List<String> initialCrops = const [],
     String? registryId,
   }) async {
-    // Member ID is now generated server-side inside create_farmer_account
-    // (one shared generator, advisory-locked — see
-    // supabase_schema_phase_b_member_id_capital_dob.sql).
     try {
-      final response = await _client.rpc('create_farmer_account', params: {
+      final response = await _client.rpc(
+        'create_farmer_account',
+        params: {
         'p_username': username.trim(),
         'p_password': password,
         'p_full_name': fullName.trim(),
@@ -51,18 +51,28 @@ class AddMemberRepository {
             (phoneNumber != null && phoneNumber.trim().isNotEmpty)
                 ? phoneNumber.trim()
                 : null,
-        'p_purok': purok,
         'p_date_of_birth': dateOfBirth?.toIso8601String().split('T').first,
         'p_gender': gender,
         'p_share_value_per_unit': shareValuePerUnit,
         'p_initial_contribution': initialContribution,
         'p_initial_crops': initialCrops,
         'p_registry_id': registryId,
-      });
+          'p_contact_email':
+              (contactEmail != null && contactEmail.trim().isNotEmpty)
+              ? contactEmail.trim()
+              : null,
+        },
+      );
 
       // RPC returns the new user_id on success
       final newUserId = response as String?;
       if (newUserId != null && newUserId.isNotEmpty) {
+        AdminActivityRepository().log(
+          module: 'members',
+          actionType: 'added',
+          description: 'Added "${fullName.trim()}" as a new member.',
+          referenceId: newUserId,
+        );
         return AddMemberResult.success(userId: newUserId);
       }
       return AddMemberResult.failure(
@@ -79,27 +89,13 @@ class AddMemberRepository {
     }
   }
 
-  /// Non-authoritative preview of the next Member ID (SP3-<year>-<seq>).
-  /// The real value is generated inside create_farmer_account's
-  /// transaction via the same generate_member_id() function, so this is
-  /// only for display in the (read-only) Member ID field.
-  Future<String> suggestNextMemberId() async {
-    final year = DateTime.now().year;
-    try {
-      final result =
-          await _client.rpc('generate_member_id', params: {'p_year': year});
-      final value = result as String?;
-      if (value != null && value.isNotEmpty) return value;
-      return 'SP3-$year-001';
-    } catch (_) {
-      return 'SP3-$year-001';
-    }
-  }
-
   /// Suggests the next username for new members.
   Future<String> suggestNextUsername() async {
     try {
-      final result = await _client.rpc('suggest_next_username', params: {'p_prefix': 'SP3'});
+      final result = await _client.rpc(
+        'suggest_next_username',
+        params: {'p_prefix': 'SP3'},
+      );
       return result as String? ?? 'SP3-0001';
     } catch (_) {
       return 'SP3-0001';
@@ -110,6 +106,10 @@ class AddMemberRepository {
     final msg = e.toString().toLowerCase();
     if (msg.contains('member named') || msg.contains('full name')) {
       return 'A member with this full name already exists.';
+    }
+    if (msg.contains('already used by another account')) {
+      return 'This email address is already used by another account. '
+          'Please contact the SP3 Cooperative admin for assistance.';
     }
     if (msg.contains('at least 18 years')) {
       return 'The member must be at least 18 years old.';
@@ -152,14 +152,12 @@ class AddMemberResult {
   });
 
   factory AddMemberResult.success({required String userId}) =>
-      AddMemberResult._(
-          isSuccess: true, isPartial: false, userId: userId);
+      AddMemberResult._(isSuccess: true, isPartial: false, userId: userId);
 
   factory AddMemberResult.failure({
     required String step,
     required String message,
-  }) =>
-      AddMemberResult._(
+  }) => AddMemberResult._(
         isSuccess: false,
         isPartial: false,
         failedStep: step,
@@ -170,8 +168,7 @@ class AddMemberResult {
     required String userId,
     required String step,
     required String message,
-  }) =>
-      AddMemberResult._(
+  }) => AddMemberResult._(
         isSuccess: false,
         isPartial: true,
         userId: userId,

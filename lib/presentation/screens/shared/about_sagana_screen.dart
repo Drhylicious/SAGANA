@@ -47,30 +47,93 @@ class AboutSaganaScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: sagana.scaffoldBackground,
         elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.aboutSagana,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+        // Same circular back button + divider treatment as every other
+        // secondary screen (e.g. Edit Farm Details' FarmerTopBar) — this
+        // shared screen previously used a bare BackButton with no divider,
+        // reached identically from every role's Navigation Drawer.
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: GestureDetector(
+            onTap: () => context.pop(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: sagana.cardBackground,
+                border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
+              ),
+              child: Icon(Icons.arrow_back_rounded, color: cs.primary),
+            ),
+          ),
+        ),
+        title: Text(
+          l10n.aboutSagana,
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.primaryGreen,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            color: cs.outline.withValues(alpha: 0.20),
+          ),
+        ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 40),
+        padding: const EdgeInsets.fromLTRB(
+          AppConstants.spacingSafeH,
+          8,
+          AppConstants.spacingSafeH,
+          40,
+        ),
         children: [
           Container(
             width: 56,
             height: 56,
-            decoration: BoxDecoration(color: AppConstants.primaryGreen.withValues(alpha: 0.12), shape: BoxShape.circle),
-            child: const Icon(Icons.info_outline_rounded, color: AppConstants.primaryGreen, size: 28),
+            decoration: BoxDecoration(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.info_outline_rounded,
+              color: AppConstants.primaryGreen,
+              size: 28,
+            ),
           ),
           const SizedBox(height: 16),
-          Text(_roleSummary(l10n),
-              textAlign: TextAlign.justify,
-              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, height: 1.5, color: cs.onSurface)),
+          Text(
+            _roleSummary(l10n),
+            textAlign: TextAlign.justify,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              height: 1.5,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 14),
-          Text(l10n.aboutSaganaFullDescription,
-              textAlign: TextAlign.justify,
-              style: GoogleFonts.inter(fontSize: 13, height: 1.6, color: cs.onSurfaceVariant)),
+          Text(
+            l10n.aboutSaganaFullDescription,
+            textAlign: TextAlign.justify,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              height: 1.6,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 28),
-          Text(l10n.aboutSaganaBuiltBy,
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface)),
+          Text(
+            l10n.aboutSaganaBuiltBy,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
           GridView.count(
             crossAxisCount: 2,
@@ -88,7 +151,12 @@ class AboutSaganaScreen extends StatelessWidget {
     );
   }
 
-  Widget _developerCard(AppLocalizations l10n, int number, ColorScheme cs, SaganaColors sagana) {
+  Widget _developerCard(
+    AppLocalizations l10n,
+    int number,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -105,17 +173,25 @@ class AboutSaganaScreen extends StatelessWidget {
             child: Icon(Icons.person_rounded, color: cs.primary, size: 30),
           ),
           const SizedBox(height: 10),
-          Text('${l10n.aboutSaganaDeveloperLabel} $number',
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onSurface)),
+          Text(
+            '${l10n.aboutSaganaDeveloperLabel} $number',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 3),
-          Text(l10n.aboutSaganaDeveloperRole,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+          Text(
+            l10n.aboutSaganaDeveloperRole,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );

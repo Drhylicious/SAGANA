@@ -505,7 +505,7 @@ class _EmailField extends StatelessWidget {
       autocorrect: false,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       decoration: authFieldDecoration(
-        hint: isUsername ? 'SP3-0001 or OFF-0001' : 'admin@sp3.coop',
+        hint: isUsername ? 'Enter your username or email' : 'admin@sp3.coop',
         icon: isUsername ? Icons.badge_outlined : Icons.mail_outline_rounded,
       ),
       validator: (v) {

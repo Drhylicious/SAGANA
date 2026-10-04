@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network access for Supabase, the address-search proxy, and map tiles.
+         Debug and profile manifests already declare it; release needs it too. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- "Use my current location" on the address form (Batch 5). Requested
+         only when the user taps that button. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <application
         android:label="sagana"
         android:name="${applicationName}"

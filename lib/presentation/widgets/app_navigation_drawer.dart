@@ -42,6 +42,12 @@ class AppNavigationDrawer extends StatelessWidget {
   // Admin/Farmer/Buyer/Officer. Null (Admin/Buyer/Officer) simply omits
   // the row rather than needing a second drawer variant.
   final VoidCallback? onEditFarmDetails;
+  // Buyer + Farmer only (farmer-as-buyer shares the same address book) —
+  // same nullable/optional pattern as onEditFarmDetails above, so the
+  // ~5 Admin/Officer call sites that reuse this shared drawer need no
+  // changes at all; they simply never pass it, same as they already omit
+  // onEditFarmDetails.
+  final VoidCallback? onMyAddresses;
   final VoidCallback onSignOut;
   final VoidCallback onAboutSagana;
   final VoidCallback onAboutOrganization;
@@ -56,6 +62,7 @@ class AppNavigationDrawer extends StatelessWidget {
     required this.phoneNumber,
     required this.onEditProfile,
     this.onEditFarmDetails,
+    this.onMyAddresses,
     required this.onSignOut,
     required this.onAboutSagana,
     required this.onAboutOrganization,
@@ -126,7 +133,7 @@ class AppNavigationDrawer extends StatelessWidget {
                     // name stay clear of the status bar via this padding.
                     Container(
                       width: double.infinity,
-                      padding: EdgeInsets.fromLTRB(20, 22 + MediaQuery.of(context).padding.top, 20, 20),
+                      padding: EdgeInsets.fromLTRB(16, 22 + MediaQuery.of(context).padding.top, 16, 20),
                       decoration: const BoxDecoration(
                         gradient: AppConstants.primaryButtonGradient,
                         borderRadius: BorderRadius.only(topRight: Radius.circular(AppConstants.radiusLg)),
@@ -142,7 +149,7 @@ class AppNavigationDrawer extends StatelessWidget {
                             ),
                             child: ProfileAvatar(photoUrl: photoUrl, displayName: displayName, radius: 26),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,18 +184,29 @@ class AppNavigationDrawer extends StatelessWidget {
                             child: SizedBox(
                               width: constraints.maxWidth,
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                                padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  // Stretch, not start: this is the actual fix for
+                                  // the "horizontally compressed" report — with
+                                  // CrossAxisAlignment.start, SettingsCard (a plain
+                                  // Container with no explicit width) shrink-wraps
+                                  // to its widest row's content instead of filling
+                                  // the space this Column was already given, which
+                                  // is what left the visible unused margin to the
+                                  // right of every card. No padding numbers needed
+                                  // to change for this part — the fix is purely
+                                  // "let it use the width it already has."
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                  SectionLabel(label: l10n.sectionAccount),
+                                  SectionLabel(label: l10n.sectionAccount, bottomSpacing: 6),
                                   SettingsCard(children: [
                                     SettingsRow(
                                       icon: Icons.person_outline_rounded,
                                       iconColor: AppConstants.primaryGreen,
                                       title: l10n.editProfile,
                                       onTap: onEditProfile,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     ),
                                     if (onEditFarmDetails != null) ...[
                                       const SettingsDivider(),
@@ -197,12 +215,23 @@ class AppNavigationDrawer extends StatelessWidget {
                                         iconColor: AppConstants.tertiaryContainer,
                                         title: l10n.editFarmDetails,
                                         onTap: onEditFarmDetails!,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                      ),
+                                    ],
+                                    if (onMyAddresses != null) ...[
+                                      const SettingsDivider(),
+                                      SettingsRow(
+                                        icon: Icons.location_on_outlined,
+                                        iconColor: AppConstants.buyerBlue,
+                                        title: l10n.buyerAddressesTitle,
+                                        onTap: onMyAddresses!,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                       ),
                                     ],
                                   ]),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 14),
 
-                                  SectionLabel(label: l10n.sectionAppPreferences),
+                                  SectionLabel(label: l10n.sectionAppPreferences, bottomSpacing: 6),
                                   AnimatedBuilder(
                                     animation: AppSettingsService.instance,
                                     builder: (context, _) {
@@ -238,15 +267,16 @@ class AppNavigationDrawer extends StatelessWidget {
                                       ]);
                                     },
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 14),
 
-                                  SectionLabel(label: l10n.sectionSupportInfo),
+                                  SectionLabel(label: l10n.sectionSupportInfo, bottomSpacing: 6),
                                   SettingsCard(children: [
                                     SettingsRow(
                                       icon: Icons.info_outline_rounded,
                                       iconColor: AppConstants.primaryGreen,
                                       title: l10n.aboutSagana,
                                       onTap: onAboutSagana,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     ),
                                     const SettingsDivider(),
                                     SettingsRow(
@@ -254,6 +284,7 @@ class AppNavigationDrawer extends StatelessWidget {
                                       iconColor: AppConstants.buyerBlue,
                                       title: l10n.aboutCooperative,
                                       onTap: onAboutOrganization,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     ),
                                     const SettingsDivider(),
                                     SettingsRow(
@@ -261,6 +292,7 @@ class AppNavigationDrawer extends StatelessWidget {
                                       iconColor: AppConstants.amber,
                                       title: l10n.privacyPolicy,
                                       onTap: onPrivacyPolicy,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     ),
                                     const SettingsDivider(),
                                     SettingsRow(
@@ -268,9 +300,10 @@ class AppNavigationDrawer extends StatelessWidget {
                                       iconColor: AppConstants.onSurfaceVariant,
                                       title: l10n.termsOfUse,
                                       onTap: onTermsOfUse,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     ),
                                   ]),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 14),
 
                                   SettingsCard(children: [
                                     SettingsRow(

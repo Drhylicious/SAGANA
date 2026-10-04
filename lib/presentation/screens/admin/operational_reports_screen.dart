@@ -42,7 +42,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   QuickInsights _insights = QuickInsights.empty();
   int _lowStockCount = 0;
   List<ExportHistoryEntry> _recentExports = [];
-  MemberParticipationSummary _participation = MemberParticipationSummary.empty();
+  MemberParticipationSummary _participation =
+      MemberParticipationSummary.empty();
 
   @override
   void initState() {
@@ -180,7 +181,10 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(reportPeriodLabel(l10n, p), style: GoogleFonts.inter(fontSize: 12)),
+              label: Text(
+                reportPeriodLabel(l10n, p),
+                style: GoogleFonts.inter(fontSize: 12),
+              ),
               selected: active,
               onSelected: (_) => _setPeriod(p),
               selectedColor: AppConstants.primaryGreen,
@@ -211,9 +215,9 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       primaryStats: [
         ReportHeroStat(
           label: l10n.reportsCoopSales,
-          value: currency.format(_summary.coopSalesAmount),
-          current: _summary.coopSalesAmount,
-          previous: _previousSummary.coopSalesAmount,
+          value: currency.format(_summary.totalSalesAmount),
+          current: _summary.totalSalesAmount,
+          previous: _previousSummary.totalSalesAmount,
           icon: Icons.storefront_rounded,
           accent: AppConstants.primaryGreen,
         ),
@@ -271,34 +275,40 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   ) {
     final chips = <Widget>[];
     if (_insights.topCropName != null) {
-      chips.add(_insightChip(
+      chips.add(
+        _insightChip(
         Icons.trending_up_rounded,
         l10n.reportsInsightTopCrop,
         '${_insights.topCropName} • ₱${_insights.topCropAmount.toStringAsFixed(0)}',
         AppConstants.successGreen,
         cs,
         sagana,
-      ));
+        ),
+      );
     }
     if (_insights.topFarmerName != null) {
-      chips.add(_insightChip(
+      chips.add(
+        _insightChip(
         Icons.emoji_events_outlined,
         l10n.reportsInsightTopFarmer,
         '${_insights.topFarmerName} • ₱${_insights.topFarmerAmount.toStringAsFixed(0)}',
         AppConstants.amber,
         cs,
         sagana,
-      ));
+        ),
+      );
     }
     if (_insights.topExpenseCategory != null) {
-      chips.add(_insightChip(
+      chips.add(
+        _insightChip(
         Icons.trending_down_rounded,
         l10n.reportsInsightTopExpense,
         '${_insights.topExpenseCategory} • ₱${_insights.topExpenseAmount!.toStringAsFixed(0)}',
         AppConstants.warningAmber,
         cs,
         sagana,
-      ));
+        ),
+      );
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -346,7 +356,10 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 Text(
                   value,
@@ -387,7 +400,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         Icons.point_of_sale_rounded,
         AppRoutes.salesReport,
         previewLabel: l10n.reportsCoopSales,
-        previewValue: '₱${_summary.coopSalesAmount.toStringAsFixed(0)}',
+        previewValue: '₱${_summary.totalSalesAmount.toStringAsFixed(0)}',
         accent: AppConstants.primaryGreen,
       ),
       _ReportCardData(
@@ -482,7 +495,10 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
               const SizedBox(height: AppConstants.spacingSm),
               Text(
                 data.previewLabel!,
-                style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
               Text(
                 data.previewValue!,
@@ -545,7 +561,6 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       ),
     );
   }
-
 }
 
 class _ReportCardData {

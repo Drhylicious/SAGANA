@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_crop_model.dart';
 import '../services/app_event_service.dart';
@@ -13,27 +14,6 @@ class CropRequestAlreadyPendingException implements Exception {
   CropRequestAlreadyPendingException(this.cropName);
 }
 
-/// What deleting a crop would cascade-delete, so the confirmation UI can
-/// warn with real numbers instead of a generic message.
-class CropDeleteImpact {
-  final int harvestCount;
-  final int inventoryBatchCount;
-  final int soldBatchCount;
-  /// True if the impact check itself failed (network, RLS, etc.) — the UI
-  /// should treat this as "assume there's data at risk" rather than "safe".
-  final bool checkFailed;
-
-  const CropDeleteImpact({
-    required this.harvestCount,
-    required this.inventoryBatchCount,
-    required this.soldBatchCount,
-    this.checkFailed = false,
-  });
-
-  bool get isRisky => checkFailed || harvestCount > 0 || inventoryBatchCount > 0;
-  bool get hasSoldBatches => soldBatchCount > 0;
-}
-
 class CropRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -45,7 +25,9 @@ class CropRepository {
     try {
       var query = _client
           .from('farmer_crops')
-          .select('*, harvest_records(count), crop_requests(status, admin_notes)')
+          .select(
+            '*, harvest_records(count), crop_requests(status, admin_notes), crop_master(image_url, crop_type)',
+          )
           .eq('farmer_id', _userId);
 
       if (approvedOnly) {
@@ -66,11 +48,20 @@ class CropRepository {
         final requestNotes = requestList?.isNotEmpty == true
             ? requestList!.first['admin_notes'] as String?
             : null;
+        final catalogMaster = row['crop_master'];
+        final catalogImageUrl = catalogMaster is Map
+            ? catalogMaster['image_url'] as String?
+            : null;
+        final catalogCropType = catalogMaster is Map
+            ? catalogMaster['crop_type'] as String?
+            : null;
         return FarmerCropModel.fromMap({
           ...row,
           'harvest_count': count,
           'request_status': requestStatus,
           'request_notes': requestNotes,
+          'catalog_image_url': catalogImageUrl,
+          'crop_type': catalogCropType,
         });
       }).toList();
     } catch (_) {
@@ -114,6 +105,35 @@ class CropRepository {
     return FarmerCropModel.fromMap({...response, 'harvest_count': 0});
   }
 
+  // ─── Request photo upload ───────────────────────────────────────────────
+  // Same owner-folder upload idiom as Admin's uploadCropImage() /
+  // uploadInventoryImage() (crop_management_screen.dart,
+  // admin_inventory_screen.dart), against the same 'crop_images' bucket —
+  // its RLS policy checks auth.uid() against the folder name, not role,
+  // so any authenticated farmer can write to their own uid folder here.
+  // This is the farmer's reference photo for a pending request, separate
+  // from the crop_master.image_url an admin sets once approved.
+
+  Future<String?> uploadCropRequestPhoto(
+    Uint8List bytes,
+    String fileExtension,
+  ) async {
+    try {
+      final path =
+          '$_userId/request_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      await _client.storage
+          .from('crop_images')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+      return _client.storage.from('crop_images').getPublicUrl(path);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── Request a new crop (not yet in the catalog) ───────────────────────────
   // Creates the farmer_crops row immediately with crop_master_id left null
   // (isPendingApproval == true) so the farmer can see and manage it right
@@ -127,6 +147,7 @@ class CropRepository {
     required String cropName,
     required String category,
     String? cropType,
+    String? photoUrl,
   }) async {
     final trimmedName = cropName.trim();
 
@@ -180,6 +201,7 @@ class CropRepository {
       'requested_name': trimmedName,
       'category': category,
       'crop_type': cropType,
+      'photo_url': photoUrl,
       'status': 'pending',
     });
 
@@ -188,15 +210,11 @@ class CropRepository {
     return FarmerCropModel.fromMap({...cropResponse, 'harvest_count': 0});
   }
 
-  // ─── Delete crop ──────────────────────────────────────────────────────────
-
-  Future<void> deleteCrop(String cropId) async {
-    await _client
-        .from('farmer_crops')
-        .delete()
-        .eq('id', cropId)
-        .eq('farmer_id', _userId);
-  }
+  // deleteCrop() / fetchCropDeleteImpact() removed — Crop Roster no longer
+  // offers a Delete Crop action (same rationale as Manage Inventory's
+  // removed deleteBatch(): a crop can carry real harvest/inventory/sales
+  // history; historical records are preserved, not deletable). Replaced by
+  // Edit Crop, which only ever touches photo_url below.
 
   // ─── Check if crop has harvests ───────────────────────────────────────────
 
@@ -213,35 +231,55 @@ class CropRepository {
     }
   }
 
-  // ─── Delete-impact check ────────────────────────────────────────────────
-  // farmer_crops has ON DELETE CASCADE from harvest_records, inventory_batches,
-  // and crop_requests. Deleting a crop silently wipes all of these — this
-  // surfaces exact counts so the confirmation dialog can warn honestly
-  // instead of a generic "are you sure?".
+  // ─── Edit Crop: photo only ─────────────────────────────────────────────
+  // Crop Name / Category / Market Type are locked in the UI (admin-owned
+  // via crop_master / the approval flow) — the only thing Edit Crop can
+  // change is the farmer's own reference photo for their planting. Same
+  // owner-folder upload idiom as uploadCropRequestPhoto() above, against
+  // the same 'crop_images' bucket.
 
-  Future<CropDeleteImpact> fetchCropDeleteImpact(String cropId) async {
+  Future<String?> uploadCropPhoto(Uint8List bytes, String fileExtension) async {
     try {
-      final results = await Future.wait([
-        _client.from('harvest_records').select('id').eq('crop_id', cropId),
-        _client.from('inventory_batches').select('id, status').eq('crop_id', cropId),
-      ]);
-      final harvestRows = results[0];
-      final batchRows = results[1];
-      final soldCount = batchRows.where((b) => b['status'] == 'sold_out').length;
-      return CropDeleteImpact(
-        harvestCount: harvestRows.length,
-        inventoryBatchCount: batchRows.length,
-        soldBatchCount: soldCount,
+      final path =
+          '$_userId/crop_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      await _client.storage
+          .from('crop_images')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
       );
+      return _client.storage.from('crop_images').getPublicUrl(path);
     } catch (_) {
-      // Fail closed: if we can't verify impact, assume there may be
-      // records so the UI shows the cautious warning path.
-      return const CropDeleteImpact(
-        harvestCount: 0,
-        inventoryBatchCount: 0,
-        soldBatchCount: 0,
-        checkFailed: true,
-      );
+      return null;
+    }
+  }
+
+  Future<bool> updateCropPhoto(
+    String cropId,
+    String cropName,
+    String photoUrl,
+  ) async {
+    try {
+      await _client
+          .from('farmer_crops')
+          .update({'photo_url': photoUrl})
+          .eq('id', cropId)
+          .eq('farmer_id', _userId);
+      // Recent Activity — same pattern as FarmerProfileRepository's own
+      // activity logging: a logging failure must never fail the save
+      // itself, since farmer_crops already carries the real update.
+      try {
+        await _client.from('farmer_crop_activity').insert({
+          'farmer_id': _userId,
+          'crop_id': cropId,
+          'description': 'Updated photo for $cropName',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 }
@@ -271,5 +309,45 @@ extension CropHarvestSummary on CropRepository {
       totals[h.cropId] = (totals[h.cropId] ?? 0) + h.quantityKg;
     }
     return totals;
+  }
+}
+// ─── Admin: read a farmer's own crops (for Harvest History's View Details
+// image, mirrored from the farmer-side screen) ─────────────────────────────
+
+extension CropsForFarmer on CropRepository {
+  /// Same photo-then-catalog-image resolution as fetchCrops(), scoped to an
+  /// arbitrary farmerId rather than the current session — read-only, for
+  /// Admin viewing a farmer's own Harvest History. Relies on the existing
+  /// "farmer_crops: admin reads all" RLS policy.
+  Future<Map<String, FarmerCropModel>> fetchCropsByIdForFarmer(
+    String farmerId,
+  ) async {
+    try {
+      final client = Supabase.instance.client;
+      final response = await client
+          .from('farmer_crops')
+          .select('*, crop_master(image_url, crop_type)')
+          .eq('farmer_id', farmerId);
+      final map = <String, FarmerCropModel>{};
+      for (final row in response) {
+        final catalogMaster = row['crop_master'];
+        final catalogImageUrl = catalogMaster is Map
+            ? catalogMaster['image_url'] as String?
+            : null;
+        final catalogCropType = catalogMaster is Map
+            ? catalogMaster['crop_type'] as String?
+            : null;
+        final crop = FarmerCropModel.fromMap({
+          ...row,
+          'harvest_count': 0,
+          'catalog_image_url': catalogImageUrl,
+          'crop_type': catalogCropType,
+        });
+        map[crop.id] = crop;
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
   }
 }

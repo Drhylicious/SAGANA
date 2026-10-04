@@ -41,12 +41,11 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   final _usernameCtrl    = TextEditingController();
   final _passwordCtrl    = TextEditingController();
   final _fullNameCtrl    = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _phoneCtrl       = TextEditingController();
-  final _memberIdCtrl    = TextEditingController();
   final _initialContributionCtrl = TextEditingController();
 
   // ── Form state ─────────────────────────────────────────────────────────────
-  String? _selectedPurok;
   DateTime? _dateOfBirth;
   String? _gender; // key of _kGenderOptions
   bool    _obscurePassword = true;
@@ -61,9 +60,21 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   bool _registryChecked = false;
   bool _isOfficialMember = false;
   String? _registryId;
+  // Email and phone the registry supplied. Locked on a match.
+  String? _registryEmail;
+  String? _registryPhone;
+  // The registry email or phone already belongs to another account.
+  bool _registryContactInUse = false;
+
+  bool get _emailLocked => _isOfficialMember && _registryEmail != null;
+  bool get _phoneLocked => _isOfficialMember && _registryPhone != null;
 
   bool _isSaving  = false;
   bool _isOnline  = true;
+
+  static final RegExp _emailRegex = RegExp(
+    r'^[a-zA-Z0-9.!#$%&*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$',
+  );
 
   @override
   void initState() {
@@ -79,11 +90,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   }
 
   Future<void> _loadSuggestions() async {
-    final suggestedMemberId = await _repo.suggestNextMemberId();
     final suggestedUsername = await _repo.suggestNextUsername();
     if (mounted) {
       setState(() {
-        _memberIdCtrl.text = suggestedMemberId;
         _usernameCtrl.text = suggestedUsername;
       });
     }
@@ -99,11 +108,20 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   void _onFullNameChanged() {
     final name = _fullNameCtrl.text.trim();
     if (_registryChecked || _isOfficialMember) {
+      final hadMatch = _isOfficialMember;
       setState(() {
         _registryChecked = false;
         _isOfficialMember = false;
         _registryId = null;
+        _registryEmail = null;
+        _registryPhone = null;
+        _registryContactInUse = false;
       });
+      // Values filled from the previous registry match unlock with it.
+      if (hadMatch) {
+        _emailCtrl.clear();
+        _phoneCtrl.clear();
+      }
     }
     if (name.length < 3) return;
     _nameDebounce?.cancel();
@@ -117,36 +135,44 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     setState(() => _isCheckingRegistry = true);
     final result = await AuthService.checkSp3Registry(name);
     if (!mounted) return;
+    final matched = result != null && !result.alreadyRegistered;
     setState(() {
       _isCheckingRegistry = false;
       _registryChecked = true;
-      if (result != null && !result.alreadyRegistered) {
+      _registryContactInUse = false;
+      if (matched) {
         _isOfficialMember = true;
         _registryId = result.registryId;
-        if (result.phone != null && _phoneCtrl.text.trim().isEmpty) {
-          _phoneCtrl.text = result.phone!;
-        }
-        final mappedPurok = _mapPurok(result.suggestedPurok);
-        if (mappedPurok != null) _selectedPurok = mappedPurok;
+        // Registry email and phone fill the form and are locked. A blank
+        // registry value stays editable.
+        _registryEmail = result.email;
+        _registryPhone = result.phone;
+        if (result.phone != null) _phoneCtrl.text = result.phone!;
+        if (result.email != null) _emailCtrl.text = result.email!;
       } else {
         _isOfficialMember = false;
         _registryId = null;
+        _registryEmail = null;
+        _registryPhone = null;
       }
     });
+    if (!matched) return;
+    // The locked values cannot be used if another account already has them.
+    final taken = await _registryContactTaken(result);
+    if (!mounted || !_isOfficialMember) return;
+    setState(() => _registryContactInUse = taken);
   }
 
-  String? _mapPurok(String? suggested) {
-    if (suggested == null) return null;
-    String norm(String s) => s
-        .replaceAll(RegExp(r'[–—–-]'), '-')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim()
-        .toLowerCase();
-    final target = norm(suggested);
-    for (final p in AppConstants.payanasPuroks) {
-      if (norm(p) == target) return p;
+  Future<bool> _registryContactTaken(Sp3RegistryResult result) async {
+    final email = result.email;
+    if (email != null && !await AuthService.isEmailAvailable(email)) {
+      return true;
     }
-    return null;
+    final phone = result.phone;
+    if (phone != null && !await AuthService.isPhoneAvailable(phone)) {
+      return true;
+    }
+    return false;
   }
 
   @override
@@ -156,8 +182,8 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     _fullNameCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
-    _memberIdCtrl.dispose();
     _initialContributionCtrl.dispose();
     super.dispose();
   }
@@ -195,7 +221,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
           title: Text(
             l10n.addMemberSelectCropTitle,
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700, color: cs.primary),
+              fontWeight: FontWeight.w700,
+              color: cs.primary,
+            ),
           ),
           content: SizedBox(
             width: double.maxFinite,
@@ -207,7 +235,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                           ? l10n.addMemberNoCatalogCrops
                           : l10n.addMemberAllCropsAdded,
                       style: GoogleFonts.inter(
-                          fontSize: 13, color: cs.onSurfaceVariant),
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   )
                 : GridView.count(
@@ -216,8 +246,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                     childAspectRatio: 2.4,
-                    children: available
-                        .map((entry) {
+                    children: available.map((entry) {
                           final crop = entry['crop_name'] as String;
                           return GestureDetector(
                             onTap: () {
@@ -229,20 +258,23 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 6),
                               decoration: BoxDecoration(
                                 border: Border.all(
-                                    color: cs.outline.withValues(alpha: 0.20)),
+                              color: cs.outline.withValues(alpha: 0.20),
+                            ),
                                 borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusMd),
+                              AppConstants.radiusMd,
+                            ),
                               ),
                               child: Text(
                                 crop,
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.poppins(
-                                    fontSize: 13, fontWeight: FontWeight.w600),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                               ),
                             ),
                           );
-                        })
-                        .toList(),
+                    }).toList(),
                   ),
           ),
           actions: [
@@ -261,17 +293,23 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedPurok == null) {
-      _showSnack(l10n.addMemberSelectPurok);
+    if (_dateOfBirth == null || _gender == null) {
+      _showSnack(l10n.addMemberDetailsRequired);
       return;
     }
-    if (_dateOfBirth != null && !AppUtils.isAtLeast18(_dateOfBirth!)) {
+    if (!AppUtils.isAtLeast18(_dateOfBirth!)) {
       _showSnack(l10n.addMemberAgeRequirement);
+      return;
+    }
+    if (_registryContactInUse) {
+      _showSnack(l10n.addMemberRegistryContactInUse);
       return;
     }
 
     final initialContribution =
-        double.tryParse(_initialContributionCtrl.text.trim().replaceAll(',', '')) ??
+        double.tryParse(
+          _initialContributionCtrl.text.trim().replaceAll(',', ''),
+        ) ??
             0;
 
     setState(() => _isSaving = true);
@@ -281,7 +319,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
       password:            _passwordCtrl.text.trim(),
       fullName:            _fullNameCtrl.text.trim(),
       phoneNumber:         _phoneCtrl.text.trim(),
-      purok:               _selectedPurok!,
+      contactEmail: _emailCtrl.text.trim(),
       dateOfBirth:         _dateOfBirth,
       gender:              _gender,
       shareValuePerUnit:   _kShareValuePerUnit,
@@ -302,7 +340,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     } else if (result.isPartial) {
       _showSnack(
         l10n.addMemberPartialIssue(
-            result.failedStep ?? '', result.message ?? ''),
+          result.failedStep ?? '',
+          result.message ?? '',
+        ),
       );
       // Member account exists — still pop back so admin sees them in the list
       context.pop(true);
@@ -327,8 +367,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor:
-            isSuccess ? AppConstants.successGreen : AppConstants.charcoal,
+        backgroundColor: isSuccess
+            ? AppConstants.successGreen
+            : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -352,11 +393,14 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
           icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
           onPressed: () => context.pop(),
         ),
-        title: Text(l10n.addMemberTitle,
+        title: Text(
+          l10n.addMemberTitle,
             style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: cs.onSurface)),
+            color: cs.onSurface,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Form(
@@ -364,28 +408,26 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
-
                       // ── Admin notice ────────────────────────────────────
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: cs.primary.withValues(alpha: 0.06),
-                          borderRadius:
-                              BorderRadius.circular(AppConstants.radiusLg),
-                          border: Border(
-                            left: BorderSide(color: cs.primary, width: 4),
-                          ),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                  border: Border(left: BorderSide(color: cs.primary, width: 4)),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.info_outline_rounded,
-                                color: cs.primary, size: 20),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: cs.primary,
+                      size: 20,
+                    ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     l10n.addMemberAdminNoticeTitle,
@@ -424,9 +466,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             controller: _usernameCtrl,
                             readOnly: true,
                             style: TextStyle(color: cs.onSurfaceVariant),
-                            decoration: const InputDecoration(
-                              hintText: 'SP3-0001',
-                            ),
+                    decoration: const InputDecoration(hintText: 'SP3-0001'),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
                                 return l10n.addMemberUsernameRequired;
@@ -438,7 +478,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             padding: const EdgeInsets.only(top: 4, left: 4),
                             child: Text(
                               l10n.addMemberUsernameHelp,
-                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -459,28 +502,26 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                       size: 20,
                                       color: cs.outline,
                                     ),
-                                    onPressed: () => setState(() =>
-                                        _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.only(
-                                        right: 8),
+                            padding: const EdgeInsets.only(right: 8),
                                     child: GestureDetector(
                                       onTap: _generatePassword,
                                       child: Container(
-                                        padding: const EdgeInsets
-                                            .symmetric(
+                                padding: const EdgeInsets.symmetric(
                                           horizontal: 8,
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
                                           border: Border.all(
-                                            color: cs.primary
-                                                .withValues(alpha: 0.30),
+                                    color: cs.primary.withValues(alpha: 0.30),
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusSm,
                                           ),
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                                  AppConstants.radiusSm),
                                         ),
                                         child: Text(
                                           'AUTO',
@@ -530,13 +571,13 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                         width: 16,
                                         height: 16,
                                         child: CircularProgressIndicator(
-                                            strokeWidth: 2),
+                                  strokeWidth: 2,
+                                ),
                                       ),
                                     )
                                   : null,
                             ),
-                            validator: (v) =>
-                                (v == null || v.trim().isEmpty)
+                    validator: (v) => (v == null || v.trim().isEmpty)
                                     ? l10n.addMemberFullNameRequired
                                     : null,
                           ),
@@ -545,12 +586,14 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: (_isOfficialMember
+                        color:
+                            (_isOfficialMember
                                         ? AppConstants.successGreen
                                         : AppConstants.warningAmber)
                                     .withValues(alpha: 0.10),
-                                borderRadius:
-                                    BorderRadius.circular(AppConstants.radiusMd),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
                               ),
                               child: Row(
                                 children: [
@@ -570,28 +613,58 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                           ? l10n.addMemberRegistryMatch
                                           : l10n.addMemberRegistryNoMatch,
                                       style: GoogleFonts.inter(
-                                          fontSize: 11, color: cs.onSurface),
+                                fontSize: 11,
+                                color: cs.onSurface,
+                              ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ],
-                          const SizedBox(height: 14),
-                          Row(
+                  // Space below the Full Name field (and its registry banner).
+                  const SizedBox(height: 14),
+                  // Email above Phone (every account form).
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                      _FieldLabel(label: l10n.addMemberEmailLabel, cs: cs),
+                      TextFormField(
+                        controller: _emailCtrl,
+                        readOnly: _emailLocked,
+                        keyboardType: TextInputType.emailAddress,
+                        autocorrect: false,
+                        decoration: InputDecoration(
+                          hintText: 'name@example.com',
+                          suffixIcon: _emailLocked
+                              ? const Icon(Icons.lock_outline_rounded, size: 18)
+                              : null,
+                        ),
+                        validator: (v) {
+                          final t = v?.trim() ?? '';
+                          if (t.isEmpty) return null;
+                          if (!_emailRegex.hasMatch(t)) {
+                            return l10n.addMemberEmailInvalid;
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _FieldLabel(
-                                        label: l10n.addMemberPhoneLabel, cs: cs),
+                      _FieldLabel(label: l10n.addMemberPhoneLabel, cs: cs),
                                     TextFormField(
                                       controller: _phoneCtrl,
+                        readOnly: _phoneLocked,
                                       keyboardType: TextInputType.phone,
-                                      decoration: const InputDecoration(
+                        decoration: InputDecoration(
                                         hintText: '09XX XXX XXXX',
+                          suffixIcon: _phoneLocked
+                              ? const Icon(Icons.lock_outline_rounded, size: 18)
+                              : null,
                                       ),
                                       validator: (v) {
                                         final t = v?.trim() ?? '';
@@ -604,44 +677,16 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    _FieldLabel(
-                                        label: l10n.addMemberPurokLabel, cs: cs),
-                                    DropdownButtonFormField<String>(
-                                      initialValue: _selectedPurok,
-                                      isExpanded: true,
-                                      hint: Text(
-                                        l10n.addMemberSelectHint,
-                                        style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            color: cs.outline),
-                                      ),
-                                      items: AppConstants.payanasPuroks
-                                          .map((s) => DropdownMenuItem(
-                                                value: s,
-                                                child: Text(
-                                                  s,
+                  if (_registryContactInUse) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.addMemberRegistryContactInUse,
                                                   style: GoogleFonts.inter(
-                                                      fontSize: 13),
-                                                  overflow: TextOverflow
-                                                      .ellipsis,
-                                                ),
-                                              ))
-                                          .toList(),
-                                      onChanged: (v) => setState(
-                                          () => _selectedPurok = v),
-                                    ),
-                                  ],
+                        fontSize: 12,
+                        color: AppConstants.errorRed,
                                 ),
                               ),
                             ],
-                          ),
                           const SizedBox(height: 14),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,19 +696,19 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _FieldLabel(
-                                        label: l10n.addMemberDobLabel, cs: cs),
+                              label: '${l10n.addMemberDobLabel} *',
+                              cs: cs,
+                            ),
                                     InkWell(
                                       onTap: () async {
-                                        final picked =
-                                            await AppUtils.pickDateOfBirth(
+                                final picked = await AppUtils.pickDateOfBirth(
                                           context,
                                           initialDate: _dateOfBirth,
                                         );
                                         if (picked == null) return;
                                         if (!AppUtils.isAtLeast18(picked)) {
                                           if (!context.mounted) return;
-                                          await AppUtils.showUnder18Dialog(
-                                              context);
+                                  await AppUtils.showUnder18Dialog(context);
                                           return;
                                         }
                                         setState(() => _dateOfBirth = picked);
@@ -691,23 +736,35 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _FieldLabel(label: l10n.addMemberGenderLabel, cs: cs),
+                            _FieldLabel(
+                              label: '${l10n.addMemberGenderLabel} *',
+                              cs: cs,
+                            ),
                                     DropdownButtonFormField<String>(
                                       initialValue: _gender,
                                       isExpanded: true,
-                                      hint: Text(l10n.addMemberSelectHint,
+                              hint: Text(
+                                l10n.addMemberSelectHint,
                                           style: GoogleFonts.inter(
-                                              fontSize: 13, color: cs.outline)),
+                                  fontSize: 13,
+                                  color: cs.outline,
+                                ),
+                              ),
                                       items: _kGenderOptions(l10n).entries
-                                          .map((e) => DropdownMenuItem(
+                                  .map(
+                                    (e) => DropdownMenuItem(
                                                 value: e.key,
-                                                child: Text(e.value,
-                                                    style: GoogleFonts.inter(
-                                                        fontSize: 13)),
-                                              ))
+                                      child: Text(
+                                        e.value,
+                                        style: GoogleFonts.inter(fontSize: 13),
+                                      ),
+                                    ),
+                                  )
                                           .toList(),
-                                      onChanged: (v) =>
-                                          setState(() => _gender = v),
+                              validator: (v) => v == null
+                                  ? l10n.addMemberDetailsRequired
+                                  : null,
+                              onChanged: (v) => setState(() => _gender = v),
                                     ),
                                   ],
                                 ),
@@ -725,26 +782,6 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                         cs: cs,
                         sagana: sagana,
                         children: [
-                          _FieldLabel(label: l10n.addMemberMemberIdLabel, cs: cs),
-                          TextFormField(
-                            controller: _memberIdCtrl,
-                            readOnly: true,
-                            style: TextStyle(color: cs.onSurfaceVariant),
-                            decoration: const InputDecoration(
-                              hintText: 'SP3-2026-001',
-                              suffixIcon: Icon(Icons.lock_outline_rounded,
-                                  size: 16),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4, left: 4),
-                            child: Text(
-                              l10n.addMemberMemberIdHelp,
-                              style: GoogleFonts.inter(
-                                  fontSize: 11, color: cs.onSurfaceVariant),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
                           Row(
                             children: [
                               Expanded(
@@ -752,15 +789,17 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _FieldLabel(
-                                        label: l10n.addMemberShareValueLabel, cs: cs),
+                              label: l10n.addMemberShareValueLabel,
+                              cs: cs,
+                            ),
                                     TextFormField(
                                       key: const ValueKey('share-value-fixed'),
                                       readOnly: true,
                                       enabled: false,
-                                      initialValue: _kShareValuePerUnit
-                                          .toStringAsFixed(0),
-                                      style: TextStyle(
-                                          color: cs.onSurfaceVariant),
+                              initialValue: _kShareValuePerUnit.toStringAsFixed(
+                                0,
+                              ),
+                              style: TextStyle(color: cs.onSurfaceVariant),
                                     ),
                                   ],
                                 ),
@@ -772,18 +811,20 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                   children: [
                                     _FieldLabel(
                                         label: l10n.addMemberInitialContributionLabel,
-                                        cs: cs),
+                              cs: cs,
+                            ),
                                     TextFormField(
                                       controller: _initialContributionCtrl,
-                                      keyboardType: const TextInputType
-                                          .numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                                       inputFormatters: [
                                         FilteringTextInputFormatter.allow(
-                                            RegExp(r'^\d*\.?\d*')),
-                                      ],
-                                      decoration: const InputDecoration(
-                                        hintText: '0',
+                                  RegExp(r'^\d*\.?\d*'),
                                       ),
+                              ],
+                              decoration: const InputDecoration(hintText: '0'),
                                       validator: (v) {
                                         if (v != null &&
                                             v.isNotEmpty &&
@@ -803,7 +844,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                             child: Text(
                               l10n.addMemberContributionHelp,
                               style: GoogleFonts.inter(
-                                  fontSize: 11, color: cs.onSurfaceVariant),
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                             ),
                           ),
                         ],
@@ -820,17 +863,19 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                           onTap: _showCropDialog,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                             decoration: BoxDecoration(
                               color: cs.primary.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(
-                                  AppConstants.radiusFull),
+                        AppConstants.radiusFull,
+                      ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.add_rounded,
-                                    size: 14, color: cs.primary),
+                        Icon(Icons.add_rounded, size: 14, color: cs.primary),
                                 const SizedBox(width: 4),
                                 Text(
                                   l10n.addMemberAddCrop,
@@ -847,8 +892,7 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                         children: [
                           Container(
                             width: double.infinity,
-                            constraints:
-                                const BoxConstraints(minHeight: 50),
+                    constraints: const BoxConstraints(minHeight: 50),
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               border: Border.all(
@@ -856,67 +900,64 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                                 width: 1.5,
                               ),
                               borderRadius: BorderRadius.circular(
-                                  AppConstants.radiusMd),
+                        AppConstants.radiusMd,
+                      ),
                             ),
                             child: _selectedCrops.isEmpty
                                 ? Center(
                                     child: Text(
                                       l10n.addMemberNoCropsYet,
                                       style: GoogleFonts.inter(
-                                          fontSize: 12, color: cs.outline),
+                                fontSize: 12,
+                                color: cs.outline,
+                              ),
                                     ),
                                   )
                                 : Wrap(
                                     spacing: 8,
                                     runSpacing: 8,
                                     children: _selectedCrops
-                                        .map((crop) => Container(
-                                              padding: const EdgeInsets
-                                                  .symmetric(
+                                .map(
+                                  (crop) => Container(
+                                    padding: const EdgeInsets.symmetric(
                                                 horizontal: 12,
                                                 vertical: 7,
                                               ),
                                               decoration: BoxDecoration(
-                                                color: AppConstants
-                                                    .primaryContainer
+                                      color: AppConstants.primaryContainer
                                                     .withValues(alpha: 0.20),
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        AppConstants
-                                                            .radiusFull),
+                                      borderRadius: BorderRadius.circular(
+                                        AppConstants.radiusFull,
+                                      ),
                                               ),
                                               child: Row(
-                                                mainAxisSize:
-                                                    MainAxisSize.min,
+                                      mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   Text(
                                                     crop,
-                                                    style: GoogleFonts
-                                                        .inter(
+                                          style: GoogleFonts.inter(
                                                       fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.w600,
+                                            fontWeight: FontWeight.w600,
                                                       color: cs.primary,
                                                     ),
                                                   ),
                                                   const SizedBox(width: 4),
                                                   GestureDetector(
                                                     onTap: () => setState(
-                                                        () =>
-                                                            _selectedCrops
-                                                                .remove(
-                                                                    crop)),
+                                            () => _selectedCrops.remove(crop),
+                                          ),
                                                     child: Icon(
                                                       Icons.close_rounded,
                                                       size: 14,
-                                                      color: cs.primary
-                                                          .withValues(
-                                                              alpha: 0.60),
+                                            color: cs.primary.withValues(
+                                              alpha: 0.60,
+                                            ),
                                                     ),
                                                   ),
                                                 ],
                                               ),
-                                            ))
+                                  ),
+                                )
                                         .toList(),
                                   ),
                           ),
@@ -975,8 +1016,7 @@ class _FormSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -1011,10 +1051,7 @@ class _FormSection extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing!,
-              ],
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
             ],
           ),
           const SizedBox(height: 14),

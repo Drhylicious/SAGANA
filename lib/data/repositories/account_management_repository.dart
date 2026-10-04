@@ -11,9 +11,9 @@ class AccountManagementRepository {
 
   /// Creates an Officer account. Email + phone are optional (Decision
   /// D23); [registryId] must reference an available officer_registry row
-  /// (Decision D22); the Employee ID (EMP-###) is generated server-side.
-  /// Date of birth / gender are also optional (Admin Profile & Settings
-  /// Phase 2 correction) — the 18+ check only applies if a date is given.
+  /// (Decision D22). Date of birth / gender are also optional (Admin
+  /// Profile & Settings Phase 2 correction) — the 18+ check only applies
+  /// if a date is given.
   Future<void> createOfficerAccount({
     required String username,
     required String password,
@@ -26,7 +26,9 @@ class AccountManagementRepository {
     String? gender,
   }) async {
     try {
-      await _client.rpc('create_officer_account', params: {
+      await _client.rpc(
+        'create_officer_account',
+        params: {
         'p_username': username,
         'p_password': password,
         'p_full_name': fullName,
@@ -38,7 +40,8 @@ class AccountManagementRepository {
             ? null
             : '${dateOfBirth.year.toString().padLeft(4, '0')}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}',
         'p_gender': gender,
-      });
+        },
+      );
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'created',
@@ -52,8 +55,10 @@ class AccountManagementRepository {
   /// Officer Registry lookup for the create form (Decision D22).
   Future<OfficerRegistryMatch?> checkOfficerRegistry(String fullName) async {
     try {
-      final result = await _client.rpc('check_officer_registry',
-          params: {'p_full_name': fullName.trim()});
+      final result = await _client.rpc(
+        'check_officer_registry',
+        params: {'p_full_name': fullName.trim()},
+      );
       if (result == null || (result as List).isEmpty) return null;
       final row = result.first as Map<String, dynamic>;
       return OfficerRegistryMatch(
@@ -113,9 +118,16 @@ class AccountManagementRepository {
   /// admin_reset_user_password() in supabase_schema_admin_password_reset.sql.
   Future<String> resetUserPassword(String userId) async {
     try {
-      final result = await _client.rpc('admin_reset_user_password', params: {
-        'p_user_id': userId,
-      });
+      final result = await _client.rpc(
+        'admin_reset_user_password',
+        params: {'p_user_id': userId},
+      );
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'password_reset',
+        description: "Reset an account's password.",
+        referenceId: userId,
+      );
       return result as String;
     } on PostgrestException catch (e) {
       throw Exception(e.message);
@@ -141,7 +153,8 @@ class AccountManagementRepository {
         .select('user_id, full_name')
         .inFilter('user_id', userIds);
     final nameMap = {
-      for (final r in infoRows) r['user_id'] as String: r['full_name'] as String?
+      for (final r in infoRows)
+        r['user_id'] as String: r['full_name'] as String?,
     };
 
     return requests.map((r) {
@@ -158,9 +171,16 @@ class AccountManagementRepository {
 
   Future<void> resolvePasswordRequest(String requestId) async {
     try {
-      await _client.rpc('resolve_password_reset_request', params: {
-        'p_request_id': requestId,
-      });
+      await _client.rpc(
+        'resolve_password_reset_request',
+        params: {'p_request_id': requestId},
+      );
+      AdminActivityRepository().log(
+        module: 'members',
+        actionType: 'password_request_resolved',
+        description: 'Resolved a pending password reset request.',
+        referenceId: requestId,
+      );
     } on PostgrestException catch (e) {
       throw Exception(e.message);
     }

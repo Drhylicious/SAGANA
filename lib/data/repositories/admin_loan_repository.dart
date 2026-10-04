@@ -60,10 +60,7 @@ class AdminLoanRepository {
         if (status == 'active' || status == 'overdue') {
           totalExpected += monthlyPayment;
           farmersOwing.add(row['farmer_id'] as String);
-          final remaining = (totalValue - amountPaid).clamp(
-            0,
-            double.infinity,
-          );
+          final remaining = (totalValue - amountPaid).clamp(0, double.infinity);
           if (status == 'active') {
             active++;
           } else {
@@ -187,7 +184,9 @@ class AdminLoanRepository {
     try {
       var query = _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(item_name), cooperative_programs(program_name)')
+          .select(
+            '*, farmer_loan_items(item_name), cooperative_programs(program_name)',
+          )
           .inFilter('status', statuses)
           .order('next_payment_date', ascending: true);
 
@@ -209,7 +208,6 @@ class AdminLoanRepository {
         return AdminLoanSummary.fromRow(
           row,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           itemNames: items,
         );
       }).toList();
@@ -232,7 +230,9 @@ class AdminLoanRepository {
     try {
       var query = _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(item_name), cooperative_programs(program_name)');
+          .select(
+            '*, farmer_loan_items(item_name), cooperative_programs(program_name)',
+          );
       if (statusFilter != null) {
         query = query.eq('status', statusFilter);
       }
@@ -261,7 +261,6 @@ class AdminLoanRepository {
         return AdminLoanSummary.fromRow(
           row,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           itemNames: items,
         );
       }).toList();
@@ -309,7 +308,8 @@ class AdminLoanRepository {
       final bool isHealthy;
       if (rows.isEmpty) {
         isHealthy = true;
-      } else if (outstandingCount == 0 || (overdueCount / outstandingCount) <= 0.2) {
+      } else if (outstandingCount == 0 ||
+          (overdueCount / outstandingCount) <= 0.2) {
         isHealthy = true;
       } else {
         isHealthy = false;
@@ -349,7 +349,8 @@ class AdminLoanRepository {
       for (final row in rows) {
         final date = DateTime.parse(row['payment_date'] as String);
         final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
-        buckets[key] = (buckets[key] ?? 0) + (row['amount_paid'] as num).toDouble();
+        buckets[key] =
+            (buckets[key] ?? 0) + (row['amount_paid'] as num).toDouble();
       }
 
       return List.generate(months, (i) {
@@ -386,7 +387,6 @@ class AdminLoanRepository {
       return AdminLoanSummary.fromRow(
         row,
         farmerName: info?.fullName ?? 'Unknown Farmer',
-        memberId: info?.memberId ?? '—',
         itemNames: items,
       );
     } catch (_) {
@@ -419,12 +419,14 @@ class AdminLoanRepository {
           .select('user_id')
           .eq('role', 'farmer')
           .eq('status', 'active');
-      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      final activeIds = activeRoleRows
+          .map((r) => r['user_id'] as String)
+          .toList();
       if (activeIds.isEmpty) return [];
 
       final profileRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id')
+          .select('user_id')
           .inFilter('user_id', activeIds);
 
       if (profileRows.isEmpty) return [];
@@ -449,7 +451,6 @@ class AdminLoanRepository {
             (r) => FarmerPickerResult(
               id: r['user_id'] as String,
               fullName: names[r['user_id']] ?? 'Unknown Farmer',
-              memberId: r['member_id'] as String? ?? '—',
               profilePhotoUrl: photos[r['user_id']],
             ),
           )
@@ -500,7 +501,8 @@ class AdminLoanRepository {
             .eq('id', 1)
             .maybeSingle();
         minimumCapital =
-            (policyRow?['minimum_capital_contribution'] as num? ?? 0).toDouble();
+            (policyRow?['minimum_capital_contribution'] as num? ?? 0)
+                .toDouble();
       } catch (_) {
         // Leave the capital fields at 0/0 — meetsCapitalEligibility stays
         // true so the UI does not falsely block; the RPC remains the
@@ -527,8 +529,10 @@ class AdminLoanRepository {
     try {
       final rows = await _client
           .from('loan_items_master')
-          .select('id, unit_price, '
-                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)')
+          .select(
+            'id, unit_price, '
+            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)',
+          )
           .eq('is_loan_eligible', true)
           .eq('cooperative_inventory.is_active', true);
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
@@ -545,8 +549,10 @@ class AdminLoanRepository {
     try {
       final rows = await _client
           .from('loan_items_master')
-          .select('id, unit_price, is_loan_eligible, notes, '
-                  'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)')
+          .select(
+            'id, unit_price, is_loan_eligible, notes, '
+            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)',
+          )
           .eq('cooperative_inventory.is_active', true);
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
     } catch (_) {
@@ -561,15 +567,19 @@ class AdminLoanRepository {
     String? notes,
   }) async {
     try {
-      await _client.from('loan_items_master').update({
+      await _client
+          .from('loan_items_master')
+          .update({
         'unit_price': unitPrice,
         'is_loan_eligible': isLoanEligible,
         'notes': notes,
-      }).eq('id', loanItemId);
+          })
+          .eq('id', loanItemId);
       AdminActivityRepository().log(
         module: 'loans',
         actionType: 'updated',
-        description: 'Updated a loan catalog item (₱${unitPrice.toStringAsFixed(2)}).',
+        description:
+            'Updated a loan catalog item (₱${unitPrice.toStringAsFixed(2)}).',
         referenceId: loanItemId,
       );
       return true;
@@ -609,17 +619,22 @@ class AdminLoanRepository {
     String? notes,
     String? idempotencyKey,
   }) async {
-    final rows = await _client.rpc('issue_loan', params: {
+    final rows =
+        await _client.rpc(
+              'issue_loan',
+              params: {
       'p_farmer_id': farmerId,
       'p_items': items
-          .map((i) => {
+                    .map(
+                      (i) => {
                 'itemName': i['itemName'],
                 'inventoryItemId': i['inventoryItemId'],
                 'quantity': i['quantity'],
                 'unit': i['unit'],
                 'unitPrice': i['unitPrice'],
                 'lineTotal': i['lineTotal'],
-              })
+                      },
+                    )
           .toList(),
       'p_issued_date': _dateOnly(issuedDate),
       'p_monthly_payment': monthlyPayment,
@@ -627,13 +642,16 @@ class AdminLoanRepository {
       'p_notes': notes,
       'p_recorded_by': _client.auth.currentUser?.id,
       'p_idempotency_key': idempotencyKey,
-    }) as List;
+              },
+            )
+            as List;
 
     final row = rows.first as Map<String, dynamic>;
     AdminActivityRepository().log(
       module: 'loans',
       actionType: 'issued',
-      description: 'Issued a loan (₱${monthlyPayment.toStringAsFixed(2)}/month).',
+      description:
+          'Issued a loan (₱${monthlyPayment.toStringAsFixed(2)}/month).',
       referenceId: row['loan_id'] as String,
     );
     return IssuedLoanResult(
@@ -673,17 +691,30 @@ class AdminLoanRepository {
   }) async {
     final candidateNextPaymentDate = BodSchedule.after(paymentDate);
 
-    final rows = await _client.rpc('record_loan_payment', params: {
+    final rows =
+        await _client.rpc(
+              'record_loan_payment',
+              params: {
       'p_loan_id': loanId,
       'p_amount': amount,
       'p_payment_date': _dateOnly(paymentDate),
-      'p_next_payment_date_if_active': _dateOnly(candidateNextPaymentDate),
+                'p_next_payment_date_if_active': _dateOnly(
+                  candidateNextPaymentDate,
+                ),
       'p_notes': notes,
       'p_recorded_by': _client.auth.currentUser?.id,
       'p_idempotency_key': idempotencyKey,
-    }) as List;
+              },
+            )
+            as List;
 
     final row = rows.first as Map<String, dynamic>;
+    AdminActivityRepository().log(
+      module: 'loans',
+      actionType: 'payment_recorded',
+      description: 'Recorded a loan payment (₱${amount.toStringAsFixed(2)}).',
+      referenceId: loanId,
+    );
     return LoanPaymentResult(
       isFullyPaid: row['is_fully_paid'] as bool,
       runningBalance: (row['running_balance'] as num).toDouble(),
@@ -703,7 +734,9 @@ class AdminLoanRepository {
     try {
       final row = await _client
           .from('farmer_loans')
-          .select('*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)')
+          .select(
+            '*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)',
+          )
           .eq('id', loanId)
           .maybeSingle();
       if (row == null) return null;
@@ -716,16 +749,10 @@ class AdminLoanRepository {
           .select('full_name, profile_photo_url')
           .eq('user_id', farmerId)
           .maybeSingle();
-      final profileRow = await _client
-          .from('farmer_profiles')
-          .select('member_id')
-          .eq('user_id', farmerId)
-          .maybeSingle();
 
       return AdminLoanDetail(
         loan: loan,
         farmerName: infoRow?['full_name'] as String? ?? 'Unknown Farmer',
-        memberId: profileRow?['member_id'] as String? ?? '—',
         farmerPhotoUrl: infoRow?['profile_photo_url'] as String?,
       );
     } catch (_) {
@@ -784,6 +811,13 @@ class AdminLoanRepository {
           'notified_overdue_at': null,
         })
         .eq('id', loanId);
+
+    AdminActivityRepository().log(
+      module: 'loans',
+      actionType: 'marked_paid',
+      description: 'Manually marked a loan as paid.',
+      referenceId: loanId,
+    );
   }
 
   // ─── Overdue reconciliation ─────────────────────────────────────────────
@@ -807,7 +841,6 @@ extension AdminLoanListFilter on List<AdminLoanSummary> {
     return where(
       (loan) =>
           loan.farmerName.toLowerCase().contains(q) ||
-          loan.memberId.toLowerCase().contains(q) ||
           loan.referenceNo.toLowerCase().contains(q),
     ).toList();
   }

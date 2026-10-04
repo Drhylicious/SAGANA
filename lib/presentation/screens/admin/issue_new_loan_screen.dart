@@ -216,8 +216,11 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         !standing.meetsCapitalEligibility) {
       _showSnack(
         l10n.issueLoanCapitalBlocked(
-          NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0)
-              .format(standing.minimumCapitalRequired),
+          NumberFormat.currency(
+            locale: 'en_PH',
+            symbol: '₱',
+            decimalDigits: 0,
+          ).format(standing.minimumCapitalRequired),
         ),
         isError: true,
       );
@@ -336,20 +339,45 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                     ),
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        padding: const EdgeInsets.fromLTRB(
+                          0,
+                          0,
+                          0,
+                          AppConstants.spacingGutter,
+                        ),
                         child: _buildFarmerSection(context, l10n, cs, sagana),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        padding: const EdgeInsets.fromLTRB(
+                          0,
+                          0,
+                          0,
+                          AppConstants.spacingGutter,
+                        ),
                         child: _buildItemsSection(context, l10n, cs, sagana),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
+                        padding: const EdgeInsets.fromLTRB(
+                          0,
+                          0,
+                          0,
+                          AppConstants.spacingGutter,
+                        ),
                         child: _buildTotalCard(context, l10n, cs),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 0, 0, AppConstants.spacingGutter),
-                        child: _buildPaymentScheduleSection(context, l10n, cs, sagana),
+                        padding: const EdgeInsets.fromLTRB(
+                          0,
+                          0,
+                          0,
+                          AppConstants.spacingGutter,
+                        ),
+                        child: _buildPaymentScheduleSection(
+                          context,
+                          l10n,
+                          cs,
+                          sagana,
+                        ),
                       ),
                       _buildNotesSection(context, l10n, cs, sagana),
                     ],
@@ -472,13 +500,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                                 color: cs.onSurface,
                               ),
                             ),
-                            Text(
-                              _selectedFarmer!.memberId,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
                           ],
                         ),
                 ),
@@ -542,7 +563,10 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             const SizedBox(width: AppConstants.spacingSm),
             Text(
               l10n.issueLoanStandingLoading,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -751,14 +775,20 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: cs.surfaceContainerHighest,
-                        child: Icon(Icons.inventory_2_outlined,
-                            size: 20, color: cs.outline.withValues(alpha: 0.4)),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 20,
+                          color: cs.outline.withValues(alpha: 0.4),
+                        ),
                       ),
                     )
                   : Container(
                       color: cs.surfaceContainerHighest,
-                      child: Icon(Icons.inventory_2_outlined,
-                          size: 20, color: cs.outline.withValues(alpha: 0.4)),
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        size: 20,
+                        color: cs.outline.withValues(alpha: 0.4),
+                      ),
                     ),
             ),
           ),
@@ -812,7 +842,10 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                     onPressed: () => _openAddItemSheet(existing: item),
                     padding: EdgeInsets.zero,
                     visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    constraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 30,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, size: 18),
@@ -820,7 +853,10 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                     onPressed: () => _deleteItem(item.id),
                     padding: EdgeInsets.zero,
                     visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    constraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 30,
+                    ),
                   ),
                 ],
               ),
@@ -929,7 +965,10 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               ),
             ),
           ),
-          Divider(height: AppConstants.spacingGutter, color: cs.outline.withValues(alpha: 0.15)),
+          Divider(
+            height: AppConstants.spacingGutter,
+            color: cs.outline.withValues(alpha: 0.15),
+          ),
           Text(
             l10n.issueLoanMonthlyPayment,
             style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
@@ -1165,9 +1204,7 @@ class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
         ? widget.roster
         : widget.roster
               .where(
-                (f) =>
-                    f.fullName.toLowerCase().contains(_query.toLowerCase()) ||
-                    f.memberId.toLowerCase().contains(_query.toLowerCase()),
+                (f) => f.fullName.toLowerCase().contains(_query.toLowerCase()),
               )
               .toList();
 
@@ -1219,13 +1256,6 @@ class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
-                          ),
-                        ),
-                        subtitle: Text(
-                          farmer.memberId,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: cs.onSurfaceVariant,
                           ),
                         ),
                         onTap: () => widget.onSelected(farmer),
@@ -1352,7 +1382,10 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
             Text(
               l10n.issueLoanPublishFirstHint,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -1496,7 +1529,10 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
                 l10n.cancel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -1509,7 +1545,10 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
                 l10n.issueLoanConfirmItem,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),

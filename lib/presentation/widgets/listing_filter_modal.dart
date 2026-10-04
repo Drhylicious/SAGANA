@@ -16,8 +16,6 @@ String listingStatusLabel(AppLocalizations l10n, String status) {
       return l10n.buyerOrderDetailPendingTimestamp;
     case 'approved':
       return l10n.marketplaceFilterLive;
-    case 'changes_required':
-      return l10n.marketplaceChangesRequired;
     case 'sold':
       return l10n.marketplaceFilterSold;
     case 'rejected':

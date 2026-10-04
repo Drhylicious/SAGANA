@@ -107,45 +107,103 @@ class FarmerProfileRepository {
     required String fullName,
     String? phoneNumber,
     String? contactEmail,
-    String? purok,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
     if (dateOfBirth != null) {
       final now = DateTime.now();
-      final eighteenth =
-          DateTime(dateOfBirth.year + 18, dateOfBirth.month, dateOfBirth.day);
+      final eighteenth = DateTime(
+        dateOfBirth.year + 18,
+        dateOfBirth.month,
+        dateOfBirth.day,
+      );
       if (eighteenth.isAfter(now)) {
         throw Exception('You must be at least 18 years old.');
       }
     }
 
-    await _client.from('user_information').update({
-      'full_name': fullName.trim(),
-      'phone_number':
-          (phoneNumber != null && phoneNumber.trim().isNotEmpty)
-              ? phoneNumber.trim()
-              : null,
-      'contact_email':
-          (contactEmail != null && contactEmail.trim().isNotEmpty)
-              ? contactEmail.trim()
-              : null,
-      'purok': purok,
-    }).eq('user_id', _userId);
+    // Fetched before the writes below since, unlike updateBasicInfo()'s
+    // conditional-field pattern, both updates here always fully overwrite
+    // every field — a null value passed in genuinely means "clear this
+    // field" (the whole draft form resubmits together), so the diff below
+    // compares every field unconditionally rather than skipping null
+    // inputs. Recording nothing here previously — an applicant's edits
+    // (including their very first submission) never appeared anywhere.
+    Map<String, dynamic>? beforeUserInfo;
+    try {
+      beforeUserInfo = await _client
+          .from('user_information')
+          .select('full_name, phone_number, contact_email')
+          .eq('user_id', _userId)
+          .maybeSingle();
+    } catch (_) {}
 
-    await _client.from('farmer_profiles').update({
-      'date_of_birth':
-          dateOfBirth?.toIso8601String().split('T').first,
-      'gender': gender,
-    }).eq('user_id', _userId);
+    Map<String, dynamic>? beforeFarmerProfile;
+    try {
+      beforeFarmerProfile = await _client
+          .from('farmer_profiles')
+          .select('date_of_birth, gender')
+          .eq('user_id', _userId)
+          .maybeSingle();
+    } catch (_) {}
+
+    final newPhone = (phoneNumber != null && phoneNumber.trim().isNotEmpty)
+              ? phoneNumber.trim()
+        : null;
+    final newEmail = (contactEmail != null && contactEmail.trim().isNotEmpty)
+              ? contactEmail.trim()
+        : null;
+    final newDobStr = dateOfBirth?.toIso8601String().split('T').first;
+
+    await _client
+        .from('user_information')
+        .update({
+          'full_name': fullName.trim(),
+          'phone_number': newPhone,
+          'contact_email': newEmail,
+        })
+        .eq('user_id', _userId);
+
+    await _client
+        .from('farmer_profiles')
+        .update({'date_of_birth': newDobStr, 'gender': gender})
+        .eq('user_id', _userId);
+
+    final changes = <String>[];
+    if (beforeUserInfo != null) {
+      if ((beforeUserInfo['full_name'] as String?) != fullName.trim()) {
+        changes.add('name');
+      }
+      if ((beforeUserInfo['phone_number'] as String?) != newPhone) {
+        changes.add('phone number');
+      }
+      if ((beforeUserInfo['contact_email'] as String?) != newEmail) {
+        changes.add('email');
+      }
+    }
+    if (beforeFarmerProfile != null) {
+      if ((beforeFarmerProfile['date_of_birth'] as String?) != newDobStr) {
+        changes.add('date of birth');
+      }
+      if ((beforeFarmerProfile['gender'] as String?) != gender) {
+        changes.add('gender');
+      }
+    }
+    if (changes.isEmpty) return;
+    try {
+      await _client.from('farmer_profile_activity').insert({
+        'farmer_id': _userId,
+        'description': 'Updated ${changes.join(', ')}',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
   }
 
-  // ─── Update basic info (name, phone, purok) ────────────────────────────────
+  // ─── Update basic info (name, phone) ───────────────────────────────────────
 
   Future<void> updateBasicInfo({
     String? fullName,
     String? phoneNumber,
-    String? purok,
     String? contactEmail,
     DateTime? dateOfBirth, // farmer personal info (Phase B) — 18+ enforced
     String? gender,        // male | female | prefer_not_to_say
@@ -156,12 +214,43 @@ class FarmerProfileRepository {
 
     if (dateOfBirth != null) {
       final now = DateTime.now();
-      final eighteenth =
-          DateTime(dateOfBirth.year + 18, dateOfBirth.month, dateOfBirth.day);
+      final eighteenth = DateTime(
+        dateOfBirth.year + 18,
+        dateOfBirth.month,
+        dateOfBirth.day,
+      );
       if (eighteenth.isAfter(now)) {
         throw Exception('You must be at least 18 years old.');
       }
     }
+
+    // Fetched before any writes below so _logBasicInfoActivity() can tell
+    // what actually changed — same reasoning as
+    // BuyerProfileRepository._logProfileActivity(): these tables only ever
+    // carry current state. Two separate snapshots (user_information vs
+    // farmer_profiles) since DOB/gender and name/phone/email live on
+    // different tables. Previously only name/phone were captured
+    // here at all — email, date of birth, and gender changes were silently
+    // invisible to the logger even though this method updates all three
+    // (the bug behind a live-testing report of an email change not
+    // appearing in Recent Activity).
+    Map<String, dynamic>? beforeUserInfo;
+    try {
+      beforeUserInfo = await _client
+          .from('user_information')
+          .select('full_name, phone_number, contact_email')
+          .eq('user_id', _userId)
+          .maybeSingle();
+    } catch (_) {}
+
+    Map<String, dynamic>? beforeFarmerProfile;
+    try {
+      beforeFarmerProfile = await _client
+          .from('farmer_profiles')
+          .select('date_of_birth, gender')
+          .eq('user_id', _userId)
+          .maybeSingle();
+    } catch (_) {}
 
     // DOB / gender live on farmer_profiles (farmer personal info — NOT
     // the SP3 member registry).
@@ -179,58 +268,81 @@ class FarmerProfileRepository {
           .eq('user_id', _userId);
     }
 
-    // Fetched before the update so _logBasicInfoActivity() can tell what
-    // actually changed — same reasoning as
-    // BuyerProfileRepository._logProfileActivity(): user_information only
-    // ever carries current state.
-    Map<String, dynamic>? before;
-    try {
-      before = await _client
+    if (fullName != null || phoneNumber != null) {
+      await _client
           .from('user_information')
-          .select('full_name, phone_number, purok')
-          .eq('user_id', _userId)
-          .maybeSingle();
-    } catch (_) {}
-
-    if (fullName != null || phoneNumber != null || purok != null) {
-      await _client.from('user_information').update({
+          .update({
         if (fullName != null) 'full_name': fullName,
         if (phoneNumber != null) 'phone_number': phoneNumber,
-        if (purok != null) 'purok': purok,
-      }).eq('user_id', _userId);
+          })
+          .eq('user_id', _userId);
     }
     // Handles auth.users + auth.identities + contact_email together —
     // see promote_contact_email(). Deliberately not doing a plain column
     // update here anymore; that would silently desync the three.
     if (contactEmail != null) {
       try {
-        await _client.rpc('promote_contact_email', params: {'p_email': contactEmail});
+        await _client.rpc(
+          'promote_contact_email',
+          params: {'p_email': contactEmail},
+        );
       } on PostgrestException catch (e) {
         throw Exception(e.message);
       }
     }
 
-    await _logBasicInfoActivity(before, fullName, phoneNumber, purok);
+    await _logBasicInfoActivity(
+      beforeUserInfo: beforeUserInfo,
+      beforeFarmerProfile: beforeFarmerProfile,
+      newName: fullName,
+      newPhone: phoneNumber,
+      newEmail: contactEmail,
+      newDateOfBirth: dateOfBirth,
+      clearDateOfBirth: clearDateOfBirth,
+      newGender: gender,
+      clearGender: clearGender,
+    );
   }
 
   // Only logs when something genuinely changed — matches
   // BuyerProfileRepository's "not a passive interaction" rule.
-  Future<void> _logBasicInfoActivity(
-    Map<String, dynamic>? before,
+  Future<void> _logBasicInfoActivity({
+    Map<String, dynamic>? beforeUserInfo,
+    Map<String, dynamic>? beforeFarmerProfile,
     String? newName,
     String? newPhone,
-    String? newPurok,
-  ) async {
+    String? newEmail,
+    DateTime? newDateOfBirth,
+    bool clearDateOfBirth = false,
+    String? newGender,
+    bool clearGender = false,
+  }) async {
     final changes = <String>[];
-    if (before != null) {
-      if (newName != null && (before['full_name'] as String?) != newName) {
+    if (beforeUserInfo != null) {
+      if (newName != null &&
+          (beforeUserInfo['full_name'] as String?) != newName) {
         changes.add('name');
       }
-      if (newPhone != null && (before['phone_number'] as String?) != newPhone) {
+      if (newPhone != null &&
+          (beforeUserInfo['phone_number'] as String?) != newPhone) {
         changes.add('phone number');
       }
-      if (newPurok != null && (before['purok'] as String?) != newPurok) {
-        changes.add('purok');
+      if (newEmail != null &&
+          (beforeUserInfo['contact_email'] as String?) != newEmail) {
+        changes.add('email');
+      }
+    }
+    if (beforeFarmerProfile != null) {
+      final beforeDob = beforeFarmerProfile['date_of_birth'] as String?;
+      final newDobStr = newDateOfBirth?.toIso8601String().split('T').first;
+      if ((newDateOfBirth != null && beforeDob != newDobStr) ||
+          (clearDateOfBirth && beforeDob != null)) {
+        changes.add('date of birth');
+      }
+      final beforeGender = beforeFarmerProfile['gender'] as String?;
+      if ((newGender != null && beforeGender != newGender) ||
+          (clearGender && beforeGender != null)) {
+        changes.add('gender');
       }
     }
     if (changes.isEmpty) return;
@@ -241,6 +353,26 @@ class FarmerProfileRepository {
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (_) {}
+  }
+
+  // ─── Farm ownership type options (admin-managed lookup table) ────────────
+  // Replaces the previously hardcoded Owned/Leased/Communal list in
+  // edit_farm_details_screen.dart, mirroring CategoryRepository's existing
+  // inventory_categories/crop_categories pattern (supabase_schema_
+  // category_lookup_tables.sql) so the option set lives in one DB table
+  // instead of scattered Dart copies.
+  Future<List<String>> fetchOwnershipTypes() async {
+    try {
+      final rows = await _client
+          .from('farm_ownership_types')
+          .select('name')
+          .eq('is_active', true)
+          .order('sort_order')
+          .order('name');
+      return rows.map((r) => r['name'] as String).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   // ─── Update farm details (all fields incl. new ones) ──────────────────────
@@ -269,42 +401,62 @@ class FarmerProfileRepository {
           .from('farmer_profiles')
           .select(
               'farm_name, farm_address, land_area_hectares, years_farming, '
-              'farm_latitude, farm_longitude, farm_ownership_type, soil_type, water_source')
+            'farm_latitude, farm_longitude, farm_ownership_type, soil_type, water_source',
+          )
           .eq('user_id', _userId)
           .maybeSingle();
     } catch (_) {}
 
-    await _client.from('farmer_profiles').update({
+    final hasAnyFieldToUpdate =
+        farmName != null ||
+        farmAddress != null ||
+        landAreaHectares != null ||
+        yearsFarming != null ||
+        farmLatitude != null ||
+        farmLongitude != null ||
+        farmOwnershipType != null ||
+        soilType != null ||
+        waterSource != null;
+
+    await _client
+        .from('farmer_profiles')
+        .update({
       if (farmName != null) 'farm_name': farmName,
       if (farmAddress != null) 'farm_address': farmAddress,
       if (landAreaHectares != null) 'land_area_hectares': landAreaHectares,
       if (yearsFarming != null) 'years_farming': yearsFarming,
       if (farmLatitude != null) 'farm_latitude': farmLatitude,
       if (farmLongitude != null) 'farm_longitude': farmLongitude,
-      if (farmOwnershipType != null) 'farm_ownership_type': farmOwnershipType,
+          if (farmOwnershipType != null)
+            'farm_ownership_type': farmOwnershipType,
       if (soilType != null) 'soil_type': soilType,
       if (waterSource != null) 'water_source': waterSource,
-    }).eq('user_id', _userId);
+        })
+        .eq('user_id', _userId);
 
     final changes = <String>[];
     if (before != null) {
       if (farmName != null && (before['farm_name'] as String?) != farmName) {
         changes.add('farm name');
       }
-      if (farmAddress != null && (before['farm_address'] as String?) != farmAddress) {
+      if (farmAddress != null &&
+          (before['farm_address'] as String?) != farmAddress) {
         changes.add('farm address');
       }
       if (landAreaHectares != null &&
-          (before['land_area_hectares'] as num?)?.toDouble() != landAreaHectares) {
+          (before['land_area_hectares'] as num?)?.toDouble() !=
+              landAreaHectares) {
         changes.add('land area');
       }
       if (yearsFarming != null &&
           (before['years_farming'] as num?)?.toInt() != yearsFarming) {
         changes.add('years farming');
       }
-      final latChanged = farmLatitude != null &&
+      final latChanged =
+          farmLatitude != null &&
           (before['farm_latitude'] as num?)?.toDouble() != farmLatitude;
-      final lngChanged = farmLongitude != null &&
+      final lngChanged =
+          farmLongitude != null &&
           (before['farm_longitude'] as num?)?.toDouble() != farmLongitude;
       if (latChanged || lngChanged) {
         changes.add('farm location');
@@ -316,9 +468,18 @@ class FarmerProfileRepository {
       if (soilType != null && (before['soil_type'] as String?) != soilType) {
         changes.add('soil type');
       }
-      if (waterSource != null && (before['water_source'] as String?) != waterSource) {
+      if (waterSource != null &&
+          (before['water_source'] as String?) != waterSource) {
         changes.add('water source');
       }
+    } else if (hasAnyFieldToUpdate) {
+      // The before-snapshot couldn't be read (a transient failure, or no
+      // matching row) — the update above still ran and can't be assumed
+      // to have failed just because this read did. Falls back to a
+      // generic label rather than silently logging nothing, which
+      // previously let a real, successful save disappear from Recent
+      // Activity with no trace (the bug behind a live-testing report).
+      changes.add('farm details');
     }
     if (changes.isEmpty) return;
     try {
@@ -335,10 +496,10 @@ class FarmerProfileRepository {
   Future<void> clearFarmCoordinates() async {
     await AuthService.requireActiveMembership();
     try {
-      await _client.from('farmer_profiles').update({
-        'farm_latitude': null,
-        'farm_longitude': null,
-      }).eq('user_id', _userId);
+      await _client
+          .from('farmer_profiles')
+          .update({'farm_latitude': null, 'farm_longitude': null})
+          .eq('user_id', _userId);
     } catch (_) {}
   }
 
@@ -378,8 +539,7 @@ class FarmerProfileRepository {
           .select('amount')
           .eq('farmer_id', _userId)
           .eq('is_subsidy', false)
-          .gte('expense_date',
-              monthStart.toIso8601String().split('T').first);
+          .gte('expense_date', monthStart.toIso8601String().split('T').first);
       for (final row in rows) {
         total += (row['amount'] as num? ?? 0).toDouble();
       }
@@ -388,11 +548,11 @@ class FarmerProfileRepository {
     }
     // Merge in Hive-queued offline expenses so this tile can't undercount
     // relative to My Expenses now that expenses queue offline (Phase 2 /
-    // U2). Now explicitly filters is_subsidy, matching
-    // ExpenseRepository.fetchThisMonthTotal() exactly — previously this
-    // matched only because addExpense() enforces amount=0 for subsidy
-    // rows as an unenforced invariant (Phase 4 / W2); this makes the two
-    // queries structurally identical instead of relying on that.
+    // U2). Explicitly filters is_subsidy — previously this matched My
+    // Expenses' own this-month figure only because addExpense() enforces
+    // amount=0 for subsidy rows as an unenforced invariant (Phase 4 /
+    // W2); this makes the query correct on its own instead of relying on
+    // that.
     for (final e in ExpenseRepository().pendingExpenseModels()) {
       if (!e.isSubsidy && !e.expenseDate.isBefore(monthStart)) {
         total += e.amount;
@@ -427,10 +587,13 @@ class FarmerProfileRepository {
     try {
       final rows = await _client
           .from('program_members')
-          .select('id, program_id, status, enrolled_at, quantity_given, distributed_at, '
+          .select(
+            'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
               'amount_returned, settled_at, distributed_item_name, '
-              'cooperative_programs(program_name, benefit_type, program_purpose, status, expected_return_percent, image_url), '
-              'cooperative_inventory(item_name, unit, image_url)')
+            'distribution_outcome, outcome_recorded_at, converted_loan_id, '
+            'cooperative_programs(program_name, program_type, description, benefit_type, program_purpose, status, expected_return_percent, distribution_category, image_url), '
+            'cooperative_inventory(item_name, unit, image_url)',
+          )
           .eq('farmer_id', _userId)
           .order('enrolled_at', ascending: false);
       return rows.map((r) => MyProgramEntry.fromMap(r)).toList();
@@ -473,7 +636,8 @@ class FarmerProfileRepository {
       if (url == null) return null;
       await _client
           .from('user_information')
-          .update({'profile_photo_url': url}).eq('user_id', _userId);
+          .update({'profile_photo_url': url})
+          .eq('user_id', _userId);
       try {
         await _client.from('farmer_profile_activity').insert({
           'farmer_id': _userId,

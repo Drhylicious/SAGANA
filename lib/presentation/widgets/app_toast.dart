@@ -23,29 +23,50 @@ class AppToast {
     String message, {
     bool isError = false,
     Duration duration = const Duration(seconds: 3),
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     final overlay = Overlay.of(context, rootOverlay: true);
     late OverlayEntry entry;
     var removed = false;
+    Timer? timer;
     void dismiss() {
       if (removed) return;
       removed = true;
+      timer?.cancel();
       entry.remove();
     }
 
     entry = OverlayEntry(
-      builder: (_) => _ToastWidget(message: message, isError: isError),
+      builder: (_) => _ToastWidget(
+        message: message,
+        isError: isError,
+        actionLabel: actionLabel,
+        // Dismiss first so the toast never lingers after its action fires
+        // (e.g. navigating to Cart), same as SnackBarAction's own convention.
+        onAction: onAction == null ? null : () {
+          dismiss();
+          onAction();
+        },
+      ),
     );
     overlay.insert(entry);
-    Timer(duration, dismiss);
+    timer = Timer(duration, dismiss);
   }
 }
 
 class _ToastWidget extends StatelessWidget {
   final String message;
   final bool isError;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
-  const _ToastWidget({required this.message, required this.isError});
+  const _ToastWidget({
+    required this.message,
+    required this.isError,
+    this.actionLabel,
+    this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -69,9 +90,32 @@ class _ToastWidget extends StatelessWidget {
                 ),
               ],
             ),
-            child: Text(
-              message,
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    message,
+                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500),
+                  ),
+                ),
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: onAction,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      actionLabel!,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

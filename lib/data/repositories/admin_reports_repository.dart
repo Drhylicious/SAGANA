@@ -26,7 +26,10 @@ class AdminReportsRepository {
   ) async {
     final previous = period.previousRange();
     if (previous == null) return PerformanceSummary.empty();
-    return fetchPerformanceSummaryForRange(previous.startDate, previous.endDate);
+    return fetchPerformanceSummaryForRange(
+      previous.startDate,
+      previous.endDate,
+    );
   }
 
   Future<PerformanceSummary> fetchPerformanceSummaryForRange(
@@ -40,16 +43,24 @@ class AdminReportsRepository {
         _fetchMarketplaceRevenue(startDate: startDate, endDate: endDate),
         _fetchActiveLoanOutstanding(),
         _fetchTotalExpenses(startDate: startDate, endDate: endDate),
-        _fetchMemberParticipationPercent(startDate: startDate, endDate: endDate),
+        _fetchMemberParticipationPercent(
+          startDate: startDate,
+          endDate: endDate,
+        ),
+        // Reuses Sales Report's own already-correct 4-channel total
+        // (fetchSalesReportForRange) rather than re-deriving it — see
+        // PerformanceSummary.totalSalesAmount's own note.
+        fetchSalesReportForRange(startDate, endDate),
       ]);
 
       return PerformanceSummary(
-        totalHarvestKg: results[0],
-        coopSalesAmount: results[1],
-        marketplaceRevenue: results[2],
-        activeLoanOutstanding: results[3],
-        totalExpenses: results[4],
-        memberParticipationPercent: results[5],
+        totalHarvestKg: results[0] as double,
+        coopSalesAmount: results[1] as double,
+        marketplaceRevenue: results[2] as double,
+        activeLoanOutstanding: results[3] as double,
+        totalExpenses: results[4] as double,
+        memberParticipationPercent: results[5] as double,
+        totalSalesAmount: (results[6] as SalesReportData).totalRevenue,
       );
     } catch (_) {
       return PerformanceSummary.empty();
@@ -166,15 +177,23 @@ class AdminReportsRepository {
       for (final row in rows) {
         final amount = (row['amount'] as num).toDouble();
         final cropId = row['crop_id'] as String?;
-        final crop = (cropId != null ? cropNames[cropId] : null) ?? row['crop_name'] as String;
+        final crop =
+            (cropId != null ? cropNames[cropId] : null) ??
+            row['crop_name'] as String;
         final farmerId = row['farmer_id'] as String;
         cropTotals[crop] = (cropTotals[crop] ?? 0) + amount;
         farmerTotals[farmerId] = (farmerTotals[farmerId] ?? 0) + amount;
       }
 
-      final topCropEntry = cropTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
-      final topFarmerEntry = farmerTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
-      final farmerInfo = await fetchFarmerInfoMap(_client, [topFarmerEntry.key]);
+      final topCropEntry = cropTotals.entries.reduce(
+        (a, b) => a.value > b.value ? a : b,
+      );
+      final topFarmerEntry = farmerTotals.entries.reduce(
+        (a, b) => a.value > b.value ? a : b,
+      );
+      final farmerInfo = await fetchFarmerInfoMap(_client, [
+        topFarmerEntry.key,
+      ]);
 
       final expenseRows = await _client
           .from('farmer_expenses')
@@ -184,16 +203,20 @@ class AdminReportsRepository {
       for (final row in expenseRows) {
         final cat = row['category'] as String;
         expenseCategoryTotals[cat] =
-            (expenseCategoryTotals[cat] ?? 0) + (row['amount'] as num).toDouble();
+            (expenseCategoryTotals[cat] ?? 0) +
+            (row['amount'] as num).toDouble();
       }
       final topExpenseCategory = expenseCategoryTotals.isEmpty
           ? null
-          : expenseCategoryTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
+          : expenseCategoryTotals.entries.reduce(
+              (a, b) => a.value > b.value ? a : b,
+            );
 
       return QuickInsights(
         topCropName: topCropEntry.key,
         topCropAmount: topCropEntry.value,
-        topFarmerName: farmerInfo[topFarmerEntry.key]?.fullName ?? 'Unknown Farmer',
+        topFarmerName:
+            farmerInfo[topFarmerEntry.key]?.fullName ?? 'Unknown Farmer',
         topFarmerAmount: topFarmerEntry.value,
         topExpenseCategory: topExpenseCategory?.key,
         topExpenseAmount: topExpenseCategory?.value,
@@ -267,10 +290,16 @@ class AdminReportsRepository {
           .from('marketplace_listings')
           .select('farmer_id');
       if (startDate != null) {
-        listingQuery = listingQuery.gte('submitted_at', startDate.toIso8601String());
+        listingQuery = listingQuery.gte(
+          'submitted_at',
+          startDate.toIso8601String(),
+        );
       }
       if (endDate != null) {
-        listingQuery = listingQuery.lt('submitted_at', _exclusiveUpperBound(endDate));
+        listingQuery = listingQuery.lt(
+          'submitted_at',
+          _exclusiveUpperBound(endDate),
+        );
       }
       final listingRows = await listingQuery;
       activeIds.addAll(listingRows.map((r) => r['farmer_id'] as String));
@@ -320,8 +349,12 @@ class AdminReportsRepository {
       final informalRows = results[2];
       final daAmadRows = results[3];
 
-      final allRows = [...offerRows, ...marketplaceRows, ...informalRows, ...daAmadRows]
-        ..sort((a, b) => b.saleDate.compareTo(a.saleDate));
+      final allRows = [
+        ...offerRows,
+        ...marketplaceRows,
+        ...informalRows,
+        ...daAmadRows,
+      ]..sort((a, b) => b.saleDate.compareTo(a.saleDate));
 
       // Deliberately NOT short-circuiting to SalesReportData.empty() here
       // when allRows is empty (Phase 12 fix) — that previously made the
@@ -339,7 +372,8 @@ class AdminReportsRepository {
         totalQtyKg += row.quantityKg;
         final bucketKey =
             '${row.saleDate.year}-${row.saleDate.month.toString().padLeft(2, '0')}';
-        monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + row.amount;
+        monthlyBuckets[bucketKey] =
+            (monthlyBuckets[bucketKey] ?? 0) + row.amount;
       }
 
       final sortedMonthKeys = monthlyBuckets.keys.toList()..sort();
@@ -349,10 +383,22 @@ class AdminReportsRepository {
           : fullTrend;
 
       final channelTotals = [
-        _buildChannelTotal('offer_to_cooperative', 'Offer to Cooperative', offerRows),
+        _buildChannelTotal(
+          'offer_to_cooperative',
+          'Offer to Cooperative',
+          offerRows,
+        ),
         _buildChannelTotal('marketplace', 'Marketplace', marketplaceRows),
-        _buildChannelTotal('informal_sale', 'Informal Sale (F2F)', informalRows),
-        _buildChannelTotal('da_amad_market_linking', 'DA-AMAD Market Linking', daAmadRows),
+        _buildChannelTotal(
+          'informal_sale',
+          'Informal Sale (F2F)',
+          informalRows,
+        ),
+        _buildChannelTotal(
+          'da_amad_market_linking',
+          'DA-AMAD Market Linking',
+          daAmadRows,
+        ),
       ];
 
       return SalesReportData(
@@ -394,7 +440,12 @@ class AdminReportsRepository {
         _fetchInformalSaleRows(cutoff, null),
         _fetchDaAmadMarketLinkingRows(cutoff, null),
       ]);
-      final allRows = [...results[0], ...results[1], ...results[2], ...results[3]];
+      final allRows = [
+        ...results[0],
+        ...results[1],
+        ...results[2],
+        ...results[3],
+      ];
       if (allRows.isEmpty) return [];
 
       final buckets = <String, double>{};
@@ -446,7 +497,10 @@ class AdminReportsRepository {
       final rows = await query;
       if (rows.isEmpty) return [];
 
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
       return rows.map((row) {
@@ -454,7 +508,6 @@ class AdminReportsRepository {
         return SalesTransactionRow(
           id: row['id'] as String,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           cropType: row['crop_type'] as String? ?? 'palay',
           cropName: row['crop_name'] as String,
           quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -484,7 +537,9 @@ class AdminReportsRepository {
     try {
       var query = _client
           .from('orders')
-          .select('id, listing_id, quantity_kg, total_price, created_at')
+          .select(
+            'id, listing_id, buyer_id, quantity_kg, total_price, status, created_at',
+          )
           .eq('status', 'completed');
       if (startDate != null) {
         query = query.gte('created_at', _dateOnly(startDate));
@@ -495,19 +550,47 @@ class AdminReportsRepository {
       final rows = await query;
       if (rows.isEmpty) return [];
 
-      final listingIds = rows.map((r) => r['listing_id'] as String).toSet().toList();
+      final listingIds = rows
+          .map((r) => r['listing_id'] as String)
+          .toSet()
+          .toList();
       final listingRows = await _client
           .from('marketplace_listings')
           .select('id, farmer_id, crop_name')
           .inFilter('id', listingIds);
       final listingMap = {for (final l in listingRows) l['id'] as String: l};
 
-      final farmerIds = listingRows.map((l) => l['farmer_id'] as String).toSet().toList();
+      final farmerIds = listingRows
+          .map((l) => l['farmer_id'] as String)
+          .toSet()
+          .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
-      final cropNames =
-          listingRows.map((l) => l['crop_name'] as String).toSet().toList();
+      final cropNames = listingRows
+          .map((l) => l['crop_name'] as String)
+          .toSet()
+          .toList();
       final marketTypeMap = await _fetchMarketTypeByCropName(cropNames);
+
+      // Buyer name for the detail popup — admin has full read access to
+      // user_information (unlike the farmer-side equivalent, which needs
+      // a SECURITY DEFINER RPC to get past RLS), so a direct select is
+      // sufficient here.
+      final buyerIds = rows
+          .map((r) => r['buyer_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final buyerNameById = <String, String>{};
+      if (buyerIds.isNotEmpty) {
+        final buyerRows = await _client
+            .from('user_information')
+            .select('user_id, full_name')
+            .inFilter('user_id', buyerIds);
+        for (final b in buyerRows) {
+          buyerNameById[b['user_id'] as String] = b['full_name'] as String;
+        }
+      }
 
       return rows.map((row) {
         final listing = listingMap[row['listing_id']];
@@ -517,7 +600,6 @@ class AdminReportsRepository {
         return SalesTransactionRow(
           id: row['id'] as String,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           cropType: cropName.toLowerCase(),
           cropName: cropName,
           quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -525,6 +607,8 @@ class AdminReportsRepository {
           saleDate: DateTime.parse(row['created_at'] as String),
           sellingType: 'marketplace',
           marketType: marketTypeMap[cropName.toLowerCase()],
+          buyerName: buyerNameById[row['buyer_id']],
+          orderStatus: row['status'] as String?,
         );
       }).toList();
     } catch (_) {
@@ -544,7 +628,9 @@ class AdminReportsRepository {
     try {
       var query = _client
           .from('informal_sales')
-          .select('id, farmer_id, crop_name, quantity_kg, amount, sale_date');
+          .select(
+            'id, farmer_id, crop_name, quantity_kg, amount, buyer_name, sale_date',
+          );
       if (startDate != null) {
         query = query.gte('sale_date', startDate.toIso8601String());
       }
@@ -554,7 +640,10 @@ class AdminReportsRepository {
       final rows = await query;
       if (rows.isEmpty) return [];
 
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
       return rows.map((row) {
@@ -562,7 +651,6 @@ class AdminReportsRepository {
         return SalesTransactionRow(
           id: row['id'] as String,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           cropType: (row['crop_name'] as String).toLowerCase(),
           cropName: row['crop_name'] as String,
           quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -570,6 +658,7 @@ class AdminReportsRepository {
           saleDate: DateTime.parse(row['sale_date'] as String),
           sellingType: 'informal_sale',
           marketType: null,
+          buyerName: row['buyer_name'] as String?,
         );
       }).toList();
     } catch (_) {
@@ -590,7 +679,9 @@ class AdminReportsRepository {
     try {
       var query = _client
           .from('market_linking_programs')
-          .select('id, farmer_id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, completed_at')
+          .select(
+            'id, farmer_id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
+          )
           .eq('status', 'completed');
       if (startDate != null) {
         query = query.gte('completed_at', startDate.toIso8601String());
@@ -601,12 +692,16 @@ class AdminReportsRepository {
       final rows = await query;
       if (rows.isEmpty) return [];
 
-      final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
+      final farmerIds = rows
+          .map((r) => r['farmer_id'] as String)
+          .toSet()
+          .toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
       return rows.where((r) => r['completed_at'] != null).map((row) {
         final info = farmerInfo[row['farmer_id']];
-        final qty = (row['confirmed_volume_kg'] as num?)?.toDouble() ??
+        final qty =
+            (row['confirmed_volume_kg'] as num?)?.toDouble() ??
             (row['volume_kg'] as num?)?.toDouble() ??
             0;
         final pricePerKg = (row['price_per_kg'] as num?)?.toDouble() ?? 0;
@@ -614,7 +709,6 @@ class AdminReportsRepository {
         return SalesTransactionRow(
           id: row['id'] as String,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           cropType: cropName.toLowerCase(),
           cropName: cropName,
           quantityKg: qty,
@@ -622,6 +716,7 @@ class AdminReportsRepository {
           saleDate: DateTime.parse(row['completed_at'] as String),
           sellingType: 'da_amad_market_linking',
           marketType: 'DA-AMAD Market',
+          buyerName: row['buyer_name'] as String?,
         );
       }).toList();
     } catch (_) {
@@ -637,7 +732,9 @@ class AdminReportsRepository {
   ) async {
     if (cropNames.isEmpty) return {};
     try {
-      final rows = await _client.from('crop_master').select('crop_name, crop_type');
+      final rows = await _client
+          .from('crop_master')
+          .select('crop_name, crop_type');
       final map = <String, String>{};
       for (final r in rows) {
         final name = (r['crop_name'] as String).toLowerCase();
@@ -685,8 +782,10 @@ class AdminReportsRepository {
           .whereType<String>()
           .toSet()
           .toList();
-      final farmerCropToCropMaster =
-          await fetchFarmerCropToCropMasterMap(_client, farmerCropIds);
+      final farmerCropToCropMaster = await fetchFarmerCropToCropMasterMap(
+        _client,
+        farmerCropIds,
+      );
       final cropMasterIds = farmerCropToCropMaster.values.toSet().toList();
       final cropNames = await fetchCropNameMap(_client, cropMasterIds);
 
@@ -703,9 +802,11 @@ class AdminReportsRepository {
         final sold = (row['sold_kg'] as num? ?? 0).toDouble();
         final status = row['status'] as String? ?? 'available';
         final farmerCropId = row['crop_id'] as String?;
-        final cropMasterId =
-            farmerCropId != null ? farmerCropToCropMaster[farmerCropId] : null;
-        final cropName = (cropMasterId != null ? cropNames[cropMasterId] : null) ??
+        final cropMasterId = farmerCropId != null
+            ? farmerCropToCropMaster[farmerCropId]
+            : null;
+        final cropName =
+            (cropMasterId != null ? cropNames[cropMasterId] : null) ??
             row['crop_name'] as String;
 
         totalAvailable += available;
@@ -720,7 +821,6 @@ class AdminReportsRepository {
             batchId: row['id'] as String,
             farmerId: row['farmer_id'] as String,
             farmerName: info?.fullName ?? 'Unknown Farmer',
-            memberId: info?.memberId ?? '—',
             cropName: cropName,
             batchNumber: row['batch_number'] as String,
             quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -790,8 +890,10 @@ class AdminReportsRepository {
       // crop_id pointing at two different targets — do not assume they
       // match without checking, if a fourth crop_id-bearing table shows
       // up later.
-      final farmerCropToCropMaster =
-          await fetchFarmerCropToCropMasterMap(_client, cropIds);
+      final farmerCropToCropMaster = await fetchFarmerCropToCropMasterMap(
+        _client,
+        cropIds,
+      );
       final cropMasterIds = farmerCropToCropMaster.values.toSet().toList();
       final cropNames = await fetchCropNameMap(_client, cropMasterIds);
 
@@ -804,9 +906,11 @@ class AdminReportsRepository {
       for (final row in rows) {
         final qty = (row['quantity_kg'] as num).toDouble();
         final farmerCropId = row['crop_id'] as String?;
-        final cropMasterId =
-            farmerCropId != null ? farmerCropToCropMaster[farmerCropId] : null;
-        final cropName = (cropMasterId != null ? cropNames[cropMasterId] : null) ??
+        final cropMasterId = farmerCropId != null
+            ? farmerCropToCropMaster[farmerCropId]
+            : null;
+        final cropName =
+            (cropMasterId != null ? cropNames[cropMasterId] : null) ??
             row['crop_name'] as String;
         final harvestDate = DateTime.parse(row['harvest_date'] as String);
         final isSynced = row['is_synced'] as bool? ?? true;
@@ -825,12 +929,9 @@ class AdminReportsRepository {
             id: row['id'] as String,
             farmerId: row['farmer_id'] as String,
             farmerName: info?.fullName ?? 'Unknown Farmer',
-            memberId: info?.memberId ?? '—',
             cropName: cropName,
             quantityKg: qty,
             harvestDate: harvestDate,
-            submittedToCooperative:
-                row['submitted_to_cooperative'] as bool? ?? false,
             isSynced: isSynced,
             batchNumber: row['batch_number'] as String? ?? '—',
           ),
@@ -849,6 +950,29 @@ class AdminReportsRepository {
               .toList()
             ..sort((a, b) => b.totalKg.compareTo(a.totalKg));
 
+      // Same 4-channel sales query set the Sales Report tab already uses
+      // (_fetchOfferToCoopSalesRows etc.), same period window as the yield
+      // figure above — pairs "harvested" with "sold" for one window,
+      // instead of Harvest Overview's previous second card, which just
+      // repeated the live Available Stock figure already shown lower on
+      // this same screen regardless of which period chip was selected.
+      double soldKgInPeriod = 0;
+      try {
+        final salesResults = await Future.wait([
+          _fetchOfferToCoopSalesRows(window.startDate, window.endDate),
+          _fetchMarketplaceSalesRows(window.startDate, window.endDate),
+          _fetchInformalSaleRows(window.startDate, window.endDate),
+          _fetchDaAmadMarketLinkingRows(window.startDate, window.endDate),
+        ]);
+        for (final channelRows in salesResults) {
+          for (final row in channelRows) {
+            soldKgInPeriod += row.quantityKg;
+          }
+        }
+      } catch (_) {
+        // Falls through to 0 — yield figures above still stand on their own.
+      }
+
       return HarvestReportData(
         totalYieldKg: totalYield,
         harvestCount: rows.length,
@@ -856,6 +980,7 @@ class AdminReportsRepository {
         monthlyTrend: trend,
         cropBreakdown: cropBreakdown,
         harvests: harvests,
+        soldKgInPeriod: soldKgInPeriod,
       );
     } catch (_) {
       return HarvestReportData.empty();
@@ -895,7 +1020,8 @@ class AdminReportsRepository {
       for (final row in rows) {
         final date = DateTime.parse(row['harvest_date'] as String);
         final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
-        buckets[key] = (buckets[key] ?? 0) + (row['quantity_kg'] as num).toDouble();
+        buckets[key] =
+            (buckets[key] ?? 0) + (row['quantity_kg'] as num).toDouble();
       }
 
       return List.generate(months, (i) {
@@ -958,7 +1084,7 @@ class AdminReportsRepository {
           ExpenseReportRow(
             farmerId: row['farmer_id'] as String,
             farmerName: info?.fullName ?? 'Unknown Farmer',
-            memberId: info?.memberId ?? '—',
+            name: expense.displayName,
             category: expense.category,
             description: expense.description,
             amount: expense.amount,
@@ -1112,12 +1238,14 @@ class AdminReportsRepository {
           .select('user_id')
           .eq('role', 'farmer')
           .eq('status', 'active');
-      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      final activeIds = activeRoleRows
+          .map((r) => r['user_id'] as String)
+          .toList();
       if (activeIds.isEmpty) return MemberContributionReportData.empty(year);
 
       final rosterRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id')
+          .select('user_id')
           .inFilter('user_id', activeIds);
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
@@ -1126,19 +1254,28 @@ class AdminReportsRepository {
       for (final totals in salesTotals.values) {
         totalCoopSales += totals.totalAmount;
       }
+      double totalProgramPurchases = 0;
+      for (final amount in purchaseTotals.values) {
+        totalProgramPurchases += amount;
+      }
 
-      final rows = farmerIds.map((farmerId) {
+      final rows =
+          farmerIds.map((farmerId) {
         final info = farmerInfo[farmerId];
         final MemberSalesTotals totals =
             salesTotals[farmerId] ?? MemberSalesTotals();
+            final purchasesAmount = purchaseTotals[farmerId] ?? 0;
         final sharePercent = computeMemberSharePercent(
           memberSales: totals.totalAmount,
           coopTotalSales: totalCoopSales,
         );
+            final purchaseSharePercent = computeMemberSharePercent(
+              memberSales: purchasesAmount,
+              coopTotalSales: totalProgramPurchases,
+            );
         return MemberContributionRow(
           farmerId: farmerId,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           palayQtyKg: totals.palayQtyKg,
           palayAmount: totals.palayAmount,
           peanutQtyKg: totals.peanutQtyKg,
@@ -1147,15 +1284,18 @@ class AdminReportsRepository {
           sharePercent: sharePercent,
           otherCropsQtyKg: totals.otherCropsQtyKg,
           otherCropsAmount: totals.otherCropsAmount,
-          programPurchasesAmount: purchaseTotals[farmerId] ?? 0,
+              programPurchasesAmount: purchasesAmount,
+              purchaseSharePercent: purchaseSharePercent,
+            );
+          }).toList()..sort(
+            (a, b) => b.combinedTotalAmount.compareTo(a.combinedTotalAmount),
         );
-      }).toList()..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
 
       return MemberContributionReportData(
         year: year,
         totalCoopSales: totalCoopSales,
         memberCount: rows.length,
-        contributingMemberCount: rows.where((r) => r.hasContributed).length,
+        contributingMemberCount: rows.where((r) => r.hasAnyActivity).length,
         rows: rows,
       );
     } catch (_) {

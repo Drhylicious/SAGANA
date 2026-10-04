@@ -6,6 +6,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
+import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -23,7 +24,11 @@ class OrderDetailScreen extends StatefulWidget {
   // closes the bug where those actions were reachable from inside a
   // buyer's profile. See M-marketplace-4.
   final bool readOnly;
-  const OrderDetailScreen({super.key, required this.orderId, this.readOnly = false});
+  const OrderDetailScreen({
+    super.key,
+    required this.orderId,
+    this.readOnly = false,
+  });
 
   @override
   State<OrderDetailScreen> createState() => _OrderDetailScreenState();
@@ -52,11 +57,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending': return AppConstants.warningAmber;
-      case 'completed': return AppConstants.primaryGreen;
-      case 'cancelled': return AppConstants.errorRed;
-      default: return AppConstants.outline;
+      case 'approved':
+        return AppConstants.successGreen;
+      case 'pending':
+        return AppConstants.warningAmber;
+      case 'completed':
+        return AppConstants.primaryGreen;
+      case 'cancelled':
+        return AppConstants.errorRed;
+      default:
+        return AppConstants.outline;
     }
   }
 
@@ -67,9 +77,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     await _runAction(
       title: l10n.adminOrderDetailApproveTitle,
       subtitle: l10n.adminOrderDetailApproveSubtitle,
-      body: Text(
-        l10n.adminOrderDetailApproveBody,
-      ),
+      body: Text(l10n.adminOrderDetailApproveBody),
       primaryLabel: l10n.adminOrderDetailApproveTitle,
       isDestructive: false,
       action: () => _repo.approveOrder(widget.orderId),
@@ -82,9 +90,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     await _runAction(
       title: l10n.adminOrderDetailCompleteTitle,
       subtitle: l10n.adminOrderDetailCompleteSubtitle,
-      body: Text(
-        l10n.adminOrderDetailCompleteBody,
-      ),
+      body: Text(l10n.adminOrderDetailCompleteBody),
       primaryLabel: l10n.adminOrderDetailCompleteTitle,
       isDestructive: false,
       action: () => _repo.completeOrder(widget.orderId),
@@ -101,7 +107,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     bool isSaving = false;
     await showManagementModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
         final hasReason = reasonCtrl.text.trim().isNotEmpty;
         return ManagementModalShell(
           title: l10n.adminOrderDetailCancelTitle,
@@ -110,9 +117,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                l10n.adminOrderDetailCancelBody,
-              ),
+                Text(l10n.adminOrderDetailCancelBody),
               const SizedBox(height: 14),
               TextField(
                 controller: reasonCtrl,
@@ -135,23 +140,33 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     setSheet(() => isSaving = true);
                     String? error;
                     try {
-                      await _repo.cancelOrder(widget.orderId, reason: reasonCtrl.text.trim());
+                        await _repo.cancelOrder(
+                          widget.orderId,
+                          reason: reasonCtrl.text.trim(),
+                        );
                     } catch (_) {
                       error = l10n.adminOrderDetailFailedTryAgain;
                     }
                     if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(error ?? l10n.adminOrderDetailCancelledToast),
-                      backgroundColor: error != null ? AppConstants.errorRed : AppConstants.successGreen,
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            error ?? l10n.adminOrderDetailCancelledToast,
+                          ),
+                          backgroundColor: error != null
+                              ? AppConstants.errorRed
+                              : AppConstants.successGreen,
                       behavior: SnackBarBehavior.floating,
-                    ));
+                        ),
+                      );
                     if (error == null) _load();
                   },
           ),
         );
-      }),
+        },
+      ),
     );
   }
 
@@ -171,7 +186,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     bool isSaving = false;
     await showManagementModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
         return ManagementModalShell(
           title: title,
           subtitle: subtitle,
@@ -191,16 +207,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
                 content: Text(error ?? successMessage),
-                backgroundColor: error != null ? AppConstants.errorRed : AppConstants.successGreen,
+                    backgroundColor: error != null
+                        ? AppConstants.errorRed
+                        : AppConstants.successGreen,
                 behavior: SnackBarBehavior.floating,
-              ));
+                  ),
+                );
               if (error == null) _load();
             },
           ),
         );
-      }),
+        },
+      ),
     );
   }
 
@@ -221,11 +242,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppConstants.primaryGreen,
+                    ),
+                  )
                 : _order == null
                     ? Center(
-                        child: Text(l10n.adminOrderDetailNotFound,
-                            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
+                    child: Text(
+                      l10n.adminOrderDetailNotFound,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                       )
                     : RefreshIndicator(
                         color: AppConstants.primaryGreen,
@@ -233,8 +263,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                           children: [
+                        // Fulfillment first — the very first thing an
+                        // admin needs to know about an order is whether
+                        // it needs to be delivered, and where.
+                        if (_order!.hasFulfillmentChoice) ...[
+                          FulfillmentInfoCard(
+                            fulfillmentMethod: _order!.fulfillmentMethod,
+                            deliveryAddress: _order!.deliveryAddress,
+                            deliveryContactNumber:
+                                _order!.deliveryContactNumber,
+                            deliveryRecipientName:
+                                _order!.deliveryRecipientName,
+                            deliveryLabel: _order!.deliveryLabel,
+                            deliveryNotes: _order!.deliveryNotes,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                             _buildStatusCard(_order!, cs, l10n),
-                            const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                             if (!_order!.isCancelled) ...[
                               _buildTimeline(_order!),
                               const SizedBox(height: 16),
@@ -271,14 +317,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child: SizedBox(
+                  height: 46,
+                  // No icon here, same reasoning as Approve Order below:
+                  // at narrow widths the icon + gap left too little room
+                  // for "Cancel Order" and wrapped it onto two lines.
+                  child: OutlinedButton(
                   onPressed: _confirmCancel,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppConstants.errorRed,
                     side: const BorderSide(color: AppConstants.errorRed),
                   ),
-                  icon: const Icon(Icons.close_rounded, size: 18),
-                  label: Text(l10n.adminOrderDetailCancelTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                    child: Text(
+                      l10n.adminOrderDetailCancelTitle,
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -313,7 +367,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildStatusCard(AdminOrderModel order, ColorScheme cs, AppLocalizations l10n) {
+  Widget _buildStatusCard(
+    AdminOrderModel order,
+    ColorScheme cs,
+    AppLocalizations l10n,
+  ) {
     final color = _statusColor(order.status);
     final subtitle = switch (order.status) {
       'pending' => l10n.adminOrderDetailAwaitingReview,
@@ -328,26 +386,48 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Text(adminOrderStatusLabel(l10n, order.status).toUpperCase(),
-                    style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+                child: Text(
+                  adminOrderStatusLabel(l10n, order.status).toUpperCase(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('— $subtitle',
-                    style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  '— $subtitle',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
-          if (order.isCancelled && order.notes != null && order.notes!.isNotEmpty) ...[
+          if (order.isCancelled &&
+              order.notes != null &&
+              order.notes!.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text('Reason: ${order.notes}',
-                style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant)),
+            Text(
+              'Reason: ${order.notes}',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ],
         ],
       ),
@@ -375,7 +455,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             return Expanded(
               child: Container(
                 height: 2,
-                color: isDone ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.20),
+                color: isDone
+                    ? AppConstants.primaryGreen
+                    : AppConstants.outline.withValues(alpha: 0.20),
               ),
             );
           }
@@ -385,18 +467,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 10, height: 10,
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isDone ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.25),
+                  color: isDone
+                      ? AppConstants.primaryGreen
+                      : AppConstants.outline.withValues(alpha: 0.25),
                 ),
               ),
               const SizedBox(height: 4),
-              Text(steps[stepIndex],
+              Text(
+                steps[stepIndex],
                   style: GoogleFonts.inter(
-                    fontSize: 10, fontWeight: FontWeight.w600,
-                    color: isDone ? AppConstants.primaryGreen : AppConstants.outline,
-                  )),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isDone
+                      ? AppConstants.primaryGreen
+                      : AppConstants.outline,
+                ),
+              ),
             ],
           );
         }),
@@ -414,12 +504,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             backgroundImage: order.buyerPhotoUrl != null
                 ? NetworkImage(order.buyerPhotoUrl!)
                 : null,
-            onBackgroundImageError: order.buyerPhotoUrl != null ? (_, __) {} : null,
+            onBackgroundImageError: order.buyerPhotoUrl != null
+                ? (_, __) {}
+                : null,
             child: order.buyerPhotoUrl != null
                 ? null
                 : Text(
-                    order.buyerName.isNotEmpty ? order.buyerName[0].toUpperCase() : 'B',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: AppConstants.buyerBlue),
+                    order.buyerName.isNotEmpty
+                        ? order.buyerName[0].toUpperCase()
+                        : 'B',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.buyerBlue,
+                    ),
                   ),
           ),
           const SizedBox(width: 12),
@@ -427,9 +524,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(order.buyerName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                Text(
+                  order.buyerName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
                 if (order.buyerPhone != null)
-                  Text(order.buyerPhone!, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                  Text(
+                    order.buyerPhone!,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -438,11 +548,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildProductCard(AdminOrderModel order, ColorScheme cs, AppLocalizations l10n) {
+  Widget _buildProductCard(
+    AdminOrderModel order,
+    ColorScheme cs,
+    AppLocalizations l10n,
+  ) {
     return _SectionCard(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
+          // Header — image + crop name only. Previously carried a "✓ SP3
+          // Agriculture Cooperative" subtitle in the exact spot a Market
+          // Type reads, which made it look like that WAS the market
+          // type. Market Type now has its own proper field below.
           Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
@@ -450,29 +568,102 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                   child: order.listingPhotoUrl != null
-                      ? Image.network(order.listingPhotoUrl!, width: 56, height: 56, fit: BoxFit.cover)
-                      : Container(width: 56, height: 56, color: AppConstants.limeGreen),
+                      ? Image.network(
+                          order.listingPhotoUrl!,
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          width: 64,
+                          height: 64,
+                          color: AppConstants.limeGreen,
                 ),
-                const SizedBox(width: 12),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: Text(order.displayName,
-                      style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                  child: Text(
+                    order.displayName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          if (order.batchNumber != null || order.harvestDate != null || order.category != null) ...[
+          // Market Type + Category — a simple two-up row, evenly split.
+          if (order.marketType != null || order.category != null) ...[
             Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Wrap(
-                spacing: 20,
-                runSpacing: 10,
+              child: Row(
                 children: [
-                  if (order.batchNumber != null) _miniField(l10n.adminOrderDetailBatchReference, '#${order.batchNumber}', cs),
-                  if (order.harvestDate != null) _miniField(l10n.adminOrderDetailFreshness, order.harvestedLabel, cs),
-                  if (order.category != null) _miniField(l10n.adminOrderDetailCategory, order.category!, cs),
+                  if (order.marketType != null)
+                Expanded(
+                      child: _miniField(
+                        'Market Type',
+                        order.marketTypeLabel,
+                        cs,
+                      ),
+                    ),
+                  if (order.marketType != null && order.category != null)
+                    const SizedBox(width: 20),
+                  if (order.category != null)
+                    Expanded(
+                      child: _miniField(
+                        l10n.adminOrderDetailCategory,
+                        order.category!,
+                        cs,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          ],
+          // Batch Reference + Freshness — admin-only inventory context,
+          // same two-up row shape as above.
+          if (order.batchNumber != null || order.harvestDate != null) ...[
+            Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  if (order.batchNumber != null)
+                    Expanded(
+                      child: _miniField(
+                        l10n.adminOrderDetailBatchReference,
+                        '#${order.batchNumber}',
+                        cs,
+                      ),
+                    ),
+                  if (order.batchNumber != null && order.harvestDate != null)
+                    const SizedBox(width: 20),
+                  if (order.harvestDate != null)
+                    Expanded(
+                      child: _miniField(
+                        l10n.adminOrderDetailFreshness,
+                        order.harvestedLabel,
+                        cs,
+                      ),
+                    ),
                 ],
+              ),
+            ),
+          ],
+          if (order.description != null && order.description!.isNotEmpty) ...[
+            Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                order.description!,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                  height: 1.5,
+                ),
               ),
             ),
           ],
@@ -486,23 +677,57 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
-        Text(value, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface)),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildSummaryCard(AdminOrderModel order, ColorScheme cs, AppLocalizations l10n) {
+  Widget _buildSummaryCard(
+    AdminOrderModel order,
+    ColorScheme cs,
+    AppLocalizations l10n,
+  ) {
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.adminOrderDetailOrderSummary, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
+          Text(
+            l10n.adminOrderDetailOrderSummary,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 12),
-          _summaryRow(l10n.adminOrderDetailQuantity, '${order.quantityKg.toStringAsFixed(0)} kg', cs),
-          _summaryRow(l10n.adminOrderDetailPricePerKg, '₱${order.pricePerKg.toStringAsFixed(2)}', cs),
+          _summaryRow(
+            l10n.adminOrderDetailQuantity,
+            '${order.quantityKg.toStringAsFixed(0)} kg',
+            cs,
+          ),
+          _summaryRow(
+            l10n.adminOrderDetailPricePerKg,
+            '₱${order.pricePerKg.toStringAsFixed(2)}',
+            cs,
+          ),
           Divider(height: 20, color: cs.outline.withValues(alpha: 0.10)),
-          _summaryRow(l10n.adminOrderDetailTotalAmount, '₱${order.totalPrice.toStringAsFixed(2)}', cs, bold: true),
+          _summaryRow(
+            l10n.adminOrderDetailTotalAmount,
+            '₱${order.totalPrice.toStringAsFixed(2)}',
+            cs,
+            bold: true,
+          ),
           const SizedBox(height: 12),
           Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
           const SizedBox(height: 10),
@@ -512,15 +737,43 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.adminOrderDetailReferenceLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: cs.onSurfaceVariant)),
-                  Text(order.orderReference, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                  Text(
+                    l10n.adminOrderDetailReferenceLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      letterSpacing: 0.5,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    order.orderReference,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(l10n.adminOrderDetailOrderDateLabel, style: GoogleFonts.inter(fontSize: 9, letterSpacing: 0.5, color: cs.onSurfaceVariant)),
-                  Text(_formatDate(order.createdAt), style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                  Text(
+                    l10n.adminOrderDetailOrderDateLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      letterSpacing: 0.5,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    _formatDate(order.createdAt),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -530,36 +783,58 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _summaryRow(String label, String value, ColorScheme cs, {bool bold = false}) {
+  Widget _summaryRow(
+    String label,
+    String value,
+    ColorScheme cs, {
+    bool bold = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Flexible(
-            child: Text(label,
+            child: Text(
+              label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
                   fontSize: bold ? 15 : 13,
                   fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
                   color: bold ? AppConstants.primaryGreen : cs.onSurfaceVariant,
-                )),
+              ),
+            ),
           ),
           const SizedBox(width: 8),
-          Text(value,
+          Text(
+            value,
               style: GoogleFonts.poppins(
                 fontSize: bold ? 18 : 13,
                 fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
                 color: bold ? AppConstants.primaryGreen : cs.onSurface,
-              )),
+            ),
+          ),
         ],
       ),
     );
   }
 
   String _formatDate(DateTime d) {
-    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const m = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${m[d.month - 1]} ${d.day}, ${d.year}';
   }
 }
@@ -598,9 +873,15 @@ class _TopBar extends StatelessWidget {
                 onPressed: onBack,
               ),
               Expanded(
-                child: Text(title,
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: cs.primary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -632,7 +913,9 @@ class _SectionCard extends StatelessWidget {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
       child: child,
     );

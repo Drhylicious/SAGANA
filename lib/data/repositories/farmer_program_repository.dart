@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/program_model.dart';
+import '../models/program_enrollment_request_model.dart';
 
 /// Farmer-side repository for the Cooperative Product Sales Program —
 /// browsing available products and requesting a purchase. Kept separate
@@ -18,8 +19,10 @@ class FarmerProgramRepository {
     try {
       final rows = await _client
           .from('program_products')
-          .select('id, program_id, inventory_item_id, unit_price, is_available, '
-              'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)')
+          .select(
+            'id, program_id, inventory_item_id, unit_price, is_available, '
+            'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)',
+          )
           .eq('program_id', programId)
           .order('created_at');
       return rows.map((r) {
@@ -48,11 +51,14 @@ class FarmerProgramRepository {
     required String productId,
     required double quantity,
   }) async {
-    await _client.rpc('request_program_purchase', params: {
+    await _client.rpc(
+      'request_program_purchase',
+      params: {
       'p_program_id': programId,
       'p_product_id': productId,
       'p_quantity': quantity,
-    });
+      },
+    );
   }
 
   /// RLS ("program_product_purchases: farmer reads own") already scopes
@@ -64,10 +70,12 @@ class FarmerProgramRepository {
       if (farmerId == null) return [];
       final rows = await _client
           .from('program_product_purchases')
-          .select('id, program_id, product_id, farmer_id, quantity, unit_price, '
+          .select(
+            'id, program_id, product_id, farmer_id, quantity, unit_price, '
               'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
               'cooperative_programs(program_name), '
-              'program_products(cooperative_inventory(item_name, unit, image_url))')
+            'program_products(cooperative_inventory(item_name, unit, image_url))',
+          )
           .eq('program_id', programId)
           .eq('farmer_id', farmerId)
           .order('requested_at', ascending: false);
@@ -97,13 +105,81 @@ class FarmerProgramRepository {
   // match the function overload and every cancellation silently failed.
   Future<bool> cancelMyPurchase(String purchaseId, String reason) async {
     try {
-      await _client.rpc('cancel_program_purchase', params: {
-        'p_purchase_id': purchaseId,
-        'p_reason': reason,
+      await _client.rpc(
+        'cancel_program_purchase',
+        params: {'p_purchase_id': purchaseId, 'p_reason': reason},
+      );
+      // Recent Activity — logged explicitly here (client-side) rather than
+      // by reading program_product_purchases.status='cancelled' back later,
+      // since cancel_program_purchase() can also be called by Admin
+      // (program_purchase_review_screen.dart) and the table has no column
+      // recording who cancelled it. Logging at this call site guarantees
+      // the entry only appears when the farmer's own action triggered it.
+      final farmerId = _client.auth.currentUser?.id;
+      if (farmerId != null) {
+        try {
+          await _client.from('farmer_profile_activity').insert({
+            'farmer_id': farmerId,
+            'description': 'Cancelled program purchase request',
+            'created_at': DateTime.now().toIso8601String(),
       });
+        } catch (_) {}
+      }
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  // ─── Program self-service enrollment (Full Workflow) ──────────────────────
+  // See supabase_schema_program_enrollment_requests.sql. Browse Programs
+  // needs every active program regardless of purpose (distribution or
+  // sales) — RLS ("cooperative_programs: members read active") already
+  // scopes this to status='active' for any authenticated user, so no
+  // farmer_id filter is needed or possible here.
+  Future<List<CooperativeProgram>> fetchAvailablePrograms() async {
+    try {
+      final rows = await _client
+          .from('cooperative_programs')
+          .select()
+          .eq('status', 'active')
+          .order('program_name');
+      return rows.map((r) => CooperativeProgram.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// The farmer's own enrollment requests (any status), most recent first
+  /// — used by Browse Programs to show "pending"/"rejected" state per
+  /// program instead of just "no request yet".
+  Future<List<ProgramEnrollmentRequest>> fetchMyEnrollmentRequests() async {
+    try {
+      final farmerId = _client.auth.currentUser?.id;
+      if (farmerId == null) return [];
+      final rows = await _client
+          .from('program_enrollment_requests')
+          .select(
+            'id, program_id, status, admin_notes, submitted_at, reviewed_at, '
+            'cooperative_programs(program_name, image_url)',
+          )
+          .eq('farmer_id', farmerId)
+          .order('submitted_at', ascending: false);
+      return rows.map((r) => ProgramEnrollmentRequest.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Throws on failure — same reasoning as requestPurchase(): a real
+  /// request with server-side validation (program active, no duplicate
+  /// pending/approved request, not already enrolled — see
+  /// submit_program_enrollment_request()), so the caller needs to know
+  /// if it was rejected rather than have that swallowed silently.
+  Future<void> requestEnrollment(String programId) async {
+    await _client.rpc(
+      'submit_program_enrollment_request',
+      params: {'p_program_id': programId},
+    );
   }
 }

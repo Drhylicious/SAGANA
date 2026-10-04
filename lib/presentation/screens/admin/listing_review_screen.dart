@@ -58,13 +58,12 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
     bool isSaving = false;
     await showManagementModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
         return ManagementModalShell(
           title: l10n.listingReviewApproveTitle,
           subtitle: l10n.listingReviewApproveSubtitle,
-          body: Text(
-            l10n.listingReviewApproveBody,
-          ),
+            body: Text(l10n.listingReviewApproveBody),
           footer: ManagementModalActions(
             primaryLabel: l10n.listingReviewApprovePublishAction,
             isDestructive: false,
@@ -93,23 +92,8 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             },
           ),
         );
-      }),
-    );
-  }
-
-  void _showRequestChangesSheet() {
-    final l10n = AppLocalizations.of(context);
-    _showNoteModal(
-      title: l10n.listingReviewRequestChangesTitle,
-      hint: l10n.listingReviewRequestChangesHint,
-      actionLabel: l10n.listingReviewSendRequestAction,
-      isDestructive: false,
-      onConfirm: (note) => _repo.requestChanges(
-        listingId: widget.listingId,
-        notes: note,
+        },
       ),
-      successMessage: l10n.listingReviewChangesRequestedToast,
-      failureMessage: l10n.listingReviewSendRequestFailed,
     );
   }
 
@@ -120,10 +104,8 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
       hint: l10n.listingReviewRejectHint,
       actionLabel: l10n.listingReviewConfirmRejectionAction,
       isDestructive: true,
-      onConfirm: (reason) => _repo.rejectListing(
-        listingId: widget.listingId,
-        reason: reason,
-      ),
+      onConfirm: (reason) =>
+          _repo.rejectListing(listingId: widget.listingId, reason: reason),
       successMessage: l10n.listingReviewRejectedToast,
       failureMessage: l10n.listingReviewRejectFailed,
     );
@@ -146,7 +128,8 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
     bool isSaving = false;
     await showManagementModal(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
         return ManagementModalShell(
           title: title,
           body: TextFormField(
@@ -187,7 +170,8 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             },
           ),
         );
-      }),
+        },
+      ),
     );
   }
 
@@ -258,12 +242,18 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
       body: Stack(
         children: [
           // ── Scrollable content ──────────────────────────────────────
+          // Actions used to be a Positioned bar pinned above the scroll
+          // content — it stayed fixed on screen while everything scrolled
+          // underneath it, reading as "following" the scroll rather than
+          // sitting in its normal place. Moved inline at the end of the
+          // list instead, same fix already applied to Buyer Listing
+          // Details' cart bar.
           Column(
             children: [
               const SizedBox(height: 64),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   children: [
                     // ── Hero / listing overview ───────────────────────
                     _HeroSection(listing: listing, cs: cs, sagana: sagana),
@@ -313,6 +303,23 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
                         ),
                       ),
                     ],
+
+                    // ── Decision actions (inline, scrolls with content) ─
+                    const SizedBox(height: 24),
+                    if (showActions)
+                      _ReviewActions(
+                        isSaving: _isSaving,
+                        onApprove: _confirmApprove,
+                        onReject: _showRejectSheet,
+                      )
+                    else
+                      // Either a genuinely non-pending listing, or a
+                      // pending one opened read-only from All Listings.
+                      _ReadOnlyStatus(
+                        listing: listing,
+                        forcedReadOnly: isPending && widget.readOnly,
+                        cs: cs,
+                      ),
                   ],
                 ),
               ),
@@ -333,36 +340,6 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
               cs: cs,
             ),
           ),
-
-          // ── Fixed footer actions (only when actionable) ─────────────
-          if (showActions)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _ReviewFooter(
-                isSaving: _isSaving,
-                onApprove: _confirmApprove,
-                onRequestChanges: _showRequestChangesSheet,
-                onReject: _showRejectSheet,
-                cs: cs,
-                sagana: sagana,
-              ),
-            )
-          else
-            // Read-only footer — either a genuinely non-pending listing,
-            // or a pending one opened read-only from All Listings.
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _ReadOnlyFooter(
-                listing: listing,
-                forcedReadOnly: isPending && widget.readOnly,
-                cs: cs,
-                sagana: sagana,
-              ),
-            ),
         ],
       ),
     );
@@ -633,7 +610,10 @@ class _HeroSection extends StatelessWidget {
                         '• Batch #${listing.id.substring(0, 8).toUpperCase()}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.outline,
+                        ),
                       ),
                     ),
                   ],
@@ -751,7 +731,9 @@ class _PricingAnalysis extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _PriceBox(
-                label: hasRef ? l10n.listingReviewMarketRefDA : l10n.listingReviewNoMarketRef,
+                label: hasRef
+                    ? l10n.listingReviewMarketRefDA
+                    : l10n.listingReviewNoMarketRef,
                 price: listing.marketRefPricePerKg,
                 cs: cs,
                 muted: !hasRef,
@@ -967,7 +949,9 @@ class _InventoryValidation extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    l10n.listingReviewQuantityExceeds(listing.stockSurplus.toStringAsFixed(0)),
+                    l10n.listingReviewQuantityExceeds(
+                      listing.stockSurplus.toStringAsFixed(0),
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1154,7 +1138,10 @@ class _FarmerContext extends StatelessWidget {
                       l10n.listingReviewApprovalRate,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1284,110 +1271,42 @@ class _AdminNotesCard extends StatelessWidget {
 // Review Footer (for pending listings)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ReviewFooter extends StatelessWidget {
+class _ReviewActions extends StatelessWidget {
   final bool isSaving;
   final VoidCallback onApprove;
-  final VoidCallback onRequestChanges;
   final VoidCallback onReject;
-  final ColorScheme cs;
-  final SaganaColors sagana;
 
-  const _ReviewFooter({
+  const _ReviewActions({
     required this.isSaving,
     required this.onApprove,
-    required this.onRequestChanges,
     required this.onReject,
-    required this.cs,
-    required this.sagana,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.of(context).padding.bottom + 12,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(top: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  // Request Changes
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: isSaving ? null : onRequestChanges,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppConstants.warningAmber),
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusMd,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+    // Same two-action, stacked layout as Farmer's Submission Success
+    // screen (primary action full-width on top, destructive action
+    // red-outlined below) instead of the previous 3-way split with
+    // Request Changes squeezed in between.
+    return Column(
                           children: [
-                            const Icon(
-                              Icons.edit_note_rounded,
-                              size: 16,
-                              color: AppConstants.warningAmber,
-                            ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                l10n.listingReviewRequestChangesTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppConstants.warningAmber,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Approve — equal flex with Request Changes: their
-                  // labels are almost the same length ("Request Changes"
-                  // vs "Approve Listing"), so the previous 1:2 split left
-                  // Request Changes too narrow for its text at 360px
-                  // (see M-marketplace-2).
-                  Expanded(
+        SizedBox(
+          width: double.infinity,
                     child: GestureDetector(
                       onTap: isSaving ? null : onApprove,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
+              padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: BoxDecoration(
                           color: isSaving
-                              ? AppConstants.successGreen.withValues(
-                                  alpha: 0.50,
-                                )
+                    ? AppConstants.successGreen.withValues(alpha: 0.50)
                               : AppConstants.successGreen,
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusMd,
-                          ),
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                           boxShadow: [
                             BoxShadow(
-                              color: AppConstants.successGreen.withValues(
-                                alpha: 0.25,
-                              ),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                    color: AppConstants.successGreen.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                             ),
                           ],
                         ),
@@ -1407,51 +1326,53 @@ class _ReviewFooter extends StatelessWidget {
                                 children: [
                                   const Icon(
                                     Icons.check_circle_rounded,
-                                    size: 16,
+                          size: 18,
                                     color: Colors.white,
                                   ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
+                        const SizedBox(width: 8),
+                        Text(
                                       l10n.listingReviewApproveTitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.poppins(
-                                        fontSize: 13,
+                            fontSize: 15,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white,
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Reject (full width, text button style)
-              GestureDetector(
-                onTap: isSaving ? null : onReject,
-                child: Container(
+        const SizedBox(height: 12),
+        SizedBox(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+          child: OutlinedButton(
+            onPressed: isSaving ? null : onReject,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppConstants.errorRed,
+              side: BorderSide(
+                color: AppConstants.errorRed.withValues(alpha: 0.50),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              ),
+            ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.cancel_outlined, size: 16, color: cs.error),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
+                const Icon(
+                  Icons.cancel_outlined,
+                  size: 18,
+                  color: AppConstants.errorRed,
+                ),
+                const SizedBox(width: 8),
+                Text(
                           l10n.listingReviewRejectTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                    fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: cs.error,
-                          ),
+                    color: AppConstants.errorRed,
                         ),
                       ),
                     ],
@@ -1459,18 +1380,15 @@ class _ReviewFooter extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Read-Only Footer (for approved / changes_required / sold listings)
+// Read-Only Status (for approved / sold / rejected listings)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ReadOnlyFooter extends StatelessWidget {
+class _ReadOnlyStatus extends StatelessWidget {
   final AdminListingModel listing;
   // True when this is actually a pending listing being shown without
   // actions because it was opened from All Listings (not because its
@@ -1478,62 +1396,38 @@ class _ReadOnlyFooter extends StatelessWidget {
   // copy so it doesn't misleadingly say "no action needed".
   final bool forcedReadOnly;
   final ColorScheme cs;
-  final SaganaColors sagana;
 
-  const _ReadOnlyFooter({
+  const _ReadOnlyStatus({
     required this.listing,
     this.forcedReadOnly = false,
     required this.cs,
-    required this.sagana,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final statusLabel = listingStatusLabel(l10n, listing.status);
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.of(context).padding.bottom + 12,
-          ),
+    final color = ListingStatusDisplay.color(context, listing.status);
+    return Container(
+      padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(top: BorderSide(color: sagana.glassBorder)),
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: color.withValues(alpha: 0.20)),
           ),
           child: Row(
             children: [
-              // Flexible: some status labels ("Kinakailangan ng
-              // Pagbabago" for changes_required) run much longer than the
-              // English source and this pill previously had no width
-              // limit of its own — without this it can overflow this Row
-              // on its own before the trailing message even gets a turn.
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _statusColor(
-                      context,
-                      listing.status,
-                      cs,
-                    ).withValues(alpha: 0.10),
+                color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _statusIcon(listing.status),
-                        size: 16,
-                        color: _statusColor(context, listing.status, cs),
-                      ),
+                  Icon(_statusIcon(listing.status), size: 16, color: color),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -1543,7 +1437,7 @@ class _ReadOnlyFooter extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: _statusColor(context, listing.status, cs),
+                        color: color,
                           ),
                         ),
                       ),
@@ -1565,13 +1459,8 @@ class _ReadOnlyFooter extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
-
-  Color _statusColor(BuildContext context, String s, ColorScheme cs) =>
-      ListingStatusDisplay.color(context, s);
 
   IconData _statusIcon(String s) {
     switch (s) {
@@ -1579,8 +1468,6 @@ class _ReadOnlyFooter extends StatelessWidget {
         return Icons.pending_actions_rounded;
       case 'approved':
         return Icons.check_circle_outline_rounded;
-      case 'changes_required':
-        return Icons.edit_note_rounded;
       case 'sold':
         return Icons.sell_outlined;
       case 'rejected':

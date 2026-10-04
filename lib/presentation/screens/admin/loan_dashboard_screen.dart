@@ -113,7 +113,9 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           AdminTopBar(
             title: l10n.loanDashTitle,
             onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
-            onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
+            onNotificationTap: () => context
+                .push(AppRoutes.adminNotifications)
+                .then((_) => _loadAll()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
             enableMenu: true,
           ),
@@ -164,7 +166,9 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                         else
                           ..._recentLoans.map(
                             (loan) => Padding(
-                              padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
+                              padding: const EdgeInsets.only(
+                                bottom: AppConstants.spacingMd,
+                              ),
                               child: _AdminLoanCard(
                                 loan: loan,
                                 l10n: l10n,
@@ -189,7 +193,9 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   }
 
   void _goToPayment([String? loanId]) {
-    context.push(AppRoutes.recordPayment, extra: loanId).then((_) => _loadAll());
+    context
+        .push(AppRoutes.recordPayment, extra: loanId)
+        .then((_) => _loadAll());
   }
 
   void _goToDetails(String loanId) {
@@ -211,7 +217,11 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     SaganaColors sagana,
   ) {
     final hasOverdue = _stats.overdueLoansCount > 0;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
 
     if (hasOverdue) {
       return Container(
@@ -221,7 +231,10 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           gradient: LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: [AppConstants.errorRed.withValues(alpha: 0.92), const Color(0xFFB71C1C)],
+            colors: [
+              AppConstants.errorRed.withValues(alpha: 0.92),
+              const Color(0xFFB71C1C),
+            ],
           ),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         ),
@@ -230,23 +243,38 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: AppConstants.spacingSm),
                 Text(
                   l10n.loanDashOverdueSection(_stats.overdueLoansCount),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 6),
             Text(
               currency.format(_stats.totalOverdueAmount),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 24, color: Colors.white),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 24,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               l10n.loanDashOverdueHeroSubtitle,
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
             ),
             const SizedBox(height: AppConstants.spacingMd),
             SizedBox(
@@ -256,12 +284,17 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: AppConstants.errorRed,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 child: Text(
                   l10n.loanDashReviewOverdue,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
@@ -286,7 +319,11 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.event_available_rounded, color: Colors.white, size: 20),
+              const Icon(
+                Icons.event_available_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               const SizedBox(width: AppConstants.spacingSm),
               Text(
                 l10n.loanDashNextCollection,
@@ -310,11 +347,17 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           const SizedBox(height: 4),
           Text(
             l10n.loanDashFarmersOutstanding(_stats.farmersOutstandingCount),
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
           ),
           Text(
             l10n.loanDashTotalExpected(amountLabel),
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
           ),
         ],
       ),
@@ -329,10 +372,16 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     final (thisMonth, lastMonth) = _paidCountTrend;
     final hasDelta = lastMonth > 0;
-    final deltaPercent = hasDelta ? ((thisMonth - lastMonth) / lastMonth * 100) : 0.0;
+    final deltaPercent = hasDelta
+        ? ((thisMonth - lastMonth) / lastMonth * 100)
+        : 0.0;
 
     return GridView.count(
       crossAxisCount: 2,
@@ -347,12 +396,30 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       // card reading as oversized.
       childAspectRatio: 1.5,
       children: [
-        _kpiCard(l10n.loanDashActiveLoans, '${_stats.activeLoansCount}', AppConstants.successGreen, cs, sagana,
-            icon: Icons.check_circle_rounded),
-        _kpiCard(l10n.loanDashTotalOutstanding, currency.format(_stats.totalOutstanding), AppConstants.buyerBlue, cs, sagana,
-            icon: Icons.account_balance_wallet_rounded),
-        _kpiCard(l10n.loanDashOverdueLoans, '${_stats.overdueLoansCount}', AppConstants.errorRed, cs, sagana,
-            icon: Icons.warning_amber_rounded),
+        _kpiCard(
+          l10n.loanDashActiveLoans,
+          '${_stats.activeLoansCount}',
+          AppConstants.successGreen,
+          cs,
+          sagana,
+          icon: Icons.check_circle_rounded,
+        ),
+        _kpiCard(
+          l10n.loanDashTotalOutstanding,
+          currency.format(_stats.totalOutstanding),
+          AppConstants.buyerBlue,
+          cs,
+          sagana,
+          icon: Icons.account_balance_wallet_rounded,
+        ),
+        _kpiCard(
+          l10n.loanDashOverdueLoans,
+          '${_stats.overdueLoansCount}',
+          AppConstants.errorRed,
+          cs,
+          sagana,
+          icon: Icons.warning_amber_rounded,
+        ),
         _kpiCard(
           l10n.loanDashPaidThisMonth,
           '${_stats.paidThisMonthCount}',
@@ -401,16 +468,22 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                 Row(
                   children: [
                     Icon(
-                      delta >= 0 ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                      delta >= 0
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded,
                       size: 11,
-                      color: delta >= 0 ? AppConstants.successGreen : AppConstants.errorRed,
+                      color: delta >= 0
+                          ? AppConstants.successGreen
+                          : AppConstants.errorRed,
                     ),
                     Text(
                       '${delta.abs().toStringAsFixed(0)}%',
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: delta >= 0 ? AppConstants.successGreen : AppConstants.errorRed,
+                        color: delta >= 0
+                            ? AppConstants.successGreen
+                            : AppConstants.errorRed,
                       ),
                     ),
                   ],
@@ -424,7 +497,11 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
               fit: BoxFit.scaleDown,
               child: Text(
                 value,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 21, color: cs.onSurface),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 21,
+                  color: cs.onSurface,
+                ),
               ),
             ),
           ),
@@ -461,7 +538,11 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -469,7 +550,11 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           onTap: onSeeAll,
           child: Text(
             l10n.loanDashSeeAll,
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: AppConstants.primaryGreen),
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppConstants.primaryGreen,
+            ),
           ),
         ),
       ],
@@ -479,7 +564,10 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   Widget _buildEmptyState(String message, ColorScheme cs, {String? subtitle}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingSectionV, horizontal: AppConstants.spacingGutter),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppConstants.spacingSectionV,
+        horizontal: AppConstants.spacingGutter,
+      ),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -489,16 +577,36 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           Container(
             width: 52,
             height: 52,
-            decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), shape: BoxShape.circle),
-            child: Icon(Icons.receipt_long_outlined, color: cs.primary, size: 24),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.receipt_long_outlined,
+              color: cs.primary,
+              size: 24,
+            ),
           ),
           const SizedBox(height: AppConstants.spacingMd),
-          Text(message, textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: cs.onSurface,
+            ),
+          ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
-            Text(subtitle, textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ],
         ],
       ),
@@ -542,12 +650,17 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
-      label: Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
+      label: Text(
+        label,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+      ),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppConstants.primaryGreen,
         side: const BorderSide(color: AppConstants.primaryGreen),
         minimumSize: const Size(double.infinity, 44),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
       ),
     );
   }
@@ -589,9 +702,18 @@ class _AdminLoanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     final initials = loan.farmerName.isNotEmpty
-        ? loan.farmerName.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join()
+        ? loan.farmerName
+              .trim()
+              .split(' ')
+              .map((p) => p.isNotEmpty ? p[0] : '')
+              .take(2)
+              .join()
         : '?';
 
     return GestureDetector(
@@ -606,7 +728,12 @@ class _AdminLoanCard extends StatelessWidget {
                 ? cs.error.withValues(alpha: 0.18)
                 : cs.outline.withValues(alpha: 0.10),
           ),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,7 +745,11 @@ class _AdminLoanCard extends StatelessWidget {
                   backgroundColor: AppConstants.primaryContainer,
                   child: Text(
                     initials.toUpperCase(),
-                    style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppConstants.spacingMd),
@@ -628,11 +759,18 @@ class _AdminLoanCard extends StatelessWidget {
                     children: [
                       Text(
                         loan.farmerName,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: cs.onSurface,
+                        ),
                       ),
                       Text(
-                        '${loan.memberId} • ${loan.referenceNo}',
-                        style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        loan.referenceNo,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -647,17 +785,29 @@ class _AdminLoanCard extends StatelessWidget {
                 runSpacing: 4,
                 children: loan.itemNames
                     .take(3)
-                    .map((name) => Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    .map(
+                      (name) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                           decoration: BoxDecoration(
-                            color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          color: cs.surfaceContainerHighest.withValues(
+                            alpha: 0.4,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
                           ),
                           child: Text(
                             name,
-                            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: cs.onSurfaceVariant,
                           ),
-                        ))
+                          ),
+                      ),
+                    )
                     .toList(),
               ),
             ],
@@ -665,7 +815,11 @@ class _AdminLoanCard extends StatelessWidget {
               const SizedBox(height: AppConstants.spacingSm),
               Row(
                 children: [
-                  Icon(Icons.eco_rounded, size: 13, color: AppConstants.programPurple),
+                  Icon(
+                    Icons.eco_rounded,
+                    size: 13,
+                    color: AppConstants.programPurple,
+                  ),
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
@@ -684,9 +838,21 @@ class _AdminLoanCard extends StatelessWidget {
             const SizedBox(height: AppConstants.spacingMd),
             Row(
               children: [
-                _statColumn(l10n.loanDashValue, currency.format(loan.totalValue), cs),
-                _statColumn(l10n.loanDashPaid, currency.format(loan.amountPaid), cs),
-                _statColumn(l10n.loanDashBalance, currency.format(loan.remainingBalance), cs),
+                _statColumn(
+                  l10n.loanDashValue,
+                  currency.format(loan.totalValue),
+                  cs,
+                ),
+                _statColumn(
+                  l10n.loanDashPaid,
+                  currency.format(loan.amountPaid),
+                  cs,
+                ),
+                _statColumn(
+                  l10n.loanDashBalance,
+                  currency.format(loan.remainingBalance),
+                  cs,
+                ),
               ],
             ),
             const SizedBox(height: AppConstants.spacingSm),
@@ -697,7 +863,9 @@ class _AdminLoanCard extends StatelessWidget {
                 minHeight: 6,
                 backgroundColor: cs.outline.withValues(alpha: 0.12),
                 valueColor: AlwaysStoppedAnimation(
-                  loan.isOverdue ? AppConstants.errorRed : AppConstants.successGreen,
+                  loan.isOverdue
+                      ? AppConstants.errorRed
+                      : AppConstants.successGreen,
                 ),
               ),
             ),
@@ -708,14 +876,18 @@ class _AdminLoanCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     loan.isOverdue && loan.nextPaymentDate != null
-                        ? l10n.loanDashOverdueSince(DateFormat('MMM d').format(loan.nextPaymentDate!))
+                        ? l10n.loanDashOverdueSince(
+                            DateFormat('MMM d').format(loan.nextPaymentDate!),
+                          )
                         : loan.nextPaymentDate != null
                             ? '${l10n.loanDashNext}: ${DateFormat('MMM d').format(loan.nextPaymentDate!)}'
                             : '',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: loan.isOverdue ? AppConstants.errorRed : cs.onSurfaceVariant,
+                      color: loan.isOverdue
+                          ? AppConstants.errorRed
+                          : cs.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -725,14 +897,20 @@ class _AdminLoanCard extends StatelessWidget {
                   onPressed: onPay,
                   tooltip: l10n.loanDashActionRecordPayment,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right_rounded, size: 22),
                   color: cs.onSurfaceVariant,
                   onPressed: onTap,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
               ],
             ),
@@ -744,8 +922,12 @@ class _AdminLoanCard extends StatelessWidget {
 
   Widget _statusBadge(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final color = loan.isOverdue ? AppConstants.errorRed : AppConstants.successGreen;
-    final label = loan.isOverdue ? l10n.farmerMgmtOverdueBadge : l10n.farmerMgmtActiveBadge;
+    final color = loan.isOverdue
+        ? AppConstants.errorRed
+        : AppConstants.successGreen;
+    final label = loan.isOverdue
+        ? l10n.farmerMgmtOverdueBadge
+        : l10n.farmerMgmtActiveBadge;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -754,7 +936,11 @@ class _AdminLoanCard extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+        style: GoogleFonts.poppins(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
       ),
     );
   }
@@ -764,10 +950,17 @@ class _AdminLoanCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+          ),
           Text(
             value,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              color: cs.onSurface,
+            ),
           ),
         ],
       ),
@@ -800,7 +993,8 @@ class _SyncIssuesCard extends StatelessWidget {
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 12,
-              offset: const Offset(0, 4)),
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -829,15 +1023,23 @@ class _SyncIssuesCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                   ),
                   child: Text(
                     l10n.buyerCartItemCount(issues.length),
                     style: GoogleFonts.inter(
-                        fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],
@@ -855,11 +1057,17 @@ class _SyncIssuesCard extends StatelessWidget {
                   onTap: () => onTap(issue),
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
-                        const Icon(Icons.sync_problem_rounded,
-                            color: AppConstants.warningAmber, size: 18),
+                        const Icon(
+                          Icons.sync_problem_rounded,
+                          color: AppConstants.warningAmber,
+                          size: 18,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -870,25 +1078,40 @@ class _SyncIssuesCard extends StatelessWidget {
                                     ? l10n.loanDashIssuanceFailedSync
                                     : l10n.loanDashPaymentFailedSync,
                                 style: GoogleFonts.poppins(
-                                    fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.onSurface,
+                                ),
                               ),
                               Text(
                                 issue['error'] as String,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: cs.onSurfaceVariant,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        Icon(Icons.chevron_right_rounded,
-                            color: AppConstants.warningAmber.withValues(alpha: 0.60), size: 18),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppConstants.warningAmber.withValues(
+                            alpha: 0.60,
+                          ),
+                          size: 18,
+                        ),
                       ],
                     ),
                   ),
                 ),
                 if (!isLast)
-                  Divider(height: 1, indent: 16, color: cs.outline.withValues(alpha: 0.08)),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    color: cs.outline.withValues(alpha: 0.08),
+                  ),
               ],
             );
           }),
@@ -910,7 +1133,11 @@ class _SyncIssueDetailDialog extends StatelessWidget {
     final failedAt = DateTime.tryParse(issue['failedAt'] as String? ?? '');
 
     return AlertDialog(
-      title: Text(isIssuance ? l10n.loanDashIssuanceFailedSync : l10n.loanDashPaymentFailedSync),
+      title: Text(
+        isIssuance
+            ? l10n.loanDashIssuanceFailedSync
+            : l10n.loanDashPaymentFailedSync,
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -919,7 +1146,9 @@ class _SyncIssueDetailDialog extends StatelessWidget {
           if (failedAt != null) ...[
             const SizedBox(height: 12),
             Text(
-              l10n.loanDashLastAttempted(DateFormat('MMM d, h:mm a').format(failedAt)),
+              l10n.loanDashLastAttempted(
+                DateFormat('MMM d, h:mm a').format(failedAt),
+              ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

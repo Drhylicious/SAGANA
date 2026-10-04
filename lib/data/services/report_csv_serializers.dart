@@ -48,7 +48,6 @@ String serializeSalesReportCsv(SalesReportData data) {
       'Selling Type',
       'Market Type',
       'Farmer Name',
-      'Member ID',
       'Crop Type',
       'Crop Name',
       'Quantity (kg)',
@@ -63,7 +62,6 @@ String serializeSalesReportCsv(SalesReportData data) {
         _sellingTypeLabel(t.sellingType),
         t.marketType ?? '',
         t.farmerName,
-        t.memberId,
         t.cropType,
         t.cropName,
         t.quantityKg.toStringAsFixed(2),
@@ -81,7 +79,6 @@ String _serializeInventoryBatchesCsv(InventoryReportData data) {
   buffer.writeln(
     _row([
       'Farmer Name',
-      'Member ID',
       'Crop',
       'Batch Number',
       'Available (kg)',
@@ -94,7 +91,6 @@ String _serializeInventoryBatchesCsv(InventoryReportData data) {
     buffer.writeln(
       _row([
         b.farmerName,
-        b.memberId,
         b.cropName,
         b.batchNumber,
         b.availableKg.toStringAsFixed(2),
@@ -120,25 +116,15 @@ String serializeHarvestReportCsv(
   final buffer = StringBuffer();
   buffer.writeln(_row(['Harvest Activity']));
   buffer.writeln(
-    _row([
-      'Date',
-      'Farmer Name',
-      'Member ID',
-      'Crop',
-      'Quantity (kg)',
-      'Submitted to Coop',
-      'Synced',
-    ]),
+    _row(['Date', 'Farmer Name', 'Crop', 'Quantity (kg)', 'Synced']),
   );
   for (final h in data.harvests) {
     buffer.writeln(
       _row([
         _dateFmt.format(h.harvestDate),
         h.farmerName,
-        h.memberId,
         h.cropName,
         h.quantityKg.toStringAsFixed(2),
-        h.submittedToCooperative ? 'Yes' : 'No',
         h.isSynced ? 'Yes' : 'No',
       ]),
     );
@@ -155,7 +141,6 @@ String serializeExpenseReportCsv(ExpenseReportData data) {
     _row([
       'Date',
       'Farmer Name',
-      'Member ID',
       'Category',
       'Description',
       'Amount (PHP)',
@@ -167,7 +152,6 @@ String serializeExpenseReportCsv(ExpenseReportData data) {
       _row([
         _dateFmt.format(e.expenseDate),
         e.farmerName,
-        e.memberId,
         e.category,
         e.description,
         e.isSubsidy ? '0.00' : e.amount.toStringAsFixed(2),
@@ -184,7 +168,6 @@ String serializeLoanReportCsv(List<AdminLoanSummary> loans) {
     _row([
       'Reference No',
       'Farmer Name',
-      'Member ID',
       'Issued Date',
       'Items',
       'Total Value (PHP)',
@@ -198,7 +181,6 @@ String serializeLoanReportCsv(List<AdminLoanSummary> loans) {
       _row([
         l.referenceNo,
         l.farmerName,
-        l.memberId,
         _dateFmt.format(l.issuedDate),
         l.itemNames.join('; '),
         l.totalValue.toStringAsFixed(2),
@@ -216,7 +198,6 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
   buffer.writeln(
     _row([
       'Farmer Name',
-      'Member ID',
       'Palay Qty (kg)',
       'Palay Amount (PHP)',
       'Peanut Qty (kg)',
@@ -231,7 +212,6 @@ String serializeMemberContributionReportCsv(MemberContributionReportData data) {
     buffer.writeln(
       _row([
         r.farmerName,
-        r.memberId,
         r.palayQtyKg.toStringAsFixed(2),
         r.palayAmount.toStringAsFixed(2),
         r.peanutQtyKg.toStringAsFixed(2),

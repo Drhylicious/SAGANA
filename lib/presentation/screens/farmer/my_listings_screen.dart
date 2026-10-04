@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,6 +15,7 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
+import 'farmer_marketplace_tab.dart';
 
 class MyListingsScreen extends StatefulWidget {
   const MyListingsScreen({super.key});
@@ -36,6 +36,15 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   int _unreadCount = 0;
   bool _isLoading = true;
   bool _isOnline = true;
+
+  // 0 = Marketplace (Phase 9 — farmer-as-buyer browsing of ALL approved
+  // listings, mirrors Buyer Browse), 1 = Listing (management —
+  // create/withdraw/resubmit this farmer's own listings; this was index 0
+  // and labeled "My Listings" before Phase 9's toggle rename to
+  // "Marketplace | Listing"). Deliberately an in-screen segmented control,
+  // not a new bottom-nav item or shell branch. Defaults to 1 (Listing) so
+  // landing on this tab keeps showing what a farmer previously saw first.
+  int _selectedTab = 1;
 
   @override
   void initState() {
@@ -113,75 +122,21 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
   // ── KPI computations ────────────────────────────────────────────────────
 
-  double get _activeMarketValue => _allListings
-      .where((l) => l.isLive)
-      .fold<double>(0, (sum, l) => sum + (l.pricePerKg * l.volumeKg));
+  // Realized value moved through this farmer's listings — the kg actually
+  // sold (volumeKg - remainingKg) times the listing's own price. Restricted
+  // to isLive/isSold: withdrawn and rejected listings also have
+  // remaining_kg reset to 0, but as a released reservation, not a sale —
+  // including them here would count every withdrawn/rejected listing's
+  // full original volume as "sold," which it wasn't.
+  double get _totalSold => _allListings
+      .where((l) => l.isLive || l.isSold)
+      .fold<double>(0, (sum, l) => sum + ((l.volumeKg - l.remainingKg) * l.pricePerKg));
 
   int get _liveCount => _countFor((l) => l.isLive);
 
-  int get _awaitingActionCount =>
-      _countFor((l) => l.isPending) + _countFor((l) => l.needsChanges);
-
-  List<MarketplaceListingModel> get _needsAttention =>
-      _allListings.where((l) => l.needsChanges).toList();
+  int get _pendingCount => _countFor((l) => l.isPending);
 
   // ── Actions ───────────────────────────────────────────────────────────────
-
-  void _confirmWithdraw(MarketplaceListingModel listing) {
-    if (!_isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
-          backgroundColor: AppConstants.warningAmber,
-        ),
-      );
-      return;
-    }
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        ),
-        title: Text(
-          'Withdraw Listing?',
-          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          '${listing.displayName} will be removed from the marketplace. You can create a new listing for this batch later.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: AppConstants.outline),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              await _repo.withdrawListing(listing.id);
-              if (!mounted) return;
-              _loadData();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.errorRed,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-            ),
-            child: Text('Withdraw', style: GoogleFonts.poppins(fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _confirmDelete(MarketplaceListingModel listing) {
     if (!_isOnline) {
@@ -256,46 +211,11 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     );
   }
 
-  void _showListingMenu(MarketplaceListingModel listing) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ListingMenuSheet(
-        listing: listing,
-        onWithdraw: () {
-          Navigator.pop(context);
-          _confirmWithdraw(listing);
-        },
-        onDelete: () {
-          Navigator.pop(context);
-          _confirmDelete(listing);
-        },
-      ),
-    );
-  }
-
-  void _viewLive(MarketplaceListingModel listing) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _ListingPreviewSheet(listing: listing),
-    );
-  }
-
-  void _editAndResubmit(MarketplaceListingModel listing) {
-    if (!_isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
-          backgroundColor: AppConstants.warningAmber,
-        ),
-      );
-      return;
-    }
-    context.pushRoute(AppRoutes.createListing, extra: listing).then((result) {
-      if (result == true) _loadData();
-    });
+  // Phase 12 — every card tap opens the parameterized detail screen
+  // regardless of status; Withdraw/Delete/Edit & Resubmit now live there
+  // instead of as inline card buttons or a bottom-sheet menu.
+  void _openDetail(MarketplaceListingModel listing) {
+    context.pushRoute(AppRoutes.myListingDetail, extra: listing);
   }
 
   void _handleFabTap() {
@@ -313,7 +233,6 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
-    final needsAttention = _needsAttention;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
@@ -333,6 +252,10 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
             onEditFarmDetails: () {
               Navigator.pop(context);
               context.pushRoute(AppRoutes.editFarmDetails);
+            },
+            onMyAddresses: () {
+              Navigator.pop(context);
+              context.pushRoute(AppRoutes.myAddresses);
             },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
@@ -359,49 +282,34 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(0, 16, 0, 100),
                     children: [
-                      // KPI overview
+                      // Marketplace / Listing — see _selectedTab's comment
+                      // for why this is in-screen state, not a new route or
+                      // bottom-nav item.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _ListingTabs(
+                          selected: _selectedTab,
+                          onSelected: (i) => setState(() => _selectedTab = i),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (_selectedTab == 1) ...[
+                      // Listing Overview — one consolidated card (stats +
+                      // priority actions) matching Admin Marketplace's own
+                      // Overview card, replacing the separate KPI-tile row
+                      // and standalone Needs Attention card from before.
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: _isLoading
-                            ? Row(
-                                children: const [
-                                  Expanded(child: _Shimmer(height: 92)),
-                                  SizedBox(width: 12),
-                                  Expanded(child: _Shimmer(height: 92)),
-                                ],
-                              )
-                            : _KpiRow(
-                                activeMarketValue: _activeMarketValue,
+                            ? const _Shimmer(height: 150)
+                            : _ListingOverviewCard(
                                 liveCount: _liveCount,
-                                awaitingActionCount: _awaitingActionCount,
+                                totalSold: _totalSold,
+                                pendingCount: _pendingCount,
+                                onPendingTap: () => _setFilter(ListingFilter.pending),
                               ),
                       ),
-
-                      // Needs attention
-                      if (!_isLoading && needsAttention.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: PriorityCard(
-                            items: needsAttention
-                                .map(
-                                  (l) => PriorityItem(
-                                    title: '${l.displayName} needs changes',
-                                    subtitle: (l.adminNotes != null &&
-                                            l.adminNotes!.isNotEmpty)
-                                        ? l.adminNotes
-                                        : 'Admin requested an update before this can go live',
-                                    icon: Icons.error_outline_rounded,
-                                    severity: PrioritySeverity.critical,
-                                    onTap: () => _editAndResubmit(l),
-                                  ),
-                                )
-                                .toList(),
-                            allClearTitle: '',
-                            allClearMessage: '',
-                          ),
-                        ),
-                      ],
 
                       const SizedBox(height: 16),
 
@@ -450,13 +358,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                                         ),
                                         child: _ListingCard(
                                           listing: listing,
-                                          onMenuTap: () =>
-                                              _showListingMenu(listing),
-                                          onWithdraw: () =>
-                                              _confirmWithdraw(listing),
-                                          onViewLive: () => _viewLive(listing),
-                                          onEditResubmit: () =>
-                                              _editAndResubmit(listing),
+                                          onTap: () => _openDetail(listing),
                                           onDelete: () =>
                                               _confirmDelete(listing),
                                         ),
@@ -465,6 +367,14 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                                     .toList(),
                               ),
                       ),
+                      ] else
+                        // Marketplace (Phase 9) — farmer-as-buyer browsing
+                        // of every approved listing on the platform
+                        // (including this farmer's own, shown but not
+                        // purchasable). Replaces the old read-only "Live
+                        // Listings" browse of just this farmer's own
+                        // listings, per the approved redesign proposal.
+                        const FarmerMarketplaceTab(),
                     ],
                   ),
                 ),
@@ -476,7 +386,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'Marketplace',
+              title: _selectedTab == 0 ? 'Marketplace' : 'Listings',
               unreadCount: _unreadCount,
               hideProfileAvatar: true,
               onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
@@ -490,27 +400,36 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
           ),
         ],
       ),
-      floatingActionButton: _CreateListingFab(
-        isOnline: _isOnline,
-        onTap: _handleFabTap,
-      ),
+      // Creating a listing only makes sense from the Listing (management)
+      // tab — hidden on Marketplace, matching Buyer Browse having no
+      // equivalent create action either.
+      floatingActionButton: _selectedTab == 1
+          ? _CreateListingFab(isOnline: _isOnline, onTap: _handleFabTap)
+          : null,
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KPI Row
+// Listing Overview — consolidated card matching Admin Marketplace's own
+// Overview treatment (_MarketplaceOverviewCard): accent bar + title + count
+// badge, a compact stat row, then a tappable priority-item list. Replaces
+// the separate 3-tile KPI row and standalone Needs Attention PriorityCard
+// this screen used before — Admin's pattern puts everything important in
+// one card, not several stacked ones.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _KpiRow extends StatelessWidget {
-  final double activeMarketValue;
+class _ListingOverviewCard extends StatelessWidget {
   final int liveCount;
-  final int awaitingActionCount;
+  final double totalSold;
+  final int pendingCount;
+  final VoidCallback onPendingTap;
 
-  const _KpiRow({
-    required this.activeMarketValue,
+  const _ListingOverviewCard({
     required this.liveCount,
-    required this.awaitingActionCount,
+    required this.totalSold,
+    required this.pendingCount,
+    required this.onPendingTap,
   });
 
   String _formatCurrency(double v) {
@@ -518,84 +437,194 @@ class _KpiRow extends StatelessWidget {
     return v.toStringAsFixed(0);
   }
 
+  int get _priorityCount => pendingCount > 0 ? 1 : 0;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Active Market Value',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppConstants.onSurfaceVariant,
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+      decoration: flatCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(4)),
+              ),
+              const SizedBox(width: 10),
+              Text('Listing Overview', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
+              const Spacer(),
+              if (_priorityCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppConstants.warningAmber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   ),
+                  child: Text('$_priorityCount',
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.warningAmber)),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '₱${_formatCurrency(activeMarketValue)}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.primaryGreen,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '$liveCount live on market',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
-                  ),
-                ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _statMini(icon: Icons.storefront_outlined, label: 'Live Listings', value: '$liveCount')),
+              Container(width: 1, height: 34, color: cs.outline.withValues(alpha: 0.15)),
+              Expanded(child: _statMini(icon: Icons.payments_outlined, label: 'Total Sold', value: '₱${_formatCurrency(totalSold)}')),
+            ],
+          ),
+          if (_priorityCount > 0) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+            const SizedBox(height: 6),
+            if (pendingCount > 0)
+              _PriorityRow(
+                icon: Icons.pending_actions_rounded,
+                color: AppConstants.warningAmber,
+                title: '$pendingCount listing${pendingCount == 1 ? '' : 's'} pending review',
+                subtitle: 'Awaiting admin decision',
+                onTap: onPendingTap,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statMini({required IconData icon, required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: AppConstants.primaryGreen),
+              const SizedBox(width: 5),
+              Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(value, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriorityRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _PriorityRow({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: Icon(icon, size: 16, color: color),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.charcoal),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, size: 18, color: AppConstants.outline),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Listing Tabs — Marketplace / Listing segmented control (Phase 9 toggle
+// rename; was My Listings / Live Listings).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ListingTabs extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  const _ListingTabs({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.50),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _tab(context, 0, 'Marketplace')),
+          Expanded(child: _tab(context, 1, 'Listing')),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab(BuildContext context, int index, String label) {
+    final isActive = selected == index;
+    return GestureDetector(
+      onTap: () => onSelected(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? Theme.of(context).colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: isActive
+                ? Theme.of(context).colorScheme.onPrimary
+                : Theme.of(context).colorScheme.outline,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Awaiting Action',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppConstants.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '$awaitingActionCount',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: awaitingActionCount > 0
-                        ? AppConstants.warningAmber
-                        : AppConstants.charcoal,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  awaitingActionCount > 0
-                      ? 'Pending review or changes'
-                      : 'All caught up',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -665,6 +694,29 @@ class _FilterChips extends StatelessWidget {
     required this.onSelected,
   });
 
+  // "All" keeps its own solid-primary treatment (matching every other
+  // active chip's prior look) since it doesn't represent one specific
+  // status. Every real status chip is colored via the same
+  // ListingStatusDisplay.color() mapping _StatusBadge already uses, so a
+  // farmer sees the same color language on the filter row as on the cards
+  // themselves — the thing the filter chips previously didn't do at all.
+  Color _statusColorFor(BuildContext context, ListingFilter f) {
+    switch (f) {
+      case ListingFilter.all:
+        return Theme.of(context).colorScheme.primary;
+      case ListingFilter.pending:
+        return ListingStatusDisplay.color(context, 'pending_review');
+      case ListingFilter.live:
+        return ListingStatusDisplay.color(context, 'approved');
+      case ListingFilter.withdrawn:
+        return ListingStatusDisplay.color(context, 'withdrawn');
+      case ListingFilter.rejected:
+        return ListingStatusDisplay.color(context, 'rejected');
+      case ListingFilter.sold:
+        return ListingStatusDisplay.color(context, 'sold');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -672,10 +724,12 @@ class _FilterChips extends StatelessWidget {
       child: Row(
         children: ListingFilter.values.map((f) {
           final isActive = f == active;
+          final isAll = f == ListingFilter.all;
           final count = countFor(f);
           final label = (f != ListingFilter.all && count > 0)
               ? '${f.label} ($count)'
               : f.label;
+          final statusColor = _statusColorFor(context, f);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
@@ -688,25 +742,30 @@ class _FilterChips extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: isActive
-                      ? Theme.of(context).colorScheme.primary
+                      ? (isAll
+                          ? Theme.of(context).colorScheme.primary
+                          : statusColor.withValues(alpha: 0.15))
                       : Theme.of(context).colorScheme.surfaceContainerHighest
                             .withValues(alpha: 0.70),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                   border: Border.all(
                     color: isActive
-                        ? Theme.of(context).colorScheme.primary
+                        ? statusColor
                         : Theme.of(
                             context,
                           ).colorScheme.outline.withValues(alpha: 0.20),
+                    width: isActive ? 1.5 : 1,
                   ),
                 ),
                 child: Text(
                   label,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: isActive
-                        ? Theme.of(context).colorScheme.onPrimary
+                        ? (isAll
+                            ? Theme.of(context).colorScheme.onPrimary
+                            : statusColor)
                         : Theme.of(context).colorScheme.outline,
                   ),
                 ),
@@ -725,79 +784,38 @@ class _FilterChips extends StatelessWidget {
 
 class _ListingCard extends StatelessWidget {
   final MarketplaceListingModel listing;
-  final VoidCallback onMenuTap;
-  final VoidCallback onWithdraw;
-  final VoidCallback onViewLive;
-  final VoidCallback onEditResubmit;
+  final VoidCallback onTap;
   final VoidCallback onDelete;
 
   const _ListingCard({
     required this.listing,
-    required this.onMenuTap,
-    required this.onWithdraw,
-    required this.onViewLive,
-    required this.onEditResubmit,
+    required this.onTap,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = listing.isPending
-        ? AppConstants.warningAmber
-        : listing.needsChanges
-        ? AppConstants.errorRed
-        : null;
+    final borderColor = listing.isPending ? AppConstants.warningAmber : null;
 
     return Opacity(
       opacity: listing.isWithdrawn ? 0.65 : 1.0,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outlineVariant.withValues(alpha: 0.30),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: flatCardDecoration(context),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (borderColor != null)
+                Container(width: 4, color: borderColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: _StandardContent(listing: listing, onDelete: onDelete),
+                ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.shadow.withValues(alpha: 0.05),
-                  blurRadius: 12,
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (borderColor != null)
-                  Container(width: 4, color: borderColor),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: listing.needsChanges
-                        ? _ChangesRequiredContent(
-                            listing: listing,
-                            onEditResubmit: onEditResubmit,
-                            onWithdraw: onWithdraw,
-                          )
-                        : _StandardContent(
-                            listing: listing,
-                            onMenuTap: onMenuTap,
-                            onWithdraw: onWithdraw,
-                            onViewLive: onViewLive,
-                          ),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -807,378 +825,134 @@ class _ListingCard extends StatelessWidget {
 
 class _StandardContent extends StatelessWidget {
   final MarketplaceListingModel listing;
-  final VoidCallback onMenuTap;
-  final VoidCallback onWithdraw;
-  final VoidCallback onViewLive;
+  final VoidCallback onDelete;
 
   const _StandardContent({
     required this.listing,
-    required this.onMenuTap,
-    required this.onWithdraw,
-    required this.onViewLive,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    // Phase 12 — every action (Withdraw/Edit & Resubmit/Delete) now lives
+    // on the parameterized detail screen the whole card taps through to.
+    // The 3-dot menu here is a Manage-Inventory-style quick action
+    // (PopupMenuButton, not a bottom sheet), and only for Withdrawn/
+    // Rejected — the two statuses whose only remaining action is Delete,
+    // per the approved redesign.
+    final showMenu = listing.isWithdrawn || listing.isRejected;
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _PhotoThumb(listing: listing),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        _PhotoThumb(listing: listing),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _StatusBadge(status: listing.status),
-                      if (listing.isPending)
-                        Text(
-                          DateFormat('MMM d, yyyy').format(listing.createdAt),
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.outline,
-                          ),
-                        )
-                      else
-                        GestureDetector(
-                          onTap: onMenuTap,
-                          child: const Icon(
-                            Icons.more_vert_rounded,
-                            size: 20,
-                            color: AppConstants.outline,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    listing.displayName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: listing.isWithdrawn
-                          ? AppConstants.outline
-                          : AppConstants.charcoal,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '₱${listing.pricePerKg.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: listing.isWithdrawn
-                              ? AppConstants.outline
-                              : AppConstants.primaryGreen,
-                        ),
-                      ),
-                      Text(
-                        '/kg',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AppConstants.outline,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    listing.isLive && listing.submittedAt != null
-                        ? 'Volume: ${listing.volumeKg.toStringAsFixed(0)} kg • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
-                        : listing.isWithdrawn
-                        ? '₱${listing.pricePerKg.toStringAsFixed(2)}/kg • ${listing.volumeKg.toStringAsFixed(0)} kg'
-                        : 'Volume: ${listing.volumeKg.toStringAsFixed(0)} kg',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppConstants.outline,
-                    ),
-                  ),
-                  if (listing.isWithdrawn && listing.updatedAt != null) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.history_rounded,
-                          size: 13,
-                          color: AppConstants.outline,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Removed on ${DateFormat('MMM d, yyyy').format(listing.updatedAt!)}',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.outline,
-                          ),
+                  _StatusBadge(status: listing.status),
+                  if (showMenu)
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppConstants.outline),
+                      onSelected: (value) {
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: _menuRow(Icons.delete_outline_rounded, 'Delete Listing', AppConstants.errorRed),
                         ),
                       ],
+                    )
+                  else
+                    Text(
+                      DateFormat('MMM d, yyyy').format(listing.createdAt),
+                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
                     ),
-                  ],
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                listing.displayName,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: listing.isWithdrawn ? AppConstants.outline : AppConstants.charcoal,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '₱${listing.pricePerKg.toStringAsFixed(2)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: listing.isWithdrawn ? AppConstants.outline : AppConstants.primaryGreen,
+                    ),
+                  ),
+                  Text('/kg', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                listing.isLive && listing.submittedAt != null
+                    ? 'Volume: ${listing.volumeKg.toStringAsFixed(0)} kg • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
+                    : listing.isWithdrawn
+                    ? '₱${listing.pricePerKg.toStringAsFixed(2)}/kg • ${listing.volumeKg.toStringAsFixed(0)} kg'
+                    : 'Volume: ${listing.volumeKg.toStringAsFixed(0)} kg',
+                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
+              ),
+              if (listing.isWithdrawn && listing.updatedAt != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.history_rounded, size: 13, color: AppConstants.outline),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Removed on ${DateFormat('MMM d, yyyy').format(listing.updatedAt!)}',
+                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
         ),
-        if (listing.isPending || listing.isLive) ...[
-          const SizedBox(height: 14),
-          StatusStepper.forListingStatus(listing.status),
-        ],
-        if (listing.isPending) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: onWithdraw,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppConstants.outline,
-                side: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.40),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-              ),
-              child: Text(
-                'Withdraw Listing',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        ] else if (listing.isLive) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: onViewLive,
-              icon: const Icon(Icons.visibility_outlined, size: 18),
-              label: Text(
-                'View Live',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.primaryContainer,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
+        const Padding(
+          padding: EdgeInsets.only(top: 4, left: 4),
+          child: Icon(Icons.chevron_right_rounded, size: 18, color: AppConstants.outline),
+        ),
       ],
     );
   }
 }
 
-class _ChangesRequiredContent extends StatelessWidget {
-  final MarketplaceListingModel listing;
-  final VoidCallback onEditResubmit;
-  final VoidCallback onWithdraw;
-
-  const _ChangesRequiredContent({
-    required this.listing,
-    required this.onEditResubmit,
-    required this.onWithdraw,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                _PhotoThumb(listing: listing, dimmed: true),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.error.withValues(alpha: 0.20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.error_rounded,
-                        color: Theme.of(context).colorScheme.onError,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _StatusBadge(status: listing.status),
-                      Text(
-                        DateFormat('MMM d, yyyy').format(listing.createdAt),
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AppConstants.outline,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    listing.displayName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: AppConstants.charcoal,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '₱${listing.pricePerKg.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.primaryGreen,
-                        ),
-                      ),
-                      Text(
-                        '/kg',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AppConstants.outline,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        if (listing.adminNotes != null && listing.adminNotes!.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppConstants.errorRed.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(
-                color: AppConstants.errorRed.withValues(alpha: 0.20),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.info_outline_rounded,
-                  size: 18,
-                  color: AppConstants.errorRed,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                        height: 1.4,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'Admin: ',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                        ),
-                        TextSpan(text: listing.adminNotes),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 12),
-
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: onEditResubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Edit & Resubmit',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextButton(
-                onPressed: onWithdraw,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppConstants.errorRed,
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                ),
-                child: Text(
-                  'Withdraw',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+/// Icon+label row for a PopupMenuItem — matches Manage Inventory's own
+/// 3-dot menu-row pattern (_batchMenuRow), the reference this screen's menu
+/// follows per the approved redesign.
+Widget _menuRow(IconData icon, String label, Color color) {
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 18, color: color),
+      const SizedBox(width: 10),
+      Text(label, style: GoogleFonts.inter(fontSize: 13, color: color)),
+    ],
+  );
 }
 
 class _PhotoThumb extends StatelessWidget {
   final MarketplaceListingModel listing;
-  final bool dimmed;
 
-  const _PhotoThumb({required this.listing, this.dimmed = false});
+  const _PhotoThumb({required this.listing});
 
   @override
   Widget build(BuildContext context) {
@@ -1188,13 +962,10 @@ class _PhotoThumb extends StatelessWidget {
         width: 76,
         height: 76,
         child: listing.photoUrl != null
-            ? Opacity(
-                opacity: dimmed ? 0.60 : 1.0,
-                child: Image.network(
-                  listing.photoUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _FallbackThumb(),
-                ),
+            ? Image.network(
+                listing.photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _FallbackThumb(),
               )
             : _FallbackThumb(),
       ),
@@ -1230,16 +1001,11 @@ class _StatusBadge extends StatelessWidget {
     switch (status) {
       case 'pending_review':
         label = 'PENDING REVIEW';
-        bg = AppConstants.warningAmber.withValues(alpha: 0.20);
-        fg = Theme.of(context).colorScheme.onSecondaryContainer;
-        break;
-      case 'approved':
-        label = 'LIVE ON MARKET';
         fg = ListingStatusDisplay.color(context, status);
         bg = fg.withValues(alpha: 0.20);
         break;
-      case 'changes_required':
-        label = 'CHANGES REQUIRED';
+      case 'approved':
+        label = 'LIVE ON MARKET';
         fg = ListingStatusDisplay.color(context, status);
         bg = fg.withValues(alpha: 0.20);
         break;
@@ -1277,230 +1043,6 @@ class _StatusBadge extends StatelessWidget {
           color: fg,
           letterSpacing: 0.5,
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Listing Preview Sheet (View Live)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ListingPreviewSheet extends StatelessWidget {
-  final MarketplaceListingModel listing;
-  const _ListingPreviewSheet({required this.listing});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: AppConstants.outline.withValues(alpha: 0.30),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            child: SizedBox(
-              width: double.infinity,
-              height: 160,
-              child: listing.photoUrl != null
-                  ? Image.network(
-                      listing.photoUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _FallbackThumb(),
-                    )
-                  : _FallbackThumb(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            listing.displayName,
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '₱${listing.pricePerKg.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
-                ),
-              ),
-              Text(
-                '/kg',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: AppConstants.outline,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${listing.volumeKg.toStringAsFixed(0)} kg available',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: AppConstants.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppConstants.successGreen.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppConstants.successGreen,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'This listing is live and visible to buyers on the marketplace.',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppConstants.successGreen,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Listing Menu Sheet (three-dot)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ListingMenuSheet extends StatelessWidget {
-  final MarketplaceListingModel listing;
-  final VoidCallback onWithdraw;
-  final VoidCallback onDelete;
-
-  const _ListingMenuSheet({
-    required this.listing,
-    required this.onWithdraw,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppConstants.radiusXl),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: AppConstants.outline.withValues(alpha: 0.30),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Text(
-            listing.displayName,
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const Divider(height: 20),
-          if (listing.isLive)
-            _MenuOption(
-              icon: Icons.remove_circle_outline_rounded,
-              label: 'Withdraw Listing',
-              onTap: onWithdraw,
-            ),
-          if (listing.isWithdrawn || listing.isRejected)
-            _MenuOption(
-              icon: Icons.delete_outline_rounded,
-              label: 'Delete Listing',
-              color: AppConstants.errorRed,
-              onTap: onDelete,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MenuOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-  final VoidCallback onTap;
-
-  const _MenuOption({
-    required this.icon,
-    required this.label,
-    this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        tileColor: Colors.transparent,
-        leading: Icon(
-          icon,
-          color: color ?? AppConstants.onSurfaceVariant,
-          size: 22,
-        ),
-        title: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: color ?? AppConstants.onSurface,
-          ),
-        ),
-        onTap: onTap,
       ),
     );
   }

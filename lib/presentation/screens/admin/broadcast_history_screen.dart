@@ -7,25 +7,39 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/broadcast_model.dart';
 import '../../../data/repositories/broadcast_repository.dart';
+import '../../widgets/app_dropdown_field.dart';
+
+const String _allCategoriesValue = '__all__';
 
 String recipientTypeLabel(AppLocalizations l10n, RecipientType type) {
   switch (type) {
-    case RecipientType.allMembers:       return l10n.recipientTypeAllMembers;
-    case RecipientType.allBuyers:        return l10n.recipientTypeAllBuyers;
-    case RecipientType.outstandingLoans: return l10n.recipientTypeOutstandingLoans;
-    case RecipientType.specificCrop:     return l10n.recipientTypeSpecificCrop;
-    case RecipientType.specificFarmer:   return l10n.recipientTypeSpecificFarmer;
-    case RecipientType.specificBuyer:    return l10n.recipientTypeSpecificBuyer;
+    case RecipientType.allMembers:
+      return l10n.recipientTypeAllMembers;
+    case RecipientType.allBuyers:
+      return l10n.recipientTypeAllBuyers;
+    case RecipientType.outstandingLoans:
+      return l10n.recipientTypeOutstandingLoans;
+    case RecipientType.specificCrop:
+      return l10n.recipientTypeSpecificCrop;
+    case RecipientType.specificFarmer:
+      return l10n.recipientTypeSpecificFarmer;
+    case RecipientType.specificBuyer:
+      return l10n.recipientTypeSpecificBuyer;
   }
 }
 
 String broadcastCategoryLabel(AppLocalizations l10n, BroadcastCategory cat) {
   switch (cat) {
-    case BroadcastCategory.meeting:   return l10n.broadcastCategoryMeeting;
-    case BroadcastCategory.financial: return l10n.broadcastCategoryFinancial;
-    case BroadcastCategory.harvest:   return l10n.broadcastCategoryHarvest;
-    case BroadcastCategory.update:    return l10n.broadcastCategoryUpdate;
-    case BroadcastCategory.general:   return l10n.broadcastCategoryGeneral;
+    case BroadcastCategory.meeting:
+      return l10n.broadcastCategoryMeeting;
+    case BroadcastCategory.financial:
+      return l10n.broadcastCategoryFinancial;
+    case BroadcastCategory.harvest:
+      return l10n.broadcastCategoryHarvest;
+    case BroadcastCategory.update:
+      return l10n.broadcastCategoryUpdate;
+    case BroadcastCategory.general:
+      return l10n.broadcastCategoryGeneral;
   }
 }
 
@@ -124,33 +138,26 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<BroadcastCategory?>(
-                  initialValue: _selectedCategory,
-                  decoration: InputDecoration(
+                AppDropdownField<String>(
+                  value: _selectedCategory?.value ?? _allCategoriesValue,
+                  hintText: l10n.broadcastHistoryCategoryLabel,
                     labelText: l10n.broadcastHistoryCategoryLabel,
-                    filled: true,
-                    fillColor: sagana.cardBackground,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusLg,
-                      ),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
                   items: [
-                    DropdownMenuItem<BroadcastCategory?>(
-                      value: null,
-                      child: Text(l10n.broadcastHistoryAllCategories),
-                    ),
-                    ...BroadcastCategory.values.map(
-                      (cat) => DropdownMenuItem<BroadcastCategory?>(
-                        value: cat,
-                        child: Text(broadcastCategoryLabel(l10n, cat)),
-                      ),
-                    ),
+                    _allCategoriesValue,
+                    ...BroadcastCategory.values.map((cat) => cat.value),
                   ],
-                  onChanged: (value) =>
-                      setState(() => _selectedCategory = value),
+                  itemLabel: (v) => v == _allCategoriesValue
+                      ? l10n.broadcastHistoryAllCategories
+                      : broadcastCategoryLabel(
+                          l10n,
+                          BroadcastCategoryExt.fromString(v),
+                        ),
+                  onChanged: (value) => setState(() {
+                    _selectedCategory =
+                        value == null || value == _allCategoriesValue
+                        ? null
+                        : BroadcastCategoryExt.fromString(value);
+                  }),
                 ),
               ],
             ),

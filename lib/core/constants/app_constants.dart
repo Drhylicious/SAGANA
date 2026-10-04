@@ -9,7 +9,8 @@ class AppConstants {
 
   static const String appSubtitle = 'Streamlined Agricultural Gateway';
   static const String cooperativeName = 'SP3 Agriculture Cooperative';
-  static const String cooperativeLocation = 'Barangay Payanas, Torrijos, Marinduque';
+  static const String cooperativeLocation =
+      'Barangay Payanas, Torrijos, Marinduque';
 
   // ─── Assets ─────────────────────────────────────────────────────────────────
   static const String logoPath = 'assets/images/sagana_logo.png';
@@ -41,6 +42,14 @@ class AppConstants {
   static const Color onTertiaryContainer = Color(0xFF7CDB7A);
   static const Color tertiaryContainer = Color(0xFF006017);
   static const Color programPurple = Color(0xFF8E24AA);
+  // Phase 11 — Withdrawn and Sold previously both rendered as muted greys
+  // (cs.outline / cs.onSurfaceVariant), indistinguishable from each other
+  // and from a plain "inactive" state next to the amber/green/red used by
+  // every other listing status. These are still deliberately muted (both
+  // statuses are less urgent than pending/changes-required), just no
+  // longer visually identical.
+  static const Color mutedSlate = Color(0xFF546E7A); // withdrawn
+  static const Color mutedBrown = Color(0xFF8D6E63); // sold
 
   // ─── Gradients ───────────────────────────────────────────────────────────────
   static const LinearGradient splashGradient = LinearGradient(
@@ -69,6 +78,29 @@ class AppConstants {
   static const double radiusXl = 20.0;
   static const double radiusFull = 9999.0;
 
+  // ─── Card Depth (border + shadow) ─────────────────────────────────────────────
+  // A subtle hairline border ALONGSIDE a soft shadow, applied together —
+  // the border keeps a card's edges legible at high screen brightness
+  // (where a shadow alone becomes hard to perceive), while the shadow still
+  // supplies depth at normal brightness. Used consistently across the
+  // Buyer marketplace flow (Browse, Listing Details, Cart, Checkout, My
+  // Addresses) so every card reads the same way regardless of viewing
+  // conditions.
+  static Border get cardBorder =>
+      Border.all(color: outline.withValues(alpha: 0.10));
+  static List<BoxShadow> get cardShadow => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      blurRadius: 20,
+      offset: const Offset(0, 6),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 4,
+      offset: const Offset(0, 1),
+    ),
+  ];
+
   // ─── Animation Durations ─────────────────────────────────────────────────────
   static const Duration splashLogoDelay = Duration(milliseconds: 200);
   static const Duration splashLogoDuration = Duration(milliseconds: 800);
@@ -77,15 +109,13 @@ class AppConstants {
   static const Duration splashBarDuration = Duration(milliseconds: 1200);
   static const Duration splashNavDelay = Duration(milliseconds: 2200);
 
-  // ─── Puroks of Barangay Payanas ───────────────────────────────────────────────
-  static const List<String> payanasPuroks = [
-    'Purok 1 — Centro 1',
-    'Purok 2 — Centro 2',
-    'Purok 3 — Centro 3',
-    'Purok 4 — Kailugan',
-    'Purok 5 — Binubungan',
-    'Purok 6 — Tigas',
-    'Purok 7 — Manggahan',
+  // Address label chip options (My Addresses). Adding or renaming a label
+  // means editing this one list, not the Add/Edit Address screen's widget tree.
+  static const List<String> buyerAddressLabels = [
+    'Home',
+    'Work',
+    'Farm',
+    'Other',
   ];
 
   static const List<String> loanItemUnits = [
@@ -96,6 +126,12 @@ class AppConstants {
     'liter',
   ];
 
+  // ─── Harvest Storage Locations ──────────────────────────────────────────────
+  // Where harvested inventory is physically stored. SP3 confirmed (face to
+  // face) there is currently only one storage location cooperative-wide —
+  // kept as its own list, so more locations can be added later.
+  static const List<String> harvestStorageLocations = ['Purok 2 – Centro'];
+
   // ─── User Roles ──────────────────────────────────────────────────────────────
   static const String roleAdmin = 'admin';
   static const String roleFarmer = 'farmer';
@@ -105,11 +141,16 @@ class AppConstants {
   static const String hiveBoxUser = 'user_box';
   static const String hiveBoxPrices = 'prices_box';
   static const String hiveBoxSettings = 'settings_box';
-  static const String hiveBoxLoanQueue = 'loan_queue_box'; // NEW — offline loan issuance queue
-  static const String hiveBoxExportHistory = 'export_history_box'; // NEW — Export Center's Recent Exports
-  static const String hiveBoxHarvestQueue = 'harvest_queue_box'; // NEW — offline harvest submissions
-  static const String hiveBoxExpenseQueue = 'expense_queue_box'; // NEW — offline expense submissions (Phase 2 / U2)
-  static const String hiveBoxCart = 'cart_box'; // NEW — local-only buyer cart, no Supabase table
+  static const String hiveBoxLoanQueue =
+      'loan_queue_box'; // NEW — offline loan issuance queue
+  static const String hiveBoxExportHistory =
+      'export_history_box'; // NEW — Export Center's Recent Exports
+  static const String hiveBoxHarvestQueue =
+      'harvest_queue_box'; // NEW — offline harvest submissions
+  static const String hiveBoxExpenseQueue =
+      'expense_queue_box'; // NEW — offline expense submissions (Phase 2 / U2)
+  static const String hiveBoxCart =
+      'cart_box'; // NEW — local-only buyer cart, no Supabase table
 
   // ─── Hive Keys ───────────────────────────────────────────────────────────────
   static const String hiveKeyUserRole = 'user_role';

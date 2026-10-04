@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
@@ -42,14 +43,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySub;
 
-  DateTime _calendarMonth =
-      DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime _calendarMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
     super.initState();
     _isOnline = ConnectivityService.instance.isOnline;
-    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
     _loadAll();
@@ -69,17 +70,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
-    _repo.clearDashboardCache(); // Phase 5, item 5.1 — fresh data every cycle, not stale reuse
+    _repo
+        .clearDashboardCache(); // Phase 5, item 5.1 — fresh data every cycle, not stale reuse
     final results = await Future.wait([
       _repo.fetchKpiSummary(),
       _repo.fetchDashboardPriorities(),
-      _repo.fetchRecentActivity(limit: 5), // Dashboard preview kept compact per your request — Activity Log's own call is separate and untouched
+      _repo.fetchRecentActivity(
+        limit: 5,
+      ), // Dashboard preview kept compact per your request — Activity Log's own call is separate and untouched
       _repo.fetchCoopPerformance(),
       _repo.fetchInventoryAlerts(),
       _repo.fetchManagementModuleBadges(),
       _repo.fetchCalendarEvents(
-          year: _calendarMonth.year, month: _calendarMonth.month),
-      _repo.fetchUnreadCount(),
+        year: _calendarMonth.year,
+        month: _calendarMonth.month,
+      ),
+      NotificationRepository().fetchUnreadCount(),
       _repo.fetchAdminFirstName(),
     ]);
     if (!mounted) return;
@@ -99,11 +105,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _changeCalendarMonth(int delta) async {
-    final next = DateTime(
-        _calendarMonth.year, _calendarMonth.month + delta);
+    final next = DateTime(_calendarMonth.year, _calendarMonth.month + delta);
     setState(() => _calendarMonth = next);
     final events = await _repo.fetchCalendarEvents(
-        year: next.year, month: next.month);
+      year: next.year,
+      month: next.month,
+    );
     if (mounted) setState(() => _calendarEvents = events);
   }
 
@@ -114,9 +121,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (useGo) {
       context.go(route);
     } else if (extra != null) {
-      context.push(route, extra: extra);
+      context.push(route, extra: extra).then((_) {
+        if (mounted) _loadAll();
+      });
     } else {
-      context.push(route);
+      // Refresh on return — this screen only loads once (initState), and
+      // the Dashboard route uses StatefulShellRoute.indexedStack, which
+      // keeps it alive rather than rebuilding it, so badge counts (e.g.
+      // "Crop Requests", crop count) otherwise stay stale after an admin
+      // approves/edits something in a pushed module and comes back.
+      context.push(route).then((_) {
+        if (mounted) _loadAll();
+      });
     }
   }
 
@@ -161,15 +177,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         context.push(AppRoutes.cropRequestApproval);
       case AdminActivityType.logged:
         switch (item.sourceModule) {
-          case 'inventory': context.push(AppRoutes.adminInventory);
-          case 'crops':     context.push(AppRoutes.cropManagement);
-          case 'programs':  context.push(AppRoutes.programManagement);
-          case 'loans':     context.push(AppRoutes.loanItemManagement);
-          case 'prices':    context.push(AppRoutes.priceManagement);
-          case 'market_linking': context.push(AppRoutes.marketLinking);
-          case 'offers':    context.push(AppRoutes.offerToCooperative);
-          case 'broadcast': context.push(AppRoutes.broadcastHistory);
-          case 'profile':   context.push(AppRoutes.adminProfile);
+          case 'inventory':
+            context.push(AppRoutes.adminInventory);
+          case 'crops':
+            context.push(AppRoutes.cropManagement);
+          case 'programs':
+            context.push(AppRoutes.programManagement);
+          case 'loans':
+            context.push(AppRoutes.loanItemManagement);
+          case 'prices':
+            context.push(AppRoutes.priceManagement);
+          case 'market_linking':
+            context.push(AppRoutes.marketLinking);
+          case 'offers':
+            context.push(AppRoutes.offerToCooperative);
+          case 'broadcast':
+            context.push(AppRoutes.broadcastHistory);
+          case 'profile':
+            context.push(AppRoutes.adminProfile);
         }
     }
   }
@@ -185,14 +210,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   String _formattedDate(AppLocalizations l10n) {
     final months = [
-      l10n.adminCalMonthJan, l10n.adminCalMonthFeb, l10n.adminCalMonthMar,
-      l10n.adminCalMonthApr, l10n.adminCalMonthMay, l10n.adminCalMonthJun,
-      l10n.adminCalMonthJul, l10n.adminCalMonthAug, l10n.adminCalMonthSep,
-      l10n.adminCalMonthOct, l10n.adminCalMonthNov, l10n.adminCalMonthDec,
+      l10n.adminCalMonthJan,
+      l10n.adminCalMonthFeb,
+      l10n.adminCalMonthMar,
+      l10n.adminCalMonthApr,
+      l10n.adminCalMonthMay,
+      l10n.adminCalMonthJun,
+      l10n.adminCalMonthJul,
+      l10n.adminCalMonthAug,
+      l10n.adminCalMonthSep,
+      l10n.adminCalMonthOct,
+      l10n.adminCalMonthNov,
+      l10n.adminCalMonthDec,
     ];
     final days = [
-      l10n.adminCalWeekdayMon, l10n.adminCalWeekdayTue, l10n.adminCalWeekdayWed,
-      l10n.adminCalWeekdayThu, l10n.adminCalWeekdayFri, l10n.adminCalWeekdaySat,
+      l10n.adminCalWeekdayMon,
+      l10n.adminCalWeekdayTue,
+      l10n.adminCalWeekdayWed,
+      l10n.adminCalWeekdayThu,
+      l10n.adminCalWeekdayFri,
+      l10n.adminCalWeekdaySat,
       l10n.adminCalWeekdaySun,
     ];
     final now = DateTime.now();
@@ -233,21 +270,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         onRefresh: _loadAll,
         child: CustomScrollView(
           slivers: [
-            if (!_isOnline)
-              const SliverToBoxAdapter(child: OfflineBanner()),
+            if (!_isOnline) const SliverToBoxAdapter(child: OfflineBanner()),
 
             SliverPersistentHeader(
               pinned: true,
               delegate: AdminTopBarDelegate(
                 title: l10n.adminNavDashboard,
                 unreadCount: _unreadCount,
-                onNotificationTap: () =>
-                    context.push(AppRoutes.adminNotifications)
+                onNotificationTap: () => context
+                    .push(AppRoutes.adminNotifications)
                         .then((_) => _loadAll()),
                 onBroadcastTap: () =>
                     context.push(AppRoutes.announcementDashboard),
-                onProfileTap: () =>
-                    context.push(AppRoutes.adminProfile),
+                onProfileTap: () => context.push(AppRoutes.adminProfile),
                 enableMenu: true,
               ),
             ),
@@ -261,7 +296,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-
                   // ── Greeting ────────────────────────────────────────────
                   Text(
                     '${_greeting(l10n)}, $_adminName!',
@@ -276,7 +310,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Text(
                     _formattedDate(l10n),
                     style: GoogleFonts.inter(
-                        fontSize: 12, color: cs.onSurfaceVariant),
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -284,8 +320,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   if (!_isLoading)
                     _PrioritiesHeroCard(
                       priorities: _priorities,
-                      onTap: (p) => _navigate(p.route,
-                          useGo: p.useGo, extra: p.extra),
+                      onTap: (p) =>
+                          _navigate(p.route, useGo: p.useGo, extra: p.extra),
                       cs: cs,
                       sagana: sagana,
                     )
@@ -296,8 +332,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // ── Cooperative Performance ────────────────────────────
                   _CoopPerformanceCard(
                     summary: _coopSummary,
-                    onTap: () =>
-                        context.go(AppRoutes.operationalReports),
+                    onTap: () => context.go(AppRoutes.operationalReports),
                     cs: cs,
                     sagana: sagana,
                   ),
@@ -371,8 +406,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       const SizedBox(width: 8),
                       GestureDetector(
                         // Full Calendar is a real screen — push above shell
-                        onTap: () =>
-                            context.push(AppRoutes.adminCalendar),
+                        onTap: () => context.push(AppRoutes.adminCalendar),
                         child: Text(
                           l10n.adminDashViewFullCalendar,
                           maxLines: 1,
@@ -404,15 +438,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   _SectionHeader(
                       icon: Icons.grid_view_rounded,
                       label: l10n.adminDashManagementModules,
-                      cs: cs),
+                    cs: cs,
+                  ),
                   const SizedBox(height: 12),
                   if (_isLoading)
                     const _ShimmerBlock(height: 200)
                   else
                     _ManagementModulesGrid(
                       modules: _managementModules,
-                      onTap: (m) =>
-                          _navigate(m.route, useGo: m.useGo),
+                      onTap: (m) => _navigate(m.route, useGo: m.useGo),
                       cs: cs,
                       sagana: sagana,
                     ),
@@ -423,7 +457,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: _SectionHeader(label: l10n.adminDashRecentActivity, cs: cs),
+                        child: _SectionHeader(
+                          label: l10n.adminDashRecentActivity,
+                          cs: cs,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
@@ -450,7 +487,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       cs: cs,
                     ),
                   const SizedBox(height: 20),
-
                 ]),
               ),
             ),
@@ -460,8 +496,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 }
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic Hero Card — Today's Priorities
@@ -482,17 +516,23 @@ class _PrioritiesHeroCard extends StatelessWidget {
 
   Color _levelColor(DashboardPriorityLevel level) {
     switch (level) {
-      case DashboardPriorityLevel.critical: return AppConstants.errorRed;
-      case DashboardPriorityLevel.warning:  return AppConstants.warningAmber;
-      case DashboardPriorityLevel.info:     return AppConstants.buyerBlue;
+      case DashboardPriorityLevel.critical:
+        return AppConstants.errorRed;
+      case DashboardPriorityLevel.warning:
+        return AppConstants.warningAmber;
+      case DashboardPriorityLevel.info:
+        return AppConstants.buyerBlue;
     }
   }
 
   IconData _levelIcon(DashboardPriorityLevel level) {
     switch (level) {
-      case DashboardPriorityLevel.critical: return Icons.warning_rounded;
-      case DashboardPriorityLevel.warning:  return Icons.schedule_rounded;
-      case DashboardPriorityLevel.info:     return Icons.info_outline_rounded;
+      case DashboardPriorityLevel.critical:
+        return Icons.warning_rounded;
+      case DashboardPriorityLevel.warning:
+        return Icons.schedule_rounded;
+      case DashboardPriorityLevel.info:
+        return Icons.info_outline_rounded;
     }
   }
 
@@ -506,7 +546,8 @@ class _PrioritiesHeroCard extends StatelessWidget {
           color: AppConstants.successGreen.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(AppConstants.radiusXl),
           border: Border.all(
-              color: AppConstants.successGreen.withValues(alpha: 0.20)),
+            color: AppConstants.successGreen.withValues(alpha: 0.20),
+          ),
         ),
         child: Row(
           children: [
@@ -517,8 +558,11 @@ class _PrioritiesHeroCard extends StatelessWidget {
                 color: AppConstants.successGreen.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_rounded,
-                  color: AppConstants.successGreen, size: 24),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: AppConstants.successGreen,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -537,7 +581,8 @@ class _PrioritiesHeroCard extends StatelessWidget {
                     l10n.adminDashAllClearMessage,
                     style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: cs.onSurfaceVariant),
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -556,22 +601,23 @@ class _PrioritiesHeroCard extends StatelessWidget {
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 12,
-              offset: const Offset(0, 4)),
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
                 Container(
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: priorities.first.level ==
+                    color:
+                        priorities.first.level ==
                             DashboardPriorityLevel.critical
                         ? AppConstants.errorRed
                         : AppConstants.warningAmber,
@@ -590,33 +636,34 @@ class _PrioritiesHeroCard extends StatelessWidget {
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHighest,
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                   ),
                   child: Text(
                     l10n.buyerCartItemCount(priorities.length),
                     style: GoogleFonts.inter(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: cs.onSurfaceVariant),
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          Divider(
-              height: 1,
-              color: cs.outline.withValues(alpha: 0.08)),
+          Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
           ...priorities.take(4).toList().asMap().entries.map((entry) {
             final i = entry.key;
             final p = entry.value;
             final color = _levelColor(p.level);
             final icon = _levelIcon(p.level);
-            final isLast =
-                i == priorities.take(4).length - 1;
+            final isLast = i == priorities.take(4).length - 1;
             return Column(
               children: [
                 GestureDetector(
@@ -624,15 +671,16 @@ class _PrioritiesHeroCard extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
                         Icon(icon, color: color, size: 18),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 p.label,
@@ -646,14 +694,17 @@ class _PrioritiesHeroCard extends StatelessWidget {
                                 p.value,
                                 style: GoogleFonts.inter(
                                     fontSize: 11,
-                                    color: cs.onSurfaceVariant),
+                                  color: cs.onSurfaceVariant,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        Icon(Icons.chevron_right_rounded,
+                        Icon(
+                          Icons.chevron_right_rounded,
                             color: color.withValues(alpha: 0.60),
-                            size: 18),
+                          size: 18,
+                        ),
                       ],
                     ),
                   ),
@@ -663,7 +714,8 @@ class _PrioritiesHeroCard extends StatelessWidget {
                       height: 1,
                       indent: 16,
                       endIndent: 16,
-                      color: cs.outline.withValues(alpha: 0.08)),
+                    color: cs.outline.withValues(alpha: 0.08),
+                  ),
               ],
             );
           }),
@@ -700,8 +752,7 @@ class _KpiStrip extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
 
-  const _KpiStrip(
-      {required this.kpi, required this.cs, required this.sagana});
+  const _KpiStrip({required this.kpi, required this.cs, required this.sagana});
 
   @override
   Widget build(BuildContext context) {
@@ -754,8 +805,7 @@ class _KpiStrip extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: tiles.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) =>
-            _KpiCard(tile: tiles[i], cs: cs, sagana: sagana),
+        itemBuilder: (_, i) => _KpiCard(tile: tiles[i], cs: cs, sagana: sagana),
       ),
     );
   }
@@ -787,8 +837,7 @@ class _KpiCard extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
 
-  const _KpiCard(
-      {required this.tile, required this.cs, required this.sagana});
+  const _KpiCard({required this.tile, required this.cs, required this.sagana});
 
   // Visually matches ReportIconStatCard (report_summary_widgets.dart) —
   // accent-tinted background/border, icon in its own tinted badge — the
@@ -827,7 +876,8 @@ class _KpiCard extends StatelessWidget {
                   tile.label,
                   style: GoogleFonts.inter(
                       fontSize: 10,
-                      color: cs.onSurfaceVariant),
+                    color: cs.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -843,8 +893,7 @@ class _KpiCard extends StatelessWidget {
           ),
           Text(
             tile.sub,
-            style: GoogleFonts.inter(
-                fontSize: 10, color: cs.onSurfaceVariant),
+            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -861,8 +910,11 @@ class _InventoryAlertsCard extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
 
-  const _InventoryAlertsCard(
-      {required this.alerts, required this.cs, required this.sagana});
+  const _InventoryAlertsCard({
+    required this.alerts,
+    required this.cs,
+    required this.sagana,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -873,9 +925,7 @@ class _InventoryAlertsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -894,7 +944,9 @@ class _InventoryAlertsCard extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -904,8 +956,11 @@ class _InventoryAlertsCard extends StatelessWidget {
                         color: color.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.inventory_2_outlined,
-                          color: color, size: 18),
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        color: color,
+                        size: 18,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -924,7 +979,8 @@ class _InventoryAlertsCard extends StatelessWidget {
                             item.category,
                             style: GoogleFonts.inter(
                                 fontSize: 11,
-                                color: cs.onSurfaceVariant),
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -942,11 +998,14 @@ class _InventoryAlertsCard extends StatelessWidget {
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(
-                                AppConstants.radiusFull),
+                              AppConstants.radiusFull,
+                            ),
                           ),
                           child: Text(
                             label,
@@ -968,7 +1027,8 @@ class _InventoryAlertsCard extends StatelessWidget {
                     height: 1,
                     color: cs.outline.withValues(alpha: 0.08),
                     indent: 16,
-                    endIndent: 16),
+                  endIndent: 16,
+                ),
             ],
           );
         }).toList(),
@@ -999,15 +1059,26 @@ class _MiniCalendar extends StatelessWidget {
   });
 
   List<String> _monthNames(AppLocalizations l10n) => [
-    l10n.adminCalMonthJan, l10n.adminCalMonthFeb, l10n.adminCalMonthMar,
-    l10n.adminCalMonthApr, l10n.adminCalMonthMay, l10n.adminCalMonthJun,
-    l10n.adminCalMonthJul, l10n.adminCalMonthAug, l10n.adminCalMonthSep,
-    l10n.adminCalMonthOct, l10n.adminCalMonthNov, l10n.adminCalMonthDec,
+    l10n.adminCalMonthJan,
+    l10n.adminCalMonthFeb,
+    l10n.adminCalMonthMar,
+    l10n.adminCalMonthApr,
+    l10n.adminCalMonthMay,
+    l10n.adminCalMonthJun,
+    l10n.adminCalMonthJul,
+    l10n.adminCalMonthAug,
+    l10n.adminCalMonthSep,
+    l10n.adminCalMonthOct,
+    l10n.adminCalMonthNov,
+    l10n.adminCalMonthDec,
   ];
   List<String> _dayLabels(AppLocalizations l10n) => [
-    l10n.adminCalWeekdayShortSun, l10n.adminCalWeekdayShortMon,
-    l10n.adminCalWeekdayShortTue, l10n.adminCalWeekdayShortWed,
-    l10n.adminCalWeekdayShortThu, l10n.adminCalWeekdayShortFri,
+    l10n.adminCalWeekdayShortSun,
+    l10n.adminCalWeekdayShortMon,
+    l10n.adminCalWeekdayShortTue,
+    l10n.adminCalWeekdayShortWed,
+    l10n.adminCalWeekdayShortThu,
+    l10n.adminCalWeekdayShortFri,
     l10n.adminCalWeekdayShortSat,
   ];
 
@@ -1023,21 +1094,31 @@ class _MiniCalendar extends StatelessWidget {
 
   Color _eventColor(CalendarEventType type) {
     switch (type) {
-      case CalendarEventType.bodMeeting:   return AppConstants.successGreen;
-      case CalendarEventType.loanDue:      return AppConstants.errorRed;
-      case CalendarEventType.harvest:      return AppConstants.warningAmber;
-      case CalendarEventType.announcement: return AppConstants.buyerBlue;
-      case CalendarEventType.program:      return AppConstants.programPurple;
+      case CalendarEventType.bodMeeting:
+        return AppConstants.successGreen;
+      case CalendarEventType.loanDue:
+        return AppConstants.errorRed;
+      case CalendarEventType.harvest:
+        return AppConstants.warningAmber;
+      case CalendarEventType.announcement:
+        return AppConstants.buyerBlue;
+      case CalendarEventType.program:
+        return AppConstants.programPurple;
     }
   }
 
   String _legendLabel(AppLocalizations l10n, CalendarEventType type) {
     switch (type) {
-      case CalendarEventType.bodMeeting:   return l10n.adminCalEventBodMeeting;
-      case CalendarEventType.loanDue:      return l10n.adminCalEventLoanDue;
-      case CalendarEventType.harvest:      return l10n.adminCalEventHarvest;
-      case CalendarEventType.announcement: return l10n.adminCalEventAnnouncement;
-      case CalendarEventType.program:      return l10n.adminCalEventProgram;
+      case CalendarEventType.bodMeeting:
+        return l10n.adminCalEventBodMeeting;
+      case CalendarEventType.loanDue:
+        return l10n.adminCalEventLoanDue;
+      case CalendarEventType.harvest:
+        return l10n.adminCalEventHarvest;
+      case CalendarEventType.announcement:
+        return l10n.adminCalEventAnnouncement;
+      case CalendarEventType.program:
+        return l10n.adminCalEventProgram;
     }
   }
 
@@ -1048,8 +1129,7 @@ class _MiniCalendar extends StatelessWidget {
     final dayLabels = _dayLabels(l10n);
     final today = DateTime.now();
     final firstDay = DateTime(month.year, month.month, 1);
-    final daysInMonth =
-        DateTime(month.year, month.month + 1, 0).day;
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final startWeekday = firstDay.weekday % 7; // Sunday = 0
     final eventMap = _buildEventMap();
     final uniqueTypes = events.map((e) => e.type).toSet().toList();
@@ -1060,9 +1140,7 @@ class _MiniCalendar extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -1078,11 +1156,13 @@ class _MiniCalendar extends StatelessWidget {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHighest,
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                  child: Icon(Icons.chevron_left_rounded,
-                      size: 20, color: cs.onSurface),
+                  child: Icon(
+                    Icons.chevron_left_rounded,
+                    size: 20,
+                    color: cs.onSurface,
+                  ),
                 ),
               ),
               Text(
@@ -1099,11 +1179,13 @@ class _MiniCalendar extends StatelessWidget {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHighest,
-                    borderRadius:
-                        BorderRadius.circular(AppConstants.radiusMd),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
-                  child: Icon(Icons.chevron_right_rounded,
-                      size: 20, color: cs.onSurface),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: cs.onSurface,
+                  ),
                 ),
               ),
             ],
@@ -1134,8 +1216,7 @@ class _MiniCalendar extends StatelessWidget {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
               childAspectRatio: 1.0,
             ),
@@ -1145,7 +1226,8 @@ class _MiniCalendar extends StatelessWidget {
                 return const SizedBox.shrink();
               }
               final day = index - startWeekday + 1;
-              final isToday = today.year == month.year &&
+              final isToday =
+                  today.year == month.year &&
                   today.month == month.month &&
                   today.day == day;
               final dayEvents = eventMap[day];
@@ -1170,9 +1252,7 @@ class _MiniCalendar extends StatelessWidget {
                           fontWeight: isToday
                               ? FontWeight.w700
                               : FontWeight.w400,
-                          color: isToday
-                              ? Colors.white
-                              : cs.onSurface,
+                          color: isToday ? Colors.white : cs.onSurface,
                         ),
                       ),
                     ),
@@ -1184,16 +1264,19 @@ class _MiniCalendar extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: dayEvents
                             .take(3)
-                            .map((type) => Container(
+                            .map(
+                              (type) => Container(
                                   width: 4,
                                   height: 4,
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: 1),
+                                  horizontal: 1,
+                                ),
                                   decoration: BoxDecoration(
                                     color: _eventColor(type),
                                     shape: BoxShape.circle,
                                   ),
-                                ))
+                              ),
+                            )
                             .toList(),
                       ),
                     ),
@@ -1227,7 +1310,8 @@ class _MiniCalendar extends StatelessWidget {
                       _legendLabel(l10n, type),
                       style: GoogleFonts.inter(
                           fontSize: 10,
-                          color: cs.onSurfaceVariant),
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 );
@@ -1273,25 +1357,39 @@ class _ManagementModulesGrid extends StatelessWidget {
   // locale-aware display strings instead.
   static String _title(AppLocalizations l10n, String id) {
     switch (id) {
-      case 'inventory': return l10n.adminInvManagementTitle;
-      case 'crops': return l10n.cropMgmtTitle;
-      case 'programs': return l10n.programMgmtTitle;
-      case 'loan-items': return l10n.loanItemCatalogTitle;
-      case 'supply-chain': return l10n.supplyChainTitle;
-      case 'prices': return l10n.adminPriceManagement;
-      default: return id;
+      case 'inventory':
+        return l10n.adminInvManagementTitle;
+      case 'crops':
+        return l10n.cropMgmtTitle;
+      case 'programs':
+        return l10n.programMgmtTitle;
+      case 'loan-items':
+        return l10n.loanItemCatalogTitle;
+      case 'supply-chain':
+        return l10n.supplyChainTitle;
+      case 'prices':
+        return l10n.adminPriceManagement;
+      default:
+        return id;
     }
   }
 
   static String _subtitle(AppLocalizations l10n, String id) {
     switch (id) {
-      case 'inventory': return l10n.adminDashModuleInventorySubtitle;
-      case 'crops': return l10n.adminDashModuleCropsSubtitle;
-      case 'programs': return l10n.adminDashModuleProgramsSubtitle;
-      case 'loan-items': return l10n.adminDashModuleLoanItemsSubtitle;
-      case 'supply-chain': return l10n.adminDashModuleSupplyChainSubtitle;
-      case 'prices': return l10n.adminDashModulePricesSubtitle;
-      default: return '';
+      case 'inventory':
+        return l10n.adminDashModuleInventorySubtitle;
+      case 'crops':
+        return l10n.adminDashModuleCropsSubtitle;
+      case 'programs':
+        return l10n.adminDashModuleProgramsSubtitle;
+      case 'loan-items':
+        return l10n.adminDashModuleLoanItemsSubtitle;
+      case 'supply-chain':
+        return l10n.adminDashModuleSupplyChainSubtitle;
+      case 'prices':
+        return l10n.adminDashModulePricesSubtitle;
+      default:
+        return '';
     }
   }
 
@@ -1317,14 +1415,13 @@ class _ManagementModulesGrid extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: sagana.cardBackground,
-              borderRadius:
-                  BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(
-                  color: cs.outline.withValues(alpha: 0.10)),
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8),
+                  blurRadius: 8,
+                ),
               ],
             ),
             child: Column(
@@ -1338,24 +1435,25 @@ class _ManagementModulesGrid extends StatelessWidget {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color:
-                            cs.primary.withValues(alpha: 0.10),
+                        color: cs.primary.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(
-                            AppConstants.radiusMd),
+                          AppConstants.radiusMd,
+                        ),
                       ),
-                      child: Icon(icon,
-                          color: cs.primary, size: 20),
+                      child: Icon(icon, color: cs.primary, size: 20),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: m.hasBadgeAlert
-                            ? AppConstants.warningAmber
-                                .withValues(alpha: 0.15)
+                            ? AppConstants.warningAmber.withValues(alpha: 0.15)
                             : cs.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull),
+                          AppConstants.radiusFull,
+                        ),
                       ),
                       child: Text(
                         m.badgeLabel,
@@ -1391,7 +1489,8 @@ class _ManagementModulesGrid extends StatelessWidget {
                         _subtitle(l10n, m.id),
                         style: GoogleFonts.inter(
                             fontSize: 9,
-                            color: cs.onSurfaceVariant),
+                          color: cs.onSurfaceVariant,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1433,15 +1532,12 @@ class _ActivityFeed extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: sagana.cardBackground,
-          borderRadius:
-              BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(
-              color: cs.outline.withValues(alpha: 0.10)),
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         ),
         child: Text(
           l10n.adminDashNoRecentActivity,
-          style: GoogleFonts.inter(
-              fontSize: 13, color: cs.onSurfaceVariant),
+          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
         ),
       );
     }
@@ -1452,9 +1548,7 @@ class _ActivityFeed extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -1474,7 +1568,8 @@ class _ActivityFeed extends StatelessWidget {
                     height: 1,
                     color: cs.outline.withValues(alpha: 0.08),
                     indent: 16,
-                    endIndent: 16),
+                  endIndent: 16,
+                ),
             ],
           );
         }).toList(),
@@ -1491,7 +1586,9 @@ class _ActivityRow extends StatelessWidget {
 
   Color _dotColor() {
     if (item.type == AdminActivityType.listing) {
-      return item.isPrimary ? AppConstants.successGreen : AppConstants.primaryGreen;
+      return item.isPrimary
+          ? AppConstants.successGreen
+          : AppConstants.primaryGreen;
     }
     return moduleColor(item.sourceModule, cs);
   }
@@ -1503,8 +1600,7 @@ class _ActivityRow extends StatelessWidget {
     final name = item.highlightedName;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1515,7 +1611,8 @@ class _ActivityRow extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                   color: _dotColor(),
-                  shape: BoxShape.circle),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1527,11 +1624,15 @@ class _ActivityRow extends StatelessWidget {
                     ? _RichDescription(
                         description: desc,
                         boldName: name,
-                        cs: cs)
-                    : Text(desc,
+                        cs: cs,
+                      )
+                    : Text(
+                        desc,
                         style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: cs.onSurface)),
+                          color: cs.onSurface,
+                        ),
+                      ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
@@ -1539,13 +1640,16 @@ class _ActivityRow extends StatelessWidget {
                       adminActivityTimeLabel(l10n, item.timestamp),
                       style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: cs.onSurfaceVariant),
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                     if (item.referenceId != null) ...[
                       const SizedBox(width: 6),
-                      Icon(Icons.chevron_right_rounded,
+                      Icon(
+                        Icons.chevron_right_rounded,
                           size: 12,
-                          color: cs.onSurfaceVariant),
+                        color: cs.onSurfaceVariant,
+                      ),
                     ],
                   ],
                 ),
@@ -1574,8 +1678,7 @@ class _RichDescription extends StatelessWidget {
     final parts = description.split(boldName);
     return Text.rich(
       TextSpan(
-        style:
-            GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+        style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
         children: [
           TextSpan(text: parts[0]),
           TextSpan(
@@ -1619,10 +1722,8 @@ class _CoopPerformanceCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: cs.surfaceContainerLowest,
-          borderRadius:
-              BorderRadius.circular(AppConstants.radiusXl),
-          border: Border.all(
-              color: cs.outline.withValues(alpha: 0.12)),
+          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1664,34 +1765,47 @@ class _CoopPerformanceCard extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                _StatPill(l10n.adminDashStatHarvests,
-                    '${summary.totalHarvests}', cs),
+                _StatPill(
+                  l10n.adminDashStatHarvests,
+                  '${summary.totalHarvests}',
+                  cs,
+                ),
                 const SizedBox(width: 12),
-                _StatPill(l10n.adminDashStatFarmerStock,
+                _StatPill(
+                  l10n.adminDashStatFarmerStock,
                     '${summary.totalStockKg.toStringAsFixed(0)} kg',
-                    cs),
+                  cs,
+                ),
                 const SizedBox(width: 12),
-                _StatPill(l10n.adminDashStatListings,
-                    '${summary.activeListings}', cs),
+                _StatPill(
+                  l10n.adminDashStatListings,
+                  '${summary.activeListings}',
+                  cs,
+                ),
                 const SizedBox(width: 12),
-                _StatPill(l10n.adminDashStatSalesAllTime,
-                    '${summary.completedSales}', cs),
+                _StatPill(
+                  l10n.adminDashStatSalesAllTime,
+                  '${summary.completedSales}',
+                  cs,
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            Divider(
-                color: cs.outline.withValues(alpha: 0.12)),
+            Divider(color: cs.outline.withValues(alpha: 0.12)),
             const SizedBox(height: 12),
             Text.rich(
               TextSpan(
                 style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: cs.onSurfaceVariant),
+                  color: cs.onSurfaceVariant,
+                ),
                 children: [
                   TextSpan(text: l10n.adminDashMemberParticipationPrefix),
                   TextSpan(
                     text: l10n.adminDashMembersOfTotal(
-                        summary.activeMembersThisSeason, summary.totalMembers),
+                      summary.activeMembersThisSeason,
+                      summary.totalMembers,
+                    ),
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -1709,8 +1823,7 @@ class _CoopPerformanceCard extends StatelessWidget {
                 value: summary.participationPercent,
                 minHeight: 8,
                 backgroundColor: cs.surfaceContainerHighest,
-                valueColor:
-                    AlwaysStoppedAnimation(cs.primary),
+                valueColor: AlwaysStoppedAnimation(cs.primary),
               ),
             ),
           ],
@@ -1767,8 +1880,12 @@ class _SectionHeader extends StatelessWidget {
   final Color? iconColor;
   final ColorScheme? cs;
 
-  const _SectionHeader(
-      {required this.label, this.icon, this.iconColor, this.cs});
+  const _SectionHeader({
+    required this.label,
+    this.icon,
+    this.iconColor,
+    this.cs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1812,11 +1929,8 @@ class _ShimmerBlock extends StatelessWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest,
-        borderRadius:
-            BorderRadius.circular(AppConstants.radiusLg),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       ),
     );
   }

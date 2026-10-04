@@ -21,7 +21,8 @@ Future<void> confirmFarmerSignOut(BuildContext context) async {
     context: context,
     child: const ConfirmDialog(
       title: 'Sign Out?',
-      message: 'You will be signed out of SAGANA. '
+      message:
+          'You will be signed out of SAGANA. '
           'Offline records will remain on this device.',
       confirmLabel: 'Sign Out',
     ),
@@ -44,6 +45,10 @@ Future<void> confirmFarmerSignOut(BuildContext context) async {
 class FarmerTopBar extends StatefulWidget {
   final String? profilePhotoUrl;
   final String? title;
+  // Small optional widget rendered inline right after the title text (e.g.
+  // a compact status pill) — additive only; every existing call site that
+  // doesn't pass this renders exactly as before.
+  final Widget? titleTrailing;
   final VoidCallback? onBack;
   final VoidCallback onProfileTap;
   final VoidCallback onNotificationTap;
@@ -68,6 +73,7 @@ class FarmerTopBar extends StatefulWidget {
     super.key,
     this.profilePhotoUrl,
     this.title,
+    this.titleTrailing,
     this.onBack,
     required this.onProfileTap,
     required this.onNotificationTap,
@@ -153,7 +159,9 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
             )
           else
             GestureDetector(
-              onTap: widget.enableMenu ? () => Scaffold.of(context).openDrawer() : null,
+              onTap: widget.enableMenu
+                  ? () => Scaffold.of(context).openDrawer()
+                  : null,
               child: Container(
                 width: 38,
                 height: 38,
@@ -195,6 +203,16 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
             ),
           ] else
             const Spacer(),
+
+          // titleTrailing sits here — after the title's Expanded, not
+          // inside it — so the Expanded only claims what's left once this
+          // fixed-size widget's space is reserved, pushing it to the far
+          // right of the bar (by design, well clear of the title text)
+          // rather than hugging the title directly.
+          if (widget.titleTrailing != null) ...[
+            const SizedBox(width: 12),
+            widget.titleTrailing!,
+          ],
 
           // Right: Custom trailing override, or default
           // Notifications (badge) → Settings (optional) → Profile

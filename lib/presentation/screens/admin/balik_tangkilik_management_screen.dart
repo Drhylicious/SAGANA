@@ -12,6 +12,7 @@ import '../../../data/models/balik_tangkilik_model.dart';
 import '../../../data/models/contribution_model.dart';
 import '../../../data/repositories/balik_tangkilik_repository.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 
@@ -31,7 +32,8 @@ class BalikTangkilikManagementScreen extends StatefulWidget {
 }
 
 class _BalikTangkilikManagementScreenState
-    extends State<BalikTangkilikManagementScreen> with SingleTickerProviderStateMixin {
+    extends State<BalikTangkilikManagementScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -84,7 +86,9 @@ class _BalikTangkilikManagementScreenState
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -98,7 +102,11 @@ class _BalikTangkilikManagementScreenState
               Expanded(
                 child: Text(
                   l10n.reportsBalikTangkilikManagement,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
             ],
@@ -108,7 +116,11 @@ class _BalikTangkilikManagementScreenState
     );
   }
 
-  Widget _buildTabBar(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildTabBar(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: TabBar(
@@ -116,7 +128,10 @@ class _BalikTangkilikManagementScreenState
         labelColor: AppConstants.primaryGreen,
         unselectedLabelColor: cs.onSurfaceVariant,
         indicatorColor: AppConstants.primaryGreen,
-        labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+        labelStyle: GoogleFonts.poppins(
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
         unselectedLabelStyle: GoogleFonts.inter(fontSize: 13),
         tabs: [
           Tab(text: l10n.balikTangkilikSettingsTab),
@@ -132,7 +147,6 @@ class _BalikTangkilikManagementScreenState
 
 class _MemberAmountRow extends StatelessWidget {
   final String farmerName;
-  final String memberId;
   final String? subtitle;
   final double totalAmount;
   final double balikTangkilikAmount;
@@ -142,7 +156,6 @@ class _MemberAmountRow extends StatelessWidget {
 
   const _MemberAmountRow({
     required this.farmerName,
-    required this.memberId,
     this.subtitle,
     required this.totalAmount,
     required this.balikTangkilikAmount,
@@ -156,7 +169,11 @@ class _MemberAmountRow extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
@@ -177,12 +194,20 @@ class _MemberAmountRow extends StatelessWidget {
                   children: [
                     Text(
                       farmerName,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (subtitle != null)
                     Text(
-                      subtitle ?? memberId,
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        subtitle!,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
                     ),
                   ],
                 ),
@@ -190,9 +215,23 @@ class _MemberAmountRow extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(currency.format(totalAmount), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface)),
+                  Text(
+                    currency.format(totalAmount),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: cs.onSurface,
+                    ),
+                  ),
                   if (isPaid)
-                    Text(l10n.balikTangkilikPaidBadge, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.successGreen)),
+                    Text(
+                      l10n.balikTangkilikPaidBadge,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.successGreen,
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -200,12 +239,26 @@ class _MemberAmountRow extends StatelessWidget {
           const SizedBox(height: AppConstants.spacingSm),
           Row(
             children: [
-              Expanded(child: _stat('Balik-Tangkilik', currency.format(balikTangkilikAmount), cs)),
-              Expanded(child: _stat('Interest', currency.format(interestAmount), cs)),
+              Expanded(
+                child: _stat(
+                  'Balik-Tangkilik',
+                  currency.format(balikTangkilikAmount),
+                  cs,
+                ),
+              ),
+              Expanded(
+                child: _stat('Interest', currency.format(interestAmount), cs),
+              ),
               // Option B — only shown when non-zero, so a farmer with no
               // Product Sales Program activity sees no change to this row.
               if (purchasePatronageAmount > 0)
-                Expanded(child: _stat('Purchase Patronage', currency.format(purchasePatronageAmount), cs)),
+                Expanded(
+                  child: _stat(
+                    'Purchase Patronage',
+                    currency.format(purchasePatronageAmount),
+                    cs,
+                  ),
+                ),
             ],
           ),
         ],
@@ -217,8 +270,18 @@ class _MemberAmountRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
-        Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface)),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: cs.onSurface,
+          ),
+        ),
       ],
     );
   }
@@ -288,19 +351,26 @@ class _SettingsTabState extends State<_SettingsTab> {
     _liveTotalProgramSales = results[3] as double;
 
     if (settings != null) {
-      _totalCoopSalesController.text = settings.totalCoopSales.toStringAsFixed(2);
-      _distributableSurplusController.text = settings.distributableSurplus.toStringAsFixed(2);
-      _interestRateController.text = settings.interestRatePercent.toStringAsFixed(2);
+      _totalCoopSalesController.text = settings.totalCoopSales.toStringAsFixed(
+        2,
+      );
+      _distributableSurplusController.text = settings.distributableSurplus
+          .toStringAsFixed(2);
+      _interestRateController.text = settings.interestRatePercent
+          .toStringAsFixed(2);
       _afsFinalized = settings.afsFinalized;
-      _totalProgramSalesController.text = settings.totalProgramSales.toStringAsFixed(2);
-      _distributableProgramSurplusController.text =
-          settings.distributableProgramSurplus.toStringAsFixed(2);
+      _totalProgramSalesController.text = settings.totalProgramSales
+          .toStringAsFixed(2);
+      _distributableProgramSurplusController.text = settings
+          .distributableProgramSurplus
+          .toStringAsFixed(2);
     } else {
       _totalCoopSalesController.text = _liveTotalSales.toStringAsFixed(2);
       _distributableSurplusController.text = '0.00';
       _interestRateController.text = '7.00';
       _afsFinalized = false;
-      _totalProgramSalesController.text = _liveTotalProgramSales.toStringAsFixed(2);
+      _totalProgramSalesController.text = _liveTotalProgramSales
+          .toStringAsFixed(2);
       _distributableProgramSurplusController.text = '0.00';
     }
 
@@ -308,22 +378,33 @@ class _SettingsTabState extends State<_SettingsTab> {
   }
 
   void _useLiveTotal() {
-    setState(() => _totalCoopSalesController.text = _liveTotalSales.toStringAsFixed(2));
+    setState(
+      () => _totalCoopSalesController.text = _liveTotalSales.toStringAsFixed(2),
+    );
   }
 
   void _useLiveProgramTotal() {
-    setState(() =>
-        _totalProgramSalesController.text = _liveTotalProgramSales.toStringAsFixed(2));
+    setState(
+      () => _totalProgramSalesController.text = _liveTotalProgramSales
+          .toStringAsFixed(2),
+    );
   }
 
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
     if (_isDistributed) {
-      _showSnack(l10n.balikTangkilikAlreadyDistributedBanner(_year), isError: true);
+      _showSnack(
+        l10n.balikTangkilikAlreadyDistributedBanner(_year),
+        isError: true,
+      );
       return;
     }
-    final totalCoopSales = double.tryParse(_totalCoopSalesController.text.trim());
-    final distributableSurplus = double.tryParse(_distributableSurplusController.text.trim());
+    final totalCoopSales = double.tryParse(
+      _totalCoopSalesController.text.trim(),
+    );
+    final distributableSurplus = double.tryParse(
+      _distributableSurplusController.text.trim(),
+    );
     final interestRate = double.tryParse(_interestRateController.text.trim());
     // Option B fields default to 0 when left blank (a cooperative may not
     // run a Product Sales program every year) rather than blocking the
@@ -331,12 +412,17 @@ class _SettingsTabState extends State<_SettingsTab> {
     final totalProgramSales =
         double.tryParse(_totalProgramSalesController.text.trim()) ?? 0;
     final distributableProgramSurplus =
-        double.tryParse(_distributableProgramSurplusController.text.trim()) ?? 0;
+        double.tryParse(_distributableProgramSurplusController.text.trim()) ??
+        0;
 
-    if (totalCoopSales == null || totalCoopSales < 0 ||
-        distributableSurplus == null || distributableSurplus < 0 ||
-        interestRate == null || interestRate < 0 ||
-        totalProgramSales < 0 || distributableProgramSurplus < 0) {
+    if (totalCoopSales == null ||
+        totalCoopSales < 0 ||
+        distributableSurplus == null ||
+        distributableSurplus < 0 ||
+        interestRate == null ||
+        interestRate < 0 ||
+        totalProgramSales < 0 ||
+        distributableProgramSurplus < 0) {
       _showSnack(l10n.balikTangkilikInvalidValues, isError: true);
       return;
     }
@@ -345,13 +431,28 @@ class _SettingsTabState extends State<_SettingsTab> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text(l10n.balikTangkilikZeroPoolWarningTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
-          content: Text(l10n.balikTangkilikZeroPoolWarningMessage, style: GoogleFonts.inter(fontSize: 13)),
+          title: Text(
+            l10n.balikTangkilikZeroPoolWarningTitle,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          content: Text(
+            l10n.balikTangkilikZeroPoolWarningMessage,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.issueLoanCancel)),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.issueLoanCancel),
+            ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.balikTangkilikContinueAnyway, style: const TextStyle(color: AppConstants.errorRed)),
+              child: Text(
+                l10n.balikTangkilikContinueAnyway,
+                style: const TextStyle(color: AppConstants.errorRed),
+              ),
             ),
           ],
         ),
@@ -381,12 +482,18 @@ class _SettingsTabState extends State<_SettingsTab> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
+        backgroundColor: isError
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+      ),
+    );
   }
 
   @override
@@ -394,7 +501,11 @@ class _SettingsTabState extends State<_SettingsTab> {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -423,18 +534,29 @@ class _SettingsTabState extends State<_SettingsTab> {
               // same visual hierarchy.
               Row(
                 children: [
-                  const Icon(Icons.handshake_rounded, size: 16, color: AppConstants.primaryGreen),
+                  const Icon(
+                    Icons.handshake_rounded,
+                    size: 16,
+                    color: AppConstants.primaryGreen,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     l10n.balikTangkilikSalesSectionTitle,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
               Text(
                 l10n.balikTangkilikSalesSectionHint,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: AppConstants.spacingGutter),
               _fieldLabel(l10n.balikTangkilikTotalCoopSales, cs),
@@ -444,16 +566,28 @@ class _SettingsTabState extends State<_SettingsTab> {
                 children: [
                   Expanded(
                     child: Text(
-                      l10n.balikTangkilikLiveTotalHint(currency.format(_liveTotalSales)),
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      l10n.balikTangkilikLiveTotalHint(
+                        currency.format(_liveTotalSales),
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   TextButton(
                     onPressed: _useLiveTotal,
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 0),
+                    ),
                     child: Text(
                       l10n.balikTangkilikUseThisValue,
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.primaryGreen,
+                      ),
                     ),
                   ),
                 ],
@@ -464,19 +598,31 @@ class _SettingsTabState extends State<_SettingsTab> {
                   if (_liveTotalSales <= 0) return const SizedBox.shrink();
                   final entered = double.tryParse(value.text.trim()) ?? 0;
                   final diffPercent =
-                      ((entered - _liveTotalSales).abs() / _liveTotalSales) * 100;
+                      ((entered - _liveTotalSales).abs() / _liveTotalSales) *
+                      100;
                   if (diffPercent < 1) return const SizedBox.shrink();
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: AppConstants.warningAmber.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                        color: AppConstants.warningAmber.withValues(
+                          alpha: 0.10,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusSm,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline_rounded, size: 14, color: AppConstants.warningAmber),
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 14,
+                            color: AppConstants.warningAmber,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -484,7 +630,10 @@ class _SettingsTabState extends State<_SettingsTab> {
                                 currency.format(entered),
                                 currency.format(_liveTotalSales),
                               ),
-                              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurface),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurface,
+                              ),
                             ),
                           ),
                         ],
@@ -499,7 +648,10 @@ class _SettingsTabState extends State<_SettingsTab> {
               const SizedBox(height: 4),
               Text(
                 l10n.balikTangkilikPoolHint,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: AppConstants.spacingGutter),
               _fieldLabel(l10n.balikTangkilikInterestRate, cs),
@@ -507,7 +659,10 @@ class _SettingsTabState extends State<_SettingsTab> {
               const SizedBox(height: 4),
               Text(
                 l10n.balikTangkilikInterestHint,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -521,25 +676,38 @@ class _SettingsTabState extends State<_SettingsTab> {
           decoration: BoxDecoration(
             color: sagana.cardBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.25)),
+            border: Border.all(
+              color: AppConstants.buyerBlue.withValues(alpha: 0.25),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.storefront_rounded, size: 16, color: AppConstants.buyerBlue),
+                  const Icon(
+                    Icons.storefront_rounded,
+                    size: 16,
+                    color: AppConstants.buyerBlue,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     l10n.balikTangkilikProgramSectionTitle,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
               Text(
                 l10n.balikTangkilikProgramSectionHint,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: AppConstants.spacingGutter),
               _fieldLabel(l10n.balikTangkilikTotalProgramSales, cs),
@@ -549,16 +717,28 @@ class _SettingsTabState extends State<_SettingsTab> {
                 children: [
                   Expanded(
                     child: Text(
-                      l10n.balikTangkilikLiveProgramTotalHint(currency.format(_liveTotalProgramSales)),
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      l10n.balikTangkilikLiveProgramTotalHint(
+                        currency.format(_liveTotalProgramSales),
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   TextButton(
                     onPressed: _useLiveProgramTotal,
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 0),
+                    ),
                     child: Text(
                       l10n.balikTangkilikUseThisValue,
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppConstants.buyerBlue),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.buyerBlue,
+                      ),
                     ),
                   ),
                 ],
@@ -569,7 +749,10 @@ class _SettingsTabState extends State<_SettingsTab> {
               const SizedBox(height: 4),
               Text(
                 l10n.balikTangkilikProgramPoolHint,
-                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -578,10 +761,14 @@ class _SettingsTabState extends State<_SettingsTab> {
         Container(
           padding: const EdgeInsets.all(AppConstants.spacingGutter),
           decoration: BoxDecoration(
-            color: _afsFinalized ? AppConstants.successGreen.withValues(alpha: 0.08) : sagana.cardBackground,
+            color: _afsFinalized
+                ? AppConstants.successGreen.withValues(alpha: 0.08)
+                : sagana.cardBackground,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(
-              color: _afsFinalized ? AppConstants.successGreen.withValues(alpha: 0.3) : cs.outline.withValues(alpha: 0.10),
+              color: _afsFinalized
+                  ? AppConstants.successGreen.withValues(alpha: 0.3)
+                  : cs.outline.withValues(alpha: 0.10),
             ),
           ),
           child: Row(
@@ -592,12 +779,19 @@ class _SettingsTabState extends State<_SettingsTab> {
                   children: [
                     Text(
                       l10n.balikTangkilikAfsFinalized,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSurface),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: cs.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       l10n.balikTangkilikAfsFinalizedHint,
-                      style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -623,7 +817,10 @@ class _SettingsTabState extends State<_SettingsTab> {
   Widget _fieldLabel(String label, ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+      ),
     );
   }
 
@@ -642,14 +839,20 @@ class _SettingsTabState extends State<_SettingsTab> {
         // ledger's manual_adjustment entries which allow a sign.
         FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
       ],
-      style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15, color: cs.onSurface),
+      style: GoogleFonts.poppins(
+        fontWeight: FontWeight.w600,
+        fontSize: 15,
+        color: cs.onSurface,
+      ),
       decoration: InputDecoration(
         prefixText: suffix == null ? '₱ ' : null,
         suffixText: suffix,
         isDense: true,
         filled: true,
         fillColor: sagana.cardBackground,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppConstants.radiusSm)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+        ),
       ),
     );
   }
@@ -674,7 +877,9 @@ class _DistributionTabState extends State<_DistributionTab> {
   bool _isLoading = true;
   bool _isRefreshing = false;
   bool _isDistributing = false;
-  BalikTangkilikYearSummary _summary = BalikTangkilikYearSummary.empty(DateTime.now().year);
+  BalikTangkilikYearSummary _summary = BalikTangkilikYearSummary.empty(
+    DateTime.now().year,
+  );
 
   @override
   void initState() {
@@ -710,12 +915,19 @@ class _DistributionTabState extends State<_DistributionTab> {
 
   Future<void> _confirmAndDistribute() async {
     final l10n = AppLocalizations.of(context);
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
 
     final confirmed = await AppDialog.show<bool>(
       context: context,
       child: AlertDialog(
-        title: Text(l10n.balikTangkilikConfirmTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
+        title: Text(
+          l10n.balikTangkilikConfirmTitle,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,12 +943,20 @@ class _DistributionTabState extends State<_DistributionTab> {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, size: 16, color: AppConstants.errorRed),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: AppConstants.errorRed,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     l10n.balikTangkilikIrreversibleWarning,
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppConstants.errorRed),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.errorRed,
+                    ),
                   ),
                 ),
               ],
@@ -744,12 +964,18 @@ class _DistributionTabState extends State<_DistributionTab> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.issueLoanCancel)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.issueLoanCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
               l10n.balikTangkilikConfirmDistribute,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
             ),
           ),
         ],
@@ -762,7 +988,11 @@ class _DistributionTabState extends State<_DistributionTab> {
       await _repo.recordDistribution(_year);
       await _load();
       if (!mounted) return;
-      _showSnack(l10n.balikTangkilikDistributionSuccess(currency.format(_summary.totalActualPayout)));
+      _showSnack(
+        l10n.balikTangkilikDistributionSuccess(
+          currency.format(_summary.totalActualPayout),
+        ),
+      );
     } on StateError catch (e) {
       if (!mounted) return;
       _showSnack(e.message, isError: true);
@@ -775,19 +1005,29 @@ class _DistributionTabState extends State<_DistributionTab> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
+        backgroundColor: isError
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -803,42 +1043,66 @@ class _DistributionTabState extends State<_DistributionTab> {
           32,
         ),
         children: [
-          if (!_summary.afsFinalized) _buildBlockingBanner(l10n.balikTangkilikAfsNotFinalizedWarning),
-          if (_summary.afsFinalized && _summary.isDistributed) _buildDistributedBanner(l10n),
+          if (!_summary.afsFinalized)
+            _buildBlockingBanner(l10n.balikTangkilikAfsNotFinalizedWarning),
+          if (_summary.afsFinalized && _summary.isDistributed)
+            _buildDistributedBanner(l10n),
           const SizedBox(height: AppConstants.spacingSectionV),
           _buildSummaryCard(context, l10n, currency),
           const SizedBox(height: AppConstants.spacingGutter),
           OutlinedButton.icon(
-            onPressed: (_summary.isDistributed || _isRefreshing || _isDistributing) ? null : _refreshEstimates,
+            onPressed:
+                (_summary.isDistributed || _isRefreshing || _isDistributing)
+                ? null
+                : _refreshEstimates,
             icon: _isRefreshing
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.refresh_rounded, size: 16),
             label: Text(l10n.balikTangkilikRefreshEstimates),
           ),
           const SizedBox(height: AppConstants.spacingSectionV),
-          Text(l10n.balikTangkilikMemberBreakdown, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+          Text(
+            l10n.balikTangkilikMemberBreakdown,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingSm),
           if (_summary.rows.isEmpty)
             ReportEmptyState(message: l10n.reportsNoSearchResults)
           else
-            ..._summary.rows.map((r) => _MemberAmountRow(
+            ..._summary.rows.map(
+              (r) => _MemberAmountRow(
                   farmerName: r.farmerName,
-                  memberId: r.memberId,
-                  subtitle: '${r.memberId} • ${r.sharePercent.toStringAsFixed(1)}% share',
+                subtitle: '${r.sharePercent.toStringAsFixed(1)}% share',
                   totalAmount: r.isPaid ? r.actualTotal : r.estimatedTotal,
-                  balikTangkilikAmount: r.isPaid ? (r.actualBalikTangkilik ?? 0) : r.estimatedBalikTangkilik,
-                  interestAmount: r.isPaid ? (r.actualInterest ?? 0) : r.estimatedInterest,
-                  purchasePatronageAmount:
-                      r.isPaid ? (r.actualPurchasePatronage ?? 0) : r.estimatedPurchasePatronage,
+                balikTangkilikAmount: r.isPaid
+                    ? (r.actualBalikTangkilik ?? 0)
+                    : r.estimatedBalikTangkilik,
+                interestAmount: r.isPaid
+                    ? (r.actualInterest ?? 0)
+                    : r.estimatedInterest,
+                purchasePatronageAmount: r.isPaid
+                    ? (r.actualPurchasePatronage ?? 0)
+                    : r.estimatedPurchasePatronage,
                   isPaid: r.isPaid,
-                )),
+              ),
+            ),
           const SizedBox(height: AppConstants.spacingSectionV),
           PrimaryButton(
             label: _summary.isDistributed
                 ? l10n.balikTangkilikAlreadyDistributed(_year)
                 : l10n.balikTangkilikRecordDistribution,
             isLoading: _isDistributing,
-            onPressed: (!_summary.afsFinalized || _summary.isDistributed) ? null : _confirmAndDistribute,
+            onPressed: (!_summary.afsFinalized || _summary.isDistributed)
+                ? null
+                : _confirmAndDistribute,
           ),
         ],
       ),
@@ -853,13 +1117,27 @@ class _DistributionTabState extends State<_DistributionTab> {
       decoration: BoxDecoration(
         color: AppConstants.warningAmber.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppConstants.warningAmber.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_outline_rounded, size: 18, color: AppConstants.warningAmber),
+          const Icon(
+            Icons.lock_outline_rounded,
+            size: 18,
+            color: AppConstants.warningAmber,
+          ),
           const SizedBox(width: AppConstants.spacingSm),
-          Expanded(child: Text(message, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.warningAmber))),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.warningAmber,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -873,16 +1151,25 @@ class _DistributionTabState extends State<_DistributionTab> {
       decoration: BoxDecoration(
         color: AppConstants.successGreen.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppConstants.successGreen.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded, size: 18, color: AppConstants.successGreen),
+          const Icon(
+            Icons.check_circle_rounded,
+            size: 18,
+            color: AppConstants.successGreen,
+          ),
           const SizedBox(width: AppConstants.spacingSm),
           Expanded(
             child: Text(
               l10n.balikTangkilikAlreadyDistributedBanner(_year),
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.successGreen),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.successGreen,
+              ),
             ),
           ),
         ],
@@ -890,8 +1177,14 @@ class _DistributionTabState extends State<_DistributionTab> {
     );
   }
 
-  Widget _buildSummaryCard(BuildContext context, AppLocalizations l10n, NumberFormat currency) {
-    final displayTotal = _summary.isDistributed ? _summary.totalActualPayout : _summary.totalEstimatedPayout;
+  Widget _buildSummaryCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    NumberFormat currency,
+  ) {
+    final displayTotal = _summary.isDistributed
+        ? _summary.totalActualPayout
+        : _summary.totalEstimatedPayout;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingGutter),
@@ -906,18 +1199,40 @@ class _DistributionTabState extends State<_DistributionTab> {
             _summary.isDistributed
                 ? l10n.balikTangkilikTotalDistributed(_year)
                 : l10n.balikTangkilikTotalEstimated(_year),
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.85)),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
           ),
           Text(
             currency.format(displayTotal),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 24, color: Colors.white),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 24,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: AppConstants.spacingMd),
           Row(
             children: [
-              Expanded(child: _summaryStat(l10n.balikTangkilikPoolAmount, currency.format(_summary.distributableSurplus))),
-              Expanded(child: _summaryStat(l10n.balikTangkilikInterestRate, '${_summary.interestRatePercent.toStringAsFixed(2)}%')),
-              Expanded(child: _summaryStat(l10n.reportsContributingMembers, '${_summary.contributingMemberCount} / ${_summary.rows.length}')),
+              Expanded(
+                child: _summaryStat(
+                  l10n.balikTangkilikPoolAmount,
+                  currency.format(_summary.distributableSurplus),
+                ),
+              ),
+              Expanded(
+                child: _summaryStat(
+                  l10n.balikTangkilikInterestRate,
+                  '${_summary.interestRatePercent.toStringAsFixed(2)}%',
+                ),
+              ),
+              Expanded(
+                child: _summaryStat(
+                  l10n.reportsContributingMembers,
+                  '${_summary.contributingMemberCount} / ${_summary.rows.length}',
+                ),
+              ),
             ],
           ),
           // Option B — a separate row, only shown when the program pool is
@@ -929,8 +1244,18 @@ class _DistributionTabState extends State<_DistributionTab> {
             const SizedBox(height: AppConstants.spacingSm),
             Row(
               children: [
-                Expanded(child: _summaryStat(l10n.balikTangkilikProgramPoolAmount, currency.format(_summary.distributableProgramSurplus))),
-                Expanded(child: _summaryStat(l10n.balikTangkilikTotalProgramSales, currency.format(_summary.totalProgramSales))),
+                Expanded(
+                  child: _summaryStat(
+                    l10n.balikTangkilikProgramPoolAmount,
+                    currency.format(_summary.distributableProgramSurplus),
+                  ),
+                ),
+                Expanded(
+                  child: _summaryStat(
+                    l10n.balikTangkilikTotalProgramSales,
+                    currency.format(_summary.totalProgramSales),
+                  ),
+                ),
               ],
             ),
           ],
@@ -943,8 +1268,18 @@ class _DistributionTabState extends State<_DistributionTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 9, color: Colors.white70)),
-        Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 9, color: Colors.white70),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            color: Colors.white,
+          ),
+        ),
       ],
     );
   }
@@ -982,9 +1317,10 @@ class _HistoryTabState extends State<_HistoryTab> {
   }
 
   void _openYearDetail(DistributionHistoryYear year) {
-    AppBottomSheet.show(
-      context: context,
-      builder: (_) => _HistoryYearDetailSheet(year: year, repo: _repo),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _HistoryYearScreen(year: year, repo: _repo),
+      ),
     );
   }
 
@@ -993,7 +1329,11 @@ class _HistoryTabState extends State<_HistoryTab> {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -1009,12 +1349,20 @@ class _HistoryTabState extends State<_HistoryTab> {
           32,
         ),
         children: [
-          Text(l10n.balikTangkilikHistoryTitle, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface)),
+          Text(
+            l10n.balikTangkilikHistoryTitle,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: AppConstants.spacingSm),
           if (_history.isEmpty)
             ReportEmptyState(message: l10n.balikTangkilikNoHistoryYet)
           else
-            ..._history.map((year) => GestureDetector(
+            ..._history.map(
+              (year) => GestureDetector(
                   onTap: () => _openYearDetail(year),
                   child: Container(
                     margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
@@ -1022,7 +1370,9 @@ class _HistoryTabState extends State<_HistoryTab> {
                     decoration: BoxDecoration(
                       color: sagana.cardBackground,
                       borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                      border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+                    border: Border.all(
+                      color: cs.outline.withValues(alpha: 0.10),
+                    ),
                     ),
                     child: Row(
                       children: [
@@ -1031,12 +1381,18 @@ class _HistoryTabState extends State<_HistoryTab> {
                           height: 44,
                           decoration: BoxDecoration(
                             color: AppConstants.primaryContainer,
-                            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             '${year.year}',
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: Colors.white,
+                          ),
                           ),
                         ),
                         const SizedBox(width: AppConstants.spacingMd),
@@ -1046,11 +1402,20 @@ class _HistoryTabState extends State<_HistoryTab> {
                             children: [
                               Text(
                                 l10n.balikTangkilikYearLogTitle(year.year),
-                                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: cs.onSurface,
+                              ),
                               ),
                               Text(
-                                l10n.balikTangkilikYearLogSubtitle(year.memberCount),
-                                style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                              l10n.balikTangkilikYearLogSubtitle(
+                                year.memberCount,
+                              ),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
                               ),
                             ],
                           ),
@@ -1060,32 +1425,49 @@ class _HistoryTabState extends State<_HistoryTab> {
                           children: [
                             Text(
                               currency.format(year.totalDistributed),
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: AppConstants.successGreen),
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppConstants.successGreen,
                             ),
-                            Icon(Icons.chevron_right_rounded, size: 18, color: cs.onSurfaceVariant),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 18,
+                            color: cs.onSurfaceVariant,
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                )),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _HistoryYearDetailSheet extends StatefulWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// History Year Screen — a full pushed screen (not a bottom sheet), matching
+// the rest of Admin's report-style detail screens (see Sales Report's own
+// top bar for the pattern this mirrors). Distribution History is a real
+// record-review module, not a quick glance, so it gets the same weight as
+// every other "drill into one year/one record" screen in this app.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HistoryYearScreen extends StatefulWidget {
   final DistributionHistoryYear year;
   final BalikTangkilikRepository repo;
 
-  const _HistoryYearDetailSheet({required this.year, required this.repo});
+  const _HistoryYearScreen({required this.year, required this.repo});
 
   @override
-  State<_HistoryYearDetailSheet> createState() => _HistoryYearDetailSheetState();
+  State<_HistoryYearScreen> createState() => _HistoryYearScreenState();
 }
 
-class _HistoryYearDetailSheetState extends State<_HistoryYearDetailSheet> {
+class _HistoryYearScreenState extends State<_HistoryYearScreen> {
   bool _isLoading = true;
   List<MemberDistributionRow> _rows = [];
 
@@ -1096,10 +1478,14 @@ class _HistoryYearDetailSheetState extends State<_HistoryYearDetailSheet> {
   }
 
   Future<void> _load() async {
-    final summary = await widget.repo.fetchDistributionPreview(widget.year.year);
+    setState(() => _isLoading = true);
+    final summary = await widget.repo.fetchDistributionPreview(
+      widget.year.year,
+    );
     if (!mounted) return;
     setState(() {
-      _rows = summary.rows.where((r) => r.isPaid).toList();
+      _rows = summary.rows.where((r) => r.isPaid).toList()
+        ..sort((a, b) => b.actualTotal.compareTo(a.actualTotal));
       _isLoading = false;
     });
   }
@@ -1109,52 +1495,607 @@ class _HistoryYearDetailSheetState extends State<_HistoryYearDetailSheet> {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
+    final totalDistributed = _rows.fold<double>(
+      0,
+      (sum, r) => sum + r.actualTotal,
+    );
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Column(
+        children: [
+          ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                height: 64,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.spacingSm,
+                ),
+                decoration: BoxDecoration(
+                  color: sagana.glassBackground,
+                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    Expanded(
+                      child: Text(
+                        l10n.balikTangkilikYearLogTitle(widget.year.year),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        AppConstants.spacingGutter,
+                        AppConstants.spacingSafeH,
+                        32,
+                      ),
+                      children: [
+                        // Year summary card — the same "hero" weight every
+                        // other report's landing figure gets.
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(
+                            AppConstants.spacingGutter,
+                          ),
+                          decoration: BoxDecoration(
+                            color: sagana.cardBackground,
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusLg,
+                            ),
+                            border: Border.all(
+                              color: cs.outline.withValues(alpha: 0.10),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: AppConstants.primaryContainer,
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusMd,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '${widget.year.year}',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppConstants.spacingMd),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total Distributed',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    Text(
+                                      currency.format(totalDistributed),
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 18,
+                                        color: AppConstants.successGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    'Members',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_rows.length}',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 18,
+                                      color: cs.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppConstants.spacingSectionV),
+                        Text(
+                          'Member Records',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: AppConstants.spacingSm),
+                        if (_rows.isEmpty)
+                          ReportEmptyState(
+                            message: l10n.balikTangkilikNoHistoryYet,
+                          )
+                        else
+                          ..._rows.map(
+                            (r) => _HistoryMemberCard(
+                              row: r,
+                              year: widget.year.year,
+                              repo: widget.repo,
+                              onChanged: _load,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// A richer per-farmer card than the compact _MemberAmountRow (still used
+// as-is by the Distribution tab, unchanged) — History is a record you sit
+// with and review, so the breakdown gets its own clearly-labeled section
+// and more generous spacing rather than being packed into a 3-column row.
+class _HistoryMemberCard extends StatelessWidget {
+  final MemberDistributionRow row;
+  final int year;
+  final BalikTangkilikRepository repo;
+  final VoidCallback onChanged;
+
+  const _HistoryMemberCard({
+    required this.row,
+    required this.year,
+    required this.repo,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final sagana = context.saganaColors;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
+    final r = row;
 
     return Container(
+      margin: const EdgeInsets.only(bottom: AppConstants.spacingMd),
+      padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.radiusXl)),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(context).viewInsets.bottom),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              l10n.balikTangkilikYearLogTitle(widget.year.year),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: cs.onSurface),
+                      r.farmerName,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: cs.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${r.sharePercent.toStringAsFixed(1)}% share',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppConstants.spacingSm),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    currency.format(r.actualTotal),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppConstants.successGreen.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
+                    ),
+                    child: Text(
+                      l10n.balikTangkilikPaidBadge,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.successGreen,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             ),
             const SizedBox(height: AppConstants.spacingMd),
+          Container(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+          const SizedBox(height: AppConstants.spacingMd),
+          Text(
+            'Payout Breakdown',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _breakdownStat(
+                l10n,
+                'Balik-Tangkilik',
+                currency.format(r.actualBalikTangkilik ?? 0),
+                cs,
+              ),
+              _breakdownStat(
+                l10n,
+                'Interest',
+                currency.format(r.actualInterest ?? 0),
+                cs,
+              ),
+              if ((r.actualPurchasePatronage ?? 0) > 0)
+                _breakdownStat(
+                  l10n,
+                  'Purchase Patronage',
+                  currency.format(r.actualPurchasePatronage ?? 0),
+                  cs,
+                ),
+            ],
+          ),
+          if (r.payoutDecision != null) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            _PayoutDecisionStatus(
+              row: r,
+              year: year,
+              repo: repo,
+              onChanged: onChanged,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _breakdownStat(
+    AppLocalizations l10n,
+    String label,
+    String value,
+    ColorScheme cs,
+  ) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payout Decision Status — shown under a paid member's row in the History
+// year detail sheet whenever they've submitted a cash/capital choice.
+// Confirm/Reject mirror confirm_program_purchase()/decline_cooperative_
+// offer()'s existing request-then-confirm shape. Uses AppToast rather than
+// ScaffoldMessenger since this widget lives inside a modal sheet
+// (showManagementModal) — a plain SnackBar would render behind the sheet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PayoutDecisionStatus extends StatefulWidget {
+  final MemberDistributionRow row;
+  final int year;
+  final BalikTangkilikRepository repo;
+  final VoidCallback onChanged;
+
+  const _PayoutDecisionStatus({
+    required this.row,
+    required this.year,
+    required this.repo,
+    required this.onChanged,
+  });
+
+  @override
+  State<_PayoutDecisionStatus> createState() => _PayoutDecisionStatusState();
+}
+
+class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
+  bool _isBusy = false;
+
+  Future<void> _confirm() async {
+    final r = widget.row;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
+    final isCash = r.payoutDecision == 'pending_cash';
+    final message = isCash
+        ? 'Confirm that ${r.farmerName} has received ${currency.format(r.payoutDecisionAmount ?? 0)} in cash?'
+        : 'Confirm adding ${currency.format(r.payoutDecisionAmount ?? 0)} to ${r.farmerName}\'s capital share? This cannot be undone.';
+
+    final confirmed = await AppDialog.show<bool>(
+      context: context,
+      child: AlertDialog(
+        title: Text(
+          'Confirm Payout Decision',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isBusy = true);
+    try {
+      await widget.repo.confirmPayoutDecision(
+        farmerId: r.farmerId,
+        year: widget.year,
+      );
+      if (!mounted) return;
+      AppToast.show(context, 'Payout decision confirmed for ${r.farmerName}.');
+      widget.onChanged();
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(context, 'Could not confirm: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _reject() async {
+    final confirmed = await AppDialog.show<bool>(
+      context: context,
+      child: AlertDialog(
+        title: Text(
+          'Reject Payout Decision',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        content: Text(
+          'This sends the decision back so ${widget.row.farmerName} can submit a corrected choice. Continue?',
+          style: GoogleFonts.inter(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Reject',
+              style: TextStyle(color: AppConstants.errorRed),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isBusy = true);
+    try {
+      await widget.repo.rejectPayoutDecision(
+        farmerId: widget.row.farmerId,
+        year: widget.year,
+      );
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        'Payout decision rejected — ${widget.row.farmerName} can resubmit.',
+      );
+      widget.onChanged();
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(context, 'Could not reject: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.row;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
+    final isPending = r.hasPendingPayoutDecision;
+    final isCash =
+        r.payoutDecision == 'pending_cash' ||
+        r.payoutDecision == 'cash_confirmed';
+    final amountLabel = currency.format(r.payoutDecisionAmount ?? 0);
+    final choiceLabel = isCash
+        ? 'Keep as Cash — $amountLabel'
+        : 'Add to Capital — $amountLabel';
+    final statusColor = isPending
+        ? AppConstants.warningAmber
+        : AppConstants.successGreen;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isPending
+                    ? Icons.hourglass_top_rounded
+                    : Icons.check_circle_rounded,
+                size: 14,
+                color: statusColor,
+              ),
+              const SizedBox(width: 6),
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _rows.isEmpty
-                      ? Center(
                           child: Text(
-                            l10n.balikTangkilikNoHistoryYet,
-                            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                  '${isPending ? "Pending: " : "Confirmed: "}$choiceLabel',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (isPending) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isBusy ? null : _reject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppConstants.errorRed,
+                      side: const BorderSide(color: AppConstants.errorRed),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                    ),
+                    child: Text(
+                      'Reject',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isBusy ? null : _confirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConstants.primaryGreen,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                    ),
+                    child: _isBusy
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                           ),
                         )
-                      : ListView.builder(
-                          itemCount: _rows.length,
-                          itemBuilder: (context, index) {
-                            final r = _rows[index];
-                            return _MemberAmountRow(
-                              farmerName: r.farmerName,
-                              memberId: r.memberId,
-                              subtitle: '${r.memberId} • ${r.sharePercent.toStringAsFixed(1)}% share',
-                              totalAmount: r.actualTotal,
-                              balikTangkilikAmount: r.actualBalikTangkilik ?? 0,
-                              interestAmount: r.actualInterest ?? 0,
-                              purchasePatronageAmount: r.actualPurchasePatronage ?? 0,
-                              isPaid: true,
-                            );
-                          },
+                        : Text(
+                            'Confirm',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
             ),
           ],
         ),
+          ],
+        ],
       ),
     );
   }

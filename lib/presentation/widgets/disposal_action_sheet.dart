@@ -23,6 +23,7 @@ Future<DisposalAction?> showDisposalActionSheet(
   required String cropName,
   required double availableKg,
   required bool isCoopEligible,
+  required String? cropType,
 }) {
   return showManagementModal<DisposalAction>(
     context: context,
@@ -30,6 +31,7 @@ Future<DisposalAction?> showDisposalActionSheet(
       cropName: cropName,
       availableKg: availableKg,
       isCoopEligible: isCoopEligible,
+      cropType: cropType,
     ),
   );
 }
@@ -38,23 +40,30 @@ class _DisposalActionSheet extends StatelessWidget {
   final String cropName;
   final double availableKg;
   final bool isCoopEligible;
+  final String? cropType;
 
   const _DisposalActionSheet({
     required this.cropName,
     required this.availableKg,
     required this.isCoopEligible,
+    required this.cropType,
   });
 
   // Ginger is DA-AMAD-exclusive — it can only ever move through Market
   // Linking, never the open Marketplace, Offer to Cooperative, or an
-  // informal sale. Matches the same crop-name check used consistently
-  // elsewhere for Ginger (market_linking_repository.dart). See
-  // M-marketplace-7.
-  bool get _isGinger => cropName.toLowerCase().contains('ginger');
+  // informal sale. Keyed off the batch's denormalized crop_type (set at
+  // harvest time from crop_master.crop_type — see
+  // supabase_schema_harvest_market_type_persistence.sql), matching the
+  // same crop_type-based check market_linking_repository.dart already
+  // uses. Previously a crop-name substring match ('ginger'.contains) —
+  // fragile in both directions: it would misclassify any future crop
+  // whose name happens to contain "ginger", and would miss a DA-AMAD
+  // crop that doesn't literally have that name.
+  bool get _isDaAmadExclusive => cropType == 'da_amad_market';
 
   @override
   Widget build(BuildContext context) {
-    if (_isGinger) {
+    if (_isDaAmadExclusive) {
       return ManagementModalShell(
         title: '$cropName • ${availableKg.toStringAsFixed(0)} kg available',
         subtitle: 'What would you like to do with this batch?',

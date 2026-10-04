@@ -42,16 +42,17 @@ class FarmerManagementRepository {
       final infoRows = await _client
           .from('user_information')
           .select(
-            'user_id, full_name, purok, profile_photo_url, last_active_at',
+            'user_id, full_name, profile_photo_url, last_active_at, '
+            'contact_email, phone_number',
           )
           .inFilter('user_id', userIds);
 
       final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
-      // 3. farmer_profiles (member_id, is_verified)
+      // 3. farmer_profiles (is_verified)
       final profileRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id, is_verified')
+          .select('user_id, is_verified')
           .inFilter('user_id', userIds);
 
       final profileMap = {
@@ -118,8 +119,8 @@ class FarmerManagementRepository {
         return FarmerMemberModel.fromMap({
           'user_id': uid,
           'full_name': info['full_name'] as String? ?? 'Farmer',
-          'member_id': profile['member_id'] as String?,
-          'purok': info['purok'] as String?,
+          'contact_email': info['contact_email'] as String?,
+          'phone_number': info['phone_number'] as String?,
           'profile_photo_url': info['profile_photo_url'] as String?,
           'member_status': role['status'],
           'last_active_at': info['last_active_at'],
@@ -220,26 +221,16 @@ class FarmerManagementRepository {
   // ─── Approve a pending member (Issue 5) ──────────────────────────────────
   //
   // One atomic RPC (approve_member): pending -> active with the
-  // acknowledgement gate ON, Member ID minted via the shared generator if
-  // missing, is_verified set, registry linked, 'member_approved'
-  // notification sent, and a member_status_events audit row written. The
-  // login username is NEVER changed by approval.
+  // acknowledgement gate ON, is_verified set, registry linked,
+  // 'member_approved' notification sent, and a member_status_events audit
+  // row written. The login username is NEVER changed by approval.
 
   Future<ApproveMemberResult> approveMember({
     required String userId,
     required String fullName,
   }) async {
     try {
-      final memberId = await _client.rpc(
-        'approve_member',
-        params: {'p_user_id': userId},
-      );
-
-      final infoRow = await _client
-          .from('user_information')
-          .select('username')
-          .eq('user_id', userId)
-          .maybeSingle();
+      await _client.rpc('approve_member', params: {'p_user_id': userId});
 
       AdminActivityRepository().log(
         module: 'members',
@@ -247,11 +238,7 @@ class FarmerManagementRepository {
         description: 'Approved $fullName\'s membership application.',
         referenceId: userId,
       );
-      return ApproveMemberResult(
-        success: true,
-        memberId: memberId as String?,
-        username: infoRow?['username'] as String? ?? '',
-      );
+      return const ApproveMemberResult(success: true);
     } catch (e) {
       return ApproveMemberResult(
         success: false,
@@ -344,16 +331,9 @@ class FarmerManagementRepository {
 
 class ApproveMemberResult {
   final bool success;
-  final String? memberId;
-  final String? username;
   final String? error;
 
-  const ApproveMemberResult({
-    required this.success,
-    this.memberId,
-    this.username,
-    this.error,
-  });
+  const ApproveMemberResult({required this.success, this.error});
 }
 
 // ─── Client-side filter + sort helper ────────────────────────────────────────
@@ -371,14 +351,7 @@ extension FarmerListFilter on List<FarmerMemberModel> {
     // Search
     if (searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
-      list = list
-          .where(
-            (f) =>
-                f.fullName.toLowerCase().contains(q) ||
-                (f.memberId?.toLowerCase().contains(q) ?? false) ||
-                (f.purok?.toLowerCase().contains(q) ?? false),
-          )
-          .toList();
+      list = list.where((f) => f.fullName.toLowerCase().contains(q)).toList();
     }
 
     // Status filter
@@ -416,8 +389,6 @@ extension FarmerListFilter on List<FarmerMemberModel> {
           if (a.lastHarvestDate == null) return 1;
           if (b.lastHarvestDate == null) return -1;
           return b.lastHarvestDate!.compareTo(a.lastHarvestDate!);
-        case FarmerSortOption.memberId:
-          return (a.memberId ?? '').compareTo(b.memberId ?? '');
         case FarmerSortOption.loanBalance:
           return b.outstandingLoanBalance.compareTo(a.outstandingLoanBalance);
       }

@@ -1,16 +1,43 @@
 import 'package:flutter/material.dart';
 
+/// Standalone so callers that only have a raw crop_type string (e.g. a
+/// catalog Map, not a full FarmerCropModel) can reuse the same mapping
+/// without constructing a throwaway model instance.
+String marketTypeLabelFor(String? cropType) {
+  switch (cropType) {
+    case 'sp3_cooperative':
+      return 'Cooperative Market';
+    case 'da_amad_market':
+      return 'DA-AMAD Market';
+    case 'open_market':
+      return 'Public Market';
+    default:
+      return 'Not yet assigned';
+  }
+}
+
 class FarmerCropModel {
   final String id;
   final String farmerId;
   final String cropName;
   final String category;
   final String? photoUrl;
+
+  /// Admin-curated catalog reference photo (crop_master.image_url), joined
+  /// in for display fallback only — never written back to farmer_crops.
+  /// Distinct from [photoUrl], which is the farmer's own photo of their
+  /// specific planting.
+  final String? catalogImageUrl;
   final String? cropMasterId; // null until linked to the official catalog
+  /// Market type as registered on the crop's catalog entry —
+  /// sp3_cooperative | da_amad_market | open_market. Null until the crop
+  /// is linked to crop_master (i.e. while isPendingApproval is true).
+  final String? cropType;
   final int harvestCount;
   final DateTime createdAt;
   final DateTime? updatedAt;
-  final String? requestStatus; // 'pending' | 'approved' | 'rejected' | null (added directly from catalog, no request involved)
+  final String?
+  requestStatus; // 'pending' | 'approved' | 'rejected' | null (added directly from catalog, no request involved)
   final String? requestNotes;  // admin's reason, shown to farmer when rejected
 
   const FarmerCropModel({
@@ -19,7 +46,9 @@ class FarmerCropModel {
     required this.cropName,
     required this.category,
     this.photoUrl,
+    this.catalogImageUrl,
     this.cropMasterId,
+    this.cropType,
     required this.harvestCount,
     required this.createdAt,
     this.updatedAt,
@@ -29,6 +58,24 @@ class FarmerCropModel {
 
   bool get hasHarvests => harvestCount > 0;
   bool get hasPhoto => photoUrl != null && photoUrl!.isNotEmpty;
+
+  /// The photo a card should actually render: the farmer's own photo if
+  /// they've uploaded one, else the catalog's reference photo, else the
+  /// caller falls back to a generic category icon.
+  String? get displayImageUrl {
+    if (hasPhoto) return photoUrl;
+    if (catalogImageUrl != null && catalogImageUrl!.isNotEmpty) {
+      return catalogImageUrl;
+    }
+    return null;
+  }
+
+  bool get hasDisplayImage => displayImageUrl != null;
+
+  /// Human-readable label for [cropType], for display wherever a crop's
+  /// market type needs to be shown (Request New Crop, Record New Harvest,
+  /// Manage Inventory, etc).
+  String get marketTypeLabel => marketTypeLabelFor(cropType);
 
   /// True until Admin approves a "Request New Crop" submission and links
   /// it to a real crop_master entry.
@@ -68,7 +115,9 @@ class FarmerCropModel {
       cropName: map['crop_name'] as String,
       category: map['category'] as String? ?? 'Other',
       photoUrl: map['photo_url'] as String?,
+      catalogImageUrl: map['catalog_image_url'] as String?,
       cropMasterId: map['crop_master_id'] as String?,
+      cropType: map['crop_type'] as String?,
       harvestCount: map['harvest_count'] as int? ?? 0,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
@@ -96,7 +145,9 @@ class FarmerCropModel {
     String? cropName,
     String? category,
     String? photoUrl,
+    String? catalogImageUrl,
     String? cropMasterId,
+    String? cropType,
     int? harvestCount,
   }) {
     return FarmerCropModel(
@@ -105,7 +156,9 @@ class FarmerCropModel {
       cropName: cropName ?? this.cropName,
       category: category ?? this.category,
       photoUrl: photoUrl ?? this.photoUrl,
+      catalogImageUrl: catalogImageUrl ?? this.catalogImageUrl,
       cropMasterId: cropMasterId ?? this.cropMasterId,
+      cropType: cropType ?? this.cropType,
       harvestCount: harvestCount ?? this.harvestCount,
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -131,10 +184,14 @@ enum HarvestFilter { all, synced, pending, thisMonth }
 extension HarvestFilterExt on HarvestFilter {
   String get label {
     switch (this) {
-      case HarvestFilter.all: return 'All';
-      case HarvestFilter.synced: return 'Synced';
-      case HarvestFilter.pending: return 'Pending';
-      case HarvestFilter.thisMonth: return 'This Month';
+      case HarvestFilter.all:
+        return 'All';
+      case HarvestFilter.synced:
+        return 'Synced';
+      case HarvestFilter.pending:
+        return 'Pending';
+      case HarvestFilter.thisMonth:
+        return 'This Month';
     }
   }
 }

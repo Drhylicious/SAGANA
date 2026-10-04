@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/contribution_model.dart';
 import '../models/admin_reports_model.dart';
+import '../models/program_model.dart';
 import 'farmer_lookup.dart';
 import 'member_sales_aggregation.dart' as member_sales_agg;
 
@@ -56,9 +57,45 @@ class ContributionRepository {
           .eq('farmer_id', _userId)
           .order('sale_date', ascending: false)
           .limit(limit);
-      return rows
-          .map((r) => MemberSalesTransaction.fromMap(r))
-          .toList();
+      return rows.map((r) => MemberSalesTransaction.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ─── Recent Product Sales Program purchases ────────────────────────────────
+  // Mirrors fetchRecentTransactions() above, but for the buying side (Option
+  // B) — across every program, not scoped to one, so it lists everything
+  // the farmer has confirmed buying from the cooperative this year and
+  // beyond. Only 'paid' purchases count as real activity, same convention
+  // as fetchMemberProgramPurchaseTotals().
+  Future<List<ProgramPurchase>> fetchRecentProgramPurchases({
+    int limit = 10,
+  }) async {
+    try {
+      final rows = await _client
+          .from('program_product_purchases')
+          .select(
+            'id, program_id, product_id, farmer_id, quantity, unit_price, '
+            'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
+            'cooperative_programs(program_name), '
+            'program_products(cooperative_inventory(item_name, unit))',
+          )
+          .eq('farmer_id', _userId)
+          .eq('status', 'paid')
+          .order('confirmed_at', ascending: false)
+          .limit(limit);
+      return rows.map((r) {
+        final program = r['cooperative_programs'] as Map<String, dynamic>?;
+        final product = r['program_products'] as Map<String, dynamic>?;
+        final inv = product?['cooperative_inventory'] as Map<String, dynamic>?;
+        return ProgramPurchase.fromMap({
+          ...r,
+          'program_name': program?['program_name'],
+          'item_name': inv?['item_name'],
+          'unit': inv?['unit'],
+        });
+      }).toList();
     } catch (_) {
       return [];
     }
@@ -96,27 +133,33 @@ class ContributionRepository {
     }
   }
 
-  // ─── Patronage refund reinvestment ─────────────────────────────────────────
+  // ─── Payout decision (cash or capital) ──────────────────────────────────────
 
-  /// Reinvests [amount] of the farmer's own finalized [year] Balik-Tangkilik
-  /// payout as additional capital share, via the atomic
-  /// reinvest_patronage_capital() RPC. Throws on failure (insufficient
-  /// remaining amount, year not yet finalized, etc.) — same convention as
-  /// CapitalContributionRepository's write methods, since this changes
-  /// money-adjacent state and a swallowed failure would leave the farmer
-  /// believing the reinvestment went through when it didn't.
+  /// Submits the farmer's choice for a finalized [year] payout — 'cash' or
+  /// 'capital' — via request_payout_decision(). This records the decision
+  /// as PENDING only; no money moves and no capital_contribution_events
+  /// row is written until an admin confirms it (see
+  /// BalikTangkilikRepository.confirmPayoutDecision(), used from the
+  /// admin-side History review). Superseded reinvest_patronage_capital()'s
+  /// old immediate-write behavior — that RPC's authenticated access has
+  /// been revoked, so this is now the only farmer-reachable path.
   ///
-  /// Returns the amount still available to reinvest for that year after
-  /// this call.
-  Future<double> reinvestPatronageCapital({
+  /// [amount] is required for 'capital' (may be less than the full
+  /// available amount); ignored for 'cash', which always claims the
+  /// entire remaining available amount. Throws on failure — same
+  /// real-money-adjacent convention as every other write in this
+  /// repository — including the expected "a decision has already been
+  /// submitted for this year" case, so the UI can surface it rather than
+  /// silently pretending it succeeded.
+  Future<void> requestPayoutDecision({
     required int year,
-    required double amount,
+    required String decision,
+    double? amount,
   }) async {
-    final result = await _client.rpc('reinvest_patronage_capital', params: {
-      'p_year': year,
-      'p_amount': amount,
-    });
-    return (result as num).toDouble();
+    await _client.rpc(
+      'request_payout_decision',
+      params: {'p_year': year, 'p_decision': decision, 'p_amount': amount},
+    );
   }
 
   // ─── Member share percentage ──────────────────────────────────────────────
@@ -124,8 +167,7 @@ class ContributionRepository {
   double computeMemberSharePercent({
     required double memberSales,
     required double coopTotalSales,
-  }) =>
-      member_sales_agg.computeMemberSharePercent(
+  }) => member_sales_agg.computeMemberSharePercent(
         memberSales: memberSales,
         coopTotalSales: coopTotalSales,
       );
@@ -147,7 +189,10 @@ class ContributionRepository {
           .select('*')
           .eq('farmer_id', _userId);
       if (start != null) {
-        query = query.gte('sale_date', start.toIso8601String().split('T').first);
+        query = query.gte(
+          'sale_date',
+          start.toIso8601String().split('T').first,
+        );
       }
       if (end != null) {
         query = query.lte('sale_date', end.toIso8601String().split('T').first);
@@ -160,7 +205,6 @@ class ContributionRepository {
         return SalesTransactionRow(
           id: row['id'] as String,
           farmerName: info?.fullName ?? 'Unknown Farmer',
-          memberId: info?.memberId ?? '—',
           cropType: row['crop_type'] as String? ?? 'palay',
           cropName: row['crop_name'] as String? ?? '—',
           quantityKg: (row['quantity_kg'] as num).toDouble(),
@@ -245,7 +289,6 @@ class ContributionRepository {
           MemberContributionRow(
             farmerId: _userId,
             farmerName: info?.fullName ?? 'Unknown Farmer',
-            memberId: info?.memberId ?? '—',
             palayQtyKg: palayQtyKg,
             palayAmount: palayAmount,
             peanutQtyKg: peanutQtyKg,

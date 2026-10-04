@@ -1,32 +1,40 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
-import '../../../routes/app_routes.dart';
-import '../../widgets/shared_widgets.dart';
+import '../../widgets/fulfillment_info_card.dart';
+import '../../widgets/order_result_pieces.dart';
 
-// Same bypass as my_orders_screen.dart / order_detail_screen.dart.
-// Note: originally this screen displayed order.statusLabel without
-// uppercasing (Title Case); this now shows the same ALL-CAPS badge style
-// used consistently in My Orders and Order Detail, a deliberate small
-// visual harmonization across all three status-badge locations.
-String _orderStatusBadge(String status, AppLocalizations l10n) {
-  switch (status) {
-    case 'pending':   return l10n.buyerOrdersStatusPending;
-    case 'approved':  return l10n.buyerOrdersStatusApproved;
-    case 'completed': return l10n.buyerOrdersStatusCompleted;
-    case 'cancelled': return l10n.buyerOrdersStatusCancelled;
-    default:          return status.toUpperCase();
-  }
-}
-
+/// The single Order Success design for every checkout path — Buy Now
+/// (one order) and an all-succeeded Cart checkout (several orders) both
+/// land here with a list of the orderId(s) that were just created, and
+/// both render through this exact same widget tree. There is no second
+/// implementation anywhere for "orders were placed successfully" — a
+/// partial-failure Cart checkout is the one genuinely different message
+/// (some items didn't go through) and stays on CartCheckoutResultScreen,
+/// which still reuses this screen's own OrderResultIcon/OrderReferenceCard/
+/// FulfillmentInfoCard pieces for everything it shares with this one.
+///
+/// Fixed section order, always, regardless of Pickup/Delivery or how many
+/// orders: icon -> title -> subtitle -> fulfillment card (from the first
+/// order — every order in one checkout shares the same fulfillment choice)
+/// -> one OrderReferenceCard per order -> buttons. Only the fulfillment
+/// card's own content and the number of order cards change; the screen
+/// itself never restructures.
 class OrderSuccessScreen extends StatefulWidget {
-  final String orderId;
-  const OrderSuccessScreen({super.key, required this.orderId});
+  final List<String> orderIds;
+  // Phase 9 — same rationale as CartCheckoutResultScreen's isFarmerContext:
+  // no Farmer "My Orders" destination exists yet (Phase 13), so the
+  // farmer variant only offers "back to Marketplace."
+  final bool isFarmerContext;
+  const OrderSuccessScreen({
+    super.key,
+    required this.orderIds,
+    this.isFarmerContext = false,
+  });
 
   @override
   State<OrderSuccessScreen> createState() => _OrderSuccessScreenState();
@@ -35,7 +43,7 @@ class OrderSuccessScreen extends StatefulWidget {
 class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   final _repository = BuyerOrderRepository();
   bool _isLoading = true;
-  BuyerOrderModel? _order;
+  List<BuyerOrderModel> _orders = [];
 
   @override
   void initState() {
@@ -44,10 +52,10 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   }
 
   Future<void> _load() async {
-    final order = await _repository.fetchOrderById(widget.orderId);
+    final results = await Future.wait(widget.orderIds.map(_repository.fetchOrderById));
     if (!mounted) return;
     setState(() {
-      _order = order;
+      _orders = results.whereType<BuyerOrderModel>().toList();
       _isLoading = false;
     });
   }
@@ -56,123 +64,64 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
+    // Every order placed in one checkout shares the same fulfillment
+    // choice — read it from whichever order loaded first rather than
+    // repeating an identical card once per order.
+    final firstOrder = _orders.isNotEmpty ? _orders.first : null;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Spacer(),
-                    _buildCheckmark(),
-                    const SizedBox(height: 24),
-                    Text(
-                      l10n.buyerOrderSuccessTitle,
-                      style: GoogleFonts.poppins(
-                        fontSize: 24, fontWeight: FontWeight.w800,
-                        color: AppConstants.primaryGreen,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.buyerOrderSuccessSubtitle,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 28),
-                    if (_order != null) _buildSummaryCard(_order!, l10n),
-                    const Spacer(),
-                    PrimaryButton(
-                      label: l10n.buyerOrderSuccessViewOrders,
-                      onPressed: () => context.go(AppRoutes.myOrders),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH, vertical: 24),
+                children: [
+                  const SizedBox(height: 12),
+                  const Center(child: OrderResultIcon(icon: Icons.check_rounded, color: AppConstants.successGreen)),
+                  const SizedBox(height: 20),
+                  Text(
+                    l10n.buyerOrderSuccessTitle,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.buyerOrderSuccessSubtitle,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 24),
+                  if (firstOrder != null && firstOrder.hasFulfillmentChoice) ...[
+                    FulfillmentInfoCard(
+                      fulfillmentMethod: firstOrder.fulfillmentMethod,
+                      deliveryAddress: firstOrder.deliveryAddress,
+                      deliveryContactNumber: firstOrder.deliveryContactNumber,
+                      deliveryRecipientName: firstOrder.deliveryRecipientName,
+                      deliveryLabel: firstOrder.deliveryLabel,
+                      deliveryNotes: firstOrder.deliveryNotes,
                     ),
                     const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: () => context.go(AppRoutes.marketplaceBrowse),
-                      child: Text(
-                        l10n.buyerOrderSuccessContinueShopping,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13, fontWeight: FontWeight.w600,
-                          color: AppConstants.primaryGreen,
-                        ),
-                      ),
+                  ],
+                  for (int i = 0; i < _orders.length; i++) ...[
+                    OrderReferenceCard(
+                      orderId: _orders[i].id,
+                      status: _orders[i].status,
+                      photoUrl: _orders[i].listingPhotoUrl,
+                      displayName: _orders[i].displayName,
+                      quantityKg: _orders[i].quantityKg,
+                      pricePerKg: _orders[i].pricePerKg,
+                      totalPrice: _orders[i].totalPrice,
                     ),
-                    const SizedBox(height: 20),
+                    if (i < _orders.length - 1) const SizedBox(height: 10),
                   ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckmark() {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutBack,
-      builder: (context, value, child) => Transform.scale(scale: value, child: child),
-      child: Container(
-        width: 96, height: 96,
-        decoration: const BoxDecoration(
-          color: AppConstants.successGreen,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.check_rounded, color: Colors.white, size: 52),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(BuyerOrderModel order, AppLocalizations l10n) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(order.orderReference,
-                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.onSurfaceVariant)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppConstants.warningAmber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                ),
-                child: Text(_orderStatusBadge(order.status, l10n),
-                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.warningAmber)),
+                ],
               ),
-            ],
-          ),
-          const Divider(height: 20),
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                child: order.listingPhotoUrl != null
-                    ? Image.network(order.listingPhotoUrl!, width: 48, height: 48, fit: BoxFit.cover)
-                    : Container(width: 48, height: 48, color: AppConstants.limeGreen),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(order.displayName, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
-                    Text('${order.quantityKg.toStringAsFixed(0)} kg × ₱${order.pricePerKg.toStringAsFixed(2)}',
-                        style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              Text('₱${order.totalPrice.toStringAsFixed(2)}',
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
-            ],
-          ),
-        ],
       ),
+      // Fixed position, outside the scrollable content — per explicit
+      // request, the two actions never move regardless of how much
+      // fulfillment/order content is above them.
+      bottomNavigationBar: _isLoading ? null : OrderResultActions(isFarmerContext: widget.isFarmerContext),
     );
   }
 }

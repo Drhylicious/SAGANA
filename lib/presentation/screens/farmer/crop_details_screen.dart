@@ -8,7 +8,7 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 
-/// Read-only crop details — what tapping a crop card in My Crops opens.
+/// Read-only crop details — what tapping a crop card in Crop Roster opens.
 /// Actions (record harvest, view history, delete) stay in the three-dot
 /// menu on the list; this screen is "view", not "act", with the two most
 /// common next steps offered as a convenience.

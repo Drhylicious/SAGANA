@@ -123,13 +123,15 @@ extension SaganaColorsContext on BuildContext {
 class MarketTypeDisplay {
   MarketTypeDisplay._();
 
+  // 'da_amad_market' was a third classification, retired by
+  // supabase_schema_remove_da_amad.sql — the price_type/crop_type CHECK
+  // constraints only allow 'sp3_cooperative'/'open_market' now, so that
+  // case can never be reached. Removed rather than left dead.
   static Color color(BuildContext context, String priceType) {
     final colors = context.saganaColors;
     switch (priceType) {
       case 'sp3_cooperative':
         return colors.marketCooperative;
-      case 'da_amad_market':
-        return colors.marketDaAmad;
       default:
         return colors.marketOpenMarket;
     }
@@ -139,8 +141,6 @@ class MarketTypeDisplay {
     switch (priceType) {
       case 'sp3_cooperative':
         return l10n.priceCooperativeMarket;
-      case 'da_amad_market':
-        return l10n.marketTypeDaAmad;
       default:
         return l10n.pricePublicMarket;
     }
@@ -150,10 +150,7 @@ class MarketTypeDisplay {
 /// Shared color lookup for marketplace_listings.status, mirroring
 /// MarketTypeDisplay's pattern above — one place the color lives, so
 /// Farmer's My Listings and Admin's Listing Review can never disagree on
-/// a status's color again. Previously they did: changes_required was
-/// error-red-toned on the Farmer badge, amber/warning on Admin's review
-/// screen. Resolved here in favor of amber/warning — changes_required is
-/// an actionable-but-not-failed state, unlike rejected.
+/// a status's color again.
 ///
 /// Labels are intentionally NOT unified here — Farmer's badge uses
 /// descriptive text ("LIVE ON MARKET") while Admin's uses compact text
@@ -169,14 +166,12 @@ class ListingStatusDisplay {
         return AppConstants.warningAmber;
       case 'approved':
         return AppConstants.successGreen;
-      case 'changes_required':
-        return AppConstants.warningAmber;
       case 'sold':
-        return cs.onSurfaceVariant;
+        return AppConstants.mutedBrown;
       case 'rejected':
         return cs.error;
       case 'withdrawn':
-        return cs.outline;
+        return AppConstants.mutedSlate;
       default:
         return cs.outline;
     }

@@ -12,7 +12,9 @@ class CartService {
   Future<List<CartItemModel>> getItems() async {
     final box = await Hive.openBox(AppConstants.hiveBoxCart);
     return box.values
-        .map((raw) => CartItemModel.fromMap(Map<String, dynamic>.from(raw as Map)))
+        .map(
+          (raw) => CartItemModel.fromMap(Map<String, dynamic>.from(raw as Map)),
+        )
         .toList();
   }
 
@@ -27,6 +29,8 @@ class CartService {
     String? variety,
     required double pricePerKg,
     String? photoUrl,
+    String? category,
+    String? marketType,
     required double availableKgSnapshot,
     required double quantityKg,
   }) async {
@@ -34,8 +38,13 @@ class CartService {
     final existingRaw = box.get(listingId);
 
     if (existingRaw != null) {
-      final existing = CartItemModel.fromMap(Map<String, dynamic>.from(existingRaw as Map));
-      existing.quantityKg = (existing.quantityKg + quantityKg).clamp(0.0, availableKgSnapshot);
+      final existing = CartItemModel.fromMap(
+        Map<String, dynamic>.from(existingRaw as Map),
+      );
+      existing.quantityKg = (existing.quantityKg + quantityKg).clamp(
+        0.0,
+        availableKgSnapshot,
+      );
       await box.put(listingId, existing.toMap());
     } else {
       final item = CartItemModel(
@@ -44,6 +53,8 @@ class CartService {
         variety: variety,
         pricePerKg: pricePerKg,
         photoUrl: photoUrl,
+        category: category,
+        marketType: marketType,
         availableKgSnapshot: availableKgSnapshot,
         quantityKg: quantityKg,
       );

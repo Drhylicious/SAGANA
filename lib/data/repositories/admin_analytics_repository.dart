@@ -14,7 +14,9 @@ class AdminAnalyticsRepository {
 
   /// Categorizes every registered farmer into harvested / listed-only /
   /// inactive within [since] (null = all time).
-  Future<MemberParticipationSummary> fetchMemberParticipation({DateTime? since}) async {
+  Future<MemberParticipationSummary> fetchMemberParticipation({
+    DateTime? since,
+  }) async {
     try {
       // Active members only — see BalikTangkilikRepository.
       // fetchDistributionPreview() for the full reasoning; this method
@@ -26,12 +28,14 @@ class AdminAnalyticsRepository {
           .select('user_id')
           .eq('role', 'farmer')
           .eq('status', 'active');
-      final activeIds = activeRoleRows.map((r) => r['user_id'] as String).toList();
+      final activeIds = activeRoleRows
+          .map((r) => r['user_id'] as String)
+          .toList();
       if (activeIds.isEmpty) return MemberParticipationSummary.empty();
 
       final rosterRows = await _client
           .from('farmer_profiles')
-          .select('user_id, member_id')
+          .select('user_id')
           .inFilter('user_id', activeIds);
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       if (farmerIds.isEmpty) return MemberParticipationSummary.empty();
@@ -41,14 +45,23 @@ class AdminAnalyticsRepository {
         harvestQuery = harvestQuery.gte('harvest_date', _dateOnly(since));
       }
       final harvestRows = await harvestQuery;
-      final harvestedIds = harvestRows.map((r) => r['farmer_id'] as String).toSet();
+      final harvestedIds = harvestRows
+          .map((r) => r['farmer_id'] as String)
+          .toSet();
 
-      var listingQuery = _client.from('marketplace_listings').select('farmer_id');
+      var listingQuery = _client
+          .from('marketplace_listings')
+          .select('farmer_id');
       if (since != null) {
-        listingQuery = listingQuery.gte('submitted_at', since.toIso8601String());
+        listingQuery = listingQuery.gte(
+          'submitted_at',
+          since.toIso8601String(),
+        );
       }
       final listingRows = await listingQuery;
-      final listedIds = listingRows.map((r) => r['farmer_id'] as String).toSet();
+      final listedIds = listingRows
+          .map((r) => r['farmer_id'] as String)
+          .toSet();
 
       final inactiveIds = farmerIds
           .where((id) => !harvestedIds.contains(id) && !listedIds.contains(id))
@@ -56,12 +69,14 @@ class AdminAnalyticsRepository {
       final activeListedOnlyIds = listedIds.difference(harvestedIds);
 
       final farmerInfo = await fetchFarmerInfoMap(_client, inactiveIds);
-      final inactiveFarmers = inactiveIds
-          .map((id) => FarmerPickerResult(
+      final inactiveFarmers =
+          inactiveIds
+              .map(
+                (id) => FarmerPickerResult(
                 id: id,
                 fullName: farmerInfo[id]?.fullName ?? 'Unknown Farmer',
-                memberId: farmerInfo[id]?.memberId ?? '—',
-              ))
+                ),
+              )
           .toList()
         ..sort((a, b) => a.fullName.compareTo(b.fullName));
 
@@ -97,12 +112,14 @@ class AdminAnalyticsRepository {
     if (farmerIds.isEmpty) return;
     await NotificationRepository().createNotifications(
       farmerIds
-          .map((id) => NotificationDraft(
+          .map(
+            (id) => NotificationDraft(
                 userId: id,
                 type: 'system',
                 title: title,
                 body: body,
-              ))
+            ),
+          )
           .toList(),
     );
   }

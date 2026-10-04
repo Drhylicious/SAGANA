@@ -17,6 +17,7 @@ class ExpenseRepository {
       return ExpenseModel(
         id: entry.key,
         farmerId: _userId,
+        name: p['name'] as String?,
         category: p['category'] as String,
         description: p['description'] as String,
         amount: (p['amount'] as num).toDouble(),
@@ -46,7 +47,9 @@ class ExpenseRepository {
 
       if (period.startDate != null) {
         query = query.gte(
-            'expense_date', period.startDate!.toIso8601String().split('T').first);
+          'expense_date',
+          period.startDate!.toIso8601String().split('T').first,
+        );
       }
 
       final rows = await query.order('expense_date', ascending: false);
@@ -57,64 +60,16 @@ class ExpenseRepository {
 
     // Merge in Hive-queued offline expenses not yet synced, same pattern
     // HarvestRepository uses for pending harvests (Phase 2 / U2).
-    final pending = _pendingExpenseModels().where((e) =>
-        period.startDate == null || !e.expenseDate.isBefore(period.startDate!));
+    final pending = _pendingExpenseModels().where(
+      (e) =>
+          period.startDate == null ||
+          !e.expenseDate.isBefore(period.startDate!),
+    );
     if (pending.isEmpty) return synced;
 
     final combined = [...pending, ...synced];
     combined.sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
     return combined;
-  }
-
-  // ─── This month total (non-subsidy only) ──────────────────────────────────
-
-  Future<double> fetchThisMonthTotal() async {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, 1);
-    double total = 0;
-    try {
-      final rows = await _client
-          .from('farmer_expenses')
-          .select('amount, is_subsidy')
-          .eq('farmer_id', _userId)
-          .eq('is_subsidy', false)
-          .gte('expense_date', start.toIso8601String().split('T').first);
-      for (final row in rows) {
-        total += (row['amount'] as num).toDouble();
-      }
-    } catch (_) {
-      // Falls through to pending-only total below.
-    }
-    // Merge in Hive-queued offline expenses (non-subsidy only, matching
-    // the server-side filter above) — Phase 2 / U2.
-    for (final e in _pendingExpenseModels()) {
-      if (!e.isSubsidy && !e.expenseDate.isBefore(start)) {
-        total += e.amount;
-      }
-    }
-    return total;
-  }
-
-  // ─── All time total (non-subsidy only) ────────────────────────────────────
-
-  Future<double> fetchAllTimeTotal() async {
-    double total = 0;
-    try {
-      final rows = await _client
-          .from('farmer_expenses')
-          .select('amount')
-          .eq('farmer_id', _userId)
-          .eq('is_subsidy', false);
-      for (final row in rows) {
-        total += (row['amount'] as num).toDouble();
-      }
-    } catch (_) {
-      // Falls through to pending-only total below.
-    }
-    for (final e in _pendingExpenseModels()) {
-      if (!e.isSubsidy) total += e.amount;
-    }
-    return total;
   }
 
   // ─── Category breakdown ───────────────────────────────────────────────────
@@ -148,12 +103,15 @@ class ExpenseRepository {
     if (totals.isEmpty) return [];
 
     final maxVal = totals.values.reduce((a, b) => a > b ? a : b);
-    return totals.entries.map((e) => CategoryBreakdown(
+    return totals.entries
+        .map(
+          (e) => CategoryBreakdown(
           category: e.key,
           total: e.value,
           percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
           hasSubsidy: hasSubsidy.containsKey(e.key),
-        ))
+          ),
+        )
         .toList()
       ..sort((a, b) => b.total.compareTo(a.total));
   }
@@ -161,6 +119,7 @@ class ExpenseRepository {
   // ─── Add expense ──────────────────────────────────────────────────────────
 
   Future<ExpenseModel> addExpense({
+    required String name,
     required String category,
     required String description,
     required double amount,
@@ -172,6 +131,7 @@ class ExpenseRepository {
 
     if (!isOnline) {
       final localId = await HiveService.savePendingExpense({
+        'name': name.trim(),
         'category': category,
         'description': description.trim(),
         'amount': isSubsidy ? 0.0 : amount,
@@ -185,6 +145,7 @@ class ExpenseRepository {
       return ExpenseModel(
         id: localId,
         farmerId: _userId,
+        name: name.trim(),
         category: category,
         description: description.trim(),
         amount: isSubsidy ? 0.0 : amount,
@@ -197,6 +158,7 @@ class ExpenseRepository {
     }
 
     return _addOnline(
+      name: name,
       category: category,
       description: description,
       amount: amount,
@@ -211,6 +173,7 @@ class ExpenseRepository {
   /// submissions, so the two paths can never drift apart — mirrors
   /// HarvestEntryRepository._submitOnline().
   Future<ExpenseModel> _addOnline({
+    required String name,
     required String category,
     required String description,
     required double amount,
@@ -222,6 +185,7 @@ class ExpenseRepository {
         .from('farmer_expenses')
         .insert({
           'farmer_id': _userId,
+          'name': name.trim(),
           'category': category,
           'description': description.trim(),
           'amount': isSubsidy ? 0.0 : amount,
@@ -238,6 +202,7 @@ class ExpenseRepository {
   /// once connectivity returns — mirrors submitQueuedHarvest().
   Future<ExpenseModel> submitQueuedExpense(Map<dynamic, dynamic> payload) {
     return _addOnline(
+      name: payload['name'] as String? ?? '',
       category: payload['category'] as String,
       description: payload['description'] as String,
       amount: (payload['amount'] as num).toDouble(),
@@ -273,11 +238,15 @@ class ExpenseRepository {
           .eq('farmer_id', _userId);
       if (start != null) {
         query = query.gte(
-            'expense_date', start.toIso8601String().split('T').first);
+          'expense_date',
+          start.toIso8601String().split('T').first,
+        );
       }
       if (end != null) {
         query = query.lte(
-            'expense_date', end.toIso8601String().split('T').first);
+          'expense_date',
+          end.toIso8601String().split('T').first,
+        );
       }
       final rows = await query.order('expense_date', ascending: false);
       synced = rows.map((r) => ExpenseModel.fromMap(r)).toList();
@@ -309,7 +278,7 @@ class ExpenseRepository {
       return ExpenseReportRow(
         farmerId: e.farmerId,
         farmerName: info?.fullName ?? 'Unknown Farmer',
-        memberId: info?.memberId ?? '—',
+        name: e.displayName,
         category: e.category,
         description: e.description,
         amount: e.amount,

@@ -102,7 +102,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
 
     setState(() => _isMarkingPaid = true);
     try {
-      await _repo.markLoanAsPaid(widget.loanId, reason: reason.isEmpty ? null : reason);
+      await _repo.markLoanAsPaid(
+        widget.loanId,
+        reason: reason.isEmpty ? null : reason,
+      );
       if (!mounted) return;
       _showSnack(l10n.loanDetailsMarkPaidSuccess);
       await _load();
@@ -115,12 +118,18 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-      backgroundColor: isError ? AppConstants.errorRed : AppConstants.successGreen,
+        backgroundColor: isError
+            ? AppConstants.errorRed
+            : AppConstants.successGreen,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-    ));
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+      ),
+    );
   }
 
   @override
@@ -143,14 +152,20 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context, AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildTopBar(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
     final sagana = context.saganaColors;
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSm,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),
@@ -164,10 +179,16 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               Expanded(
                 child: Text(
                   _detail != null
-                      ? l10n.loanDetailsContextualTitle(_detail!.loan.referenceNo)
+                      ? l10n.loanDetailsContextualTitle(
+                          _detail!.loan.referenceNo,
+                        )
                       : l10n.loanDetailsTitle,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: cs.primary,
+                  ),
                 ),
               ),
             ],
@@ -187,10 +208,18 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_offlineUnavailable) {
-      return _buildMessageState(Icons.wifi_off_rounded, l10n.loanDetailsUnavailableOffline, cs);
+      return _buildMessageState(
+        Icons.wifi_off_rounded,
+        l10n.loanDetailsUnavailableOffline,
+        cs,
+      );
     }
     if (_detail == null) {
-      return _buildMessageState(Icons.search_off_rounded, l10n.loanDetailsNotFound, cs);
+      return _buildMessageState(
+        Icons.search_off_rounded,
+        l10n.loanDetailsNotFound,
+        cs,
+      );
     }
 
     final detail = _detail!;
@@ -241,11 +270,19 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 color: sagana.cardBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                  ),
+                ],
               ),
               child: Text(
                 loan.notes!,
-                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -266,7 +303,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -281,14 +321,20 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     SaganaColors sagana,
   ) {
     return GestureDetector(
-      onTap: () => context.push(AppRoutes.farmerDetails, extra: detail.loan.farmerId),
+      onTap: () =>
+          context.push(AppRoutes.farmerDetails, extra: detail.loan.farmerId),
       child: Container(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
         decoration: BoxDecoration(
           color: sagana.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -304,11 +350,11 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 children: [
                   Text(
                     detail.farmerName,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: cs.onSurface,
                   ),
-                  Text(
-                    detail.memberId,
-                    style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -326,7 +372,11 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     dynamic loan,
     ColorScheme cs,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     final isOverdueLoan = loan.isOverdue as bool;
     final statusColor = loan.isPaid
         ? AppConstants.buyerBlue
@@ -342,7 +392,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
             ? LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [AppConstants.errorRed.withValues(alpha: 0.92), const Color(0xFFB71C1C)],
+                colors: [
+                  AppConstants.errorRed.withValues(alpha: 0.92),
+                  const Color(0xFFB71C1C),
+                ],
               )
             : AppConstants.primaryButtonGradient,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -355,17 +408,28 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
             children: [
               Text(
                 loan.referenceNo as String,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.white),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: Colors.white,
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
                   (loan.status as String).toUpperCase(),
-                  style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                  ),
                 ),
               ),
             ],
@@ -385,7 +449,11 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                   const SizedBox(width: 4),
                   Text(
                     'From Program Distribution: ${loan.sourceProgramName}',
-                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -394,11 +462,18 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           const SizedBox(height: AppConstants.spacingSm),
           Text(
             currency.format(loan.totalValue),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 26, color: Colors.white),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 26,
+              color: Colors.white,
+            ),
           ),
           Text(
             l10n.issueLoanTotalValue,
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.85)),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
           ),
           const SizedBox(height: AppConstants.spacingMd),
           Row(
@@ -407,10 +482,20 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.loanDashPaid, style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
+                    Text(
+                      l10n.loanDashPaid,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                    ),
                     Text(
                       currency.format(loan.amountPaid),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -419,10 +504,20 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.loanDashBalance, style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
+                    Text(
+                      l10n.loanDashBalance,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                    ),
                     Text(
                       currency.format(loan.remainingBalance as double),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -454,12 +549,18 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               ? const SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.warningAmber),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppConstants.warningAmber,
+                  ),
                 )
               : const Icon(Icons.fact_check_outlined, size: 18),
           label: Text(
             l10n.loanDetailsMarkPaid,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppConstants.warningAmber,
@@ -474,7 +575,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         Text(
           l10n.loanDetailsMarkPaidCaption,
           textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -483,14 +587,24 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   Widget _buildSectionTitle(String title, ColorScheme cs) {
     return Text(
       title,
-      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: cs.onSurface),
+      style: GoogleFonts.poppins(
+        fontWeight: FontWeight.w700,
+        fontSize: 15,
+        color: cs.onSurface,
+      ),
     );
   }
 
   Widget _buildItemRow(dynamic item, ColorScheme cs, SaganaColors sagana) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     final qty = item.quantity as double;
-    final qtyLabel = qty % 1 == 0 ? qty.toStringAsFixed(0) : qty.toStringAsFixed(1);
+    final qtyLabel = qty % 1 == 0
+        ? qty.toStringAsFixed(0)
+        : qty.toStringAsFixed(1);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
@@ -499,7 +613,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6),
+        ],
       ),
       child: Row(
         children: [
@@ -509,18 +625,29 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
               children: [
                 Text(
                   item.itemName as String,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
                 ),
                 Text(
                   '$qtyLabel ${item.unit} × ${currency.format(item.unitPrice)}',
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
           ),
           Text(
             currency.format(item.lineTotal),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: cs.onSurface,
+            ),
           ),
         ],
       ),
@@ -534,7 +661,11 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
     final nextDate = loan.nextPaymentDate as DateTime?;
 
     return Container(
@@ -544,7 +675,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,10 +685,22 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(l10n.issueLoanNextPaymentDue, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
               Text(
-                nextDate != null ? DateFormat('MMMM d, yyyy').format(nextDate) : '—',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                l10n.issueLoanNextPaymentDue,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                nextDate != null
+                    ? DateFormat('MMMM d, yyyy').format(nextDate)
+                    : '—',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
               ),
             ],
           ),
@@ -563,17 +708,36 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(l10n.issueLoanMonthlyPayment, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+              Text(
+                l10n.issueLoanMonthlyPayment,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
               Text(
                 currency.format(loan.monthlyPayment),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
               ),
             ],
           ),
-          Divider(height: AppConstants.spacingSectionV, color: cs.outline.withValues(alpha: 0.10)),
-          Text(l10n.issueLoanFrequency, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+          Divider(
+            height: AppConstants.spacingSectionV,
+            color: cs.outline.withValues(alpha: 0.10),
+          ),
+          Text(
+            l10n.issueLoanFrequency,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
           const SizedBox(height: 2),
-          Text(l10n.issueLoanVenue, style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
+          Text(
+            l10n.issueLoanVenue,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -601,7 +765,11 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
     final recordedBy = payment.recordedBy as String?;
     final adminName = recordedBy != null ? _adminNames[recordedBy] : null;
 
@@ -612,7 +780,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6),
+        ],
       ),
       child: Row(
         children: [
@@ -620,7 +790,10 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
             width: 8,
             height: 8,
             margin: const EdgeInsets.only(top: 4),
-            decoration: const BoxDecoration(color: AppConstants.successGreen, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: AppConstants.successGreen,
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: AppConstants.spacingMd),
           Expanded(
@@ -631,30 +804,53 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      DateFormat('MMMM d, yyyy').format(payment.paymentDate as DateTime),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface),
+                      DateFormat(
+                        'MMMM d, yyyy',
+                      ).format(payment.paymentDate as DateTime),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
                     ),
                     Text(
                       currency.format(payment.amountPaid),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: AppConstants.successGreen),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppConstants.successGreen,
+                      ),
                     ),
                   ],
                 ),
                 Text(
-                  l10n.loanDetailsBalanceAfter(currency.format(payment.runningBalance)),
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  l10n.loanDetailsBalanceAfter(
+                    currency.format(payment.runningBalance),
+                  ),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 if (adminName != null)
                   Text(
                     l10n.loanDetailsPaidBy(adminName),
-                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
-                if (payment.notes != null && (payment.notes as String).isNotEmpty)
+                if (payment.notes != null &&
+                    (payment.notes as String).isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       payment.notes as String,
-                      style: GoogleFonts.inter(fontSize: 11, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
               ],
@@ -671,7 +867,12 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(context).padding.bottom + 12,
+          ),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(top: BorderSide(color: sagana.glassBorder)),
@@ -679,7 +880,9 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           child: PrimaryButton(
             label: l10n.loanDashActionRecordPayment,
             onPressed: () {
-              context.push(AppRoutes.recordPayment, extra: widget.loanId).then((_) => _load());
+              context
+                  .push(AppRoutes.recordPayment, extra: widget.loanId)
+                  .then((_) => _load());
             },
           ),
         ),
@@ -718,12 +921,17 @@ class _MarkAsPaidDialogState extends State<_MarkAsPaidDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.l10n.loanDetailsMarkPaidMessage, style: GoogleFonts.inter(fontSize: 13)),
+          Text(
+            widget.l10n.loanDetailsMarkPaidMessage,
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _reasonController,
             maxLines: 2,
-            decoration: InputDecoration(hintText: widget.l10n.loanDetailsMarkPaidReasonHint),
+            decoration: InputDecoration(
+              hintText: widget.l10n.loanDetailsMarkPaidReasonHint,
+            ),
           ),
         ],
       ),
@@ -733,7 +941,8 @@ class _MarkAsPaidDialogState extends State<_MarkAsPaidDialog> {
           child: Text(widget.l10n.issueLoanCancel),
         ),
         TextButton(
-          onPressed: () => Navigator.of(context).pop(_reasonController.text.trim()),
+          onPressed: () =>
+              Navigator.of(context).pop(_reasonController.text.trim()),
           child: Text(
             widget.l10n.loanDetailsMarkPaidConfirm,
             style: const TextStyle(color: AppConstants.primaryGreen),

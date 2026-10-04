@@ -7,7 +7,6 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
-import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
 
@@ -30,7 +29,6 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
   List<AdminListingModel> _allListings = [];
   bool _isLoading = true;
   bool _hasLoadedOnce = false;
-  bool _isOnline = true;
 
   String _searchQuery = '';
   String? _statusFilter; // null = All (pending_review + approved + rejected)
@@ -39,11 +37,9 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
-    _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text),
+    );
     _load();
   }
 
@@ -70,30 +66,14 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
         : _allListings.where((l) => l.status == _statusFilter);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      list = list.where((l) =>
+      list = list.where(
+        (l) =>
           l.cropName.toLowerCase().contains(q) ||
           l.farmerName.toLowerCase().contains(q) ||
-          (l.variety?.toLowerCase().contains(q) ?? false));
+            (l.variety?.toLowerCase().contains(q) ?? false),
+      );
     }
     return list.toList();
-  }
-
-  Future<void> _quickApprove(AdminListingModel listing) async {
-    await _repo.approveListing(listing.id);
-    _showSnack('${listing.cropName} listing approved.', isSuccess: true);
-    _load();
-  }
-
-  void _showSnack(String msg, {bool isSuccess = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: isSuccess ? AppConstants.successGreen : AppConstants.charcoal,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
-      ),
-    );
   }
 
   @override
@@ -112,7 +92,11 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
               color: AppConstants.primaryGreen,
               onRefresh: _load,
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppConstants.primaryGreen,
+                      ),
+                    )
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
@@ -126,7 +110,10 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                             prefixIcon: const Icon(Icons.search_rounded),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.close_rounded, size: 18),
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 18,
+                                    ),
                                     onPressed: () => _searchCtrl.clear(),
                                   )
                                 : null,
@@ -141,23 +128,40 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                             scrollDirection: Axis.horizontal,
                             children: [
                               ListingStatusFilterChip(
-                                label: l10n.farmerMgmtAllFilter, active: _statusFilter == null, color: cs.primary,
-                                onTap: () => setState(() => _statusFilter = null), cs: cs,
+                                label: l10n.farmerMgmtAllFilter,
+                                active: _statusFilter == null,
+                                color: cs.primary,
+                                onTap: () =>
+                                    setState(() => _statusFilter = null),
+                                cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: l10n.buyerOrderDetailPendingTimestamp, active: _statusFilter == 'pending_review', color: AppConstants.warningAmber,
-                                onTap: () => setState(() => _statusFilter = 'pending_review'), cs: cs,
+                                label: l10n.buyerOrderDetailPendingTimestamp,
+                                active: _statusFilter == 'pending_review',
+                                color: AppConstants.warningAmber,
+                                onTap: () => setState(
+                                  () => _statusFilter = 'pending_review',
+                                ),
+                                cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: l10n.buyerOrderDetailStepApproved, active: _statusFilter == 'approved', color: AppConstants.successGreen,
-                                onTap: () => setState(() => _statusFilter = 'approved'), cs: cs,
+                                label: l10n.buyerOrderDetailStepApproved,
+                                active: _statusFilter == 'approved',
+                                color: AppConstants.successGreen,
+                                onTap: () =>
+                                    setState(() => _statusFilter = 'approved'),
+                                cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: l10n.farmerMgmtStatusRejectedLabel, active: _statusFilter == 'rejected', color: cs.error,
-                                onTap: () => setState(() => _statusFilter = 'rejected'), cs: cs,
+                                label: l10n.farmerMgmtStatusRejectedLabel,
+                                active: _statusFilter == 'rejected',
+                                color: cs.error,
+                                onTap: () =>
+                                    setState(() => _statusFilter = 'rejected'),
+                                cs: cs,
                               ),
                             ],
                           ),
@@ -169,7 +173,9 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                           _EmptyPendingState(
                             cs: cs,
                             sagana: sagana,
-                            hasActiveFilter: _searchQuery.isNotEmpty || _statusFilter != null,
+                            hasActiveFilter:
+                                _searchQuery.isNotEmpty ||
+                                _statusFilter != null,
                           )
                         else
                           ..._filtered.map(
@@ -180,11 +186,11 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                                 cs: cs,
                                 sagana: sagana,
                                 onTap: () => context
-                                    .push(AppRoutes.listingReview, extra: listing.id)
+                                    .push(
+                                      AppRoutes.listingReview,
+                                      extra: listing.id,
+                                    )
                                     .then((_) => _load()),
-                                onQuickApprove: (_isOnline && listing.isPending)
-                                    ? () => _quickApprove(listing)
-                                    : null,
                               ),
                             ),
                           ),
@@ -220,14 +226,23 @@ class _TopBar extends StatelessWidget {
           child: Row(
             children: [
               IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary, size: 24),
+                icon: Icon(
+                  Icons.arrow_back_rounded,
+                  color: cs.primary,
+                  size: 24,
+                ),
                 onPressed: () => context.pop(),
                 tooltip: l10n.offerCoopBackTooltip,
               ),
               Expanded(
-                child: Text(l10n.pendingApprovalsTitle,
+                child: Text(
+                  l10n.pendingApprovalsTitle,
                     style: GoogleFonts.poppins(
-                        fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: cs.primary,
+                  ),
+                ),
               ),
             ],
           ),
@@ -237,21 +252,18 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-
 // ─── Pending Listing Card ─────────────────────────────────────────────────────
 class _PendingListingCard extends StatelessWidget {
   final AdminListingModel listing;
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onTap;
-  final VoidCallback? onQuickApprove;
 
   const _PendingListingCard({
     required this.listing,
     required this.cs,
     required this.sagana,
     required this.onTap,
-    this.onQuickApprove,
   });
 
   @override
@@ -262,26 +274,33 @@ class _PendingListingCard extends StatelessWidget {
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (listing.listingPhotoUrl != null)
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.radiusLg)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppConstants.radiusLg),
+              ),
               child: AspectRatio(
                 aspectRatio: 16 / 7,
                 child: Image.network(
                   listing.listingPhotoUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _PhotoPlaceholder(cs: cs, cropName: listing.cropName),
+                  errorBuilder: (_, __, ___) =>
+                      _PhotoPlaceholder(cs: cs, cropName: listing.cropName),
                 ),
               ),
             )
           else
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.radiusLg)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppConstants.radiusLg),
+              ),
               child: _PhotoPlaceholder(cs: cs, cropName: listing.cropName),
             ),
           Padding(
@@ -293,20 +312,37 @@ class _PendingListingCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        listing.variety != null ? '${listing.cropName} — ${listing.variety}' : listing.cropName,
-                        style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface),
+                        listing.variety != null
+                            ? '${listing.cropName} — ${listing.variety}'
+                            : listing.cropName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (listing.hasStockWarning)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: cs.errorContainer.withValues(alpha: 0.50),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
                         ),
-                        child: Text('⚠ Stock',
-                            style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: cs.error)),
+                        child: Text(
+                          '⚠ Stock',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: cs.error,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -316,78 +352,102 @@ class _PendingListingCard extends StatelessWidget {
                     Container(
                       width: 22,
                       height: 22,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: AppConstants.primaryContainer),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppConstants.primaryContainer,
+                      ),
                       child: Center(
                         child: Text(
-                          listing.farmerName.isNotEmpty ? listing.farmerName[0].toUpperCase() : 'F',
+                          listing.farmerName.isNotEmpty
+                              ? listing.farmerName[0].toUpperCase()
+                              : 'F',
                           style: GoogleFonts.poppins(
-                              fontSize: 10, fontWeight: FontWeight.w700, color: AppConstants.onPrimaryContainer),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppConstants.onPrimaryContainer,
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(listing.farmerName,
-                          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface), overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        listing.farmerName,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    Text(listing.submittedLabel, style: GoogleFonts.inter(fontSize: 11, color: cs.outline)),
+                    Text(
+                      listing.submittedLabel,
+                      style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
+                // Was a Row with a Spacer pushing _PriceIndicator to the far
+                // right — on a narrow card, the two fixed-width _InfoChips
+                // plus the indicator's own text ("X.X% vs market") could
+                // together exceed the available width with nothing able to
+                // shrink, overflowing past the edge. Wrap lets the indicator
+                // drop to a second line instead of being clipped.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _InfoChip(icon: Icons.payments_outlined, label: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg', cs: cs),
-                    const SizedBox(width: 8),
-                    _InfoChip(icon: Icons.scale_outlined, label: '${listing.volumeKg.toStringAsFixed(0)} kg', cs: cs),
-                    const Spacer(),
-                    if (listing.priceDiffPercent != null) _PriceIndicator(listing: listing, cs: cs),
+                    _InfoChip(
+                      icon: Icons.payments_outlined,
+                      label: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                      cs: cs,
+                    ),
+                    _InfoChip(
+                      icon: Icons.scale_outlined,
+                      label: '${listing.volumeKg.toStringAsFixed(0)} kg',
+                      cs: cs,
+                    ),
+                    if (listing.priceDiffPercent != null)
+                      _PriceIndicator(listing: listing, cs: cs),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
+                // Quick-Approve removed — approval now only happens inside
+                // Listing Review, where the admin has the full pricing/
+                // stock/farmer context in front of them before deciding.
+                // Review is the one remaining action, full width.
+                SizedBox(
+                  width: double.infinity,
                       child: GestureDetector(
                         onTap: onTap,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                           decoration: BoxDecoration(
                             border: Border.all(color: cs.primary),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.rate_review_outlined, size: 16, color: cs.primary),
-                              const SizedBox(width: 6),
-                              Text(l10n.pendingApprovalsReviewAction,
-                                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: cs.primary)),
-                            ],
-                          ),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: onQuickApprove,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: onQuickApprove != null ? AppConstants.successGreen : cs.outline.withValues(alpha: 0.20),
-                            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.check_circle_outline_rounded, size: 16,
-                                  color: onQuickApprove != null ? Colors.white : cs.outline),
-                              const SizedBox(width: 6),
-                              Text(l10n.farmerMgmtApproveAction,
-                                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600,
-                                      color: onQuickApprove != null ? Colors.white : cs.outline)),
+                          Icon(
+                            Icons.rate_review_outlined,
+                            size: 16,
+                            color: cs.primary,
+                      ),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.pendingApprovalsReviewAction,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: cs.primary,
+                    ),
+                          ),
                             ],
                           ),
                         ),
@@ -395,8 +455,6 @@ class _PendingListingCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
-            ),
           ),
         ],
       ),
@@ -409,7 +467,9 @@ class _PendingListingCard extends StatelessWidget {
         children: [
           if (listing.hasStockWarning)
             ClipRRect(
-              borderRadius: BorderRadius.horizontal(left: Radius.circular(AppConstants.radiusLg)),
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(AppConstants.radiusLg),
+              ),
               child: Container(width: 4, color: cs.error),
             ),
           Expanded(child: card),
@@ -433,9 +493,16 @@ class _PhotoPlaceholder extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.eco_outlined, size: 32, color: cs.outline.withValues(alpha: 0.40)),
+            Icon(
+              Icons.eco_outlined,
+              size: 32,
+              color: cs.outline.withValues(alpha: 0.40),
+            ),
             const SizedBox(height: 4),
-            Text(cropName, style: GoogleFonts.inter(fontSize: 11, color: cs.outline)),
+            Text(
+              cropName,
+              style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
+            ),
           ],
         ),
       ),
@@ -462,7 +529,14 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: cs.onSurfaceVariant),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
         ],
       ),
     );
@@ -478,14 +552,26 @@ class _PriceIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = listing.priceDiffPercent!;
     final isBelow = pct < 0;
-    final color = listing.isPriceWithinMarketRange ? AppConstants.successGreen : cs.error;
+    final color = listing.isPriceWithinMarketRange
+        ? AppConstants.successGreen
+        : cs.error;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(isBelow ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded, size: 14, color: color),
-        Text('${pct.abs().toStringAsFixed(1)}% vs market',
-            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+        Icon(
+          isBelow ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+          size: 14,
+          color: color,
+        ),
+        Text(
+          '${pct.abs().toStringAsFixed(1)}% vs market',
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
       ],
     );
   }
@@ -496,7 +582,11 @@ class _EmptyPendingState extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
   final bool hasActiveFilter;
-  const _EmptyPendingState({required this.cs, required this.sagana, this.hasActiveFilter = false});
+  const _EmptyPendingState({
+    required this.cs,
+    required this.sagana,
+    this.hasActiveFilter = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -512,13 +602,24 @@ class _EmptyPendingState extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            hasActiveFilter ? Icons.search_off_rounded : Icons.check_circle_outline_rounded,
+            hasActiveFilter
+                ? Icons.search_off_rounded
+                : Icons.check_circle_outline_rounded,
             size: 48,
-            color: (hasActiveFilter ? cs.outline : AppConstants.successGreen).withValues(alpha: 0.40),
+            color: (hasActiveFilter ? cs.outline : AppConstants.successGreen)
+                .withValues(alpha: 0.40),
           ),
           const SizedBox(height: 14),
-          Text(hasActiveFilter ? l10n.marketplaceNoListingsFiltered : l10n.pendingApprovalsAllCaughtUp,
-              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: cs.onSurface)),
+          Text(
+            hasActiveFilter
+                ? l10n.marketplaceNoListingsFiltered
+                : l10n.pendingApprovalsAllCaughtUp,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             hasActiveFilter

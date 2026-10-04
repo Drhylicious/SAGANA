@@ -9,8 +9,6 @@
 class SupplyChainFarmerModel {
   final String userId;
   final String fullName;
-  final String? memberId;
-  final String? purok;
   final String? profilePhotoUrl;
   final double farmLatitude;
   final double farmLongitude;
@@ -20,8 +18,6 @@ class SupplyChainFarmerModel {
   const SupplyChainFarmerModel({
     required this.userId,
     required this.fullName,
-    this.memberId,
-    this.purok,
     this.profilePhotoUrl,
     required this.farmLatitude,
     required this.farmLongitude,
@@ -30,8 +26,7 @@ class SupplyChainFarmerModel {
   });
 
   /// Primary crop for pin color coding
-  String get primaryCrop =>
-      primaryCrops.isNotEmpty ? primaryCrops.first : '';
+  String get primaryCrop => primaryCrops.isNotEmpty ? primaryCrops.first : '';
 
   bool growsCrop(String cropName) {
     final lower = cropName.toLowerCase();
@@ -42,14 +37,11 @@ class SupplyChainFarmerModel {
     return SupplyChainFarmerModel(
       userId:       map['user_id'] as String,
       fullName:     map['full_name'] as String? ?? 'Farmer',
-      memberId:     map['member_id'] as String?,
-      purok:        map['purok'] as String?,
       profilePhotoUrl: map['profile_photo_url'] as String?,
       farmLatitude: (map['farm_latitude'] as num).toDouble(),
       farmLongitude: (map['farm_longitude'] as num).toDouble(),
-      primaryCrops: (map['crops'] as List<dynamic>?)
-              ?.map((c) => c.toString())
-              .toList() ??
+      primaryCrops:
+          (map['crops'] as List<dynamic>?)?.map((c) => c.toString()).toList() ??
           [],
       isVerified: map['is_verified'] as bool? ?? false,
     );
@@ -93,12 +85,18 @@ enum MapCropFilter { all, peanut, ginger, palay, banana, copra }
 extension MapCropFilterExt on MapCropFilter {
   String get label {
     switch (this) {
-      case MapCropFilter.all:    return 'All Crops';
-      case MapCropFilter.peanut: return 'Peanut';
-      case MapCropFilter.ginger: return 'Ginger';
-      case MapCropFilter.palay:  return 'Palay';
-      case MapCropFilter.banana: return 'Banana';
-      case MapCropFilter.copra:  return 'Copra';
+      case MapCropFilter.all:
+        return 'All Crops';
+      case MapCropFilter.peanut:
+        return 'Peanut';
+      case MapCropFilter.ginger:
+        return 'Ginger';
+      case MapCropFilter.palay:
+        return 'Palay';
+      case MapCropFilter.banana:
+        return 'Banana';
+      case MapCropFilter.copra:
+        return 'Copra';
     }
   }
 
@@ -124,7 +122,8 @@ class SupplyChainCoverage {
     required this.mappedMembers,
   });
 
-  int get unmappedMembers => (totalMembers - mappedMembers).clamp(0, totalMembers);
+  int get unmappedMembers =>
+      (totalMembers - mappedMembers).clamp(0, totalMembers);
 
   static const empty = SupplyChainCoverage(totalMembers: 52, mappedMembers: 0);
 }
@@ -134,11 +133,6 @@ class SupplyChainCoverage {
 class UnmappedMemberEntry {
   final String userId;
   final String fullName;
-  final String? purok;
 
-  const UnmappedMemberEntry({
-    required this.userId,
-    required this.fullName,
-    this.purok,
-  });
+  const UnmappedMemberEntry({required this.userId, required this.fullName});
 }

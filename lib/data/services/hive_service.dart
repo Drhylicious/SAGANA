@@ -9,7 +9,8 @@ class HiveService {
   static late Box _loanQueueBox; // offline loan issuances + payments
   static late Box _exportHistoryBox; // NEW — Export Center's Recent Exports
   static late Box _harvestQueueBox; // NEW — offline harvest submissions
-  static late Box _expenseQueueBox; // NEW — offline expense submissions (Phase 2 / U2)
+  static late Box
+  _expenseQueueBox; // NEW — offline expense submissions (Phase 2 / U2)
 
   // ─── Initialization ──────────────────────────────────────────────────────────
 
@@ -18,9 +19,15 @@ class HiveService {
     _userBox = await Hive.openBox(AppConstants.hiveBoxUser);
     _settingsBox = await Hive.openBox(AppConstants.hiveBoxSettings);
     _loanQueueBox = await Hive.openBox(AppConstants.hiveBoxLoanQueue);
-    _exportHistoryBox = await Hive.openBox(AppConstants.hiveBoxExportHistory); // NEW
-    _harvestQueueBox = await Hive.openBox(AppConstants.hiveBoxHarvestQueue); // NEW
-    _expenseQueueBox = await Hive.openBox(AppConstants.hiveBoxExpenseQueue); // NEW — Phase 2 / U2
+    _exportHistoryBox = await Hive.openBox(
+      AppConstants.hiveBoxExportHistory,
+    ); // NEW
+    _harvestQueueBox = await Hive.openBox(
+      AppConstants.hiveBoxHarvestQueue,
+    ); // NEW
+    _expenseQueueBox = await Hive.openBox(
+      AppConstants.hiveBoxExpenseQueue,
+    ); // NEW — Phase 2 / U2
   }
 
   // ─── User Session ────────────────────────────────────────────────────────────
@@ -50,7 +57,9 @@ class HiveService {
     // deliberately: a stale `true` here would wrongly force whoever logs
     // in next on a shared device through the password-change screen.
     await _userBox.delete('must_change_password');
-    await _userBox.delete('staff_permissions'); // legacy key — cleared for old sessions
+    await _userBox.delete(
+      'staff_permissions',
+    ); // legacy key — cleared for old sessions
     await _userBox.delete('pending_acknowledgement');
   }
 
@@ -79,8 +88,7 @@ class HiveService {
     await _userBox.put('member_status', status);
   }
 
-  static String? getMemberStatus() =>
-      _userBox.get('member_status') as String?;
+  static String? getMemberStatus() => _userBox.get('member_status') as String?;
 
   // Whether an approved farmer still owes the one-tap "Continue"
   // acknowledgement (Issue 5 / Decision D7). Cached at login so the router
@@ -146,6 +154,54 @@ class HiveService {
   static int getUnsyncedCount() =>
       _harvestQueueBox.length + _expenseQueueBox.length;
 
+  // ─── Last Sync Time ──────────────────────────────────────────────────────────
+  //
+  // Recorded by SyncService.syncPending() on every run that completes
+  // without throwing (including a no-op run with nothing queued) — this is
+  // "the app last successfully checked in with the server", not "the app
+  // last had something to sync". Same per-user key scoping as background
+  // sync above, since both live in the same shared settings box.
+
+  static String _lastSyncKey(String? userId) =>
+      userId != null ? '$userId::last_sync_time' : 'last_sync_time';
+
+  static Future<void> setLastSyncTime(DateTime time, {String? userId}) async {
+    await _settingsBox.put(_lastSyncKey(userId), time.toIso8601String());
+  }
+
+  static DateTime? getLastSyncTime({String? userId}) {
+    final stored = _settingsBox.get(_lastSyncKey(userId)) as String?;
+    return stored != null ? DateTime.tryParse(stored) : null;
+  }
+
+  // ─── DA-AMAD Enrollment Approval Acknowledgment ──────────────────────────────
+  //
+  // One-time full-screen celebration shown the first time a farmer opens
+  // Market Linking after their enrollment is approved. Keyed by the
+  // specific enrollment row's id (not a single flag) — a farmer whose
+  // enrollment is later rejected and re-approved gets a fresh celebration
+  // for that new approval, since it's a genuinely new event. Same
+  // per-user key scoping as Background Sync/Last Sync Time above.
+
+  static String _daAmadApprovalSeenKey(String enrollmentId, String? userId) =>
+      userId != null
+      ? '$userId::da_amad_approval_seen::$enrollmentId'
+      : 'da_amad_approval_seen::$enrollmentId';
+
+  static Future<void> setDaAmadApprovalSeen(
+    String enrollmentId, {
+    String? userId,
+  }) async {
+    await _settingsBox.put(_daAmadApprovalSeenKey(enrollmentId, userId), true);
+  }
+
+  static bool getDaAmadApprovalSeen(String enrollmentId, {String? userId}) =>
+      _settingsBox.get(
+            _daAmadApprovalSeenKey(enrollmentId, userId),
+            defaultValue: false,
+          )
+          as bool;
+
   // ─── Farmer Roster Cache (offline Issue-Loan / Record-Payment picker) ────────
   //
   // The cooperative has ~52 farmers total, so caching the full roster
@@ -153,7 +209,9 @@ class HiveService {
   // pick a farmer during a signal-less BOD meeting. Refreshed whenever
   // either screen loads while online.
 
-  static Future<void> cacheFarmerRoster(List<Map<String, dynamic>> roster) async {
+  static Future<void> cacheFarmerRoster(
+    List<Map<String, dynamic>> roster,
+  ) async {
     await _settingsBox.put('cached_farmer_roster', roster);
   }
 
@@ -195,29 +253,37 @@ class HiveService {
   // generation requires querying existing loans (needs connectivity) and
   // is deliberately deferred to sync time. See AdminLoanRepository.issueLoan().
 
-  static Future<void> savePendingLoanIssuance(Map<String, dynamic> payload) async {
+  static Future<void> savePendingLoanIssuance(
+    Map<String, dynamic> payload,
+  ) async {
     final localId = 'issue_${DateTime.now().millisecondsSinceEpoch}';
     await _loanQueueBox.put(localId, payload);
   }
 
-  static Future<void> savePendingLoanPayment(Map<String, dynamic> payload) async {
+  static Future<void> savePendingLoanPayment(
+    Map<String, dynamic> payload,
+  ) async {
     final localId = 'payment_${DateTime.now().millisecondsSinceEpoch}';
     await _loanQueueBox.put(localId, payload);
   }
 
-  static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingLoanIssuances() =>
-      _getPendingByPrefix('issue_');
+  static List<MapEntry<String, Map<dynamic, dynamic>>>
+  getPendingLoanIssuances() => _getPendingByPrefix('issue_');
 
-  static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingLoanPayments() =>
-      _getPendingByPrefix('payment_');
+  static List<MapEntry<String, Map<dynamic, dynamic>>>
+  getPendingLoanPayments() => _getPendingByPrefix('payment_');
 
-  static List<MapEntry<String, Map<dynamic, dynamic>>> _getPendingByPrefix(String prefix) {
+  static List<MapEntry<String, Map<dynamic, dynamic>>> _getPendingByPrefix(
+    String prefix,
+  ) {
     return _loanQueueBox.keys
         .where((k) => (k as String).startsWith(prefix))
-        .map((key) => MapEntry(
+        .map(
+          (key) => MapEntry(
               key as String,
               Map<dynamic, dynamic>.from(_loanQueueBox.get(key) as Map),
-            ))
+          ),
+        )
         .toList();
   }
 
@@ -232,7 +298,10 @@ class HiveService {
   /// a PostgrestException (the RPC was reached and explicitly rejected the
   /// write) — network/timeout failures never call this and stay silent,
   /// exactly as before this change.
-  static Future<void> markLoanQueueItemError(String localId, String message) async {
+  static Future<void> markLoanQueueItemError(
+    String localId,
+    String message,
+  ) async {
     final existing = _loanQueueBox.get(localId);
     if (existing == null) return;
     final updated = Map<String, dynamic>.from(existing as Map);
@@ -246,15 +315,20 @@ class HiveService {
   /// Used by Loan Dashboard to surface stuck entries instead of leaving
   /// them invisible in the background queue.
   static List<Map<String, dynamic>> getLoanSyncIssues() {
-    final all = [..._getPendingByPrefix('issue_'), ..._getPendingByPrefix('payment_')];
+    final all = [
+      ..._getPendingByPrefix('issue_'),
+      ..._getPendingByPrefix('payment_'),
+    ];
     return all
         .where((entry) => entry.value.containsKey('_syncError'))
-        .map((entry) => {
+        .map(
+          (entry) => {
               'localId': entry.key,
               'type': entry.key.startsWith('issue_') ? 'issue' : 'payment',
               'error': entry.value['_syncError'] as String,
               'failedAt': entry.value['_syncErrorAt'] as String?,
-            })
+          },
+        )
         .toList();
   }
 
@@ -274,8 +348,10 @@ class HiveService {
     final entries = _exportHistoryBox.values
         .map((v) => Map<String, dynamic>.from(v as Map))
         .toList();
-    entries.sort((a, b) =>
-        (b['generatedAt'] as String).compareTo(a['generatedAt'] as String));
+    entries.sort(
+      (a, b) =>
+          (b['generatedAt'] as String).compareTo(a['generatedAt'] as String),
+    );
     return entries;
   }
 
@@ -299,10 +375,12 @@ class HiveService {
 
   static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingHarvests() {
     return _harvestQueueBox.keys
-        .map((key) => MapEntry(
+        .map(
+          (key) => MapEntry(
               key as String,
               Map<dynamic, dynamic>.from(_harvestQueueBox.get(key) as Map),
-            ))
+          ),
+        )
         .toList();
   }
 
@@ -326,10 +404,12 @@ class HiveService {
 
   static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingExpenses() {
     return _expenseQueueBox.keys
-        .map((key) => MapEntry(
+        .map(
+          (key) => MapEntry(
               key as String,
               Map<dynamic, dynamic>.from(_expenseQueueBox.get(key) as Map),
-            ))
+          ),
+        )
         .toList();
   }
 

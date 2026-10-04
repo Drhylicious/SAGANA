@@ -6,9 +6,7 @@ class AdminProfileModel {
   final String fullName;
   final String? phoneNumber;
   final String? profilePhotoUrl;
-  final String? purok;
   final String? contactEmail;
-  final String? employeeId;
   final String? position;
   final String? department;
   final DateTime? adminSince;
@@ -21,9 +19,7 @@ class AdminProfileModel {
     required this.fullName,
     this.phoneNumber,
     this.profilePhotoUrl,
-    this.purok,
     this.contactEmail,
-    this.employeeId,
     this.position,
     this.department,
     this.adminSince,
@@ -35,7 +31,6 @@ class AdminProfileModel {
     String? fullName,
     String? phoneNumber,
     String? profilePhotoUrl,
-    String? purok,
     DateTime? dateOfBirth,
     String? gender,
   }) {
@@ -45,8 +40,6 @@ class AdminProfileModel {
       fullName: fullName ?? this.fullName,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
-      purok: purok ?? this.purok,
-      employeeId: employeeId,
       position: position,
       department: department,
       adminSince: adminSince,
