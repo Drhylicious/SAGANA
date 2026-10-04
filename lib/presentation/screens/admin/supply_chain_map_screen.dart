@@ -538,7 +538,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                 sagana: sagana,
                 l10n: l10n,
                 onClose: _closeDrawers,
-                onViewProfile: () => pushFarmerDetails(context, _selectedFarmer!.userId),
+                onViewProfile: membersAccessAllowed ? () => pushFarmerDetails(context, _selectedFarmer!.userId) : null,
                 onSendNotice: () {
                   _closeDrawers();
                   context.pushRoute(AppRoutes.announcementDashboard);
@@ -803,7 +803,7 @@ class _SupplyChainFullMapScreenState extends State<SupplyChainFullMapScreen> {
                 sagana: sagana,
                 l10n: l10n,
                 onClose: _closeDrawers,
-                onViewProfile: () => pushFarmerDetails(context, _selectedFarmer!.userId),
+                onViewProfile: membersAccessAllowed ? () => pushFarmerDetails(context, _selectedFarmer!.userId) : null,
                 onSendNotice: () {
                   _closeDrawers();
                   context.pushRoute(AppRoutes.announcementDashboard);
@@ -967,7 +967,7 @@ class _CooperativeFlowRow extends StatelessWidget {
         l10n.supplyChainFlowFarm,
         Icons.agriculture_rounded,
         AppConstants.primaryGreen,
-        () => goMembersList(context),
+        membersAccessAllowed ? () => goMembersList(context) : null,
       ),
       _FlowStepData(
         l10n.supplyChainFlowInventory,
@@ -1027,7 +1027,7 @@ class _FlowStepData {
   final String label;
   final IconData icon;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   const _FlowStepData(this.label, this.icon, this.color, this.onTap);
 }
 
@@ -1648,7 +1648,7 @@ class _FarmerDetailDrawer extends StatelessWidget {
   final SaganaColors sagana;
   final AppLocalizations l10n;
   final VoidCallback onClose;
-  final VoidCallback onViewProfile;
+  final VoidCallback? onViewProfile;
   final VoidCallback onSendNotice;
 
   const _FarmerDetailDrawer({
@@ -1657,7 +1657,7 @@ class _FarmerDetailDrawer extends StatelessWidget {
     required this.sagana,
     required this.l10n,
     required this.onClose,
-    required this.onViewProfile,
+    this.onViewProfile,
     required this.onSendNotice,
   });
 

@@ -536,8 +536,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     SaganaColors sagana,
   ) {
     return GestureDetector(
-      onTap: () =>
-          pushFarmerDetails(context, expense.farmerId),
+      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, expense.farmerId) : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),

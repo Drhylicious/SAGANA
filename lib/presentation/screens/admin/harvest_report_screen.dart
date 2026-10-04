@@ -663,8 +663,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
     SaganaColors sagana,
   ) {
     return GestureDetector(
-      onTap: () =>
-          pushFarmerDetails(context, harvest.farmerId),
+      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, harvest.farmerId) : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -1059,7 +1058,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
         : AppConstants.successGreen;
 
     return GestureDetector(
-      onTap: () => pushFarmerDetails(context, batch.farmerId),
+      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, batch.farmerId) : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),

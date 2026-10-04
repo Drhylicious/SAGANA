@@ -333,7 +333,7 @@ class _MemberContributionReportScreenState
     );
 
     return GestureDetector(
-      onTap: () => pushFarmerDetails(context, row.farmerId),
+      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, row.farmerId) : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),

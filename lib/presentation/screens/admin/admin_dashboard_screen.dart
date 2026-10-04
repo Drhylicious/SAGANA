@@ -1560,7 +1560,7 @@ class _ActivityFeed extends StatelessWidget {
           return Column(
             children: [
               GestureDetector(
-                onTap: () => onTap(item),
+                onTap: (membersAccessAllowed || !(item.type == AdminActivityType.member || item.type == AdminActivityType.harvest)) ? () => onTap(item) : null,
                 behavior: HitTestBehavior.opaque,
                 child: _ActivityRow(item: item, cs: cs),
               ),

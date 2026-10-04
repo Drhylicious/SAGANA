@@ -645,9 +645,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
                               return Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
                                 child: GestureDetector(
-                                  onTap: isNavigable
-                                      ? () => _onItemTap(item)
-                                      : null,
+                                  onTap: (isNavigable && (membersAccessAllowed || !(item.type == AdminActivityType.member || item.type == AdminActivityType.harvest))) ? () => _onItemTap(item) : null,
                                   child: Container(
                                     padding: const EdgeInsets.all(14),
                                     decoration: BoxDecoration(

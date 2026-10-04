@@ -15,3 +15,6 @@ void goMembersList(BuildContext context) {
   if (HiveService.isOfficer) return;
   context.go(AppRoutes.farmerManagement);
 }
+
+/// False for Officers. Use it to turn off a tap that would open a Members screen.
+bool get membersAccessAllowed => !HiveService.isOfficer;

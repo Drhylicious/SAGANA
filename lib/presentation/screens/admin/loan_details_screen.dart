@@ -322,8 +322,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     SaganaColors sagana,
   ) {
     return GestureDetector(
-      onTap: () =>
-          pushFarmerDetails(context, detail.loan.farmerId),
+      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, detail.loan.farmerId) : null,
       child: Container(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
         decoration: BoxDecoration(
