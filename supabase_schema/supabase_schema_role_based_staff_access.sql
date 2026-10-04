@@ -16,6 +16,8 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$;
 
 -- 1. Policies: check the role, not the admin profile row.
+-- Remove the older, unsplit member_contributions policy (replaced by the (read)/(insert)/(update)/(delete) set below).
+DROP POLICY IF EXISTS "member_contributions: admin manages all" ON public.member_contributions;
 DROP POLICY IF EXISTS "admin_activity_log: admin inserts own" ON public.admin_activity_log;
 CREATE POLICY "admin_activity_log: admin inserts own" ON public.admin_activity_log FOR INSERT TO public WITH CHECK (((admin_id = auth.uid()) AND (public.is_staff())));
 DROP POLICY IF EXISTS "admin_activity_log: admin reads all" ON public.admin_activity_log;
@@ -2180,10 +2182,172 @@ $function$;
 
 -- 3. Expense categories: added from the farmer's My Expenses screen only.
 DROP POLICY IF EXISTS "expense_categories: authenticated inserts" ON public.expense_categories;
+DROP POLICY IF EXISTS "expense_categories: farmer inserts" ON public.expense_categories;
 CREATE POLICY "expense_categories: farmer inserts" ON public.expense_categories FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = auth.uid() AND r.role = 'farmer'));
 
 -- 4. Remove the admin profile row from officer accounts (they now have no Admin access by row).
 DELETE FROM public.admin_profiles a WHERE EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = a.user_id) AND NOT EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = a.user_id AND r.role = 'admin');
+
+-- 5. Officer access (merged from the earlier officer steps).
+-- Loan capital eligibility (Officers see yes/no and the minimum, never the amount).
+CREATE OR REPLACE FUNCTION public.loan_capital_eligibility(p_farmer_id uuid)
+RETURNS TABLE (meets_minimum boolean, minimum_required numeric)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_total numeric;
+  v_min   numeric;
+BEGIN
+  IF NOT (
+    public.is_platform_admin()
+    OR EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid())
+  ) THEN
+    RAISE EXCEPTION 'Only an Admin or an Officer can check loan eligibility'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT m.total_contribution INTO v_total
+  FROM public.member_capital_shares m
+  WHERE m.farmer_id = p_farmer_id;
+
+  SELECT s.minimum_capital_contribution INTO v_min
+  FROM public.loan_policy_settings s
+  WHERE s.id = 1;
+
+  v_min := COALESCE(v_min, 0);
+  RETURN QUERY SELECT COALESCE(v_total, 0) >= v_min, v_min;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.loan_capital_eligibility(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.loan_capital_eligibility(uuid) TO authenticated;
+
+DROP POLICY IF EXISTS "member_capital_shares: officer reads all" ON public.member_capital_shares;
+
+-- Officer policies: read buyer, offer and market-linking records; manage listings and market linking.
+DROP POLICY IF EXISTS "officer reads buyer_profiles" ON public.buyer_profiles;
+CREATE POLICY "officer reads buyer_profiles" ON public.buyer_profiles FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads buyer_addresses" ON public.buyer_addresses;
+CREATE POLICY "officer reads buyer_addresses" ON public.buyer_addresses FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads buyer_profile_activity" ON public.buyer_profile_activity;
+CREATE POLICY "officer reads buyer_profile_activity" ON public.buyer_profile_activity FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads inventory_batches" ON public.inventory_batches;
+CREATE POLICY "officer reads inventory_batches" ON public.inventory_batches FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads member_sales_transactions" ON public.member_sales_transactions;
+CREATE POLICY "officer reads member_sales_transactions" ON public.member_sales_transactions FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads farmer_crops" ON public.farmer_crops;
+CREATE POLICY "officer reads farmer_crops" ON public.farmer_crops FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads cooperative_purchase_offers" ON public.cooperative_purchase_offers;
+CREATE POLICY "officer reads cooperative_purchase_offers" ON public.cooperative_purchase_offers FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer reads da_amad_enrollments" ON public.da_amad_enrollments;
+CREATE POLICY "officer reads da_amad_enrollments" ON public.da_amad_enrollments FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer manages marketplace_listings" ON public.marketplace_listings;
+CREATE POLICY "officer manages marketplace_listings" ON public.marketplace_listings FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid())) WITH CHECK (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+DROP POLICY IF EXISTS "officer manages market_linking_programs" ON public.market_linking_programs;
+CREATE POLICY "officer manages market_linking_programs" ON public.market_linking_programs FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid())) WITH CHECK (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()));
+
+-- suspend_member: Admin, or an Officer acting on a buyer.
+CREATE OR REPLACE FUNCTION public.suspend_member(p_user_id uuid, p_reason text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status TEXT;
+BEGIN
+  IF NOT (is_platform_admin() OR (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()) AND EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = p_user_id AND r.role = 'buyer'))) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  IF p_reason IS NULL OR trim(p_reason) = '' THEN
+    RAISE EXCEPTION 'A suspension reason is required';
+  END IF;
+
+  SELECT status INTO v_status FROM user_roles WHERE user_id = p_user_id FOR UPDATE;
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'Member not found';
+  END IF;
+
+  UPDATE user_roles
+  SET status = 'suspended', suspension_reason = trim(p_reason)
+  WHERE user_id = p_user_id;
+
+  INSERT INTO member_status_events (member_id, from_status, to_status, reason, actor_id)
+  VALUES (p_user_id, v_status, 'suspended', trim(p_reason), auth.uid());
+
+  INSERT INTO notifications (user_id, type, title, body, is_read, route_on_tap)
+  VALUES (p_user_id, 'member_updated', 'Account Suspended',
+          'Your SP3 account has been suspended. Reason: ' || trim(p_reason)
+          || ' Please contact the SP3 Cooperative.',
+          false, '/farmer/profile');
+END;
+$function$;
+
+-- reactivate_member: Admin, or an Officer acting on a buyer.
+CREATE OR REPLACE FUNCTION public.reactivate_member(p_user_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_status TEXT;
+BEGIN
+  IF NOT (is_platform_admin() OR (EXISTS (SELECT 1 FROM public.officer_profiles o WHERE o.user_id = auth.uid()) AND EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = p_user_id AND r.role = 'buyer'))) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  SELECT status INTO v_status FROM user_roles WHERE user_id = p_user_id FOR UPDATE;
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'Member not found';
+  END IF;
+
+  -- Only a suspended member can be reactivated. Any other status must go
+  -- through its own flow (approve_member for pending applicants).
+  IF v_status <> 'suspended' THEN
+    RAISE EXCEPTION 'Only a suspended member can be reactivated (current: %)', v_status;
+  END IF;
+
+  UPDATE user_roles
+  SET status = 'active', suspension_reason = NULL
+  WHERE user_id = p_user_id;
+
+  INSERT INTO member_status_events (member_id, from_status, to_status, reason, actor_id)
+  VALUES (p_user_id, v_status, 'active', 'Reactivated by admin', auth.uid());
+
+  INSERT INTO notifications (user_id, type, title, body, is_read, route_on_tap)
+  VALUES (p_user_id, 'member_updated', 'Account Reactivated',
+          'Your SP3 account has been reactivated. Welcome back!',
+          false, '/farmer/profile');
+END;
+$function$;
+
+-- Officer Edit Profile: date of birth and gender only.
+DROP POLICY IF EXISTS "officer updates own dob and gender" ON public.officer_profiles;
+CREATE POLICY "officer updates own dob and gender" ON public.officer_profiles FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE OR REPLACE FUNCTION public.officer_profiles_self_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF public.is_platform_admin() THEN
+    RETURN NEW;
+  END IF;
+  IF (to_jsonb(NEW) - ARRAY['date_of_birth', 'gender']) IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['date_of_birth', 'gender']) THEN
+    RAISE EXCEPTION 'Officers can change only their date of birth and gender';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS officer_profiles_self_guard ON public.officer_profiles;
+CREATE TRIGGER officer_profiles_self_guard BEFORE UPDATE ON public.officer_profiles FOR EACH ROW EXECUTE FUNCTION public.officer_profiles_self_guard();
+
+DROP POLICY IF EXISTS "member_capital_shares: officer reads all" ON public.member_capital_shares;
+
 
 COMMIT;
 
