@@ -2349,6 +2349,46 @@ CREATE TRIGGER officer_profiles_self_guard BEFORE UPDATE ON public.officer_profi
 DROP POLICY IF EXISTS "member_capital_shares: officer reads all" ON public.member_capital_shares;
 
 
+-- Offer batch to cooperative: notify staff by role (Admin or Officer).
+CREATE OR REPLACE FUNCTION public.offer_batch_to_cooperative(p_batch_id uuid, p_crop_name text, p_quantity_kg numeric)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_offer_id UUID;
+  v_eligible BOOLEAN;
+BEGIN
+  SELECT is_coop_eligible INTO v_eligible
+    FROM public.inventory_batches WHERE id = p_batch_id;
+
+  IF NOT v_eligible THEN
+    RAISE EXCEPTION 'This crop is not eligible for cooperative purchase.';
+  END IF;
+
+  PERFORM public._apply_batch_reservation(p_batch_id, p_quantity_kg);
+
+  INSERT INTO public.cooperative_purchase_offers (
+    farmer_id, inventory_batch_id, crop_name, offered_quantity_kg
+  ) VALUES (
+    auth.uid(), p_batch_id, p_crop_name, p_quantity_kg
+  ) RETURNING id INTO v_offer_id;
+
+  INSERT INTO notifications (user_id, type, title, body, is_read, created_at, route_on_tap)
+  SELECT
+    ap.user_id,
+    'cooperative_offer',
+    'New Cooperative Offer',
+    p_crop_name || ' (' || p_quantity_kg || ' kg) was offered to the cooperative and needs review.',
+    FALSE,
+    NOW(),
+    '/admin/marketplace/offer-to-cooperative'
+  FROM public.user_roles ap WHERE ap.role IN ('admin', 'officer');
+
+  RETURN v_offer_id;
+END;
+$function$;
+
 COMMIT;
 
 NOTIFY pgrst, 'reload schema';
