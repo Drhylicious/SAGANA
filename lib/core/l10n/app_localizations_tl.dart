@@ -3434,6 +3434,11 @@ class AppLocalizationsTl extends AppLocalizations {
   String get registerGenderPreferNotToSay => 'Mas gustong hindi sabihin';
 
   @override
+  String issueLoanCapitalIneligibleNoAmount(String minimum) {
+    return 'Kulang ang kontribusyon sa kapital ng miyembrong ito. Kailangan ng ₱$minimum para makautang.';
+  }
+
+  @override
   String issueLoanCapitalIneligible(String current, String minimum) {
     return 'Kontribusyon sa kapital ₱$current — mas mababa sa ₱$minimum na minimum na kailangan para makautang.';
   }

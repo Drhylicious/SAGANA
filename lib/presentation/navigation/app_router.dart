@@ -241,6 +241,8 @@ class AppRouter {
             AppRoutes.manageOfficerAccounts,
             AppRoutes.manageAdminAccounts,
             AppRoutes.memberExpenseHistory,
+            AppRoutes.memberContributionReport,
+            AppRoutes.balikTangkilikManagement,
           };
           if (membersOnlyPaths.contains(path) ||
               path.startsWith('/admin/members')) {

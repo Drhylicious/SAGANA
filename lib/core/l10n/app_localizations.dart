@@ -6242,6 +6242,12 @@ abstract class AppLocalizations {
   /// **'Prefer not to say'**
   String get registerGenderPreferNotToSay;
 
+  /// No description provided for @issueLoanCapitalIneligibleNoAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'This member\'s capital contribution is below the ₱{minimum} minimum required for a loan.'**
+  String issueLoanCapitalIneligibleNoAmount(String minimum);
+
   /// No description provided for @issueLoanCapitalIneligible.
   ///
   /// In en, this message translates to:

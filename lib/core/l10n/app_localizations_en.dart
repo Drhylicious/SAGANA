@@ -3397,6 +3397,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get registerGenderPreferNotToSay => 'Prefer not to say';
 
   @override
+  String issueLoanCapitalIneligibleNoAmount(String minimum) {
+    return 'This member\'s capital contribution is below the ₱$minimum minimum required for a loan.';
+  }
+
+  @override
   String issueLoanCapitalIneligible(String current, String minimum) {
     return 'Capital contribution ₱$current — below the ₱$minimum minimum required for a loan.';
   }

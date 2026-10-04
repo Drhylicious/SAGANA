@@ -1116,6 +1116,8 @@
   "registerGenderFemale": "Babae",
   "registerGenderPreferNotToSay": "Mas gustong hindi sabihin",
 
+  "issueLoanCapitalIneligibleNoAmount": "Kulang ang kontribusyon sa kapital ng miyembrong ito. Kailangan ng ₱{minimum} para makautang.",
+  "@issueLoanCapitalIneligibleNoAmount": { "placeholders": { "minimum": { "type": "String" } } },
   "issueLoanCapitalIneligible": "Kontribusyon sa kapital ₱{current} — mas mababa sa ₱{minimum} na minimum na kailangan para makautang.",
   "@issueLoanCapitalIneligible": {
     "placeholders": {

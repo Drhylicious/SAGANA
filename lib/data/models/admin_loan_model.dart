@@ -201,15 +201,22 @@ class FarmerLoanStanding {
   final double capitalContribution;
   final double minimumCapitalRequired;
 
+  /// Set for Officers, who are told only whether the minimum is met, never the
+  /// farmer's amount. Null when the amount is known (Admin).
+  final bool? capitalEligibleOverride;
+
   const FarmerLoanStanding({
     required this.outstandingBalance,
     required this.hasOverdueLoan,
     this.capitalContribution = 0,
     this.minimumCapitalRequired = 0,
+    this.capitalEligibleOverride,
   });
 
+  bool get showsCapitalAmount => capitalEligibleOverride == null;
+
   bool get meetsCapitalEligibility =>
-      capitalContribution >= minimumCapitalRequired;
+      capitalEligibleOverride ?? capitalContribution >= minimumCapitalRequired;
 
   double get capitalShortfall => (minimumCapitalRequired - capitalContribution)
           .clamp(0, double.infinity)

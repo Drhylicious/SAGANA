@@ -1266,6 +1266,8 @@
   "registerGenderFemale": "Female",
   "registerGenderPreferNotToSay": "Prefer not to say",
 
+  "issueLoanCapitalIneligibleNoAmount": "This member's capital contribution is below the ₱{minimum} minimum required for a loan.",
+  "@issueLoanCapitalIneligibleNoAmount": { "placeholders": { "minimum": { "type": "String" } } },
   "issueLoanCapitalIneligible": "Capital contribution ₱{current} — below the ₱{minimum} minimum required for a loan.",
   "@issueLoanCapitalIneligible": {
     "placeholders": {

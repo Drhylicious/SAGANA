@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/hive_service.dart';
 import '../../core/utils/bod_schedule_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/loan_model.dart';
@@ -462,6 +463,29 @@ class AdminLoanRepository {
     }
   }
 
+  /// Officers learn only whether a farmer meets the capital minimum, and the
+  /// minimum itself. The check runs in the database (loan_capital_eligibility),
+  /// so the amount never reaches the Officer's app. If the check cannot run, the
+  /// farmer is reported eligible, as before; issue_loan() still enforces the rule.
+  Future<({bool meets, double minimum})> _officerCapitalStatus(
+    String farmerId,
+  ) async {
+    try {
+      final rows = await _client.rpc(
+        'loan_capital_eligibility',
+        params: {'p_farmer_id': farmerId},
+      ) as List<dynamic>;
+      if (rows.isEmpty) return (meets: true, minimum: 0.0);
+      final row = rows.first as Map<String, dynamic>;
+      return (
+        meets: (row['meets_minimum'] as bool?) ?? true,
+        minimum: (row['minimum_required'] as num? ?? 0).toDouble(),
+      );
+    } catch (_) {
+      return (meets: true, minimum: 0.0);
+    }
+  }
+
   /// Current outstanding balance + overdue flag for a farmer, shown as a
   /// warning banner once selected on the Issue-Loan form. Read-only —
   /// requires connectivity; the screen skips calling this while offline.
@@ -485,6 +509,16 @@ class AdminLoanRepository {
       // Capital-share loan eligibility (Issue 4d). issue_loan() enforces
       // this hard server-side; here it powers the warning banner + the
       // disabled Issue button.
+      if (HiveService.isOfficer) {
+        final status = await _officerCapitalStatus(farmerId);
+        return FarmerLoanStanding(
+          outstandingBalance: outstanding,
+          hasOverdueLoan: hasOverdue,
+          minimumCapitalRequired: status.minimum,
+          capitalEligibleOverride: status.meets,
+        );
+      }
+
       double capital = 0;
       double minimumCapital = 0;
       try {

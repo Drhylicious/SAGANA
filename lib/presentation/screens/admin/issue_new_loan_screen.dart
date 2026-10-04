@@ -628,10 +628,14 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      l10n.issueLoanCapitalIneligible(
-                        currency.format(standing.capitalContribution),
-                        currency.format(standing.minimumCapitalRequired),
-                      ),
+                      standing.showsCapitalAmount
+                          ? l10n.issueLoanCapitalIneligible(
+                              currency.format(standing.capitalContribution),
+                              currency.format(standing.minimumCapitalRequired),
+                            )
+                          : l10n.issueLoanCapitalIneligibleNoAmount(
+                              currency.format(standing.minimumCapitalRequired),
+                            ),
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
