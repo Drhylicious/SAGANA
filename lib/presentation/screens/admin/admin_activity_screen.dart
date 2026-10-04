@@ -10,6 +10,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../../core/utils/member_access.dart';
 
 // Builds the localized activity description from an item's raw
 // descKind + name/cropName/quantityKg/amount fields — the repository that
@@ -307,7 +308,7 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
       case AdminActivityType.member:
       case AdminActivityType.harvest:
         if (item.referenceId != null) {
-          context.push(AppRoutes.farmerDetails, extra: item.referenceId);
+          pushFarmerDetails(context, item.referenceId);
         }
       case AdminActivityType.order:
         context.push(AppRoutes.pendingApprovals);

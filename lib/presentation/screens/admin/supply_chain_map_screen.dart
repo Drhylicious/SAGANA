@@ -17,6 +17,7 @@ import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/material_list_tile.dart';
+import '../../../core/utils/member_access.dart';
 
 const _payanasCenterLat = 13.5767;
 const _payanasCenterLng = 122.0862;
@@ -191,10 +192,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                       trailing: GestureDetector(
                         onTap: () {
                           Navigator.pop(ctx);
-                          context.pushRoute(
-                            AppRoutes.farmerDetails,
-                            extra: m.userId,
-                          );
+                          pushFarmerDetails(context, m.userId);
                         },
                         child: Icon(
                           Icons.chevron_right_rounded,
@@ -540,10 +538,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                 sagana: sagana,
                 l10n: l10n,
                 onClose: _closeDrawers,
-                onViewProfile: () => context.pushRoute(
-                  AppRoutes.farmerDetails,
-                  extra: _selectedFarmer!.userId,
-                ),
+                onViewProfile: () => pushFarmerDetails(context, _selectedFarmer!.userId),
                 onSendNotice: () {
                   _closeDrawers();
                   context.pushRoute(AppRoutes.announcementDashboard);
@@ -808,10 +803,7 @@ class _SupplyChainFullMapScreenState extends State<SupplyChainFullMapScreen> {
                 sagana: sagana,
                 l10n: l10n,
                 onClose: _closeDrawers,
-                onViewProfile: () => context.pushRoute(
-                  AppRoutes.farmerDetails,
-                  extra: _selectedFarmer!.userId,
-                ),
+                onViewProfile: () => pushFarmerDetails(context, _selectedFarmer!.userId),
                 onSendNotice: () {
                   _closeDrawers();
                   context.pushRoute(AppRoutes.announcementDashboard);
@@ -975,7 +967,7 @@ class _CooperativeFlowRow extends StatelessWidget {
         l10n.supplyChainFlowFarm,
         Icons.agriculture_rounded,
         AppConstants.primaryGreen,
-        () => context.goTab(AppRoutes.farmerManagement),
+        () => goMembersList(context),
       ),
       _FlowStepData(
         l10n.supplyChainFlowInventory,

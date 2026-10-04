@@ -10,6 +10,7 @@ import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../core/utils/member_access.dart';
 
 class AdminCalendarScreen extends StatefulWidget {
   const AdminCalendarScreen({super.key});
@@ -102,7 +103,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
       case CalendarEventType.bodMeeting:
         context.go(AppRoutes.loanDashboard);
       case CalendarEventType.harvest:
-        context.go(AppRoutes.farmerManagement);
+        goMembersList(context);
       case CalendarEventType.announcement:
         context.push(AppRoutes.announcementDashboard);
       case CalendarEventType.program:

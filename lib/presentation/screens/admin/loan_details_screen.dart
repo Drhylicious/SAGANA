@@ -14,6 +14,7 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../core/utils/member_access.dart';
 
 /// Loan Details — Admin (read-only).
 /// Pushed above the shell. Route: /admin/loans/details, extra: String loanId
@@ -322,7 +323,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   ) {
     return GestureDetector(
       onTap: () =>
-          context.push(AppRoutes.farmerDetails, extra: detail.loan.farmerId),
+          pushFarmerDetails(context, detail.loan.farmerId),
       child: Container(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
         decoration: BoxDecoration(

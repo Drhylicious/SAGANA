@@ -532,11 +532,13 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
             ? AppConstants.warningAmber
             : AppConstants.successGreen,
       ),
-      _ReportCardData(
-        l10n.reportsBalikTangkilikManagement,
-        Icons.volunteer_activism_rounded,
-        AppRoutes.balikTangkilikManagement,
-      ),
+      // The yearly payout is Admin-only, so Officers do not see this card.
+      if (!HiveService.isOfficer)
+        _ReportCardData(
+          l10n.reportsBalikTangkilikManagement,
+          Icons.volunteer_activism_rounded,
+          AppRoutes.balikTangkilikManagement,
+        ),
       _ReportCardData(
         l10n.reportsExportCenter,
         Icons.file_download_rounded,

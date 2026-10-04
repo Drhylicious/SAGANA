@@ -13,6 +13,7 @@ import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../../core/utils/member_access.dart';
 
 enum _BatchStatusFilter { all, available, reserved, lowStock, soldOut }
 
@@ -663,7 +664,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
   ) {
     return GestureDetector(
       onTap: () =>
-          context.push(AppRoutes.farmerDetails, extra: harvest.farmerId),
+          pushFarmerDetails(context, harvest.farmerId),
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -1058,7 +1059,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
         : AppConstants.successGreen;
 
     return GestureDetector(
-      onTap: () => context.push(AppRoutes.farmerDetails, extra: batch.farmerId),
+      onTap: () => pushFarmerDetails(context, batch.farmerId),
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),

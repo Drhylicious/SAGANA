@@ -14,6 +14,7 @@ import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../../core/utils/member_access.dart';
 
 /// Expense Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/expenses
@@ -536,7 +537,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   ) {
     return GestureDetector(
       onTap: () =>
-          context.push(AppRoutes.farmerDetails, extra: expense.farmerId),
+          pushFarmerDetails(context, expense.farmerId),
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),

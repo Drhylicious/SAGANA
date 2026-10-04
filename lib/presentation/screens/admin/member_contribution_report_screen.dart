@@ -12,6 +12,7 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../../core/utils/member_access.dart';
 
 /// Member Patronage Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/contributions
@@ -332,7 +333,7 @@ class _MemberContributionReportScreenState
     );
 
     return GestureDetector(
-      onTap: () => context.push(AppRoutes.farmerDetails, extra: row.farmerId),
+      onTap: () => pushFarmerDetails(context, row.farmerId),
       child: Container(
         margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
         padding: const EdgeInsets.all(AppConstants.spacingMd),

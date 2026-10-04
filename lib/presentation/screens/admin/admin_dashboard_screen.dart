@@ -16,6 +16,7 @@ import '../../widgets/admin_top_bar.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/shared_widgets.dart';
+import '../../../core/utils/member_access.dart';
 import 'admin_activity_screen.dart'
     show adminActivityDescription, adminActivityTimeLabel, moduleColor;
 
@@ -161,9 +162,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case AdminActivityType.harvest:
         // Both navigate to farmer details using referenceId (farmerId)
         if (item.referenceId != null) {
-          context.push(AppRoutes.farmerDetails, extra: item.referenceId);
+          pushFarmerDetails(context, item.referenceId);
         } else {
-          context.go(AppRoutes.farmerManagement);
+          goMembersList(context);
         }
       case AdminActivityType.order:
         context.push(AppRoutes.pendingApprovals).then((_) => _loadAll());
