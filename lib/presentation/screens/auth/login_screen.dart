@@ -9,7 +9,6 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/app_dialog.dart';
 import '../../widgets/auth_visuals.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -116,6 +115,19 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // A valid email address format. Anything else is a username.
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  /// A real bottom sheet: it slides up from the bottom edge.
+  Future<T?> _showSlidingSheet<T>({required WidgetBuilder builder}) {
+    return showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: builder,
+    );
+  }
+
   Future<void> _showForgotPassword() async {
     // Guard against rapid/repeated taps stacking multiple Forgot Password
     // sheets while the async eligibility check (and the sheet itself) is
@@ -128,7 +140,11 @@ class _LoginScreenState extends State<LoginScreen>
       // Officer, always) is routed to Admin-assisted reset. See
       // can_use_otp_reset() — unifies this without special-casing by role.
       final identifier = _identifierController.text.trim();
-      final canUseOtp = await AuthService.canUseOtpReset(identifier);
+      // A username always gets Request Password Assistance, even when its account
+      // has an email on file. Only a valid email that belongs to a SAGANA account
+      // gets the reset-link flow.
+      final isEmail = _emailPattern.hasMatch(identifier);
+      final canUseOtp = isEmail && await AuthService.canUseOtpReset(identifier);
       if (!mounted) return;
       if (canUseOtp) {
         await _showAdminResetSheet(prefill: identifier);
@@ -143,8 +159,7 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _showAdminResetSheet({required String prefill}) async {
     final emailController = TextEditingController(text: prefill);
 
-    await AppBottomSheet.show(
-      context: context,
+    await _showSlidingSheet(
       builder: (context) => _ForgotPasswordSheet(
         emailController: emailController,
         onSend: (email) async {
@@ -161,8 +176,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _showContactAdminSheet() async {
-    await AppBottomSheet.show(
-      context: context,
+    await _showSlidingSheet(
       builder: (context) =>
           _ContactAdminSheet(username: _identifierController.text.trim()),
     );
@@ -889,11 +903,8 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
               const SizedBox(height: 8),
 
               Text(
-                'Farmer, Officer, and Buyer accounts sign in with a SAGANA '
-                'username instead of an email address, so we can\'t send an '
-                'automatic reset link. Please contact the '
-                '${AppConstants.cooperativeName} office for password '
-                'assistance.',
+                'You can request a temporary password from the SAGANA Admin. '
+                'The Admin will review your request and assist you.',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: AppConstants.onSurfaceVariant,
@@ -902,89 +913,6 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
               ),
 
               const SizedBox(height: 20),
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(
-                    color: AppConstants.primaryGreen.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: AppConstants.primaryGreen,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        AppConstants.cooperativeLocation,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppConstants.onSurface,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Text(
-                'Option 1 — Contact SP3 Office',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.onSurface,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.phone_outlined,
-                    color: AppConstants.primaryGreen,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '#0000000',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: AppConstants.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              Text(
-                'Option 2 — Request Password Assistance',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'If you cannot remember your password, you may send a '
-                'temporary-password assistance request to the SP3 Admin.',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: AppConstants.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
 
               if (_requestSent) ...[
                 const SizedBox(height: 16),
