@@ -97,12 +97,25 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
     }
   }
 
+  // A valid email address format (the same rule the database enforces).
+  static final _emailPattern = RegExp(r'^[^@s]+@[^@s]+.[^@s]+$');
+
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.fullNameEmpty),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+      return;
+    }
+    final email = _emailController.text.trim();
+    if (email.isNotEmpty && !_emailPattern.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.registerInvalidEmail),
           backgroundColor: AppConstants.errorRed,
         ),
       );

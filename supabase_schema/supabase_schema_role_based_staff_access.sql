@@ -2389,6 +2389,34 @@ BEGIN
 END;
 $function$;
 
+-- Forgot Password: only an e-mail address can use the reset-link flow.
+-- A username is never eligible, even when its account has a real e-mail on file.
+CREATE OR REPLACE FUNCTION public.can_use_otp_reset(p_identifier text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+DECLARE
+  v_user_id UUID;
+  v_email TEXT;
+BEGIN
+  IF p_identifier IS NULL OR position('@' IN p_identifier) = 0 THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT id, email INTO v_user_id, v_email
+  FROM auth.users
+  WHERE email = lower(trim(p_identifier));
+
+  IF v_user_id IS NULL THEN
+    RETURN FALSE; -- same false for "not found" as "no email": no enumeration signal
+  END IF;
+
+  RETURN v_email IS NOT NULL AND v_email NOT LIKE '%@sagana.local';
+END;
+$function$;
+
 COMMIT;
 
 NOTIFY pgrst, 'reload schema';

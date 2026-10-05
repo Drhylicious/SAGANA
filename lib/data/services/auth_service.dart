@@ -548,9 +548,11 @@ class AuthService {
         'check_phone_available',
         params: {'p_phone': trimmed},
       );
-      return result as bool? ?? true;
+      return result as bool? ?? false;
     } catch (_) {
-      return true;
+      // Fail closed: if the check cannot run, the number is treated as taken
+      // and registration asks for admin help, rather than skipping the check.
+      return false;
     }
   }
 
