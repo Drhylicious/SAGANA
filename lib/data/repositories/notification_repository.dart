@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/notification_model.dart';
+import '../services/offline_actions.dart';
+import '../services/offline_cache.dart';
 
 /// One notification row to be created via [NotificationRepository.createNotification]
 /// or [NotificationRepository.createNotifications]. Mirrors the notifications
@@ -26,15 +28,15 @@ class NotificationDraft {
   });
 
   Map<String, dynamic> toRow(DateTime fallbackNow) => {
-        'user_id': userId,
-        'type': type,
-        'title': title,
-        'body': body,
-        'is_read': false,
-        'created_at': (createdAt ?? fallbackNow).toIso8601String(),
+    'user_id': userId,
+    'type': type,
+    'title': title,
+    'body': body,
+    'is_read': false,
+    'created_at': (createdAt ?? fallbackNow).toIso8601String(),
     'route_on_tap': routeOnTap,
     'route_extra': routeExtra,
-      };
+  };
 }
 
 class NotificationRepository {
@@ -81,11 +83,14 @@ class NotificationRepository {
 
   Future<List<NotificationModel>> fetchNotifications() async {
     try {
-      final rows = await _client
-          .from('notifications')
-          .select()
-          .eq('user_id', _userId)
-          .order('created_at', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'notifications',
+        fetch: () => _client
+            .from('notifications')
+            .select()
+            .eq('user_id', _userId)
+            .order('created_at', ascending: false),
+      );
 
       return rows.map((r) => NotificationModel.fromMap(r)).toList();
     } catch (e) {
@@ -112,7 +117,18 @@ class NotificationRepository {
 
   // ─── Mark single notification as read ────────────────────────────────────
 
-  Future<void> markAsRead(String notificationId) async {
+  /// Marks one notification read now, or on the next Sync when offline.
+  Future<SaveOutcome> markAsRead(
+    String notificationId, {
+    bool queueWhenOffline = true,
+  }) => OfflineActions.run(
+    kind: 'notification_read',
+    payload: {'id': notificationId},
+    queueWhenOffline: queueWhenOffline,
+    online: () => markAsReadOnline(notificationId),
+  );
+
+  Future<void> markAsReadOnline(String notificationId) async {
     try {
       await _client
           .from('notifications')
@@ -126,7 +142,16 @@ class NotificationRepository {
 
   // ─── Mark all notifications as read ──────────────────────────────────────
 
-  Future<void> markAllAsRead() async {
+  /// Marks every unread notification read now, or on the next Sync when offline.
+  Future<SaveOutcome> markAllAsRead({bool queueWhenOffline = true}) =>
+      OfflineActions.run(
+        kind: 'notification_read_all',
+        payload: const {},
+        queueWhenOffline: queueWhenOffline,
+        online: markAllAsReadOnline,
+      );
+
+  Future<void> markAllAsReadOnline() async {
     try {
       await _client
           .from('notifications')
@@ -140,7 +165,18 @@ class NotificationRepository {
 
   // ─── Delete single notification ───────────────────────────────────────────
 
-  Future<void> deleteNotification(String notificationId) async {
+  /// Deletes one notification now, or on the next Sync when offline.
+  Future<SaveOutcome> deleteNotification(
+    String notificationId, {
+    bool queueWhenOffline = true,
+  }) => OfflineActions.run(
+    kind: 'notification_delete',
+    payload: {'id': notificationId},
+    queueWhenOffline: queueWhenOffline,
+    online: () => deleteNotificationOnline(notificationId),
+  );
+
+  Future<void> deleteNotificationOnline(String notificationId) async {
     try {
       await _client
           .from('notifications')
@@ -154,7 +190,16 @@ class NotificationRepository {
 
   // ─── Delete all notifications for current user ────────────────────────────
 
-  Future<void> deleteAllNotifications() async {
+  /// Deletes every notification now, or on the next Sync when offline.
+  Future<SaveOutcome> deleteAllNotifications({bool queueWhenOffline = true}) =>
+      OfflineActions.run(
+        kind: 'notification_delete_all',
+        payload: const {},
+        queueWhenOffline: queueWhenOffline,
+        online: deleteAllNotificationsOnline,
+      );
+
+  Future<void> deleteAllNotificationsOnline() async {
     try {
       await _client.from('notifications').delete().eq('user_id', _userId);
     } catch (e) {

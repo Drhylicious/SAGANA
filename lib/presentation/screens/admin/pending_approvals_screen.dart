@@ -8,7 +8,13 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
+import '../../widgets/listing_filter_modal.dart'
+    show ListingStatusFilterChip, ListingMarketBadge;
+import '../../widgets/listing_status_badge.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
 
 class PendingApprovalsScreen extends StatefulWidget {
   const PendingApprovalsScreen({super.key});
@@ -28,14 +34,20 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
   // on every tap. See M-marketplace-8.
   List<AdminListingModel> _allListings = [];
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   bool _hasLoadedOnce = false;
 
   String _searchQuery = '';
-  String? _statusFilter; // null = All (pending_review + approved + rejected)
+  // null = All. The chips filter by the Manager's approval decision, whatever
+  // the listing's market; a Sold Out listing was approved, so it is Approved.
+  ListingApproval? _approvalFilter;
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     AppTheme.applySystemOverlay(context);
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text),
@@ -61,15 +73,17 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
   }
 
   List<AdminListingModel> get _filtered {
-    var list = _statusFilter == null
+    Iterable<AdminListingModel> list = _approvalFilter == null
         ? _allListings
-        : _allListings.where((l) => l.status == _statusFilter);
+        : _allListings.where(
+            (l) => listingApprovalOf(l.status) == _approvalFilter,
+          );
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where(
         (l) =>
-          l.cropName.toLowerCase().contains(q) ||
-          l.farmerName.toLowerCase().contains(q) ||
+            l.cropName.toLowerCase().contains(q) ||
+            l.farmerName.toLowerCase().contains(q) ||
             (l.variety?.toLowerCase().contains(q) ?? false),
       );
     }
@@ -87,15 +101,21 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
       body: Column(
         children: [
           _TopBar(sagana: sagana, cs: cs),
+          CachedDataNotice(
+            screen: 'listings_all_all_all_all',
+            isOnline: _isOnline,
+            offlineMessage: AppLocalizations.of(
+              context,
+            ).offlineFeaturesUnavailable,
+          ),
           Expanded(
             child: RefreshIndicator(
               color: AppConstants.primaryGreen,
               onRefresh: _load,
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      ),
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
                     )
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -121,7 +141,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                         ),
                         const SizedBox(height: 12),
 
-                        // ── Status chips — instant, client-side switching ──
+                        // ── Approval chips — instant, client-side switching ──
                         SizedBox(
                           height: 34,
                           child: ListView(
@@ -129,38 +149,56 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                             children: [
                               ListingStatusFilterChip(
                                 label: l10n.farmerMgmtAllFilter,
-                                active: _statusFilter == null,
+                                active: _approvalFilter == null,
                                 color: cs.primary,
                                 onTap: () =>
-                                    setState(() => _statusFilter = null),
+                                    setState(() => _approvalFilter = null),
                                 cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: l10n.buyerOrderDetailPendingTimestamp,
-                                active: _statusFilter == 'pending_review',
-                                color: AppConstants.warningAmber,
+                                label: l10n.listingFilterPending,
+                                active:
+                                    _approvalFilter == ListingApproval.pending,
+                                color: listingApprovalColor(
+                                  context,
+                                  ListingApproval.pending,
+                                ),
                                 onTap: () => setState(
-                                  () => _statusFilter = 'pending_review',
+                                  () =>
+                                      _approvalFilter = ListingApproval.pending,
                                 ),
                                 cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: l10n.buyerOrderDetailStepApproved,
-                                active: _statusFilter == 'approved',
-                                color: AppConstants.successGreen,
-                                onTap: () =>
-                                    setState(() => _statusFilter = 'approved'),
+                                label: l10n.listingStateApproved,
+                                active:
+                                    _approvalFilter == ListingApproval.approved,
+                                color: listingApprovalColor(
+                                  context,
+                                  ListingApproval.approved,
+                                ),
+                                onTap: () => setState(
+                                  () => _approvalFilter =
+                                      ListingApproval.approved,
+                                ),
                                 cs: cs,
                               ),
                               const SizedBox(width: 8),
                               ListingStatusFilterChip(
-                                label: l10n.farmerMgmtStatusRejectedLabel,
-                                active: _statusFilter == 'rejected',
-                                color: cs.error,
-                                onTap: () =>
-                                    setState(() => _statusFilter = 'rejected'),
+                                label: l10n.listingStateDisapproved,
+                                active:
+                                    _approvalFilter ==
+                                    ListingApproval.disapproved,
+                                color: listingApprovalColor(
+                                  context,
+                                  ListingApproval.disapproved,
+                                ),
+                                onTap: () => setState(
+                                  () => _approvalFilter =
+                                      ListingApproval.disapproved,
+                                ),
                                 cs: cs,
                               ),
                             ],
@@ -175,7 +213,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                             sagana: sagana,
                             hasActiveFilter:
                                 _searchQuery.isNotEmpty ||
-                                _statusFilter != null,
+                                _approvalFilter != null,
                           )
                         else
                           ..._filtered.map(
@@ -185,10 +223,17 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                                 listing: listing,
                                 cs: cs,
                                 sagana: sagana,
+                                // Approve / disapprove stays on the pending ones. A
+                                // decided listing opens read-only.
                                 onTap: () => context
                                     .push(
                                       AppRoutes.listingReview,
-                                      extra: listing.id,
+                                      extra: listing.isPending
+                                          ? listing.id
+                                          : {
+                                              'listingId': listing.id,
+                                              'readOnly': true,
+                                            },
                                     )
                                     .then((_) => _load()),
                               ),
@@ -213,41 +258,9 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_back_rounded,
-                  color: cs.primary,
-                  size: 24,
-                ),
-                onPressed: () => context.pop(),
-                tooltip: l10n.offerCoopBackTooltip,
-              ),
-              Expanded(
-                child: Text(
-                  l10n.pendingApprovalsTitle,
-                    style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SubPageTopBar(
+      title: l10n.pendingApprovalsTitle,
+      onBack: () => context.pop(),
     );
   }
 }
@@ -323,6 +336,16 @@ class _PendingListingCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 6),
+                    ListingStatusBadge.forApproval(
+                      context,
+                      status: listing.status,
+                    ),
+                    if (listing.marketType != null) ...[
+                      const SizedBox(width: 6),
+                      ListingMarketBadge(marketType: listing.marketType),
+                    ],
+                    const SizedBox(width: 6),
                     if (listing.hasStockWarning)
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -421,40 +444,44 @@ class _PendingListingCard extends StatelessWidget {
                 // Review is the one remaining action, full width.
                 SizedBox(
                   width: double.infinity,
-                      child: GestureDetector(
-                        onTap: onTap,
-                        child: Container(
+                  child: GestureDetector(
+                    onTap: onTap,
+                    child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 11),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: cs.primary),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: cs.primary),
                         borderRadius: BorderRadius.circular(
                           AppConstants.radiusMd,
                         ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                           Icon(
-                            Icons.rate_review_outlined,
+                            listing.isPending
+                                ? Icons.rate_review_outlined
+                                : Icons.visibility_outlined,
                             size: 16,
                             color: cs.primary,
-                      ),
+                          ),
                           const SizedBox(width: 6),
                           Text(
-                            l10n.pendingApprovalsReviewAction,
+                            listing.isPending
+                                ? l10n.pendingApprovalsReviewAction
+                                : l10n.listingApprovalsViewDetails,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: cs.primary,
-                    ),
+                            ),
                           ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
+              ],
+            ),
           ),
         ],
       ),

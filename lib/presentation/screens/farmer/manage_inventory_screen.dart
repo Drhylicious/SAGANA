@@ -16,9 +16,17 @@ import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/models/farmer_crop_model.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/channel_only_badge.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/coop_offer_widgets.dart' show coopKg, coopPeso;
+import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/db_error_utils.dart';
+import '../../../data/services/server_only.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 
 class ManageInventoryScreen extends StatefulWidget {
   const ManageInventoryScreen({super.key});
@@ -213,22 +221,17 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               final newQty = double.tryParse(controller.text.trim());
               final maxAvailable = batch.availableKg;
               if (newQty == null || newQty < 0 || newQty > maxAvailable) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Enter a value between 0 and ${maxAvailable.toStringAsFixed(0)} kg. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.',
-                    ),
-                  ),
+                PostActionFeedback.error(
+                  context,
+                  'Enter a value between 0 and ${maxAvailable.toStringAsFixed(0)} kg. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.',
                 );
                 return;
               }
               if (!_isOnline) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Updating quantity requires an internet connection. Please try again once you\'re back online.'),
-                    backgroundColor: AppConstants.warningAmber,
-                  ),
+                PostActionFeedback.error(
+                  context,
+                  'Updating quantity requires an internet connection. Please try again once you\'re back online.',
                 );
                 return;
               }
@@ -258,7 +261,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     // batch (available_kg is only touched at admin completion) — a
     // Ginger batch with an active submission still reads as plain
     // 'available' and would otherwise fall into the wrong branch.
-    if (batch.cropType == 'da_amad_market') {
+    if (batch.exclusiveChannel == AppConstants.channelDaAmad) {
       if (_activeMarketLinkingBatchIds.contains(batch.id)) {
         context.pushRoute(AppRoutes.myMarketLinking);
       } else if (_gingerEnrollmentStatus != DaAmadEnrollmentStatus.approved) {
@@ -269,12 +272,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
         context.pushRoute(AppRoutes.myMarketLinking).then((_) => _loadData());
       } else {
         if (!_isOnline) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'This action requires an internet connection. Please try again once you\'re back online.'),
-              backgroundColor: AppConstants.warningAmber,
-            ),
+          PostActionFeedback.error(
+            context,
+            'This action requires an internet connection. Please try again once you\'re back online.',
           );
           return;
         }
@@ -304,11 +304,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     // Harvest Entry, these are deliberately NOT queued for offline replay.
     // Block with a clear message instead of letting the RPC fail silently.
     if (!_isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
-          backgroundColor: AppConstants.warningAmber,
-        ),
+      PostActionFeedback.error(
+        context,
+        'This action requires an internet connection. Please try again once you\'re back online.',
       );
       return;
     }
@@ -318,7 +316,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       cropName: batch.cropName,
       availableKg: batch.availableKg,
       isCoopEligible: batch.isCoopEligible,
-      cropType: batch.cropType,
+      exclusiveChannel: batch.exclusiveChannel,
     );
     if (action == null || !mounted) return;
 
@@ -338,29 +336,17 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     }
   }
 
-  void _showPendingOfferStatus(InventoryBatchModel batch) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-        title: Row(children: [
-          const Icon(Icons.groups_outlined, color: AppConstants.primaryGreen),
-          const SizedBox(width: 10),
-          Text('Offered to Cooperative', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
-        ]),
-        content: Text(
-          '${batch.cropName} • Batch #${batch.batchNumber} has been offered to SP3 and is awaiting cooperative confirmation. '
-          'SP3 will confirm the final weighed quantity and price at pickup.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Got it', style: GoogleFonts.poppins(color: AppConstants.primaryGreen)),
-          ),
-        ],
-      ),
-    );
+  // A batch with an open cooperative offer: show where the negotiation stands
+  // (and let the Farmer answer a counteroffer) rather than a static message.
+  Future<void> _showPendingOfferStatus(InventoryBatchModel batch) async {
+    final offerId = await _offerRepo.fetchPendingOfferIdForBatch(batch.id);
+    if (!mounted) return;
+    if (offerId == null) {
+      await context.pushRoute(AppRoutes.farmerCoopOffers);
+    } else {
+      await context.pushRoute(AppRoutes.farmerCoopOfferDetail, extra: offerId);
+    }
+    if (mounted) _loadData();
   }
 
   @override
@@ -369,14 +355,13 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — some inventory actions require an internet connection."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(screen: 'inventory_batches', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineInventoryActions),
                     Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -421,7 +406,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                           3,
                           (_) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _BatchShimmer(),
+                            child: SkeletonBlock(height: 120),
                           ),
                         )
                       else if (_filtered.isEmpty)
@@ -742,6 +727,10 @@ class _BatchCard extends StatelessWidget {
                             color: AppConstants.outline,
                           ),
                         ),
+                        if (batch.exclusiveChannel != null) ...[
+                          const SizedBox(height: 6),
+                          ChannelOnlyBadge(channel: batch.exclusiveChannel),
+                        ],
                       ],
                     ),
                   ),
@@ -868,7 +857,8 @@ class _BatchCard extends StatelessWidget {
                     _ActionButton(
                       status: batch.status,
                       hasPendingOffer: hasPendingOffer,
-                      isDaAmadExclusive: batch.cropType == 'da_amad_market',
+                      isDaAmadExclusive:
+                          batch.exclusiveChannel == AppConstants.channelDaAmad,
                       hasActiveMarketLinking: hasActiveMarketLinking,
                       gingerEnrollmentApproved: gingerEnrollmentApproved,
                       onTap: onActionTap,
@@ -1317,93 +1307,7 @@ class _InventoryEmptyState extends StatelessWidget {
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BatchShimmer extends StatefulWidget {
-  @override
-  State<_BatchShimmer> createState() => _BatchShimmerState();
-}
 
-class _BatchShimmerState extends State<_BatchShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-    _anim = Tween<double>(
-      begin: -1,
-      end: 2,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Widget _block(double w, double h) => AnimatedBuilder(
-    animation: _anim,
-    builder: (_, __) => Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          stops: [
-            (_anim.value - 1).clamp(0.0, 1.0),
-            _anim.value.clamp(0.0, 1.0),
-            (_anim.value + 1).clamp(0.0, 1.0),
-          ],
-          colors: const [
-            Color(0xFFE8E8E8),
-            Color(0xFFF5F5F5),
-            Color(0xFFE8E8E8),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _block(56, 56),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _block(120, 14),
-                    const SizedBox(height: 6),
-                    _block(90, 11),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _block(double.infinity, 8),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Submit to Sell Dialog (Ginger / Market Linking)
@@ -1527,9 +1431,11 @@ class _OfferToCooperativeDialog extends StatefulWidget {
 
 class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   late final TextEditingController _qtyController;
+  final _priceController = TextEditingController();
   final _repo = CooperativeOfferRepository();
   bool _isSubmitting = false;
   String? _qtyError;
+  String? _priceError;
   String? _submitError;
 
   @override
@@ -1543,29 +1449,44 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   @override
   void dispose() {
     _qtyController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     final qty = double.tryParse(_qtyController.text.trim());
+    final price = double.tryParse(_priceController.text.trim());
 
     setState(() {
       _qtyError = (qty == null || qty <= 0 || qty > widget.batch.availableKg)
           ? 'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.'
           : null;
+      _priceError = (price == null || price <= 0)
+          ? l10n.coopOfferAskingRequired
+          : null;
       _submitError = null;
     });
-    if (_qtyError != null) return;
+    if (_qtyError != null || _priceError != null) return;
 
     setState(() => _isSubmitting = true);
     try {
-      await _repo.offerToCooperative(batch: widget.batch, quantityKg: qty!);
+      await _repo.offerToCooperative(
+        batch: widget.batch,
+        quantityKg: qty!,
+        askingPricePerKg: price!,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _submitError = 'Could not submit offer. Please try again.';
+          // The database's own explanation when it wrote one for people (for
+          // example the batch is not eligible); otherwise a generic line.
+          _submitError = readableDatabaseMessage(e) ??
+              (e is ServerOnlyException
+                  ? e.toString()
+                  : 'Could not submit offer. Please try again.');
         });
       }
     }
@@ -1574,12 +1495,14 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     final enteredQty = double.tryParse(_qtyController.text.trim());
+    final enteredPrice = double.tryParse(_priceController.text.trim());
     final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
 
     return ManagementModalShell(
       title: 'Offer to Cooperative',
-      subtitle: 'SP3 will confirm the actual weighed quantity and price when they pick this up.',
+      subtitle: l10n.coopOfferDialogSubtitle,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1605,6 +1528,38 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
               color: exceedsAvailable ? AppConstants.errorRed : cs.onSurfaceVariant,
             ),
           ),
+          const SizedBox(height: 14),
+          _FieldLabel(label: l10n.coopOfferAskingLabel, cs: cs),
+          TextFormField(
+            controller: _priceController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}\.?\d{0,2}')),
+            ],
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixText: '₱ ',
+              hintText: '0.00',
+              errorText: _priceError,
+            ),
+          ),
+          if (enteredQty != null &&
+              enteredQty > 0 &&
+              enteredPrice != null &&
+              enteredPrice > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.coopTotalPreview(
+                coopKg(enteredQty),
+                coopPeso(enteredQty * enteredPrice),
+              ),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
+          ],
           if (_submitError != null) ...[
             const SizedBox(height: 12),
             Text(

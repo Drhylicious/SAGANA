@@ -9,7 +9,8 @@ import '../../../data/repositories/admin_order_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
 import '../../widgets/management_modal.dart' show adminOrderStatusLabel;
-import '../../widgets/web_safe_blur_container.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Read-only order history for one buyer, opened from Buyer Details.
 ///
@@ -152,7 +153,7 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _buildList(visible, _emptyMessage(l10n)),
           ),
         ],
@@ -259,33 +260,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sagana = context.saganaColors;
-    final cs = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      height: 64,
-      child: WebSafeBlurContainer(
-        blurSigma: 20,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: sagana.glassBackground,
-          border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-              onPressed: onBack,
-            ),
-            Expanded(
-              child: Text(title,
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-      ),
-    );
+    return SubPageTopBar(title: title, onBack: onBack);
   }
 }

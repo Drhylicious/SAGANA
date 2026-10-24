@@ -76,7 +76,7 @@ class AdminBottomNav extends StatelessWidget {
                           horizontal: 4,
                           vertical: 6,
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                         decoration: BoxDecoration(
                           color: isActive
                               ? AppConstants.primaryContainer
@@ -113,10 +113,12 @@ class AdminBottomNav extends StatelessWidget {
                                     ? AppConstants.onPrimaryContainer
                                     : Theme.of(context).colorScheme.outline,
                               ),
-                              child: Text(
-                                item.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                ),
                               ),
                             ),
                           ],

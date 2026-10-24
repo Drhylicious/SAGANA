@@ -1,0 +1,907 @@
+<title>Notification Rollout Record</title>
+<style>
+  :root{
+    --bg:#f8f7f2; --surface:#ffffff; --border:#ddd9c8;
+    --ink:#1e2a22; --ink-soft:#5b6b5e; --ink-faint:#8b988e;
+    --accent:#2f6f4e; --accent-soft:#e4efe6; --accent-ink:#1d4a34;
+    --gold:#a86a1f; --gold-soft:#f7ecd9; --gold-ink:#7a4d13;
+    --code-bg:#f0eee1; --code-ink:#3a4740;
+    --shadow: 0 1px 2px rgba(30,42,34,.06), 0 2px 12px rgba(30,42,34,.05);
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#121814; --surface:#1a221c; --border:#2c3830;
+      --ink:#e9efe7; --ink-soft:#a7b6ac; --ink-faint:#718075;
+      --accent:#5fbf8f; --accent-soft:#1c3327; --accent-ink:#8fd9b2;
+      --gold:#e3a94a; --gold-soft:#3a2c14; --gold-ink:#f0c37c;
+      --code-bg:#1f2822; --code-ink:#c7d3cb;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 2px 16px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#121814; --surface:#1a221c; --border:#2c3830;
+    --ink:#e9efe7; --ink-soft:#a7b6ac; --ink-faint:#718075;
+    --accent:#5fbf8f; --accent-soft:#1c3327; --accent-ink:#8fd9b2;
+    --gold:#e3a94a; --gold-soft:#3a2c14; --gold-ink:#f0c37c;
+    --code-bg:#1f2822; --code-ink:#c7d3cb;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 2px 16px rgba(0,0,0,.25);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    line-height:1.55;
+  }
+  h1,h2,h3,h4{
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-weight:700; color:var(--ink); text-wrap:balance;
+    margin:0;
+  }
+  code, .mono{
+    font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  }
+  a{color:var(--accent);}
+
+  .shell{
+    max-width:1180px; margin:0 auto; padding:0 20px 80px;
+    display:grid; grid-template-columns:240px 1fr; gap:36px;
+  }
+  @media (max-width:860px){
+    .shell{grid-template-columns:1fr;}
+  }
+
+  /* ---------- Header ---------- */
+  .hero{
+    padding:40px 20px 28px; border-bottom:1px solid var(--border);
+    margin-bottom:8px;
+  }
+  .hero-inner{max-width:1180px; margin:0 auto;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--accent-ink); font-weight:600;
+    background:var(--accent-soft); display:inline-block; padding:4px 10px;
+    border-radius:999px; margin-bottom:14px;
+  }
+  .hero h1{font-size:clamp(28px,4vw,38px); letter-spacing:-.02em;}
+  .hero p.sub{
+    color:var(--ink-soft); font-size:16px; max-width:70ch; margin-top:10px;
+  }
+  .hero-meta{
+    display:flex; gap:22px; flex-wrap:wrap; margin-top:22px;
+    font-size:13px; color:var(--ink-faint);
+  }
+  .hero-meta b{color:var(--ink); font-weight:600;}
+
+  /* ---------- Sidebar nav ---------- */
+  .toc{
+    position:sticky; top:20px; align-self:start;
+    max-height:calc(100vh - 40px); overflow-y:auto;
+    padding-right:6px;
+  }
+  @media (max-width:860px){
+    .toc{
+      position:static; max-height:none; display:flex; gap:8px;
+      overflow-x:auto; padding-bottom:8px; margin-bottom:8px;
+    }
+  }
+  .toc-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--ink-faint); font-weight:600; margin-bottom:10px;
+  }
+  @media (max-width:860px){ .toc-title{display:none;} }
+  .toc a{
+    display:block; text-decoration:none; color:var(--ink-soft);
+    font-size:13.5px; padding:7px 10px; border-radius:8px;
+    border-left:2px solid transparent; margin-bottom:2px;
+    white-space:nowrap;
+  }
+  .toc a:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  .toc a .n{
+    font-family:'IBM Plex Mono',monospace; color:var(--ink-faint);
+    margin-right:6px; font-size:12px;
+  }
+
+  /* ---------- Main column ---------- */
+  main{min-width:0; padding-top:28px;}
+
+  .summary-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px; margin-bottom:36px;
+  }
+  .stat{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:14px 16px; box-shadow:var(--shadow);
+  }
+  .stat .num{font-size:22px; font-weight:700; color:var(--accent-ink);}
+  .stat .lbl{font-size:12px; color:var(--ink-faint); margin-top:2px;}
+
+  section.phase{
+    background:var(--surface); border:1px solid var(--border);
+    border-left:4px solid var(--accent);
+    border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:26px 28px; margin-bottom:22px; scroll-margin-top:20px;
+  }
+  section.phase.deferred{border-left-color:var(--ink-faint);}
+
+  .phase-head{
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    margin-bottom:4px;
+  }
+  .phase-num{
+    font-family:'IBM Plex Mono',monospace; font-size:13px;
+    color:var(--accent-ink); font-weight:600;
+  }
+  .phase-head h2{font-size:20px;}
+  .status-pill{
+    font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px;
+    background:var(--accent-soft); color:var(--accent-ink);
+    margin-left:auto; white-space:nowrap;
+  }
+  .status-pill.hold{background:var(--gold-soft); color:var(--gold-ink);}
+  .phase-tagline{color:var(--ink-soft); font-size:14.5px; margin:4px 0 18px;}
+
+  h3.sec{
+    font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-faint); font-weight:700; margin:20px 0 8px;
+  }
+  h3.sec:first-of-type{margin-top:0;}
+
+  ul.clean{margin:0; padding-left:20px;}
+  ul.clean li{margin-bottom:6px; font-size:14.5px;}
+  ul.clean li::marker{color:var(--accent);}
+
+  .filelist{
+    display:flex; flex-direction:column; gap:4px; margin-top:4px;
+  }
+  .filelist code{
+    font-size:12.5px; background:var(--code-bg); color:var(--code-ink);
+    padding:4px 8px; border-radius:6px; display:inline-block;
+    width:fit-content;
+  }
+  .filelist code.new::after{
+    content:"new"; font-size:9px; text-transform:uppercase;
+    background:var(--accent); color:#fff; padding:1px 5px; border-radius:4px;
+    margin-left:7px; font-weight:700; letter-spacing:.03em;
+  }
+
+  pre.sqlblock{
+    background:var(--code-bg); color:var(--code-ink);
+    border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px; font-size:12.5px; overflow-x:auto;
+    margin:6px 0 0; white-space:pre-wrap; line-height:1.5;
+  }
+
+  .verify-list{list-style:none; margin:0; padding:0;}
+  .verify-list li{
+    font-size:14.5px; margin-bottom:7px; padding-left:22px; position:relative;
+  }
+  .verify-list li::before{
+    content:"✓"; position:absolute; left:0; color:var(--accent);
+    font-weight:700;
+  }
+  .verify-list li.caveat::before{content:"–"; color:var(--ink-faint);}
+
+  details.test{
+    margin-top:8px; border:1px solid var(--border); border-radius:10px;
+    overflow:hidden; background:var(--bg);
+  }
+  details.test summary{
+    cursor:pointer; padding:11px 16px; font-size:13.5px; font-weight:600;
+    color:var(--accent-ink); list-style:none; display:flex;
+    align-items:center; gap:8px; user-select:none;
+  }
+  details.test summary::-webkit-details-marker{display:none;}
+  details.test summary::before{
+    content:"▸"; font-size:11px; transition:transform .15s;
+  }
+  details.test[open] summary::before{transform:rotate(90deg);}
+  .test-body{padding:4px 16px 16px;}
+  ol.steps{margin:0; padding-left:20px;}
+  ol.steps li{font-size:14px; margin-bottom:10px;}
+  ol.steps .expect{
+    display:block; margin-top:3px; font-size:13px; color:var(--ink-soft);
+  }
+  ol.steps .expect b{color:var(--accent-ink); font-weight:600;}
+
+  .callout{
+    background:var(--gold-soft); border:1px solid var(--gold);
+    border-radius:10px; padding:12px 16px; margin-top:16px;
+  }
+  .callout .lbl{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--gold-ink); font-weight:700; margin-bottom:6px;
+  }
+  .callout ul{margin:0; padding-left:18px;}
+  .callout li{font-size:13.5px; margin-bottom:5px; color:var(--ink);}
+
+  .close-note{
+    margin-top:40px; padding:22px 24px; border-radius:var(--radius);
+    background:var(--accent-soft); border:1px solid var(--accent);
+  }
+  .close-note h2{font-size:17px; color:var(--accent-ink); margin-bottom:8px;}
+  .close-note p{font-size:14px; color:var(--ink); margin:0;}
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<div class="hero">
+  <div class="hero-inner">
+    <span class="eyebrow">SAGANA · Cooperative Platform</span>
+    <h1>Broadcast &amp; Notification Rollout</h1>
+    <p class="sub">Implementation and verification record for the 10-phase Broadcast Announcement &amp; Notification project — from the shared notification-creation helper through full tap-to-navigate coverage. Use this as the testing checklist and the log of what shipped in each phase.</p>
+    <div class="hero-meta">
+      <span><b>10</b> phases completed</span>
+      <span><b>9</b> SQL migrations applied</span>
+      <span><b>20+</b> Dart files touched</span>
+      <span><b>27</b> notification call sites now route-aware</span>
+      <span><b>1</b> Edge Function + scheduler deployed</span>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="toc">
+    <div class="toc-title">Phases</div>
+    <a href="#p0"><span class="n">00</span>Notification helper</a>
+    <a href="#p1"><span class="n">01</span>Listing regression</a>
+    <a href="#p2"><span class="n">02</span>Broadcast fixes</a>
+    <a href="#p3"><span class="n">03</span>Half-loop gaps</a>
+    <a href="#p4"><span class="n">04</span>Program coverage</a>
+    <a href="#p5"><span class="n">05</span>Loan coverage</a>
+    <a href="#p6"><span class="n">06</span>Capital coverage</a>
+    <a href="#p7"><span class="n">07</span>UI consolidation</a>
+    <a href="#p8"><span class="n">08</span>Dropdown migration</a>
+    <a href="#p9"><span class="n">09</span>Final verification</a>
+    <a href="#open"><span class="n">＊</span>Open items</a>
+  </nav>
+
+  <main>
+    <div class="summary-grid">
+      <div class="stat"><div class="num">10/10</div><div class="lbl">Phases shipped</div></div>
+      <div class="stat"><div class="num">0</div><div class="lbl">flutter analyze errors</div></div>
+      <div class="stat"><div class="num">1</div><div class="lbl">bug caught in Phase 9 sweep</div></div>
+      <div class="stat"><div class="num">3</div><div class="lbl">open decisions below</div></div>
+    </div>
+
+    <!-- ============ PHASE 0 ============ -->
+    <section class="phase" id="p0">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 0</span>
+        <h2>Shared notification-creation helper</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">Foundation phase — zero behavior change, plus one confirmed bug fix.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li>Added <code class="mono">NotificationRepository.createNotification()</code> / <code class="mono">createNotifications()</code> (backed by a new <code class="mono">NotificationDraft</code> class) — the first shared insert path for notifications. Refactored all 5 existing direct <code class="mono">.insert()</code> call sites onto it with zero behavior change.</li>
+        <li>Added Postgres helper <code class="mono">notify_user()</code>, <code class="mono">SECURITY DEFINER</code>, <code class="mono">EXECUTE</code> revoked from <code class="mono">anon</code>/<code class="mono">authenticated</code> — only callable from inside other <code class="mono">SECURITY DEFINER</code> functions, not a client-reachable RPC.</li>
+        <li><b>Bug fixed:</b> <code class="mono">approve_crop_request</code> notified farmers with <code class="mono">type='system'</code> while its sibling <code class="mono">reject_crop_request</code> used <code class="mono">type='crop_request'</code> — meant an approved request never showed under the farmer's "Crop Requests" filter, only "All". Standardized to <code class="mono">'crop_request'</code>.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/data/repositories/notification_repository.dart</code>
+        <code>lib/data/repositories/admin_order_repository.dart</code>
+        <code>lib/data/repositories/broadcast_repository.dart</code>
+        <code>lib/data/repositories/buyer_profile_repository.dart</code>
+        <code>lib/data/repositories/price_management_repository.dart</code>
+        <code>lib/data/repositories/admin_analytics_repository.dart</code>
+        <code class="new">supabase_schema/supabase_schema_notification_helper_foundation.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">CREATE FUNCTION notify_user(p_user_id, p_type, p_title, p_body) ...
+REVOKE ALL ON FUNCTION notify_user(...) FROM PUBLIC, anon, authenticated;
+CREATE OR REPLACE FUNCTION approve_crop_request(...) -- type fix only</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li><code class="mono">flutter analyze</code> on all 6 touched files: no issues</li>
+        <li>Confirmed <code class="mono">notify_user</code> not executable by <code class="mono">anon</code>/<code class="mono">authenticated</code> (queried <code class="mono">has_function_privilege</code>)</li>
+        <li>Confirmed <code class="mono">approve_crop_request</code> live body uses <code class="mono">'crop_request'</code>, no more <code class="mono">'system'</code></li>
+        <li class="caveat">In-app confirmation of the filter-chip fix — not run from here, needs a real approve action</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As a farmer, submit a crop request for a crop not on the master list.
+              <span class="expect">Expected: admins are notified (unchanged from before this phase).</span>
+            </li>
+            <li>As an admin, approve that crop request.
+              <span class="expect">Expected: the farmer's notification appears, and now shows up under the <b>"Crop Requests"</b> filter chip on their Notifications screen — not just "All".</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 1 ============ -->
+    <section class="phase" id="p1">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 1</span>
+        <h2>Restore listing-approval notifications</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">A 2026-09-15 migration silently deleted farmer notifications from 3 listing RPCs while adding reviewer tracking. Restored.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li><code class="mono">approve_listing</code> — restored the "Listing Approved" farmer notification.</li>
+        <li><code class="mono">request_listing_changes</code> — restored the "Changes Requested" farmer notification (includes admin's note).</li>
+        <li><code class="mono">reject_listing</code> — restored more than the notification: the same regressing migration had also dropped the <code class="mono">pending_review</code>-only guard, the <code class="mono">remaining_kg = 0</code> reset, and used the wrong field for the inventory release quantity. All three were fixed alongside the notification since they were the same root cause.</li>
+        <li><code class="mono">reviewed_by</code>/<code class="mono">reviewed_at</code> tracking (the original intent of the Sept 15 migration) preserved throughout.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code class="new">supabase_schema/supabase_schema_listing_notifications_restore.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">CREATE OR REPLACE FUNCTION approve_listing(...)          -- +notification
+CREATE OR REPLACE FUNCTION reject_listing(...)           -- +notification, +guard, +remaining_kg=0, fixed release qty
+CREATE OR REPLACE FUNCTION request_listing_changes(...)  -- +notification</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li>All 3 functions confirmed live to contain <code class="mono">reviewed_by</code> AND a notification insert</li>
+        <li><code class="mono">reject_listing</code> confirmed to have its <code class="mono">pending_review</code> guard and <code class="mono">remaining_kg = 0</code> reset back</li>
+        <li><code class="mono">notifications_type_check</code> confirmed unchanged (no constraint change was needed — <code class="mono">'listing'</code> was already allowed)</li>
+        <li class="caveat">In-app approve/reject/request-changes test — not run from here</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As a farmer, create a marketplace listing.
+              <span class="expect">Expected: listing appears under Admin → Pending Approvals.</span>
+            </li>
+            <li>As admin, approve it.
+              <span class="expect">Expected: farmer gets a <b>"Listing Approved"</b> notification.</span>
+            </li>
+            <li>Create a second listing, reject it with a reason.
+              <span class="expect">Expected: farmer gets <b>"Listing Rejected"</b> with the reason; the listing's remaining quantity resets to 0.</span>
+            </li>
+            <li>Create a third listing, request changes with a note.
+              <span class="expect">Expected: farmer gets <b>"Changes Requested"</b> including the note.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 2 ============ -->
+    <section class="phase" id="p2">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 2</span>
+        <h2>Broadcast bug fixes + real scheduled-send</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">Fixed the buyer-broadcast constraint bug, the mislabeled Send button, 8 silent error swallows, and built a real send-later mechanism.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li>Widened <code class="mono">broadcast_logs.recipient_type</code> CHECK to include <code class="mono">all_buyers</code>/<code class="mono">specific_buyer</code> — previously broadcasting to buyers notified them fine but then threw on the audit-log insert, shown to the admin as a false "Send failed".</li>
+        <li>Fixed the Send button always reading "Send to N <b>Members</b>" even when targeting buyers.</li>
+        <li>Replaced 8 silent <code class="mono">catch (_)</code> blocks with logged ones (7 in <code class="mono">BroadcastRepository</code>, 1 in Compose's <code class="mono">_send()</code>).</li>
+        <li><b>Built real scheduled-send</b> (your decision, over simplifying the UI): a scheduled broadcast now queues (<code class="mono">sent_at = NULL</code>) instead of sending immediately. New <code class="mono">process_scheduled_broadcasts()</code> function resolves recipients and sends once <code class="mono">scheduled_at</code> has passed — triggered by <code class="mono">pg_cron</code> every 5 minutes <i>and</i> a new Edge Function + GitHub Actions workflow as a Free-tier-safe backstop.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/data/models/broadcast_model.dart</code>
+        <code>lib/data/repositories/broadcast_repository.dart</code>
+        <code>lib/presentation/screens/admin/notification_broadcast_screen.dart</code>
+        <code>lib/presentation/screens/admin/broadcast_history_screen.dart</code>
+        <code class="new">supabase_schema/supabase_schema_broadcast_recipient_type_widen.sql</code>
+        <code class="new">supabase_schema/supabase_schema_broadcast_scheduled_send.sql</code>
+        <code class="new">supabase/functions/process-scheduled-broadcasts/index.ts</code>
+        <code class="new">.github/workflows/process-scheduled-broadcasts.yml</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">ALTER TABLE broadcast_logs ... recipient_type_check  -- +all_buyers, +specific_buyer
+ALTER TABLE broadcast_logs ALTER COLUMN sent_at DROP NOT NULL, DROP DEFAULT;
+CREATE FUNCTION process_scheduled_broadcasts() RETURNS INT ...
+GRANT EXECUTE ... TO authenticated;
+-- pg_cron job 'process-scheduled-broadcasts' every 5 minutes</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li>Widened constraint confirmed live with all 6 recipient types</li>
+        <li>End-to-end test: inserted a due test row → ran <code class="mono">process_scheduled_broadcasts()</code> → confirmed it processed, set <code class="mono">sent_at</code>, resolved the correct recipient count, inserted exactly 1 notification. Test row cleaned up.</li>
+        <li><code class="mono">pg_cron</code> job confirmed genuinely executing every 5 min (checked <code class="mono">cron.job_run_details</code>) — this project's plan does support pg_cron</li>
+        <li>You independently verified the GitHub Actions path: manual <code class="mono">workflow_dispatch</code> run succeeded (HTTP 200 from the Edge Function, which only returns 200 after the shared-secret check passes)</li>
+        <li class="caveat">A live "schedule a broadcast, wait, confirm delivery" walkthrough in-app — covered by the steps below</li>
+      </ul>
+
+      <div class="callout">
+        <div class="lbl">Bug caught during a post-ship re-verification pass</div>
+        <ul>
+          <li>The Compose success message chose "Scheduled for X" vs. "Sent to N recipients" based only on whether the Schedule toggle was on — not whether the picked time was actually still in the future. The date picker allows "today," and the time picker has no awareness of that selected date, so picking today + an earlier time produced a past <code class="mono">scheduledAt</code>. <code class="mono">sendBroadcast()</code> already handled this correctly (sends immediately, since <code class="mono">isDeferred</code> checks <code class="mono">isAfter(now)</code>) — only the confirmation wording was wrong. Fixed to check actual deferral instead of just the toggle. Cosmetic only: no broadcast was ever mis-delivered because of this.</li>
+        </ul>
+      </div>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>Compose a broadcast targeting "All Buyers", send immediately.
+              <span class="expect">Expected: succeeds with a normal "Sent to N buyers" toast (previously failed).</span>
+            </li>
+            <li>Compose another, enable Schedule, pick a time ~5–10 minutes out, send.
+              <span class="expect">Expected: toast says "Scheduled for &lt;time&gt; · N recipients"; recipients do <b>not</b> see it yet.</span>
+            </li>
+            <li>Open Broadcast History immediately.
+              <span class="expect">Expected: the scheduled item shows as pending (not crashed), labeled with its scheduled time.</span>
+            </li>
+            <li>Wait until the scheduled time passes (~5 min for the next cron tick), then check the recipients' notifications.
+              <span class="expect">Expected: the notification has now arrived, and the History entry shows as sent.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 3 ============ -->
+    <section class="phase" id="p3">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 3</span>
+        <h2>Close the 4 half-loop gaps</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">4 workflows notified only one side of a two-party action. Added the missing side to each.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li><code class="mono">offer_batch_to_cooperative</code> — now notifies all admins (previously silent).</li>
+        <li><code class="mono">submit_application</code> — now also notifies all admins (previously self-notified the applicant only).</li>
+        <li><code class="mono">place_order</code> — now also notifies the farmer whose listing was ordered (previously admin-only).</li>
+        <li><code class="mono">approveOrder</code> (Dart) — now also notifies the farmer (previously buyer-only).</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/data/repositories/admin_order_repository.dart</code>
+        <code class="new">supabase_schema/supabase_schema_phase3_half_loop_gaps.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">CREATE OR REPLACE FUNCTION offer_batch_to_cooperative(...) -- +admin notify
+CREATE OR REPLACE FUNCTION submit_application(...)         -- +admin notify
+CREATE OR REPLACE FUNCTION place_order(...)                -- +farmer notify</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li>All 3 SQL functions confirmed live to contain their new notification logic</li>
+        <li><code class="mono">flutter analyze</code> on the touched Dart file: no issues</li>
+        <li class="caveat">Live functional test skipped from here — these have real side effects (inventory reservation, order/stock state) not safe to exercise against production data without a controlled test account</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As farmer, offer a batch to the cooperative.
+              <span class="expect">Expected: all admins get a "New Cooperative Offer" notification.</span>
+            </li>
+            <li>As a new/rejected farmer account, submit a membership application.
+              <span class="expect">Expected: the applicant still self-notifies (unchanged), <b>and</b> all admins now get "New Membership Application".</span>
+            </li>
+            <li>As buyer, place an order on a farmer's listing.
+              <span class="expect">Expected: admins are notified (unchanged), <b>and</b> the farmer now also gets "New Order Received".</span>
+            </li>
+            <li>As admin, approve that order.
+              <span class="expect">Expected: both the buyer <b>and</b> the farmer get "Order Approved".</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 4 ============ -->
+    <section class="phase" id="p4">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 4</span>
+        <h2>Program Management coverage</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">5 Program Management workflows had zero notification coverage.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li><code class="mono">enrollFarmer</code> (Dart) — farmer notified on enrollment and on reactivation of a withdrawn enrollment.</li>
+        <li><code class="mono">distribute_program_benefit</code> — farmer notified with quantity + item name.</li>
+        <li><code class="mono">request_program_purchase</code> — all admins notified, with farmer name, quantity, item.</li>
+        <li><code class="mono">confirm_program_purchase</code> — farmer notified.</li>
+        <li><code class="mono">cancel_program_purchase</code> — notifies whichever party didn't initiate: admin cancels → farmer told; farmer cancels → admins told.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/data/repositories/program_repository.dart</code>
+        <code class="new">supabase_schema/supabase_schema_phase4_program_coverage.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">CREATE OR REPLACE FUNCTION distribute_program_benefit(...) -- +farmer notify
+CREATE OR REPLACE FUNCTION request_program_purchase(...)   -- +admin notify
+CREATE OR REPLACE FUNCTION confirm_program_purchase(...)   -- +farmer notify
+CREATE OR REPLACE FUNCTION cancel_program_purchase(...)    -- +whichever-party notify</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li>All 4 SQL functions confirmed live to contain notification inserts</li>
+        <li><code class="mono">flutter analyze</code>: no issues</li>
+        <li>Noted (not a bug): a second, unrelated <code class="mono">enrollFarmer</code> exists in <code class="mono">market_linking_repository.dart</code> for Ginger Market Linking — different module, left untouched</li>
+        <li class="caveat">Live functional test skipped — real inventory/purchase state changes</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As admin, enroll a farmer into a program.
+              <span class="expect">Expected: farmer gets "Enrolled in Program".</span>
+            </li>
+            <li>Distribute a benefit item to that enrollment.
+              <span class="expect">Expected: farmer gets "Benefit Distributed" with the quantity/item.</span>
+            </li>
+            <li>As that farmer, request to purchase a program product.
+              <span class="expect">Expected: all admins get "New Program Purchase Request".</span>
+            </li>
+            <li>As admin, confirm the purchase.
+              <span class="expect">Expected: farmer gets "Purchase Confirmed".</span>
+            </li>
+            <li>Create another pending purchase; cancel it as admin, then repeat and cancel it as the farmer.
+              <span class="expect">Expected: admin-cancel → farmer notified; farmer-cancel → admins notified.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 5 ============ -->
+    <section class="phase" id="p5">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 5</span>
+        <h2>Loans coverage</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">A farmer previously only heard about their loan once it went overdue.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li><code class="mono">issue_loan</code> — farmer notified with reference number and total value.</li>
+        <li><code class="mono">record_loan_payment</code> — farmer notified with amount paid + remaining balance, or a distinct "Loan Fully Paid" message when it clears.</li>
+        <li>Both respect existing idempotent-replay guards — a retried call can't double-notify.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code class="new">supabase_schema/supabase_schema_phase5_loan_coverage.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">CREATE OR REPLACE FUNCTION issue_loan(...)          -- +farmer notify (post-replay-check)
+CREATE OR REPLACE FUNCTION record_loan_payment(...) -- +farmer notify (post-replay-check)</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li>Both functions confirmed live to contain the new notification inserts</li>
+        <li>No Dart changes this phase</li>
+        <li class="caveat">Live functional test skipped — issuing a real loan/payment creates real financial records</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As admin, issue a loan to a test farmer account.
+              <span class="expect">Expected: farmer gets "Loan Issued" with the reference number and amount.</span>
+            </li>
+            <li>Record a partial payment against it.
+              <span class="expect">Expected: farmer gets "Payment Recorded" with the remaining balance.</span>
+            </li>
+            <li>Record a final payment that clears the balance.
+              <span class="expect">Expected: farmer gets "Loan Fully Paid" instead of the partial-payment wording.</span>
+            </li>
+            <li>Retry the same payment submission (e.g. double-tap / resend with the same idempotency key), if your test flow allows it.
+              <span class="expect">Expected: no duplicate notification.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 6 ============ -->
+    <section class="phase" id="p6">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 6</span>
+        <h2>Balik-Tangkilik / capital coverage</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">Scoped by your explicit answer — all 3 recommended sub-events, plus a new "Capital" category since nothing existing fit.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li><code class="mono">recordDistribution</code> (Dart, admin bulk-finalizes a year's payout) — every affected farmer notified individually with their own amount.</li>
+        <li><code class="mono">reinvest_patronage_capital</code> (farmer self-service RPC) — all admins notified.</li>
+        <li><code class="mono">recordContribution</code> (Dart, admin records a capital payment) — the farmer notified.</li>
+        <li>Added a new <code class="mono">'capital'</code> notification type end-to-end: DB CHECK constraint, <code class="mono">NotificationType</code>/<code class="mono">NotificationFilter</code> enums, and a new <b>"Capital"</b> filter chip on the farmer Notifications screen — rather than dumping these under <code class="mono">'system'</code> and repeating the exact filter-chip bug Phase 0 just fixed.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/data/models/notification_model.dart</code>
+        <code>lib/presentation/screens/farmer/farmer_notifications_screen.dart</code>
+        <code>lib/presentation/screens/buyer/buyer_notifications_screen.dart</code>
+        <code>lib/data/repositories/balik_tangkilik_repository.dart</code>
+        <code>lib/data/repositories/capital_contribution_repository.dart</code>
+        <code class="new">supabase_schema/supabase_schema_phase6_capital_coverage.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">ALTER TABLE notifications ... notifications_type_check  -- +'capital'
+CREATE OR REPLACE FUNCTION reinvest_patronage_capital(...) -- +admin notify</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li><code class="mono">flutter analyze</code> (full project): 0 errors</li>
+        <li><code class="mono">notifications_type_check</code> confirmed live with <code class="mono">'capital'</code> included</li>
+        <li><code class="mono">reinvest_patronage_capital</code> confirmed to contain the new admin-notify logic</li>
+        <li class="caveat">Live functional test skipped — real financial/state-changing actions</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As admin, finalize Balik-Tangkilik distribution for a year with at least one farmer having a payout &gt; 0.
+              <span class="expect">Expected: every such farmer gets "Balik-Tangkilik Payout Recorded" with their own amount.</span>
+            </li>
+            <li>Open that farmer's Notifications screen.
+              <span class="expect">Expected: a new "Capital" filter chip appears and correctly filters to this notification.</span>
+            </li>
+            <li>As admin, record a capital contribution for a farmer (Farmer Details → Record Contribution).
+              <span class="expect">Expected: farmer gets "Capital Contribution Recorded".</span>
+            </li>
+            <li>As that farmer, reinvest part of a finalized year's payout back into capital.
+              <span class="expect">Expected: all admins get "Patronage Capital Reinvested" with the farmer's name and amount.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 7 ============ -->
+    <section class="phase" id="p7">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 7</span>
+        <h2>Notification UI/UX consolidation</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">The largest phase — duplicate cleanup, plus full tap-to-navigate coverage across all 3 roles and 27 call sites.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li><b>Unread-count duplicate collapsed:</b> <code class="mono">AdminDashboardRepository.fetchUnreadCount()</code> (an exact duplicate) removed; the dashboard now uses the shared <code class="mono">NotificationRepository</code>.</li>
+        <li><b>Admin's private repository replaced:</b> <code class="mono">_AdminNotifRepository</code> swapped for the shared <code class="mono">NotificationRepository</code> — admin's notification list gained swipe-to-delete in the process.</li>
+        <li><b>Tap-to-navigate, full coverage (your decision):</b> added <code class="mono">route_on_tap</code>/<code class="mono">route_extra</code> columns; wired a route into <b>27 notification-creating call sites</b> across every phase so far. Routes point at list/dashboard screens, not specific-record deep links, to avoid guessing at each detail screen's expected payload shape. Broadcast/reminder notifications intentionally got no route (arbitrary content, no single target).</li>
+        <li>Farmer and buyer Notifications screens previously only marked-as-read on tap — both now actually navigate, mirroring admin's existing (previously unfed) tap handler.</li>
+      </ul>
+
+      <div class="callout">
+        <div class="lbl">Bug caught mid-phase</div>
+        <ul>
+          <li>Adding parameters to <code class="mono">notify_user()</code> via <code class="mono">CREATE OR REPLACE</code> silently created a second function overload instead of replacing it (a signature change always does this in Postgres). Caught during routine verification, fixed with an explicit <code class="mono">DROP FUNCTION</code> before it could cause silently-unrouted notifications.</li>
+        </ul>
+      </div>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/presentation/screens/admin/admin_dashboard_screen.dart</code>
+        <code>lib/data/repositories/admin_dashboard_repository.dart</code>
+        <code>lib/presentation/screens/admin/admin_notifications_screen.dart</code>
+        <code>lib/data/models/notification_model.dart</code>
+        <code>lib/data/repositories/notification_repository.dart</code>
+        <code>lib/data/repositories/admin_order_repository.dart</code>
+        <code>lib/data/repositories/buyer_profile_repository.dart</code>
+        <code>lib/data/repositories/price_management_repository.dart</code>
+        <code>lib/data/repositories/program_repository.dart</code>
+        <code>lib/data/repositories/balik_tangkilik_repository.dart</code>
+        <code>lib/data/repositories/capital_contribution_repository.dart</code>
+        <code>lib/presentation/screens/farmer/farmer_notifications_screen.dart</code>
+        <code>lib/presentation/screens/buyer/buyer_notifications_screen.dart</code>
+        <code class="new">supabase_schema/supabase_schema_phase7_tap_to_navigate.sql</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <pre class="sqlblock">ALTER TABLE notifications ADD COLUMN route_on_tap TEXT;
+ALTER TABLE notifications ADD COLUMN route_extra TEXT;
+DROP FUNCTION notify_user(uuid, text, text, text);           -- orphan cleanup
+CREATE OR REPLACE FUNCTION notify_user(..., p_route_on_tap, p_route_extra);
+-- + 26 more CREATE OR REPLACE FUNCTION statements, each adding
+--   route_on_tap to its existing notification insert</pre>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li><code class="mono">flutter analyze</code> (full project): 0 errors</li>
+        <li>Batch-verified all 27 functions against their expected route (per-function ILIKE checks) — all confirmed</li>
+        <li>Confirmed zero duplicate function overloads remain across every touched function</li>
+        <li>Spot-checked 3 complex functions' business logic survived byte-for-byte (capital-share gate, idempotency replay, ownership checks)</li>
+        <li class="caveat">In-app tap test across all 3 roles — covered by the steps below</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>As farmer, tap a loan notification (from Phase 5's test).
+              <span class="expect">Expected: opens My Loans, not a no-op.</span>
+            </li>
+            <li>As buyer, tap an order notification.
+              <span class="expect">Expected: opens My Orders.</span>
+            </li>
+            <li>As admin, tap a pending-application or order notification.
+              <span class="expect">Expected: opens the relevant admin list screen.</span>
+            </li>
+            <li>On the Admin Notifications screen, swipe a notification left.
+              <span class="expect">Expected: it deletes (previously not possible).</span>
+            </li>
+            <li>Compare the Admin Dashboard's unread badge against the Notifications screen's own unread count.
+              <span class="expect">Expected: always match now (single shared source).</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 8 ============ -->
+    <section class="phase" id="p8">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 8</span>
+        <h2>Migrate Broadcast dropdowns</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">Pure UI consistency — no behavior change.</p>
+
+      <h3 class="sec">What changed</h3>
+      <ul class="clean">
+        <li>All 5 plain <code class="mono">DropdownButtonFormField</code> instances in Broadcast migrated to the app's standard <code class="mono">AppDropdownField</code>: History's Category filter (1), and Compose's Recipients + crop/farmer/buyer sub-filters (4).</li>
+        <li>History's Category filter needed a small fix: the old dropdown used <code class="mono">null</code> to mean "All Categories," which <code class="mono">AppDropdownField</code> would've shown as an empty placeholder rather than a real selection. Used a non-null sentinel value instead so "All Categories" displays correctly.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <div class="filelist">
+        <code>lib/presentation/screens/admin/broadcast_history_screen.dart</code>
+        <code>lib/presentation/screens/admin/notification_broadcast_screen.dart</code>
+      </div>
+
+      <h3 class="sec">Database changes</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin:4px 0 0;">None — pure UI change.</p>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li><code class="mono">flutter analyze</code> (full project): 0 errors</li>
+        <li>Confirmed zero remaining <code class="mono">DropdownButtonFormField</code> references in either file</li>
+        <li class="caveat">Visual in-app check — covered by the steps below</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>Open Broadcast History, tap the Category filter.
+              <span class="expect">Expected: opens as the app's standard bordered dropdown (separated arrow box, divided rows) instead of Flutter's default look; "All Categories" appears as a normal selected option.</span>
+            </li>
+            <li>Open Broadcast Compose, tap the Recipients dropdown, then select "Specific Crop"/"Specific Farmer"/"Specific Buyer" and tap the sub-filter that appears.
+              <span class="expect">Expected: same standard dropdown styling throughout, same filtering behavior as before.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ PHASE 9 ============ -->
+    <section class="phase" id="p9">
+      <div class="phase-head">
+        <span class="phase-num">PHASE 9</span>
+        <h2>Final consistency &amp; verification pass</h2>
+        <span class="status-pill">Shipped</span>
+      </div>
+      <p class="phase-tagline">No feature changes — a full sweep across everything shipped in Phases 0–8, run before closing the project out.</p>
+
+      <h3 class="sec">What was checked</h3>
+      <ul class="clean">
+        <li>Searched for duplicate/orphaned function overloads across all 28 touched functions, not just <code class="mono">notify_user</code> — none found beyond the one already fixed in Phase 7.</li>
+        <li>Re-confirmed every notification-creating function still sets <code class="mono">route_on_tap</code>, except the intentionally-excluded <code class="mono">process_scheduled_broadcasts</code>.</li>
+        <li>Cross-checked every <code class="mono">type</code> literal actually inserted by any function against <code class="mono">notifications_type_check</code>'s allowed list — no mismatches.</li>
+        <li>Re-verified <code class="mono">notifications_type_check</code> and <code class="mono">broadcast_logs_recipient_type_check</code> reflect every phase's additions correctly.</li>
+        <li>Confirmed RLS policies on <code class="mono">notifications</code> are untouched and correct after 3 separate <code class="mono">ALTER TABLE ADD COLUMN</code> operations across phases.</li>
+        <li>Confirmed the Edge Function and both <code class="mono">pg_cron</code> jobs are still deployed and actively succeeding (checked live run history).</li>
+        <li>Searched for any other independent unread-count implementation that might have snuck back in after Phase 7's consolidation — none found.</li>
+        <li>Ran a full-project <code class="mono">flutter analyze</code> as the final gate.</li>
+      </ul>
+
+      <h3 class="sec">Modified files</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin:4px 0 0;">None — this phase is verification-only, no code changes.</p>
+
+      <h3 class="sec">Testing &amp; verification results</h3>
+      <ul class="verify-list">
+        <li>Zero duplicate function overloads across all 28 functions</li>
+        <li>All notification-creating functions route-complete (1 intentional exception, as designed)</li>
+        <li>No type-constraint mismatches anywhere</li>
+        <li>RLS policies on <code class="mono">notifications</code> confirmed intact (5 policies: admin insert, user read/update/delete own, admin read-all)</li>
+        <li>Both Edge Functions <code class="mono">ACTIVE</code>; both <code class="mono">pg_cron</code> jobs actively succeeding on schedule</li>
+        <li><code class="mono">flutter analyze</code> (full project): <b>0 errors</b>, same 49-item pre-existing style-info baseline as every prior phase (none introduced by this project)</li>
+      </ul>
+
+      <h3 class="sec">How to test</h3>
+      <details class="test">
+        <summary>Step-by-step</summary>
+        <div class="test-body">
+          <ol class="steps">
+            <li>In the Supabase Dashboard, go to Database → Cron Jobs.
+              <span class="expect">Expected: both <code>run-daily-loan-maintenance</code> and <code>process-scheduled-broadcasts</code> show as active with recent successful runs.</span>
+            </li>
+            <li>Go to Edge Functions.
+              <span class="expect">Expected: both <code>daily-loan-maintenance</code> and <code>process-scheduled-broadcasts</code> show status ACTIVE.</span>
+            </li>
+            <li>Re-run a couple of the spot checks from Phases 1, 3, and 7 above.
+              <span class="expect">Expected: all still behave exactly as documented — nothing regressed from later phases.</span>
+            </li>
+          </ol>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ OPEN ITEMS ============ -->
+    <section class="phase deferred" id="open">
+      <div class="phase-head">
+        <span class="phase-num">OPEN</span>
+        <h2>Remaining items &amp; decisions</h2>
+        <span class="status-pill hold">Needs you</span>
+      </div>
+      <p class="phase-tagline">Nothing here blocks what already shipped — these are the loose ends worth knowing about.</p>
+
+      <h3 class="sec">Awaiting your decision</h3>
+      <ul class="clean">
+        <li><b>3 unused notification types</b> — <code class="mono">sync</code>, <code class="mono">low_stock</code>, <code class="mono">stock_depleted</code> have been in the <code class="mono">notifications_type_check</code> constraint since before this project and are still never inserted anywhere, live or historical. Flagged back in Phase 0, never revisited. Options: leave them (harmless, just unused vocabulary) or remove them from the constraint for cleanliness.</li>
+        <li><b>Tap-to-navigate routing choice</b> — Phase 7 routes every notification to a list/dashboard screen (e.g. My Loans, My Orders) rather than a specific record's detail screen, since I couldn't verify every detail screen's expected navigation payload without risking a crash. This is working as designed, not a bug — flagging so you know it's a deliberate trade-off, not an oversight, if you'd later want true deep-linking to a specific loan/order/purchase record.</li>
+      </ul>
+
+      <h3 class="sec">Deferred, unrelated to this project</h3>
+      <ul class="clean">
+        <li>Items 4–8 of the original "SAGANA UI/UX Improvements" document (Members Tab, Farmer Profile Details, three-dot menu consistency, Authentication UI/UX, Password Requirements) — explicitly scoped out at the start of this engagement, still queued whenever you're ready to resume that separate track.</li>
+      </ul>
+
+      <h3 class="sec">Already resolved, listed for completeness</h3>
+      <ul class="clean">
+        <li><code class="mono">BROADCAST_SCHEDULER_SECRET</code> GitHub secret — you confirmed this is set correctly during Phase 2's follow-up; no longer outstanding.</li>
+        <li><code class="mono">reject_listing</code>'s collateral-regression fix in Phase 1 (beyond just the notification) — flagged at the time, implicitly accepted when Phase 1 was approved.</li>
+      </ul>
+    </section>
+
+    <div class="close-note">
+      <h2>All 10 phases complete</h2>
+      <p>Every phase in the original Phase 0–9 plan has been implemented, applied to the live database, and verified against source where an in-app walkthrough wasn't safe to run from here. The step-by-step sections above are the checklist for your own pass — nothing is blocking, only the two decisions under "Open items" need your input.</p>
+    </div>
+  </main>
+</div>

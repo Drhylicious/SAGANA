@@ -24,9 +24,13 @@ import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../data/services/sync_service.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/sync_status_card.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 
 // Shared compact-number formatter — kg and currency figures on Home all
 // use the same "1.2k" shorthand above 1000; kept as one definition rather
@@ -59,7 +63,6 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   List<PriorityItem> _priorityItems = [];
   int _unreadCount = 0;
   bool _isLoading = true;
-  bool _isSyncing = false;
   bool _isOnline = true;
 
   @override
@@ -176,14 +179,18 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     final dueSoonCutoff = now.add(const Duration(days: 7));
 
     for (final loan in loans.where((l) => l.isOverdue)) {
-      items.add(PriorityItem(
-        title: l10n.farmerDashLoanOverdueTitle,
-        subtitle: l10n.farmerDashLoanOverdueSubtitle(
-            loan.referenceNo, loan.monthlyPayment.toStringAsFixed(0)),
-        icon: Icons.warning_amber_rounded,
-        severity: PrioritySeverity.critical,
-        onTap: () => context.pushRoute(AppRoutes.myLoans),
-      ));
+      items.add(
+        PriorityItem(
+          title: l10n.farmerDashLoanOverdueTitle,
+          subtitle: l10n.farmerDashLoanOverdueSubtitle(
+            loan.referenceNo,
+            loan.monthlyPayment.toStringAsFixed(0),
+          ),
+          icon: Icons.warning_amber_rounded,
+          severity: PrioritySeverity.critical,
+          onTap: () => context.pushRoute(AppRoutes.myLoans),
+        ),
+      );
     }
 
     for (final loan in loans.where(
@@ -194,63 +201,86 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
         final title = daysUntil <= 0
             ? l10n.farmerDashLoanDueTodayTitle
             : daysUntil == 1
-                ? l10n.farmerDashLoanDueInDaysTitleOne(daysUntil)
-                : l10n.farmerDashLoanDueInDaysTitleOther(daysUntil);
-        items.add(PriorityItem(
-          title: title,
-          subtitle: l10n.farmerDashLoanDueSoonSubtitle(
+            ? l10n.farmerDashLoanDueInDaysTitleOne(daysUntil)
+            : l10n.farmerDashLoanDueInDaysTitleOther(daysUntil);
+        items.add(
+          PriorityItem(
+            title: title,
+            subtitle: l10n.farmerDashLoanDueSoonSubtitle(
               loan.referenceNo,
               loan.monthlyPayment.toStringAsFixed(0),
-              DateFormat('MMM d', l10n.localeName).format(loan.nextPaymentDate!)),
-          icon: Icons.event_repeat_rounded,
-          severity: PrioritySeverity.warning,
-          onTap: () => context.pushRoute(AppRoutes.myLoans),
-        ));
+              DateFormat(
+                'MMM d',
+                l10n.localeName,
+              ).format(loan.nextPaymentDate!),
+            ),
+            icon: Icons.event_repeat_rounded,
+            severity: PrioritySeverity.warning,
+            onTap: () => context.pushRoute(AppRoutes.myLoans),
+          ),
+        );
       }
     }
 
     if (unsyncedCount > 0) {
-      items.add(PriorityItem(
-        title: unsyncedCount == 1
-            ? l10n.farmerDashUnsyncedCountOne(unsyncedCount)
-            : l10n.farmerDashUnsyncedCountOther(unsyncedCount),
-        subtitle: l10n.farmerDashTapToSync,
-        icon: Icons.sync_rounded,
-        severity: PrioritySeverity.warning,
-        onTap: _handleSync,
-      ));
+      items.add(
+        PriorityItem(
+          title: unsyncedCount == 1
+              ? l10n.farmerDashUnsyncedCountOne(unsyncedCount)
+              : l10n.farmerDashUnsyncedCountOther(unsyncedCount),
+          subtitle: l10n.farmerDashTapToSync,
+          icon: Icons.sync_rounded,
+          severity: PrioritySeverity.warning,
+          onTap: _handleSync,
+        ),
+      );
     }
 
-    final recentBroadcast = notifications.where(
-      (n) =>
-          n.type == NotificationType.system &&
-          n.isUnread &&
-          now.difference(n.createdAt).inDays <= 5,
-    ).firstOrNull;
+    final recentBroadcast = notifications
+        .where(
+          (n) =>
+              n.type == NotificationType.system &&
+              n.isUnread &&
+              now.difference(n.createdAt).inDays <= 5,
+        )
+        .firstOrNull;
     if (recentBroadcast != null) {
-      items.add(PriorityItem(
-        title: recentBroadcast.title,
-        subtitle: recentBroadcast.body,
-        icon: Icons.campaign_outlined,
-        severity: PrioritySeverity.info,
-        onTap: () => context.pushRoute(AppRoutes.farmerNotifications),
-      ));
+      items.add(
+        PriorityItem(
+          title: recentBroadcast.title,
+          subtitle: recentBroadcast.body,
+          icon: Icons.campaign_outlined,
+          severity: PrioritySeverity.info,
+          onTap: () => context.pushRoute(AppRoutes.farmerNotifications),
+        ),
+      );
     }
 
     return items;
   }
 
-  Future<void> _handleSync() async {
-    setState(() => _isSyncing = true);
-    // Captured before syncPending() runs — a tap with nothing queued isn't
-    // a meaningful action to record in Recent Activity.
-    final hadPending = _summary.unsyncedCount > 0;
-    await SyncService.syncPending();
-    if (hadPending) {
+  /// Runs after a manual Sync. A tap with nothing queued isn't a meaningful
+  /// action to record in Recent Activity.
+  Future<void> _handleSyncCompleted(int queuedBefore) async {
+    if (queuedBefore > 0) {
       await _dashRepo.logSyncCompleted();
     }
     await _loadData();
-    if (mounted) setState(() => _isSyncing = false);
+  }
+
+  /// Priority-banner entry point. The Sync card runs its own sync and reports
+  /// back through _handleSyncCompleted.
+  Future<void> _handleSync() async {
+    final queuedBefore = SyncService.queuedCount;
+    await SyncService.syncPending();
+    final failed = SyncService.failedRecordCount;
+    if (mounted && failed > 0) {
+      PostActionFeedback.error(
+        context,
+        AppLocalizations.of(context).syncRecordsFailed(failed),
+      );
+    }
+    await _handleSyncCompleted(queuedBefore);
   }
 
   String _greeting(AppLocalizations l10n) {
@@ -266,8 +296,10 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   }
 
   String get _formattedDate {
-    return DateFormat('EEEE, MMMM d, yyyy', AppLocalizations.of(context).localeName)
-        .format(DateTime.now());
+    return DateFormat(
+      'EEEE, MMMM d, yyyy',
+      AppLocalizations.of(context).localeName,
+    ).format(DateTime.now());
   }
 
   @override
@@ -300,7 +332,8 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
             },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onAboutOrganization: () =>
+                context.pushRoute(AppRoutes.aboutCooperative),
             onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
             onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
           );
@@ -308,150 +341,187 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       ),
       body: Column(
         children: [
-          if (!_isOnline)
-            OfflineBanner(message: l10n.farmerDashOfflineBanner),
           Expanded(
             child: Stack(
               children: [
+                const SizedBox(height: 72),
+                CachedDataNotice(
+                  screen: DashboardRepository.activityCacheScreen(limit: 5),
+                  otherScreens: DashboardRepository.summaryCacheScreens(),
+                  isOnline: _isOnline,
+                  offlineMessage: l10n.farmerDashOfflineBanner,
+                ),
                 Column(
                   children: [
                     Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadData,
-                  child: CustomScrollView(
-                    slivers: [
-                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
-
-                      // Welcome
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                          child: StaggeredEntrance(
-                            index: 0,
-                            child: _WelcomeSection(
-                              greeting: _greeting(l10n),
-                              firstName: _firstName(l10n),
-                              date: _formattedDate,
-                              isLoading: _isLoading,
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadData,
+                        child: CustomScrollView(
+                          slivers: [
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 72),
                             ),
-                          ),
-                        ),
-                      ),
 
-                      // Priority section — "Today's Priorities" header +
-                      // count badge shown only when there's something to
-                      // act on, mirroring Admin Dashboard's Priorities card.
-                      // The All Clear state keeps its own self-contained
-                      // positive framing instead, with no header above it.
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                          child: StaggeredEntrance(
-                            index: 1,
-                            child: _isLoading
-                                ? const _Shimmer(width: double.infinity, height: 72)
-                                : Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (_priorityItems.isNotEmpty) ...[
-                                        _PriorityHeader(
-                                          count: _priorityItems.length,
-                                          l10n: l10n,
-                                        ),
-                                        const SizedBox(height: 10),
-                                      ],
-                                      PriorityCard(
-                                        items: _priorityItems,
-                                        allClearTitle: l10n.dashboardAllClearTitle,
-                                        allClearMessage: l10n.dashboardAllClearMessage,
-                                      ),
-                                    ],
+                            // Welcome
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  16,
+                                  20,
+                                  0,
+                                ),
+                                child: StaggeredEntrance(
+                                  index: 0,
+                                  child: _WelcomeSection(
+                                    greeting: _greeting(l10n),
+                                    firstName: _firstName(l10n),
+                                    date: _formattedDate,
+                                    isLoading: _isLoading,
                                   ),
-                          ),
-                        ),
-                      ),
-
-                      // KPI cards. Monthly Earnings aggregates Marketplace
-                      // (orders) + Offer to Cooperative
-                      // (member_sales_transactions) + Informal Sales
-                      // (informal_sales) + Market Linking
-                      // (market_linking_programs, completed rounds) — see
-                      // DashboardRepository.fetchSummary(). Earnings Goal is
-                      // Admin-configurable (farmer_dashboard_settings),
-                      // never hardcoded.
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                          child: _KpiSection(
-                            summary: _summary,
-                            isLoading: _isLoading,
-                            isSyncing: _isSyncing,
-                            onSync: _handleSync,
-                          ),
-                        ),
-                      ),
-
-                      // Annual Yield / Annual Earnings moved to the Farmer
-                      // Profile tab (as a KPI row above Farm Records) — no
-                      // longer shown here. Market Rates' own top padding
-                      // (20, matching every other section gap on this
-                      // screen) now provides the spacing directly below
-                      // the Monthly KPI section, so removing this block
-                      // doesn't leave an uneven gap.
-
-                      // Market Rates carousel — replaces the ticker
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                          child: _MarketRatesCarousel(
-                            rates: _marketRates,
-                            isLoading: _isLoading,
-                            onViewMarket: () =>
-                                context.pushRoute(AppRoutes.viewMarket),
-                            onTapRate: (rate) => context.pushRoute(
-                              AppRoutes.marketRateDetails,
-                              extra: rate,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
 
-                      // Recent activity — loan-due entries excluded (now in Priority)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
-                          child: _RecentActivitySection(
-                            items: _activity,
-                            isLoading: _isLoading,
-                            onViewAll: () => context.pushRoute(
-                              AppRoutes.farmerRecentActivity,
+                            // Priority section — "Today's Priorities" header +
+                            // count badge shown only when there's something to
+                            // act on, mirroring Admin Dashboard's Priorities card.
+                            // The All Clear state keeps its own self-contained
+                            // positive framing instead, with no header above it.
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  20,
+                                  20,
+                                  0,
+                                ),
+                                child: StaggeredEntrance(
+                                  index: 1,
+                                  child: _isLoading
+                                      ? SkeletonBlock(
+                                          width: double.infinity,
+                                          height: 72,
+                                        )
+                                      : Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (_priorityItems.isNotEmpty) ...[
+                                              _PriorityHeader(
+                                                count: _priorityItems.length,
+                                                l10n: l10n,
+                                              ),
+                                              const SizedBox(height: 10),
+                                            ],
+                                            PriorityCard(
+                                              items: _priorityItems,
+                                              allClearTitle:
+                                                  l10n.dashboardAllClearTitle,
+                                              allClearMessage:
+                                                  l10n.dashboardAllClearMessage,
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ),
                             ),
-                          ),
+
+                            // KPI cards. Monthly Earnings aggregates Marketplace
+                            // (orders) + Offer to Cooperative
+                            // (member_sales_transactions) + Informal Sales
+                            // (informal_sales) + Market Linking
+                            // (market_linking_programs, completed rounds) — see
+                            // DashboardRepository.fetchSummary(). Earnings Goal is
+                            // Admin-configurable (farmer_dashboard_settings),
+                            // never hardcoded.
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  20,
+                                  20,
+                                  0,
+                                ),
+                                child: _KpiSection(
+                                  summary: _summary,
+                                  isLoading: _isLoading,
+                                  onSyncCompleted: _handleSyncCompleted,
+                                ),
+                              ),
+                            ),
+
+                            // Annual Yield / Annual Earnings moved to the Farmer
+                            // Profile tab (as a KPI row above Farm Records) — no
+                            // longer shown here. Market Rates' own top padding
+                            // (20, matching every other section gap on this
+                            // screen) now provides the spacing directly below
+                            // the Monthly KPI section, so removing this block
+                            // doesn't leave an uneven gap.
+
+                            // Market Rates carousel — replaces the ticker
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  20,
+                                  20,
+                                  0,
+                                ),
+                                child: _MarketRatesCarousel(
+                                  rates: _marketRates,
+                                  isLoading: _isLoading,
+                                  onViewMarket: () =>
+                                      context.pushRoute(AppRoutes.viewMarket),
+                                  onTapRate: (rate) => context.pushRoute(
+                                    AppRoutes.marketRateDetails,
+                                    extra: rate,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Recent activity — loan-due entries excluded (now in Priority)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  28,
+                                  20,
+                                  20,
+                                ),
+                                child: _RecentActivitySection(
+                                  items: _activity,
+                                  isLoading: _isLoading,
+                                  onViewAll: () => context.pushRoute(
+                                    AppRoutes.farmerRecentActivity,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+
+                // Top bar — now with unread badge
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: l10n.navHome,
+                    unreadCount: _unreadCount,
+                    hideProfileAvatar: true,
+                    onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
+                    onNotificationTap: () =>
+                        context.pushRoute(AppRoutes.farmerNotifications),
+                    enableMenu: true,
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          // Top bar — now with unread badge
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: l10n.navHome,
-              unreadCount: _unreadCount,
-              hideProfileAvatar: true,
-              onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              enableMenu: true,
-            ),
-          ),
               ],
             ),
           ),
@@ -484,7 +554,7 @@ class _WelcomeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         isLoading
-            ? const _Shimmer(width: 200, height: 28)
+            ? SkeletonBlock(width: 200, height: 28)
             : Text(
                 '$greeting, $firstName!',
                 style: GoogleFonts.poppins(
@@ -622,14 +692,12 @@ class _FarmerSectionHeader extends StatelessWidget {
 class _KpiSection extends StatelessWidget {
   final DashboardSummaryModel summary;
   final bool isLoading;
-  final bool isSyncing;
-  final VoidCallback onSync;
+  final void Function(int queuedBefore) onSyncCompleted;
 
   const _KpiSection({
     required this.summary,
     required this.isLoading,
-    required this.isSyncing,
-    required this.onSync,
+    required this.onSyncCompleted,
   });
 
   @override
@@ -648,17 +716,11 @@ class _KpiSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _SyncCard(
-          summary: summary,
-          isLoading: isLoading,
-          isSyncing: isSyncing,
-          onSync: onSync,
-        ),
+        SyncStatusCard(onSyncCompleted: onSyncCompleted),
       ],
     );
   }
 }
-
 
 class _YieldCard extends StatelessWidget {
   final DashboardSummaryModel summary;
@@ -685,7 +747,7 @@ class _YieldCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           isLoading
-              ? const _Shimmer(width: 80, height: 24)
+              ? SkeletonBlock(width: 80, height: 24)
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -723,7 +785,9 @@ class _YieldCard extends StatelessWidget {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  l10n.farmerDashVsLastMonth(summary.yieldChangePercent.abs().toStringAsFixed(0)),
+                  l10n.farmerDashVsLastMonth(
+                    summary.yieldChangePercent.abs().toStringAsFixed(0),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
@@ -740,7 +804,6 @@ class _YieldCard extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _EarningsCard extends StatelessWidget {
@@ -778,7 +841,7 @@ class _EarningsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: isLoading
-                    ? const _Shimmer(width: 90, height: 24)
+                    ? SkeletonBlock(width: 90, height: 24)
                     : Text(
                         '₱${_formatCompact(summary.monthlyEarnings)}',
                         overflow: TextOverflow.ellipsis,
@@ -827,159 +890,6 @@ class _EarningsCard extends StatelessWidget {
               color: AppConstants.onSurfaceVariant,
             ),
             textAlign: TextAlign.right,
-          ),
-        ],
-      ),
-    );
-  }
-
-}
-
-class _SyncCard extends StatelessWidget {
-  final DashboardSummaryModel summary;
-  final bool isLoading;
-  final bool isSyncing;
-  final VoidCallback onSync;
-
-  const _SyncCard({
-    required this.summary,
-    required this.isLoading,
-    required this.isSyncing,
-    required this.onSync,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final hasUnsynced = summary.unsyncedCount > 0;
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: flatCardDecoration(context),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.farmerDashUnsyncedRecordsLabel,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppConstants.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    isLoading
-                        ? const _Shimmer(width: 60, height: 20)
-                        : Flexible(
-                            child: Text(
-                              summary.unsyncedCount == 1
-                                  ? l10n.farmerDashItemCountOne(summary.unsyncedCount)
-                                  : l10n.farmerDashItemCountOther(summary.unsyncedCount),
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppConstants.charcoal,
-                              ),
-                            ),
-                          ),
-                    const SizedBox(width: 8),
-                    if (hasUnsynced)
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.errorContainer.withValues(alpha: 0.70),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            l10n.farmerDashRequiresSync,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onErrorContainer,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (!isLoading) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    summary.lastSyncedAt != null
-                        ? l10n.farmerDashLastSynced(
-                            AppUtils.formatRelativeTime(summary.lastSyncedAt!, l10n))
-                        : l10n.farmerDashNeverSynced,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: isSyncing ? null : onSync,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppConstants.primaryContainer,
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  isSyncing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppConstants.onPrimaryContainer,
-                            ),
-                          ),
-                        )
-                      : const Icon(
-                          Icons.sync_rounded,
-                          size: 16,
-                          color: AppConstants.onPrimaryContainer,
-                        ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      l10n.farmerDashSyncNow,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppConstants.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -1034,15 +944,18 @@ class _MarketRatesCarousel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (isLoading)
-          const _Shimmer(width: double.infinity, height: 188)
+          SkeletonBlock(width: double.infinity, height: 188)
         else if (rates.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: flatCardDecoration(context),
             child: Row(
               children: [
-                Icon(Icons.storefront_outlined,
-                    size: 16, color: AppConstants.outline),
+                Icon(
+                  Icons.storefront_outlined,
+                  size: 16,
+                  color: AppConstants.outline,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1134,18 +1047,29 @@ class _MarketRateCard extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             color: color.withValues(alpha: 0.12),
-                            child: Icon(Icons.eco_rounded, size: 28, color: color),
+                            child: Icon(
+                              Icons.eco_rounded,
+                              size: 28,
+                              color: color,
+                            ),
                           ),
                         )
                       : Container(
                           color: color.withValues(alpha: 0.12),
-                          child: Icon(Icons.eco_rounded, size: 28, color: color),
+                          child: Icon(
+                            Icons.eco_rounded,
+                            size: 28,
+                            color: color,
+                          ),
                         ),
                   Positioned(
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: color,
                         borderRadius: BorderRadius.circular(20),
@@ -1190,7 +1114,9 @@ class _MarketRateCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
+                    l10n.priceUpdatedPrefix(
+                      AppUtils.formatRelativeTime(rate.recordedAt, l10n),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
@@ -1230,9 +1156,7 @@ class _RecentActivitySection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
-              child: _FarmerSectionHeader(label: l10n.recentActivity),
-            ),
+            Expanded(child: _FarmerSectionHeader(label: l10n.recentActivity)),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: onViewAll,
@@ -1257,7 +1181,7 @@ class _RecentActivitySection extends StatelessWidget {
                 3,
                 (_) => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child: _Shimmer(width: double.infinity, height: 48),
+                  child: SkeletonBlock(width: double.infinity, height: 48),
                 ),
               ),
             ),
@@ -1302,9 +1226,7 @@ class _RecentActivitySection extends StatelessWidget {
                         if (e.key < items.length - 1)
                           Divider(
                             height: 1,
-                            color: AppConstants.outline.withValues(
-                              alpha: 0.08,
-                            ),
+                            color: AppConstants.outline.withValues(alpha: 0.08),
                           ),
                       ],
                     ),
@@ -1401,92 +1323,92 @@ class _ActivityIcon extends StatelessWidget {
 
     switch (type) {
       case ActivityType.harvest:
-          icon = Icons.eco_rounded;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.listing:
-          icon = Icons.storefront_outlined;
-          bg = AppConstants.successGreen.withValues(alpha: 0.10);
-          fg = AppConstants.successGreen;
-          break;
-        case ActivityType.orderPlaced:
-          icon = Icons.shopping_cart_outlined;
-          bg = AppConstants.successGreen.withValues(alpha: 0.10);
-          fg = AppConstants.successGreen;
-          break;
-        case ActivityType.cropRequest:
-          icon = Icons.local_florist_outlined;
-          bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
-              .withValues(alpha: 0.10);
-          fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
-          break;
-        case ActivityType.cropAdded:
-          icon = Icons.grass_rounded;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.informalSale:
-          icon = Icons.sell_outlined;
-          bg = AppConstants.successGreen.withValues(alpha: 0.10);
-          fg = AppConstants.successGreen;
-          break;
-        case ActivityType.cropPhotoUpdated:
-          icon = Icons.photo_camera_outlined;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.cooperativeOffer:
-          icon = Icons.groups_outlined;
-          bg = AppConstants.successGreen.withValues(alpha: 0.10);
-          fg = AppConstants.successGreen;
-          break;
-        case ActivityType.marketLinkingEnrollment:
-          icon = Icons.handshake_outlined;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.gingerBatchSubmission:
-          icon = Icons.outbox_outlined;
-          bg = AppConstants.successGreen.withValues(alpha: 0.10);
-          fg = AppConstants.successGreen;
-          break;
-        case ActivityType.profile:
-          icon = Icons.person_outline_rounded;
-          bg = AppConstants.outline.withValues(alpha: 0.10);
-          fg = AppConstants.outline;
-          break;
-        case ActivityType.addressUpdated:
-          icon = Icons.location_on_outlined;
-          bg = AppConstants.outline.withValues(alpha: 0.10);
-          fg = AppConstants.outline;
-          break;
-        case ActivityType.expenseAdded:
-          icon = Icons.receipt_long_outlined;
-          bg = AppConstants.outline.withValues(alpha: 0.10);
-          fg = AppConstants.outline;
-          break;
-        case ActivityType.programEnrollment:
-          icon = Icons.assignment_turned_in_outlined;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.programPurchase:
-          icon = Icons.shopping_bag_outlined;
-          bg = AppConstants.successGreen.withValues(alpha: 0.10);
-          fg = AppConstants.successGreen;
-          break;
-        case ActivityType.capitalReinvestment:
-          icon = Icons.savings_outlined;
-          bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
-          fg = AppConstants.primaryGreen;
-          break;
-        case ActivityType.syncCompleted:
-          icon = Icons.sync_rounded;
-          bg = AppConstants.outline.withValues(alpha: 0.10);
-          fg = AppConstants.outline;
-          break;
-      }
+        icon = Icons.eco_rounded;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.listing:
+        icon = Icons.storefront_outlined;
+        bg = AppConstants.successGreen.withValues(alpha: 0.10);
+        fg = AppConstants.successGreen;
+        break;
+      case ActivityType.orderPlaced:
+        icon = Icons.shopping_cart_outlined;
+        bg = AppConstants.successGreen.withValues(alpha: 0.10);
+        fg = AppConstants.successGreen;
+        break;
+      case ActivityType.cropRequest:
+        icon = Icons.local_florist_outlined;
+        bg = (isAlert ? AppConstants.errorRed : AppConstants.primaryGreen)
+            .withValues(alpha: 0.10);
+        fg = isAlert ? AppConstants.errorRed : AppConstants.primaryGreen;
+        break;
+      case ActivityType.cropAdded:
+        icon = Icons.grass_rounded;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.informalSale:
+        icon = Icons.sell_outlined;
+        bg = AppConstants.successGreen.withValues(alpha: 0.10);
+        fg = AppConstants.successGreen;
+        break;
+      case ActivityType.cropPhotoUpdated:
+        icon = Icons.photo_camera_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.cooperativeOffer:
+        icon = Icons.groups_outlined;
+        bg = AppConstants.successGreen.withValues(alpha: 0.10);
+        fg = AppConstants.successGreen;
+        break;
+      case ActivityType.marketLinkingEnrollment:
+        icon = Icons.handshake_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.gingerBatchSubmission:
+        icon = Icons.outbox_outlined;
+        bg = AppConstants.successGreen.withValues(alpha: 0.10);
+        fg = AppConstants.successGreen;
+        break;
+      case ActivityType.profile:
+        icon = Icons.person_outline_rounded;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+      case ActivityType.addressUpdated:
+        icon = Icons.location_on_outlined;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+      case ActivityType.expenseAdded:
+        icon = Icons.receipt_long_outlined;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+      case ActivityType.programEnrollment:
+        icon = Icons.assignment_turned_in_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.programPurchase:
+        icon = Icons.shopping_bag_outlined;
+        bg = AppConstants.successGreen.withValues(alpha: 0.10);
+        fg = AppConstants.successGreen;
+        break;
+      case ActivityType.capitalReinvestment:
+        icon = Icons.savings_outlined;
+        bg = AppConstants.primaryGreen.withValues(alpha: 0.10);
+        fg = AppConstants.primaryGreen;
+        break;
+      case ActivityType.syncCompleted:
+        icon = Icons.sync_rounded;
+        bg = AppConstants.outline.withValues(alpha: 0.10);
+        fg = AppConstants.outline;
+        break;
+    }
 
     return Container(
       width: 44,
@@ -1503,72 +1425,3 @@ class _ActivityIcon extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _Shimmer extends StatefulWidget {
-  final double width;
-  final double height;
-
-  const _Shimmer({required this.width, required this.height});
-
-  @override
-  State<_Shimmer> createState() => _ShimmerState();
-}
-
-class _ShimmerState extends State<_Shimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-    _animation = Tween<double>(
-      begin: -1,
-      end: 2,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (_, __) => Container(
-        width: widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            stops: [
-              (_animation.value - 1).clamp(0.0, 1.0),
-              _animation.value.clamp(0.0, 1.0),
-              (_animation.value + 1).clamp(0.0, 1.0),
-            ],
-            colors: [
-              Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-              Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-              Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

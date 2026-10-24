@@ -13,9 +13,13 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/listing_status_badge.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import 'farmer_marketplace_tab.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class MyListingsScreen extends StatefulWidget {
   const MyListingsScreen({super.key});
@@ -132,7 +136,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       .where((l) => l.isLive || l.isSold)
       .fold<double>(0, (sum, l) => sum + ((l.volumeKg - l.remainingKg) * l.pricePerKg));
 
-  int get _liveCount => _countFor((l) => l.isLive);
+  int get _availableCount => _countFor((l) => l.isAvailable);
 
   int get _pendingCount => _countFor((l) => l.isPending);
 
@@ -143,7 +147,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
-          backgroundColor: AppConstants.warningAmber,
+          backgroundColor: AppConstants.snackbarWarning,
         ),
       );
       return;
@@ -267,14 +271,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       ),
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — some listing actions require an internet connection."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(screen: 'my_listings', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineListingActionsSome),
                     Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -302,9 +305,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: _isLoading
-                            ? const _Shimmer(height: 150)
+                            ? SkeletonBlock(height: 150)
                             : _ListingOverviewCard(
-                                liveCount: _liveCount,
+                                availableCount: _availableCount,
                                 totalSold: _totalSold,
                                 pendingCount: _pendingCount,
                                 onPendingTap: () => _setFilter(ListingFilter.pending),
@@ -340,7 +343,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                                   3,
                                   (_) => Padding(
                                     padding: const EdgeInsets.only(bottom: 14),
-                                    child: _ListingShimmer(),
+                                    child: SkeletonBlock(height: 140),
                                   ),
                                 ),
                               )
@@ -420,13 +423,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ListingOverviewCard extends StatelessWidget {
-  final int liveCount;
+  final int availableCount;
   final double totalSold;
   final int pendingCount;
   final VoidCallback onPendingTap;
 
   const _ListingOverviewCard({
-    required this.liveCount,
+    required this.availableCount,
     required this.totalSold,
     required this.pendingCount,
     required this.onPendingTap,
@@ -473,7 +476,7 @@ class _ListingOverviewCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _statMini(icon: Icons.storefront_outlined, label: 'Live Listings', value: '$liveCount')),
+              Expanded(child: _statMini(icon: Icons.storefront_outlined, label: 'Available Listings', value: '$availableCount')),
               Container(width: 1, height: 34, color: cs.outline.withValues(alpha: 0.15)),
               Expanded(child: _statMini(icon: Icons.payments_outlined, label: 'Total Sold', value: '₱${_formatCurrency(totalSold)}')),
             ],
@@ -486,8 +489,8 @@ class _ListingOverviewCard extends StatelessWidget {
               _PriorityRow(
                 icon: Icons.pending_actions_rounded,
                 color: AppConstants.warningAmber,
-                title: '$pendingCount listing${pendingCount == 1 ? '' : 's'} pending review',
-                subtitle: 'Awaiting admin decision',
+                title: '$pendingCount listing${pendingCount == 1 ? '' : 's'} pending approval',
+                subtitle: 'Awaiting Manager decision',
                 onTap: onPendingTap,
               ),
           ],
@@ -694,29 +697,10 @@ class _FilterChips extends StatelessWidget {
     required this.onSelected,
   });
 
-  // "All" keeps its own solid-primary treatment (matching every other
-  // active chip's prior look) since it doesn't represent one specific
-  // status. Every real status chip is colored via the same
-  // ListingStatusDisplay.color() mapping _StatusBadge already uses, so a
-  // farmer sees the same color language on the filter row as on the cards
-  // themselves — the thing the filter chips previously didn't do at all.
-  Color _statusColorFor(BuildContext context, ListingFilter f) {
-    switch (f) {
-      case ListingFilter.all:
-        return Theme.of(context).colorScheme.primary;
-      case ListingFilter.pending:
-        return ListingStatusDisplay.color(context, 'pending_review');
-      case ListingFilter.live:
-        return ListingStatusDisplay.color(context, 'approved');
-      case ListingFilter.withdrawn:
-        return ListingStatusDisplay.color(context, 'withdrawn');
-      case ListingFilter.rejected:
-        return ListingStatusDisplay.color(context, 'rejected');
-      case ListingFilter.sold:
-        return ListingStatusDisplay.color(context, 'sold');
-    }
-  }
-
+  // "All" keeps its own solid-primary treatment (it is not one specific
+  // status); every other chip uses the same colour and wording as the status
+  // badge on the cards (listing_status_badge.dart), so the filter row and the
+  // cards speak the same language.
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -726,10 +710,11 @@ class _FilterChips extends StatelessWidget {
           final isActive = f == active;
           final isAll = f == ListingFilter.all;
           final count = countFor(f);
+          final name = listingFilterLabel(AppLocalizations.of(context), f);
           final label = (f != ListingFilter.all && count > 0)
-              ? '${f.label} ($count)'
-              : f.label;
-          final statusColor = _statusColorFor(context, f);
+              ? '$name ($count)'
+              : name;
+          final statusColor = listingFilterColor(context, f);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
@@ -797,7 +782,9 @@ class _ListingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final borderColor = listing.isPending ? AppConstants.warningAmber : null;
 
-    return Opacity(
+    return SoldOutGrey(
+      active: listing.isSoldOut,
+      child: Opacity(
       opacity: listing.isWithdrawn ? 0.65 : 1.0,
       child: GestureDetector(
         onTap: onTap,
@@ -818,6 +805,7 @@ class _ListingCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -854,7 +842,11 @@ class _StandardContent extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _StatusBadge(status: listing.status),
+                  ListingStatusBadge.forListing(
+                    context,
+                    status: listing.status,
+                    remainingKg: listing.remainingKg,
+                  ),
                   if (showMenu)
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
@@ -989,65 +981,6 @@ class _FallbackThumb extends StatelessWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    String label;
-    Color bg;
-    Color fg;
-    switch (status) {
-      case 'pending_review':
-        label = 'PENDING REVIEW';
-        fg = ListingStatusDisplay.color(context, status);
-        bg = fg.withValues(alpha: 0.20);
-        break;
-      case 'approved':
-        label = 'LIVE ON MARKET';
-        fg = ListingStatusDisplay.color(context, status);
-        bg = fg.withValues(alpha: 0.20);
-        break;
-      case 'withdrawn':
-        label = 'WITHDRAWN';
-        fg = ListingStatusDisplay.color(context, status);
-        bg = fg.withValues(alpha: 0.20);
-        break;
-      case 'rejected':
-        label = 'REJECTED';
-        fg = ListingStatusDisplay.color(context, status);
-        bg = fg.withValues(alpha: 0.20);
-        break;
-      case 'sold':
-        label = 'SOLD';
-        fg = ListingStatusDisplay.color(context, status);
-        bg = fg.withValues(alpha: 0.20);
-        break;
-      default:
-        label = status.toUpperCase();
-        fg = ListingStatusDisplay.color(context, status);
-        bg = fg.withValues(alpha: 0.20);
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          color: fg,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Empty State
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1110,123 +1043,12 @@ class _EmptyState extends StatelessWidget {
 // Small shimmer block (KPI loading state)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _Shimmer extends StatelessWidget {
-  final double height;
-  const _Shimmer({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.40),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shimmer (listing card)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ListingShimmer extends StatefulWidget {
-  @override
-  State<_ListingShimmer> createState() => _ListingShimmerState();
-}
 
-class _ListingShimmerState extends State<_ListingShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-    _anim = Tween<double>(
-      begin: -1,
-      end: 2,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Widget _block(double w, double h) => AnimatedBuilder(
-    animation: _anim,
-    builder: (_, __) => Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          stops: [
-            (_anim.value - 1).clamp(0.0, 1.0),
-            _anim.value.clamp(0.0, 1.0),
-            (_anim.value + 1).clamp(0.0, 1.0),
-          ],
-          colors: [
-            Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-            Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-            Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(
-          color: Theme.of(
-            context,
-          ).colorScheme.outlineVariant.withValues(alpha: 0.30),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _block(76, 76),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _block(100, 16),
-                const SizedBox(height: 8),
-                _block(120, 14),
-                const SizedBox(height: 8),
-                _block(80, 20),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FAB

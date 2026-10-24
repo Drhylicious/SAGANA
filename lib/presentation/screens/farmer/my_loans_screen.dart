@@ -8,7 +8,10 @@ import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/loan_model.dart';
 import '../../../data/repositories/loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class MyLoansScreen extends StatefulWidget {
   const MyLoansScreen({super.key});
@@ -68,8 +71,11 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
-              if (!_isOnline)
-                const OfflineBanner(message: "You're offline — your loan information may not be up to date."),
+              CachedDataNotice(
+                screen: 'loans',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineLoans,
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -124,7 +130,7 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
                           2,
                           (_) => const Padding(
                             padding: EdgeInsets.only(bottom: 14),
-                            child: _LoanShimmer(),
+                            child: SkeletonBlock(height: 160),
                           ),
                         )
                       else if (activeLoans.isEmpty)
@@ -967,18 +973,3 @@ class _EmptyState extends StatelessWidget {
 // Loan Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LoanShimmer extends StatelessWidget {
-  const _LoanShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 160,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-    );
-  }
-}

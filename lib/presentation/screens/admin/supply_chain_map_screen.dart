@@ -18,6 +18,8 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/material_list_tile.dart';
 import '../../../core/utils/member_access.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 const _payanasCenterLat = 13.5767;
 const _payanasCenterLng = 122.0862;
@@ -222,39 +224,13 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
           SafeArea(
             child: Column(
               children: [
-                Container(
-                  height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                        onPressed: () => context.pop(),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          l10n.supplyChainTitle,
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                SubPageTopBar(title: l10n.supplyChainTitle, onBack: () => context.pop()),
                 Expanded(
                   child: RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _loadAll,
                     child: _isLoading && _summary == null
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: AppConstants.primaryGreen,
-                            ),
-                          )
+                        ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                         : ListView(
                             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                             children: [
@@ -283,7 +259,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Offline — data may be stale',
+                                          AppLocalizations.of(context).offlineDataStale,
                                           style: GoogleFonts.inter(
                                             fontSize: 12,
                                             color: cs.onErrorContainer,
@@ -381,11 +357,7 @@ class _SupplyChainMapScreenState extends State<SupplyChainMapScreen> {
                                   children: [
                                     Positioned.fill(
                                       child: _isLoading
-                                          ? Center(
-                                              child: CircularProgressIndicator(
-                                                color: cs.primary,
-                                              ),
-                                            )
+                                          ? const SkeletonBlock(height: double.infinity, radius: 0)
                                           : FlutterMap(
                                               mapController: _mapCtrl,
                                               options: MapOptions(
@@ -646,7 +618,7 @@ class _SupplyChainFullMapScreenState extends State<SupplyChainFullMapScreen> {
         children: [
           Positioned.fill(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator(color: cs.primary))
+                ? const SkeletonBlock(height: double.infinity, radius: 0)
                 : FlutterMap(
                     mapController: _mapCtrl,
                     options: MapOptions(
@@ -737,13 +709,7 @@ class _SupplyChainFullMapScreenState extends State<SupplyChainFullMapScreen> {
                       ),
                       child: Row(
                         children: [
-                          GestureDetector(
-                            onTap: () => context.pop(),
-                            child: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: AppConstants.primaryGreen,
-                            ),
-                          ),
+                          SubPageBackButton(onPressed: () => context.pop()),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Text(

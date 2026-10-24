@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/admin_analytics_model.dart';
 import '../models/admin_loan_model.dart';
 import 'farmer_lookup.dart';
@@ -23,20 +24,26 @@ class AdminAnalyticsRepository {
       // shares the identical previously-unfiltered farmer_profiles bug,
       // which was inflating the Inactive tier with draft/rejected/
       // suspended accounts that never became real members.
-      final activeRoleRows = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'farmer')
-          .eq('status', 'active');
+      final activeRoleRows = await OfflineCache.load(
+        screen: 'admin_participation_active_roles',
+        fetch: () => _client
+            .from('user_roles')
+            .select('user_id')
+            .eq('role', 'farmer')
+            .eq('status', 'active'),
+      );
       final activeIds = activeRoleRows
           .map((r) => r['user_id'] as String)
           .toList();
       if (activeIds.isEmpty) return MemberParticipationSummary.empty();
 
-      final rosterRows = await _client
-          .from('farmer_profiles')
-          .select('user_id')
-          .inFilter('user_id', activeIds);
+      final rosterRows = await OfflineCache.load(
+        screen: 'admin_participation_roster',
+        fetch: () => _client
+            .from('farmer_profiles')
+            .select('user_id')
+            .inFilter('user_id', activeIds),
+      );
       final farmerIds = rosterRows.map((r) => r['user_id'] as String).toList();
       if (farmerIds.isEmpty) return MemberParticipationSummary.empty();
 
@@ -44,7 +51,11 @@ class AdminAnalyticsRepository {
       if (since != null) {
         harvestQuery = harvestQuery.gte('harvest_date', _dateOnly(since));
       }
-      final harvestRows = await harvestQuery;
+      final harvestRows = await OfflineCache.load(
+        screen:
+            'admin_participation_harvest_${since?.toIso8601String() ?? 'any'}',
+        fetch: () => harvestQuery,
+      );
       final harvestedIds = harvestRows
           .map((r) => r['farmer_id'] as String)
           .toSet();
@@ -58,7 +69,11 @@ class AdminAnalyticsRepository {
           since.toIso8601String(),
         );
       }
-      final listingRows = await listingQuery;
+      final listingRows = await OfflineCache.load(
+        screen:
+            'admin_participation_listings_${since?.toIso8601String() ?? 'any'}',
+        fetch: () => listingQuery,
+      );
       final listedIds = listingRows
           .map((r) => r['farmer_id'] as String)
           .toSet();
@@ -73,12 +88,12 @@ class AdminAnalyticsRepository {
           inactiveIds
               .map(
                 (id) => FarmerPickerResult(
-                id: id,
-                fullName: farmerInfo[id]?.fullName ?? 'Unknown Farmer',
+                  id: id,
+                  fullName: farmerInfo[id]?.fullName ?? 'Unknown Farmer',
                 ),
               )
-          .toList()
-        ..sort((a, b) => a.fullName.compareTo(b.fullName));
+              .toList()
+            ..sort((a, b) => a.fullName.compareTo(b.fullName));
 
       return MemberParticipationSummary(
         activeHarvestedCount: harvestedIds.length,
@@ -114,10 +129,10 @@ class AdminAnalyticsRepository {
       farmerIds
           .map(
             (id) => NotificationDraft(
-                userId: id,
-                type: 'system',
-                title: title,
-                body: body,
+              userId: id,
+              type: 'system',
+              title: title,
+              body: body,
             ),
           )
           .toList(),

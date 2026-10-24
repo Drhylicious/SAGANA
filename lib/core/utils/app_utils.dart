@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
+import 'input_validation_utils.dart';
 
 class AppUtils {
   AppUtils._();
@@ -52,9 +53,8 @@ class AppUtils {
     if (value == null || value.trim().isEmpty) {
       return 'Phone number is required';
     }
-    final phoneRegex = RegExp(r'^09\d{9}$');
-    if (!phoneRegex.hasMatch(value.trim())) {
-      return 'Enter a valid Philippine mobile number (09XXXXXXXXX)';
+    if (normalizePhilippineMobile(value) == null) {
+      return 'Please enter a valid Philippine mobile number.';
     }
     return null;
   }

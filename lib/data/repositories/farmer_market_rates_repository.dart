@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_market_rate_model.dart';
+import '../services/offline_cache.dart';
 
 /// Farmer-side read access to market prices. Deliberately separate from
 /// PriceManagementRepository (admin, write-side) — this repository only
@@ -15,6 +16,16 @@ class FarmerMarketRatesRepository {
   /// whichever filters the farmer has active. Never throws — a failed
   /// read returns an empty list, same convention as every other Farmer
   /// repository.
+  /// OfflineCache key for a fetchMarketRates() call with these filters, so
+  /// each selection keeps its own offline copy. Search text and limit are
+  /// applied after the read and are not part of the key.
+  static String cacheScreen({
+    String? marketType,
+    String? cropCategory,
+    String? cropId,
+  }) =>
+      'market_rates_${marketType ?? 'all'}_${cropCategory ?? 'all'}_${cropId ?? 'all'}';
+
   Future<List<FarmerMarketRateModel>> fetchMarketRates({
     String? marketType,   // price_type: sp3_cooperative | open_market
     String? cropCategory, // crop_master.category
@@ -44,7 +55,14 @@ class FarmerMarketRatesRepository {
       // or a raw-row limit could cut off before every crop's latest entry
       // is even seen (e.g. 20 raw rows might only cover 3 distinct crops
       // if one crop has been repriced many times).
-      final rows = await query.order('recorded_at', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: cacheScreen(
+          marketType: marketType,
+          cropCategory: cropCategory,
+          cropId: cropId,
+        ),
+        fetch: () => query.order('recorded_at', ascending: false),
+      );
 
       // Latest entry per (crop_id, price_type) — same dedup key already
       // fixed in PriceManagementRepository.fetchLatestPricePerCrop(),

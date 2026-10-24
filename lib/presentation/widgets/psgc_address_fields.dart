@@ -7,6 +7,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../data/models/buyer_address_model.dart';
 import '../../data/models/psgc_models.dart';
 import 'app_dropdown_field.dart';
+import 'skeleton.dart';
 
 /// Editable structured-address state (PSGC levels plus street fields).
 ///
@@ -181,7 +182,7 @@ class PsgcAddressFields extends StatelessWidget {
         if (isLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(child: CircularProgressIndicator()),
+            child: SkeletonBlock(height: 48),
           ),
         if (!isLoading && psgc == null) ...[
           Text(

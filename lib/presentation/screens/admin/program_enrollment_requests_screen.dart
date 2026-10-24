@@ -5,6 +5,8 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/program_enrollment_request_model.dart';
 import '../../../data/repositories/program_repository.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin's Program Enrollment Requests review queue — mirrors
 /// DaAmadEnrollmentScreen's shape exactly (Pending/Reviewed tabs,
@@ -95,7 +97,7 @@ class _ProgramEnrollmentRequestsScreenState
                         : 'Failed. Please try again.',
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -183,29 +185,7 @@ class _ProgramEnrollmentRequestsScreenState
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Enrollment Requests',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            SubPageTopBar(title: 'Enrollment Requests', onBack: () => Navigator.of(context).pop()),
             TabBar(
               controller: _tabController,
               labelColor: AppConstants.primaryGreen,
@@ -218,11 +198,7 @@ class _ProgramEnrollmentRequestsScreenState
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      ),
-                    )
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : TabBarView(
                       controller: _tabController,
                       children: [

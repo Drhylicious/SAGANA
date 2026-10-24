@@ -12,6 +12,8 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
   switch (s) {
@@ -216,11 +218,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppConstants.primaryGreen,
-                          ),
-                        )
+                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                           children: [
@@ -314,59 +312,7 @@ class _TopAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.marketLinkTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: cs.primary,
-                      ),
-                    ),
-                    Text(
-                      l10n.marketLinkSubtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Manage Enrollments',
-                icon: Icon(Icons.how_to_reg_rounded, color: cs.primary),
-                onPressed: onManageEnrollments,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.marketLinkTitle, onBack: onBack, trailing: IconButton( tooltip: 'Manage Enrollments', icon: Icon(Icons.how_to_reg_rounded, color: cs.primary), onPressed: onManageEnrollments, ));
   }
 }
 

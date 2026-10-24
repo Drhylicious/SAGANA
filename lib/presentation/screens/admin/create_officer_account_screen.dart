@@ -6,17 +6,24 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
-import '../../../core/utils/app_utils.dart';
+import '../../../core/utils/input_validation_utils.dart';
+import '../../../core/utils/temp_password.dart';
 import '../../../data/repositories/account_management_repository.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/auth_service.dart';
+import '../../widgets/account_form_widgets.dart';
+import '../../widgets/shared_widgets.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/username_availability_field.dart';
 
-/// Admin → Members → Add Officer Account (Issue 6).
+/// Manager → Members → Add Officer Account.
 ///
-/// Every Officer must come from the Officer Registry (Decision D22): typing
-/// a name that matches an available registry row auto-fills phone/email and
-/// unlocks the form. Employee ID (EMP-###) is generated server-side and
-/// shown read-only (Decision D23). There are no per-officer permissions —
-/// an Officer gets every Admin module except the Members tab (Decision D12).
+/// The Manager enters the Officer's details directly. There is no registry
+/// lookup: the full name is ordinary text, and the username must be unique
+/// across all SAGANA accounts (checked live, enforced by the database). The
+/// Officer ID (OFF-YYYY-NNN) is issued by the database when the account is
+/// created. There are no per-officer permissions — an Officer gets every
+/// Manager module except the Members tab.
 class CreateOfficerAccountScreen extends StatefulWidget {
   const CreateOfficerAccountScreen({super.key});
 
@@ -37,9 +44,15 @@ class _CreateOfficerAccountScreenState
   final _repo = AccountManagementRepository();
 
   bool _isSaving = false;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
   bool _obscurePassword = true;
   DateTime? _dateOfBirth;
   String? _gender;
+
+  // Username availability, reported by UsernameAvailabilityField.
+  UsernameStatus? _usernameStatus;
+  bool _usernameChecking = false;
 
   Map<String, String> _genderOptions(AppLocalizations l10n) => {
         'male': l10n.registerGenderMale,
@@ -47,69 +60,28 @@ class _CreateOfficerAccountScreenState
         'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
       };
 
-  // Temporary password — either auto-generated (AUTO button) or typed by
-  // the Admin, matching the Create Farmer Account flow.
+  // Temporary password — either auto-generated (AUTO button, from the secure
+  // random source) or typed by the Manager, matching Create Farmer Account.
   void _generatePassword() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    final rand = DateTime.now().millisecondsSinceEpoch;
-    final buffer = StringBuffer();
-    for (int i = 0; i < 10; i++) {
-      buffer.write(chars[(rand + i * 17) % chars.length]);
-    }
     setState(() {
-      _passwordCtrl.text = buffer.toString();
+      _passwordCtrl.text = generateTemporaryPassword();
       _obscurePassword = false;
     });
   }
-
-  Future<void> _pickDateOfBirth() async {
-    final picked = await AppUtils.pickDateOfBirth(
-      context,
-      initialDate: _dateOfBirth,
-    );
-    if (picked == null) return;
-    if (!AppUtils.isAtLeast18(picked)) {
-      if (!mounted) return;
-      await AppUtils.showUnder18Dialog(context);
-      return;
-    }
-    setState(() => _dateOfBirth = picked);
-  }
-
-  // Registry gate (Decision D22)
-  Timer? _debounce;
-  bool _checking = false;
-  bool _checked = false;
-  String? _registryId;      // set only when a matching AVAILABLE row is found
-  String? _registryError;   // "already registered" / "not found"
-  // Email and phone the Officer Registry supplied. Locked on a match.
-  String? _registryEmail;
-  String? _registryPhone;
-
-  bool get _emailLocked => _registryId != null && _registryEmail != null;
-  bool get _phoneLocked => _registryId != null && _registryPhone != null;
 
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    _fullNameCtrl.addListener(_onNameChanged);
-    _loadSuggestions();
-  }
-
-  Future<void> _loadSuggestions() async {
-    final username = await AuthService.suggestNextUsername('OFF');
-    if (mounted) {
-      setState(() {
-        _usernameCtrl.text = username;
-      });
-    }
+    _isOnline = ConnectivityService.instance.isOnline;
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
-    _fullNameCtrl.removeListener(_onNameChanged);
+    _connectivitySub?.cancel();
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     _fullNameCtrl.dispose();
@@ -119,70 +91,25 @@ class _CreateOfficerAccountScreenState
     super.dispose();
   }
 
-  void _onNameChanged() {
-    final name = _fullNameCtrl.text.trim();
-    if (_checked || _registryId != null || _registryError != null) {
-      final hadMatch = _registryId != null;
-      setState(() {
-        _checked = false;
-        _registryId = null;
-        _registryError = null;
-        _registryEmail = null;
-        _registryPhone = null;
-      });
-      // Values filled from the previous match unlock with it.
-      if (hadMatch) {
-        _emailCtrl.clear();
-        _phoneCtrl.clear();
-      }
-    }
-    if (name.length < 3) return;
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () => _check(name));
-  }
-
-  Future<void> _check(String name) async {
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context);
-    setState(() => _checking = true);
-    final match = await _repo.checkOfficerRegistry(name);
-    if (!mounted) return;
-    setState(() {
-      _checking = false;
-      _checked = true;
-      if (match == null) {
-        _registryId = null;
-        _registryError = l10n.createOfficerNotInRegistry;
-      } else if (!match.isAvailable) {
-        _registryId = null;
-        _registryError = l10n.createOfficerAlreadyHasAccount;
-      } else {
-        _registryId = match.registryId;
-        _registryError = null;
-        // Registry email and phone fill the form and are locked. A blank
-        // registry value stays editable.
-        _registryEmail = match.email;
-        _registryPhone = match.phone;
-        if (match.phone != null) _phoneCtrl.text = match.phone!;
-        if (match.email != null) _emailCtrl.text = match.email!;
-      }
-    });
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final l10n = AppLocalizations.of(context);
-    if (_registryId == null) {
-      _toast(_registryError ?? l10n.createOfficerWaitForCheck);
+    // The username must be confirmed free. A check that could not run
+    // (UsernameStatus.error) is not a verdict: the database decides.
+    if (_usernameChecking || _usernameStatus == null) {
+      _toast(l10n.registerCheckingUsername);
+      return;
+    }
+    if (_usernameStatus == UsernameStatus.taken) {
+      _toast(l10n.registerUsernameTaken);
       return;
     }
     setState(() => _isSaving = true);
     try {
       await _repo.createOfficerAccount(
-        username: _usernameCtrl.text.trim(),
+        username: normalizeUsername(_usernameCtrl.text),
         password: _passwordCtrl.text,
         fullName: _fullNameCtrl.text.trim(),
-        registryId: _registryId!,
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         phoneNumber: _phoneCtrl.text.trim().isEmpty
             ? null
@@ -200,15 +127,12 @@ class _CreateOfficerAccountScreenState
             l10n.createOfficerCreated,
             style: GoogleFonts.inter(fontSize: 13),
           ),
-        backgroundColor: AppConstants.successGreen,
+        backgroundColor: AppConstants.midGreen,
         ),
       );
       context.pop(true);
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '');
-      if (message.toLowerCase().contains('already')) {
-        await _loadSuggestions();
-      }
       if (!mounted) return;
       _toast(message);
     } finally {
@@ -231,382 +155,212 @@ class _CreateOfficerAccountScreenState
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    final canSubmit = _registryId != null && !_isSaving;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          l10n.createOfficerTitle,
-            style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-            color: cs.onSurface,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  border: Border(left: BorderSide(color: cs.primary, width: 4)),
-                ),
-                child: Text(
-                  l10n.createOfficerNotice,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: l10n.createOfficerSectionOfficer,
-                cs: cs,
-                sagana: sagana,
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.createOfficerTitle, onBack: () => context.pop()),
+          Expanded(child: SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 children: [
-                  _FieldLabel(label: l10n.createOfficerFullNameLabel, cs: cs),
-                  TextFormField(
-                    controller: _fullNameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(
-                      hintText: l10n.createOfficerFullNameHint,
-                      suffixIcon: _checking
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : (_registryId != null
-                                ? const Icon(
-                                    Icons.check_circle_rounded,
-                                    color: AppConstants.successGreen,
-                                  )
-                              : null),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? l10n.createOfficerFullNameRequired
-                        : null,
+                  // ── Manager notice ──────────────────────────────────────
+                  ManagerNoticeCard(
+                    title: l10n.addMemberAdminNoticeTitle,
+                    body: l10n.createOfficerNotice,
                   ),
-                  if (_checked && _registryError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _registryError!,
-                        style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.errorRed,
-                      ),
-                    ),
-                  ],
-                  if (_registryId != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.createOfficerMatched,
-                        style: GoogleFonts.inter(
-                            fontSize: 11,
-                        color: AppConstants.successGreen,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  _FieldLabel(label: l10n.createOfficerEmailLabel, cs: cs),
-                  TextFormField(
-                    controller: _emailCtrl,
-                    readOnly: _emailLocked,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: 'name@example.com',
-                      suffixIcon: _emailLocked
-                          ? const Icon(Icons.lock_outline_rounded, size: 18)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _FieldLabel(label: l10n.createOfficerPhoneLabel, cs: cs),
-                  TextFormField(
-                    controller: _phoneCtrl,
-                    readOnly: _phoneLocked,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      hintText: '09XX XXX XXXX',
-                      suffixIcon: _phoneLocked
-                          ? const Icon(Icons.lock_outline_rounded, size: 18)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _FieldLabel(label: l10n.createOfficerPositionLabel, cs: cs),
-                  TextFormField(
-                    controller: _positionCtrl,
-                    decoration: InputDecoration(
-                      hintText: l10n.createOfficerPositionHint,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 20),
+
+                  // ── Account Credentials ─────────────────────────────────
+                  AccountFormSection(
+                    icon: Icons.lock_person_rounded,
+                    title: l10n.addMemberSectionCredentials,
+                    cs: cs,
+                    sagana: sagana,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _FieldLabel(label: l10n.addMemberDobLabel, cs: cs),
-                            InkWell(
-                              onTap: _pickDateOfBirth,
-                              child: InputDecorator(
-                                decoration: const InputDecoration(),
-                                child: Text(
-                                  _dateOfBirth == null
-                                      ? l10n.addMemberSelectHint
-                                      : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    color: _dateOfBirth == null
-                                        ? cs.outline
-                                        : cs.onSurface,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                      AccountFieldLabel(label: l10n.createOfficerUsernameLabel, cs: cs),
+                      UsernameAvailabilityField(
+                        controller: _usernameCtrl,
+                        decorationBuilder: (suffix) => InputDecoration(
+                          hintText: l10n.registerUsernameHint,
+                          suffixIcon: suffix,
+                        ),
+                        onStatusChanged: (status, checking) {
+                          if (!mounted) return;
+                          setState(() {
+                            _usernameStatus = status;
+                            _usernameChecking = checking;
+                          });
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 4),
+                        child: Text(
+                          l10n.createOfficerUsernameHelp,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _FieldLabel(
-                              label: l10n.addMemberGenderLabel,
-                              cs: cs,
-                            ),
-                            DropdownButtonFormField<String>(
-                              initialValue: _gender,
-                              isExpanded: true,
-                              hint: Text(
-                                l10n.addMemberSelectHint,
-                                  style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: cs.outline,
+                      const SizedBox(height: 14),
+                      AccountFieldLabel(label: l10n.createOfficerPasswordLabel, cs: cs),
+                      TemporaryPasswordField(
+                        controller: _passwordCtrl,
+                        obscure: _obscurePassword,
+                        onToggleObscure: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                        onGenerate: _generatePassword,
+                        requiredMessage: l10n.addMemberPasswordRequired,
+                        tooShortMessage: l10n.createOfficerPasswordTooShort,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Personal Information ────────────────────────────────
+                  AccountFormSection(
+                    icon: Icons.person_rounded,
+                    title: l10n.addMemberSectionPersonal,
+                    cs: cs,
+                    sagana: sagana,
+                    children: [
+                      AccountFieldLabel(label: l10n.createOfficerFullNameLabel, cs: cs),
+                      TextFormField(
+                        controller: _fullNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: InputDecoration(
+                          hintText: l10n.createOfficerFullNameHint,
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? l10n.createOfficerFullNameRequired
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+                      // Email above Phone (every account form).
+                      AccountFieldLabel(label: l10n.createOfficerEmailLabel, cs: cs),
+                      TextFormField(
+                        controller: _emailCtrl,
+                        keyboardType: TextInputType.emailAddress,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          hintText: 'name@example.com',
+                        ),
+                        validator: (v) {
+                          final t = v?.trim() ?? '';
+                          if (t.isEmpty) return null;
+                          if (!isValidEmailFormat(t)) {
+                            return l10n.addMemberEmailInvalid;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      AccountFieldLabel(label: l10n.createOfficerPhoneLabel, cs: cs),
+                      TextFormField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          hintText: '09XX XXX XXXX',
+                        ),
+                        validator: (v) {
+                          final t = v?.trim() ?? '';
+                          if (t.isEmpty) return null;
+                          if (normalizePhilippineMobile(t) == null) {
+                            return l10n.addMemberPhoneInvalid;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      // Date of birth and gender are required, as on Create Farmer.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AccountFieldLabel(
+                                  label: '${l10n.addMemberDobLabel} *',
+                                  cs: cs,
                                 ),
-                              ),
-                              items: _genderOptions(l10n).entries
-                                  .map(
-                                    (e) => DropdownMenuItem(
-                                        value: e.key,
-                                      child: Text(
-                                        e.value,
-                                        style: GoogleFonts.inter(fontSize: 13),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) => setState(() => _gender = v),
+                                AccountDateOfBirthField(
+                                  value: _dateOfBirth,
+                                  onChanged: (d) =>
+                                      setState(() => _dateOfBirth = d),
+                                  hint: l10n.addMemberSelectHint,
+                                  requiredMessage: l10n.addMemberDobRequired,
+                                  underAgeMessage: l10n.addMemberAgeRequirement,
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AccountFieldLabel(
+                                  label: '${l10n.addMemberGenderLabel} *',
+                                  cs: cs,
+                                ),
+                                AccountGenderField(
+                                  value: _gender,
+                                  options: _genderOptions(l10n),
+                                  onChanged: (v) => setState(() => _gender = v),
+                                  hint: l10n.addMemberSelectHint,
+                                  requiredMessage: l10n.addMemberGenderRequired,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Officer ─────────────────────────────────────────────
+                  AccountFormSection(
+                    icon: Icons.badge_rounded,
+                    title: l10n.createOfficerSectionOfficer,
+                    cs: cs,
+                    sagana: sagana,
+                    children: [
+                      AccountFieldLabel(label: l10n.createOfficerPositionLabel, cs: cs),
+                      TextFormField(
+                        controller: _positionCtrl,
+                        decoration: InputDecoration(
+                          hintText: l10n.createOfficerPositionHint,
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: l10n.createOfficerSectionLogin,
-                cs: cs,
-                sagana: sagana,
-                children: [
-                  _FieldLabel(label: l10n.createOfficerUsernameLabel, cs: cs),
-                  TextFormField(
-                    controller: _usernameCtrl,
-                    readOnly: true,
-                    style: TextStyle(color: cs.onSurfaceVariant),
-                    decoration: const InputDecoration(hintText: 'OFF-0001'),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? l10n.createOfficerUsernameRequired
-                        : null,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 4),
-                    child: Text(
-                      l10n.createOfficerUsernameHelp,
-                        style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _FieldLabel(label: l10n.createOfficerPasswordLabel, cs: cs),
-                  TextFormField(
-                    controller: _passwordCtrl,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      hintText: l10n.createOfficerPasswordHint,
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              color: cs.outline,
-                            ),
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: _generatePassword,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: cs.primary.withValues(alpha: 0.30),
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppConstants.radiusSm,
-                                ),
-                                ),
-                                child: Text(
-                                  l10n.autoGeneratedBadge,
-                                    style: GoogleFonts.inter(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
-                                    color: cs.primary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    validator: (v) => (v == null || v.length < 8)
-                        ? l10n.createOfficerPasswordTooShort
-                        : null,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+            ),
+          )),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-          child: FilledButton.icon(
-            onPressed: canSubmit ? _submit : null,
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.person_add_alt_1_rounded),
-            label: Text(
-              _isSaving
-                ? l10n.createOfficerCreating
-                  : l10n.createOfficerCreateButton,
-            ),
+          child: PrimaryButton(
+            label: !_isOnline
+                ? l10n.addMemberOffline
+                : (_isSaving
+                    ? l10n.createOfficerCreating
+                    : l10n.createOfficerCreateButton),
+            isLoading: _isSaving,
+            onPressed: (!_isOnline || _isSaving) ? null : _submit,
+            icon: Icons.person_add_alt_1_rounded,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _SectionCard({
-    required this.title,
-    required this.children,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-              style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...children,
-        ],
-      ),
-    );
-  }
-}
-
-class _FieldLabel extends StatelessWidget {
-  final String label;
-  final ColorScheme cs;
-
-  const _FieldLabel({required this.label, required this.cs});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      // maxLines: 1 + ellipsis: same DOB/Gender side-by-side misalignment
-      // fix as add_new_member_screen.dart's _FieldLabel and
-      // admin_edit_profile_screen.dart's _LabeledDateField — the longer
-      // Tagalog "Petsa ng Kapanganakan" label could still wrap onto two
-      // lines next to one-line "Kasarian" without this.
-      child: Text(
-        label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-          color: cs.onSurfaceVariant,
         ),
       ),
     );

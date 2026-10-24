@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/app_navigation_drawer.dart';
@@ -37,6 +39,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
 
   ReportPeriod _period = ReportPeriod.thisMonth;
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   PerformanceSummary _summary = PerformanceSummary.empty();
   PerformanceSummary _previousSummary = PerformanceSummary.empty();
   QuickInsights _insights = QuickInsights.empty();
@@ -48,6 +51,9 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -94,7 +100,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
           final profile = AdminProfileStateService.instance.profile;
           return AppNavigationDrawer(
             photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Admin',
+            displayName: profile?.fullName ?? 'Manager',
             contactEmail: profile?.contactEmail ?? profile?.email,
             phoneNumber: profile?.phoneNumber,
             onEditProfile: () {
@@ -118,6 +124,11 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                 context.push(AppRoutes.adminNotifications).then((_) => _load()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
             enableMenu: true,
+          ),
+          CachedDataNotice(
+            screen: AdminReportsRepository.performanceCacheScreen(_period),
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineStaffBody,
           ),
           Expanded(
             child: RefreshIndicator(
@@ -277,36 +288,36 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     if (_insights.topCropName != null) {
       chips.add(
         _insightChip(
-        Icons.trending_up_rounded,
-        l10n.reportsInsightTopCrop,
-        '${_insights.topCropName} • ₱${_insights.topCropAmount.toStringAsFixed(0)}',
-        AppConstants.successGreen,
-        cs,
-        sagana,
+          Icons.trending_up_rounded,
+          l10n.reportsInsightTopCrop,
+          '${_insights.topCropName} • ₱${_insights.topCropAmount.toStringAsFixed(0)}',
+          AppConstants.successGreen,
+          cs,
+          sagana,
         ),
       );
     }
     if (_insights.topFarmerName != null) {
       chips.add(
         _insightChip(
-        Icons.emoji_events_outlined,
-        l10n.reportsInsightTopFarmer,
-        '${_insights.topFarmerName} • ₱${_insights.topFarmerAmount.toStringAsFixed(0)}',
-        AppConstants.amber,
-        cs,
-        sagana,
+          Icons.emoji_events_outlined,
+          l10n.reportsInsightTopFarmer,
+          '${_insights.topFarmerName} • ₱${_insights.topFarmerAmount.toStringAsFixed(0)}',
+          AppConstants.amber,
+          cs,
+          sagana,
         ),
       );
     }
     if (_insights.topExpenseCategory != null) {
       chips.add(
         _insightChip(
-        Icons.trending_down_rounded,
-        l10n.reportsInsightTopExpense,
-        '${_insights.topExpenseCategory} • ₱${_insights.topExpenseAmount!.toStringAsFixed(0)}',
-        AppConstants.warningAmber,
-        cs,
-        sagana,
+          Icons.trending_down_rounded,
+          l10n.reportsInsightTopExpense,
+          '${_insights.topExpenseCategory} • ₱${_insights.topExpenseAmount!.toStringAsFixed(0)}',
+          AppConstants.warningAmber,
+          cs,
+          sagana,
         ),
       );
     }

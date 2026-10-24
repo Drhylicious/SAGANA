@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/loan_model.dart';
 import '../models/admin_loan_model.dart';
+import '../services/offline_cache.dart';
 import 'farmer_lookup.dart';
 
 class LoanRepository {
@@ -11,7 +12,9 @@ class LoanRepository {
 
   Future<List<LoanModel>> fetchLoans() async {
     try {
-      final rows = await _client
+      final rows = await OfflineCache.load(
+        screen: 'loans',
+        fetch: () => _client
           .from('farmer_loans')
           // cooperative_programs(program_name) join added so
           // LoanModel.sourceProgramName/isFromProgramDistribution — already
@@ -23,7 +26,8 @@ class LoanRepository {
             '*, farmer_loan_items(*), farmer_loan_payments(*), cooperative_programs(program_name)',
           )
           .eq('farmer_id', _userId)
-          .order('issued_date', ascending: false);
+          .order('issued_date', ascending: false),
+      );
 
       return rows.map((r) => LoanModel.fromMap(r)).toList();
     } catch (_) {

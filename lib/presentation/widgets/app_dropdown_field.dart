@@ -49,6 +49,8 @@ class AppDropdownField<T> extends FormField<T> {
     // responsibility. Only shown when both are provided.
     String? addNewLabel,
     Future<T?> Function()? onAddNew,
+    // False for a compact "+ Unit"-style label that already carries its own plus.
+    bool addNewShowIcon = true,
   }) : super(
           initialValue: value,
           validator: validator,
@@ -64,6 +66,7 @@ class AppDropdownField<T> extends FormField<T> {
               maxMenuHeight: menuMaxHeight,
               addNewLabel: addNewLabel,
               onAddNew: onAddNew,
+              addNewShowIcon: addNewShowIcon,
               onChanged: (v) {
                 field.didChange(v);
                 onChanged(v);
@@ -101,6 +104,7 @@ class _DropdownFieldBody<T> extends StatefulWidget {
   final double maxMenuHeight;
   final String? addNewLabel;
   final Future<T?> Function()? onAddNew;
+  final bool addNewShowIcon;
 
   const _DropdownFieldBody({
     super.key,
@@ -115,6 +119,7 @@ class _DropdownFieldBody<T> extends StatefulWidget {
     required this.maxMenuHeight,
     this.addNewLabel,
     this.onAddNew,
+    this.addNewShowIcon = true,
   });
 
   @override
@@ -276,9 +281,11 @@ class _DropdownFieldBodyState<T> extends State<_DropdownFieldBody<T>> {
                                   horizontal: 14, vertical: 12),
                               child: Row(
                                 children: [
-                                  Icon(Icons.add_circle_outline_rounded,
-                                      size: 18, color: cs.primary),
-                                  const SizedBox(width: 8),
+                                  if (widget.addNewShowIcon) ...[
+                                    Icon(Icons.add_circle_outline_rounded,
+                                        size: 18, color: cs.primary),
+                                    const SizedBox(width: 8),
+                                  ],
                                   Flexible(
                                     child: Text(
                                       widget.addNewLabel ?? AppLocalizations.of(context).genericAdd,

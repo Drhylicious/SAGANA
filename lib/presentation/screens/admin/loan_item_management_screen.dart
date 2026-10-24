@@ -12,6 +12,8 @@ import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/report_summary_widgets.dart'
     show ReportIconStatCard, ReportSectionCard;
 
@@ -132,7 +134,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                         : l10n.loanItemFailedTryAgain,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
               behavior: SnackBarBehavior.floating,
                 ),
@@ -183,14 +185,19 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                     ctx,
                   ),
                 const SizedBox(height: 12),
+                  // Source comes from the inventory item (cooperative_inventory
+                  // .source), the same value Inventory Management shows. The
+                  // loan catalog never stores its own copy. (Any loan "notes"
+                  // already saved on the catalog row are left untouched in the
+                  // database and passed back unchanged on save.)
                   _readOnlyField(
-                    l10n.issueLoanNotes,
-                    (existing.notes ?? '').isEmpty ? '—' : existing.notes!,
+                    l10n.adminInvSourceLabel,
+                    existing.source ?? l10n.adminInvSourceNotRecorded,
                     ctx,
                   ),
                 const SizedBox(height: 4),
                 Text(
-                  'Price and notes are set from Inventory Management — use its Publish action to change them.',
+                  'Price is set from Inventory Management — use its Publish action to change it. Source is set on the inventory item (Edit Item).',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
@@ -287,41 +294,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
       body: Column(
         children: [
           // Top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        l10n.loanItemCatalogTitle,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          SubPageTopBar(title: l10n.loanItemCatalogTitle, onBack: () => context.pop()),
 
           if (!_isOnline)
             Container(
@@ -337,7 +310,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Offline — changes will not be saved',
+                    AppLocalizations.of(context).offlineChangesNotSaved,
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -350,12 +323,7 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
@@ -607,6 +575,23 @@ class _LoanItemManagementScreenState extends State<LoanItemManagementScreen> {
                                                         ),
                                                       ),
                                                     ],
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    item.source == null
+                                                        ? l10n.adminInvSourceNotRecorded
+                                                        : '${l10n.adminInvSourceLabel}: ${item.source}',
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 11,
+                                                      fontStyle:
+                                                          item.source == null
+                                                          ? FontStyle.italic
+                                                          : FontStyle.normal,
+                                                      color: cs.onSurfaceVariant,
+                                                    ),
                                                   ),
                                                   if (!item.isLoanEligible)
                                                     Container(

@@ -1,20 +1,11 @@
 import 'package:flutter/material.dart';
+import '../services/market_types_service.dart';
 
 /// Standalone so callers that only have a raw crop_type string (e.g. a
 /// catalog Map, not a full FarmerCropModel) can reuse the same mapping
 /// without constructing a throwaway model instance.
-String marketTypeLabelFor(String? cropType) {
-  switch (cropType) {
-    case 'sp3_cooperative':
-      return 'Cooperative Market';
-    case 'da_amad_market':
-      return 'DA-AMAD Market';
-    case 'open_market':
-      return 'Public Market';
-    default:
-      return 'Not yet assigned';
-  }
-}
+String marketTypeLabelFor(String? cropType) =>
+    MarketTypes.instance.label(cropType);
 
 class FarmerCropModel {
   final String id;
@@ -30,9 +21,13 @@ class FarmerCropModel {
   final String? catalogImageUrl;
   final String? cropMasterId; // null until linked to the official catalog
   /// Market type as registered on the crop's catalog entry —
-  /// sp3_cooperative | da_amad_market | open_market. Null until the crop
+  /// a market_types.code (Public or Cooperative). Null until the crop
   /// is linked to crop_master (i.e. while isPendingApproval is true).
   final String? cropType;
+
+  /// The one selling channel this crop is reserved for (crop_master
+  /// .exclusive_channel), or null. Ginger → DA-AMAD Market Linking.
+  final String? exclusiveChannel;
   final int harvestCount;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -49,6 +44,7 @@ class FarmerCropModel {
     this.catalogImageUrl,
     this.cropMasterId,
     this.cropType,
+    this.exclusiveChannel,
     required this.harvestCount,
     required this.createdAt,
     this.updatedAt,
@@ -118,6 +114,7 @@ class FarmerCropModel {
       catalogImageUrl: map['catalog_image_url'] as String?,
       cropMasterId: map['crop_master_id'] as String?,
       cropType: map['crop_type'] as String?,
+      exclusiveChannel: map['exclusive_channel'] as String?,
       harvestCount: map['harvest_count'] as int? ?? 0,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
@@ -159,6 +156,7 @@ class FarmerCropModel {
       catalogImageUrl: catalogImageUrl ?? this.catalogImageUrl,
       cropMasterId: cropMasterId ?? this.cropMasterId,
       cropType: cropType ?? this.cropType,
+      exclusiveChannel: exclusiveChannel,
       harvestCount: harvestCount ?? this.harvestCount,
       createdAt: createdAt,
       updatedAt: updatedAt,

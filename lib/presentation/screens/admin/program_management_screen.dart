@@ -19,6 +19,8 @@ import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/material_list_tile.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/report_summary_widgets.dart'
     show ReportIconStatCard, ReportSectionCard;
 
@@ -675,39 +677,12 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
           : null,
       body: Column(
         children: [
-          // Top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        l10n.programMgmtTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
+          SubPageTopBar(
+            title: l10n.programMgmtTitle,
+            onBack: () => context.pop(),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -788,9 +763,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
                           ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+              ],
             ),
           ),
 
@@ -821,12 +794,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
@@ -1693,9 +1661,7 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(
-          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
-        ),
+        child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
       );
     }
 
@@ -2441,12 +2407,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
           const SizedBox(height: 8),
           Expanded(
             child: _isLoading
-                ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
-                    strokeWidth: 2,
-                  ),
-                )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _members.isEmpty
                     ? Center(
                   child: Text(
@@ -2853,12 +2814,7 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
-                    strokeWidth: 2,
-                  ),
-                )
+              ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
               : _activities.isEmpty
                   ? Center(
                   child: Text(

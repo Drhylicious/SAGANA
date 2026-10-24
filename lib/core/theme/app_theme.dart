@@ -347,12 +347,28 @@ class AppTheme {
         margin: EdgeInsets.zero,
       );
 
+  // SnackBars. Every SnackBar in the app sits on a dark or saturated fill
+  // (charcoal, errorRed, midGreen, snackbarWarning), so the text is white at
+  // 4.7:1 or better on all of them — the same pairing AppToast uses.
+  //
+  // The text colour MUST be set here. A SnackBar's own text style replaces
+  // Flutter's default (onInverseSurface); with no colour in it the text falls
+  // back to black, which was 1.6:1 on charcoal and 4.2:1 on red. The default
+  // fill is fixed to charcoal too: Flutter's default (inverseSurface) turns
+  // light in Dark Mode, where white text would disappear.
   static SnackBarThemeData get _snackBarTheme => SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        backgroundColor: AppConstants.charcoal,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
-        contentTextStyle: GoogleFonts.inter(fontSize: 14),
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: Colors.white,
+        ),
+        actionTextColor: AppConstants.limeGreen,
+        disabledActionTextColor: Colors.white54,
+        closeIconColor: Colors.white,
       );
 
   /// Applies status bar style based on current theme brightness.

@@ -9,6 +9,9 @@ import '../../data/repositories/crop_repository.dart';
 import 'app_dropdown_field.dart';
 import 'management_modal.dart';
 import 'material_list_tile.dart';
+import 'skeleton.dart';
+import 'channel_only_badge.dart';
+import '../../data/services/market_types_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CropCatalogSheet
@@ -68,7 +71,7 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   final _nameController = TextEditingController();
   List<String> _categories = [];
   String? _category;
-  String _cropType = 'open_market';
+  String? _cropType = MarketTypes.instance.defaultCode;
   bool _isSubmitting = false;
   Uint8List? _pickedImageBytes;
   String? _pickedImageExt;
@@ -241,9 +244,7 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
         if (_isLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
-            child: Center(
-              child: CircularProgressIndicator(color: AppConstants.primaryGreen),
-            ),
+            child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
           )
         else if (_filtered.isEmpty)
           Padding(
@@ -285,9 +286,18 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
                   ),
                   title: Text(entry['crop_name'] as String,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                      '${entry['category']} · ${marketTypeLabelFor(entry['crop_type'] as String?)}',
-                      style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          '${entry['category']} · ${marketTypeLabelFor(entry['crop_type'] as String?)}',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                      if (entry['exclusive_channel'] != null) ...[
+                        const SizedBox(height: 4),
+                        ChannelOnlyBadge(channel: entry['exclusive_channel'] as String?),
+                      ],
+                    ],
+                  ),
                   trailing: isAdding
                       ? const SizedBox(
                           width: 18,
@@ -365,8 +375,8 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
           value: _cropType,
           hintText: 'Select a market type',
           labelText: 'Market Type (SP3 will confirm)',
-          items: const ['sp3_cooperative', 'open_market'],
-          itemLabel: (v) => v == 'sp3_cooperative' ? 'Cooperative Market' : 'Public Market',
+          items: MarketTypes.instance.activeTypes.map((t) => t.code).toList(),
+          itemLabel: (v) => MarketTypes.instance.label(v),
           onChanged: (v) => setState(() => _cropType = v ?? _cropType),
         ),
         const SizedBox(height: 12),

@@ -1,10 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_transaction_model.dart';
+import '../services/offline_cache.dart';
 
 /// Farmer's own completed sales across all 4 selling channels — the data
 /// source behind Farmer Transaction History. Each channel query mirrors
 /// AdminReportsRepository's equivalent (admin_reports_repository.dart),
 /// scoped down to farmer_id = the logged-in farmer instead of every member.
+///
+/// Each channel's rows (and the crop photo lookup) are cached through
+/// OfflineCache, so the history can still be viewed offline.
 class FarmerTransactionRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -40,51 +44,62 @@ class FarmerTransactionRepository {
   // image in the details sheet, not a rendering bug.
   Future<Map<String, String>> _fetchCropImageByName() async {
     try {
-      final rows = await _client
-          .from('farmer_crops')
-          .select('crop_name, photo_url, crop_master_id')
-          .eq('farmer_id', _userId);
-
-      final ownPhotoByName = <String, String>{};
-      final masterIdByName = <String, String>{};
-      for (final r in rows) {
-        final name = (r['crop_name'] as String).toLowerCase();
-        final ownPhoto = r['photo_url'] as String?;
-        if (ownPhoto != null && ownPhoto.isNotEmpty) {
-          ownPhotoByName[name] = ownPhoto;
-        } else if (r['crop_master_id'] != null) {
-          masterIdByName[name] = r['crop_master_id'] as String;
-        }
-      }
-
-      final masterImageById = <String, String>{};
-      if (masterIdByName.isNotEmpty) {
-        final masterRows = await _client
-            .from('crop_master')
-            .select('id, image_url')
-            .inFilter('id', masterIdByName.values.toSet().toList());
-        for (final r in masterRows) {
-          final url = r['image_url'] as String?;
-          if (url != null && url.isNotEmpty) {
-            masterImageById[r['id'] as String] = url;
-          }
-        }
-      }
-
-      final result = <String, String>{};
-      for (final name in {...ownPhotoByName.keys, ...masterIdByName.keys}) {
-        final own = ownPhotoByName[name];
-        if (own != null) {
-          result[name] = own;
-          continue;
-        }
-        final catalogUrl = masterImageById[masterIdByName[name]];
-        if (catalogUrl != null) result[name] = catalogUrl;
-      }
-      return result;
+      final entries = await OfflineCache.load(
+        screen: 'transactions_crop_images',
+        fetch: _loadCropImageEntries,
+      );
+      return {
+        for (final e in entries) e['name'] as String: e['url'] as String,
+      };
     } catch (_) {
       return {};
     }
+  }
+
+  // Returns [{name, url}] rather than a map so it can be cached as rows.
+  Future<List<Map<String, dynamic>>> _loadCropImageEntries() async {
+    final rows = await _client
+        .from('farmer_crops')
+        .select('crop_name, photo_url, crop_master_id')
+        .eq('farmer_id', _userId);
+
+    final ownPhotoByName = <String, String>{};
+    final masterIdByName = <String, String>{};
+    for (final r in rows) {
+      final name = (r['crop_name'] as String).toLowerCase();
+      final ownPhoto = r['photo_url'] as String?;
+      if (ownPhoto != null && ownPhoto.isNotEmpty) {
+        ownPhotoByName[name] = ownPhoto;
+      } else if (r['crop_master_id'] != null) {
+        masterIdByName[name] = r['crop_master_id'] as String;
+      }
+    }
+
+    final masterImageById = <String, String>{};
+    if (masterIdByName.isNotEmpty) {
+      final masterRows = await _client
+          .from('crop_master')
+          .select('id, image_url')
+          .inFilter('id', masterIdByName.values.toSet().toList());
+      for (final r in masterRows) {
+        final url = r['image_url'] as String?;
+        if (url != null && url.isNotEmpty) {
+          masterImageById[r['id'] as String] = url;
+        }
+      }
+    }
+
+    final entries = <Map<String, dynamic>>[];
+    for (final name in {...ownPhotoByName.keys, ...masterIdByName.keys}) {
+      final own = ownPhotoByName[name];
+      if (own != null) {
+        entries.add({'name': name, 'url': own});
+        continue;
+      }
+      final catalogUrl = masterImageById[masterIdByName[name]];
+      if (catalogUrl != null) entries.add({'name': name, 'url': catalogUrl});
+    }
+    return entries;
   }
 
   // No buyer name — this transaction is directly with the cooperative/
@@ -93,10 +108,13 @@ class FarmerTransactionRepository {
     Map<String, String> imageByCropName,
   ) async {
     try {
-      final rows = await _client
-          .from('member_sales_transactions')
-          .select('id, crop_name, quantity_kg, amount, sale_date, reference_no')
-          .eq('farmer_id', _userId);
+      final rows = await OfflineCache.load(
+        screen: 'transactions_offer_to_coop',
+        fetch: () => _client
+            .from('member_sales_transactions')
+            .select('id, crop_name, quantity_kg, amount, sale_date, reference_no')
+            .eq('farmer_id', _userId),
+      );
       return rows
           .map(
             (r) => FarmerTransactionModel(
@@ -125,28 +143,43 @@ class FarmerTransactionRepository {
     Map<String, String> imageByCropName,
   ) async {
     try {
-      final rows = await _client
-          .from('orders')
-          .select(
-            'id, quantity_kg, total_price, status, created_at, marketplace_listings(crop_name)',
-          )
-          .eq('farmer_id', _userId)
-          .eq('status', 'completed');
-      if (rows.isEmpty) return [];
+      final rows = await OfflineCache.load(
+        screen: 'transactions_marketplace',
+        fetch: () async {
+          final orders = await _client
+              .from('orders')
+              .select(
+                'id, quantity_kg, total_price, status, created_at, marketplace_listings(crop_name)',
+              )
+              .eq('farmer_id', _userId)
+              .eq('status', 'completed');
+          if (orders.isEmpty) return <Map<String, dynamic>>[];
 
-      // A direct SELECT against user_information for the buyer's name
-      // would be silently filtered to nothing by RLS — a farmer's session
-      // has no policy allowing it to read another user's row there (only
-      // its own, or an admin/staff session can). Routed through a
-      // SECURITY DEFINER RPC instead, scoped to exactly (order_id,
-      // buyer_name) for this farmer's own completed orders — see
-      // supabase_schema_farmer_transaction_buyer_names.sql.
-      final buyerRows =
-          await _client.rpc('get_my_marketplace_buyer_names') as List;
-      final buyerNamesByOrderId = {
-        for (final b in buyerRows)
-          b['order_id'] as String: b['buyer_name'] as String?,
-      };
+          // A direct SELECT against user_information for the buyer's name
+          // would be silently filtered to nothing by RLS — a farmer's session
+          // has no policy allowing it to read another user's row there (only
+          // its own, or an admin/staff session can). Routed through a
+          // SECURITY DEFINER RPC instead, scoped to exactly (order_id,
+          // buyer_name) for this farmer's own completed orders — see
+          // supabase_schema_farmer_transaction_buyer_names.sql.
+          final buyerRows =
+              await _client.rpc('get_my_marketplace_buyer_names') as List;
+          final buyerNamesByOrderId = {
+            for (final b in buyerRows)
+              b['order_id'] as String: b['buyer_name'] as String?,
+          };
+
+          // Buyer name is merged into each row so the cached copy keeps it.
+          return orders
+              .map<Map<String, dynamic>>(
+                (r) => {
+                  ...r,
+                  'buyer_name': buyerNamesByOrderId[r['id']],
+                },
+              )
+              .toList();
+        },
+      );
 
       return rows.map((r) {
         final cropName =
@@ -160,7 +193,7 @@ class FarmerTransactionRepository {
           amount: (r['total_price'] as num).toDouble(),
           transactionDate: DateTime.parse(r['created_at'] as String),
           orderStatus: r['status'] as String?,
-          buyerName: buyerNamesByOrderId[r['id']],
+          buyerName: r['buyer_name'] as String?,
           cropImageUrl: imageByCropName[cropName.toLowerCase()],
         );
       }).toList();
@@ -173,10 +206,13 @@ class FarmerTransactionRepository {
     Map<String, String> imageByCropName,
   ) async {
     try {
-      final rows = await _client
-          .from('informal_sales')
-          .select('id, crop_name, quantity_kg, amount, buyer_name, sale_date')
-          .eq('farmer_id', _userId);
+      final rows = await OfflineCache.load(
+        screen: 'transactions_informal_sales',
+        fetch: () => _client
+            .from('informal_sales')
+            .select('id, crop_name, quantity_kg, amount, buyer_name, sale_date')
+            .eq('farmer_id', _userId),
+      );
       return rows
           .map(
             (r) => FarmerTransactionModel(
@@ -203,13 +239,16 @@ class FarmerTransactionRepository {
     Map<String, String> imageByCropName,
   ) async {
     try {
-      final rows = await _client
-          .from('market_linking_programs')
-          .select(
-            'id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
-          )
-          .eq('farmer_id', _userId)
-          .eq('status', 'completed');
+      final rows = await OfflineCache.load(
+        screen: 'transactions_market_linking',
+        fetch: () => _client
+            .from('market_linking_programs')
+            .select(
+              'id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
+            )
+            .eq('farmer_id', _userId)
+            .eq('status', 'completed'),
+      );
       return rows.where((r) => r['completed_at'] != null).map((r) {
         final qty =
             (r['confirmed_volume_kg'] as num?)?.toDouble() ??

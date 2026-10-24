@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../data/services/connectivity_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,8 +9,11 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
-import '../../widgets/listing_filter_modal.dart' show listingStatusLabel;
+import '../../widgets/listing_filter_modal.dart'
+    show listingStatusLabel, ListingMarketBadge;
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class ListingReviewScreen extends StatefulWidget {
   final String listingId;
@@ -181,7 +185,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isSuccess
-            ? AppConstants.successGreen
+            ? AppConstants.midGreen
             : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -200,8 +204,13 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+        body: Column(
+          children: [
+            SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+            const Expanded(
+              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+            ),
+          ],
         ),
       );
     }
@@ -209,12 +218,11 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
     if (_listing == null) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          leading: BackButton(color: cs.primary),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
-        body: Center(
+
+        body: Column(
+        children: [
+          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+          Expanded(child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -229,7 +237,9 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
               ),
             ],
           ),
-        ),
+        )),
+        ],
+      ),
       );
     }
 
@@ -373,86 +383,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              // Flexible: without this, a long translated status label
-              // inside _StatusBadge has no width limit of its own and can
-              // overflow the bar once the title's Expanded shrinks to its
-              // minimum on narrow screens.
-              Flexible(
-                child: _StatusBadge(label: statusLabel, status: status, cs: cs),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final String status;
-  final ColorScheme cs;
-  const _StatusBadge({
-    required this.label,
-    required this.status,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = ListingStatusDisplay.color(context, status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        // maxLines: 1 + ellipsis: this badge sits at the end of the top
-        // app bar's Row, after the title's Expanded — a long translated
-        // status label (e.g. "Kinakailangan ng Pagbabago" for
-        // changes_required) had no width guard of its own here and could
-        // still overflow the bar on narrow screens once the Expanded title
-        // shrinks to its minimum.
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.inter(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-          color: color,
-        ),
-      ),
-    );
+    return SubPageTopBar(title: title, onBack: onBack);
   }
 }
 
@@ -546,6 +477,8 @@ class _HeroSection extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (listing.marketType != null)
+                      ListingMarketBadge(marketType: listing.marketType),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1294,7 +1227,9 @@ class _ReviewActions extends StatelessWidget {
         SizedBox(
           width: double.infinity,
                     child: GestureDetector(
-                      onTap: isSaving ? null : onApprove,
+                      onTap: (isSaving || !ConnectivityService.instance.isOnline)
+                          ? null
+                          : onApprove,
                       child: Container(
               padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: BoxDecoration(
@@ -1347,7 +1282,9 @@ class _ReviewActions extends StatelessWidget {
         SizedBox(
                   width: double.infinity,
           child: OutlinedButton(
-            onPressed: isSaving ? null : onReject,
+            onPressed: (isSaving || !ConnectivityService.instance.isOnline)
+                ? null
+                : onReject,
             style: OutlinedButton.styleFrom(
               foregroundColor: AppConstants.errorRed,
               side: BorderSide(

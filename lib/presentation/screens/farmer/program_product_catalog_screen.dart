@@ -8,6 +8,9 @@ import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// "₱50.00 / sack" normally — but ProgramProduct.unit can come back empty
 /// if the linked inventory item couldn't be read (e.g. an RLS gap, as
@@ -422,9 +425,11 @@ class _ProgramProductCatalogScreenState
           Column(
             children: [
               const SizedBox(height: 64),
-              if (!_isOnline)
-                const OfflineBanner(
-                    message: "You're offline — purchase requests can't be submitted right now."),
+              CachedDataNotice(
+                screen: 'program_products_${widget.programId}',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlinePurchaseRequests,
+              ),
               TabBar(
                 controller: _tabController,
                 labelColor: AppConstants.primaryGreen,
@@ -437,8 +442,7 @@ class _ProgramProductCatalogScreenState
               ),
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                    ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                     : TabBarView(
                         controller: _tabController,
                         children: [

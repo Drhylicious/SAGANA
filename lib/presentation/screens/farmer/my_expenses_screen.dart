@@ -10,9 +10,12 @@ import '../../../data/repositories/expense_repository.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_toast.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class MyExpensesScreen extends StatefulWidget {
   const MyExpensesScreen({super.key});
@@ -121,14 +124,17 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
       backgroundColor: context.saganaColors.scaffoldBackground,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — new expenses are saved on your device and will sync automatically once you're reconnected."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 64),
+                    CachedDataNotice(
+            screen: 'expenses_${_period.name}',
+            isOnline: _isOnline,
+            offlineMessage: AppLocalizations.of(context).offlineExpensesSave,
+          ),
                     Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -182,7 +188,7 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
                           3,
                           (_) => const Padding(
                             padding: EdgeInsets.only(bottom: 10),
-                            child: _ExpenseShimmer(),
+                            child: SkeletonBlock(height: 72),
                           ),
                         )
                       else if (_expenses.isEmpty)
@@ -931,7 +937,7 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
         // a dialog's own context renders behind the dialog, not in front
         // of it — see app_toast.dart's doc comment.
         if (!result.isSynced) {
-          AppToast.show(context, 'Saved offline — will sync once you\'re back online.');
+          AppToast.show(context, AppLocalizations.of(context).offlineSavedWillSync);
         }
         // Broadcasts to Profile (and any other listening screen) so the
         // "This month's expenses" tile doesn't go stale after adding an
@@ -1255,20 +1261,6 @@ class _EmptyState extends StatelessWidget {
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ExpenseShimmer extends StatelessWidget {
-  const _ExpenseShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 72,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync Badge

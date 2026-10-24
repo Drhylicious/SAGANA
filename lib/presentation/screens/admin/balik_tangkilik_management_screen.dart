@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../data/services/connectivity_service.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,6 +16,8 @@ import '../../widgets/app_dialog.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Balik-Tangkilik Management — Admin.
 /// Pushed above the shell. Route: /admin/balik-tangkilik
@@ -81,39 +84,7 @@ class _BalikTangkilikManagementScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsBalikTangkilikManagement,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.reportsBalikTangkilikManagement, onBack: () => context.pop());
   }
 
   Widget _buildTabBar(
@@ -487,7 +458,7 @@ class _SettingsTabState extends State<_SettingsTab> {
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
-            : AppConstants.successGreen,
+            : AppConstants.midGreen,
       behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -508,7 +479,7 @@ class _SettingsTabState extends State<_SettingsTab> {
     );
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
 
     return ListView(
@@ -1010,7 +981,7 @@ class _DistributionTabState extends State<_DistributionTab> {
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
-            : AppConstants.successGreen,
+            : AppConstants.midGreen,
       behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -1030,7 +1001,7 @@ class _DistributionTabState extends State<_DistributionTab> {
     );
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
 
     return RefreshIndicator(
@@ -1336,7 +1307,7 @@ class _HistoryTabState extends State<_HistoryTab> {
     );
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
 
     return RefreshIndicator(
@@ -1509,42 +1480,10 @@ class _HistoryYearScreenState extends State<_HistoryYearScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.spacingSm,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        l10n.balikTangkilikYearLogTitle(widget.year.year),
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 17,
-                          color: cs.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          SubPageTopBar(title: l10n.balikTangkilikYearLogTitle(widget.year.year), onBack: () => Navigator.of(context).pop()),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
@@ -2050,7 +1989,9 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _isBusy ? null : _reject,
+                    onPressed: (_isBusy || !ConnectivityService.instance.isOnline)
+                        ? null
+                        : _reject,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppConstants.errorRed,
                       side: const BorderSide(color: AppConstants.errorRed),
@@ -2068,7 +2009,9 @@ class _PayoutDecisionStatusState extends State<_PayoutDecisionStatus> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: _isBusy ? null : _confirm,
+                    onPressed: (_isBusy || !ConnectivityService.instance.isOnline)
+                        ? null
+                        : _confirm,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppConstants.primaryGreen,
                       padding: const EdgeInsets.symmetric(vertical: 6),

@@ -14,6 +14,10 @@ import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 
 /// Loan Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/loans
@@ -39,6 +43,7 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
   String? _statusFilter;
   String _searchQuery = '';
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
 
   AllTimeLoanSummary _allTimeSummary = AllTimeLoanSummary.empty();
   List<double> _collectionTrend = [];
@@ -47,6 +52,9 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -118,6 +126,14 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
+          CachedDataNotice(
+            screen: _repo.allLoansCacheScreen(
+              issuedAfter: _period.startDate,
+              issuedBefore: _period.range().endDate,
+            ),
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineLoans,
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -145,7 +161,10 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                   if (_isLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 40),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      ),
                     )
                   else if (_loans.applySearch(_searchQuery).isEmpty)
                     ReportEmptyState(
@@ -172,48 +191,19 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsLoanReport,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.primary),
-                onPressed: () => context.push(
-                  AppRoutes.exportCenter,
-                  extra: ExportCenterArgs(
-                    preselectedModule: ReportModuleType.loan,
-                    period: _period,
-                  ),
-                ),
-                tooltip: l10n.reportsExportCenter,
-              ),
-            ],
+    return SubPageTopBar(
+      title: l10n.reportsLoanReport,
+      onBack: () => context.pop(),
+      trailing: IconButton(
+        icon: Icon(Icons.file_download_outlined, color: cs.primary),
+        onPressed: () => context.push(
+          AppRoutes.exportCenter,
+          extra: ExportCenterArgs(
+            preselectedModule: ReportModuleType.loan,
+            period: _period,
           ),
         ),
+        tooltip: l10n.reportsExportCenter,
       ),
     );
   }
@@ -242,13 +232,13 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     final healthColor = !hasLoanActivity
         ? cs.outline
         : _allTimeSummary.isHealthy
-            ? AppConstants.successGreen
-            : AppConstants.warningAmber;
+        ? AppConstants.successGreen
+        : AppConstants.warningAmber;
     final healthLabel = !hasLoanActivity
         ? l10n.loanHistoryNoActivity
         : _allTimeSummary.isHealthy
-            ? l10n.loanHistoryHealthy
-            : l10n.loanHistoryNeedsAttention;
+        ? l10n.loanHistoryHealthy
+        : l10n.loanHistoryNeedsAttention;
 
     return ReportHeroCard(
       title: l10n.loanHistoryAllTimeSummary,
@@ -517,8 +507,8 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     final statusColor = loan.isPaid
         ? AppConstants.buyerBlue
         : loan.isOverdue
-            ? AppConstants.errorRed
-            : AppConstants.successGreen;
+        ? AppConstants.errorRed
+        : AppConstants.successGreen;
     final statusLabel = loan.isPaid
         ? 'PAID'
         : loan.isOverdue

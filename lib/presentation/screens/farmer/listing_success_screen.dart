@@ -9,6 +9,7 @@ import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 // Carries the batch-level context (Market Type, Batch Number) that
 // MarketplaceListingModel itself doesn't own — those live on
@@ -133,11 +134,11 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     if (_listing == null) return;
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            "You're offline — withdrawing this listing requires an internet connection.",
+            AppLocalizations.of(context).offlineWithdrawListing,
           ),
-          backgroundColor: AppConstants.warningAmber,
+          backgroundColor: AppConstants.snackbarWarning,
         ),
       );
       return;
@@ -182,8 +183,11 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
   @override
   Widget build(BuildContext context) {
     if (_listing == null) {
+      // Normally unreachable: the route redirects when no listing is passed.
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen)),
+        body: Center(
+          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+        ),
       );
     }
 
@@ -195,9 +199,9 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              SizedBox(height: MediaQuery.of(context).padding.top + 24),
               if (!_isOnline)
-                const OfflineBanner(message: "You're offline — withdrawing or other listing actions require an internet connection."),
+                OfflineStatusCard(message: AppLocalizations.of(context).offlineListingActions),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 220),
@@ -243,7 +247,6 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
               ),
             ],
           ),
-          Positioned(top: 0, left: 0, right: 0, child: FarmerTopBar(title: 'Submission Success', profilePhotoUrl: null, hideProfileAvatar: true, onProfileTap: () {}, onNotificationTap: () {}, showNotificationButton: false, onSettingsTap: null,)),
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: FadeTransition(
@@ -349,7 +352,7 @@ class _SummaryCard extends StatelessWidget {
                   color: AppConstants.warningAmber.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
-                child: Text('PENDING REVIEW',
+                child: Text('PENDING APPROVAL',
                     style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: AppConstants.warningAmber, letterSpacing: 0.5)),
               ),
             ],

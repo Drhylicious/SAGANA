@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/farmer_profile_model.dart';
 import '../services/auth_service.dart';
+import '../services/offline_actions.dart';
 import '../services/profile_photo_service.dart';
 import 'expense_repository.dart';
 import 'harvest_repository.dart';
+import '../models/activity_text.dart';
+import '../models/admin_log_message.dart';
 
 class FarmerProfileRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -15,26 +19,39 @@ class FarmerProfileRepository {
 
   Future<FarmerProfileModel?> fetchProfile() async {
     try {
-      final userInfo = await _client
-          .from('user_information')
-          .select()
-          .eq('user_id', _userId)
-          .maybeSingle();
+      final userInfoRows = await OfflineCache.load(
+        screen: 'profile_user_info',
+        fetch: () => _client
+            .from('user_information')
+            .select()
+            .eq('user_id', _userId)
+            .limit(1),
+      );
+      final userInfo = userInfoRows.isEmpty ? null : userInfoRows.first;
 
-      final farmerProfile = await _client
-          .from('farmer_profiles')
-          .select()
-          .eq('user_id', _userId)
-          .maybeSingle();
+      final farmerProfileRows = await OfflineCache.load(
+        screen: 'profile_farmer',
+        fetch: () => _client
+            .from('farmer_profiles')
+            .select()
+            .eq('user_id', _userId)
+            .limit(1),
+      );
+      final farmerProfile = farmerProfileRows.isEmpty
+          ? null
+          : farmerProfileRows.first;
 
       List<String> crops = [];
       try {
-        final cropRows = await _client
-            .from('farmer_crops')
-            .select('crop_name')
-            .eq('farmer_id', _userId)
-            .order('created_at', ascending: false)
-            .limit(6);
+        final cropRows = await OfflineCache.load(
+          screen: 'profile_crops',
+          fetch: () => _client
+              .from('farmer_crops')
+              .select('crop_name')
+              .eq('farmer_id', _userId)
+              .order('created_at', ascending: false)
+              .limit(6),
+        );
         crops = cropRows.map((r) => r['crop_name'] as String).toList();
       } catch (_) {}
 
@@ -49,11 +66,15 @@ class FarmerProfileRepository {
       // Dashboard and My Contribution screen can never disagree.
       double capitalShares = 0;
       try {
-        final sharesRow = await _client
-            .from('member_capital_shares')
-            .select('total_shares, share_value_per_unit')
-            .eq('farmer_id', _userId)
-            .maybeSingle();
+        final sharesRows = await OfflineCache.load(
+          screen: 'profile_capital_shares',
+          fetch: () => _client
+              .from('member_capital_shares')
+              .select('total_shares, share_value_per_unit')
+              .eq('farmer_id', _userId)
+              .limit(1),
+        );
+        final sharesRow = sharesRows.isEmpty ? null : sharesRows.first;
         if (sharesRow != null) {
           final totalShares = (sharesRow['total_shares'] as int? ?? 0);
           final valuePerUnit =
@@ -70,11 +91,15 @@ class FarmerProfileRepository {
       // 'active' default rather than failing the whole profile fetch.
       String accountStatus = 'active';
       try {
-        final roleRow = await _client
-            .from('user_roles')
-            .select('status')
-            .eq('user_id', _userId)
-            .maybeSingle();
+        final roleRows = await OfflineCache.load(
+          screen: 'profile_account_status',
+          fetch: () => _client
+              .from('user_roles')
+              .select('status')
+              .eq('user_id', _userId)
+              .limit(1),
+        );
+        final roleRow = roleRows.isEmpty ? null : roleRows.first;
         if (roleRow != null) {
           accountStatus = roleRow['status'] as String? ?? 'active';
         }
@@ -148,10 +173,10 @@ class FarmerProfileRepository {
     } catch (_) {}
 
     final newPhone = (phoneNumber != null && phoneNumber.trim().isNotEmpty)
-              ? phoneNumber.trim()
+        ? phoneNumber.trim()
         : null;
     final newEmail = (contactEmail != null && contactEmail.trim().isNotEmpty)
-              ? contactEmail.trim()
+        ? contactEmail.trim()
         : null;
     final newDobStr = dateOfBirth?.toIso8601String().split('T').first;
 
@@ -175,7 +200,7 @@ class FarmerProfileRepository {
         changes.add('name');
       }
       if ((beforeUserInfo['phone_number'] as String?) != newPhone) {
-        changes.add('phone number');
+        changes.add('phone');
       }
       if ((beforeUserInfo['contact_email'] as String?) != newEmail) {
         changes.add('email');
@@ -183,7 +208,7 @@ class FarmerProfileRepository {
     }
     if (beforeFarmerProfile != null) {
       if ((beforeFarmerProfile['date_of_birth'] as String?) != newDobStr) {
-        changes.add('date of birth');
+        changes.add('dob');
       }
       if ((beforeFarmerProfile['gender'] as String?) != gender) {
         changes.add('gender');
@@ -193,7 +218,11 @@ class FarmerProfileRepository {
     try {
       await _client.from('farmer_profile_activity').insert({
         'farmer_id': _userId,
-        'description': 'Updated ${changes.join(', ')}',
+        ...activityRowFields(
+          AdminLogMessage('activityProfileUpdated', {
+            'fields': changes.join(','),
+          }),
+        ),
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (_) {}
@@ -201,12 +230,46 @@ class FarmerProfileRepository {
 
   // ─── Update basic info (name, phone) ───────────────────────────────────────
 
-  Future<void> updateBasicInfo({
+  /// Saves now, or keeps the change on this device when offline.
+  Future<SaveOutcome> updateBasicInfo({
     String? fullName,
     String? phoneNumber,
     String? contactEmail,
     DateTime? dateOfBirth, // farmer personal info (Phase B) — 18+ enforced
-    String? gender,        // male | female | prefer_not_to_say
+    String? gender, // male | female | prefer_not_to_say
+    bool clearDateOfBirth = false,
+    bool clearGender = false,
+  }) {
+    return OfflineActions.run(
+      kind: 'farmer_basic_info',
+      payload: {
+        'fullName': fullName,
+        'phoneNumber': phoneNumber,
+        'contactEmail': contactEmail,
+        'dateOfBirth': encodeDate(dateOfBirth),
+        'gender': gender,
+        'clearDateOfBirth': clearDateOfBirth,
+        'clearGender': clearGender,
+      },
+      online: () => updateBasicInfoOnline(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        contactEmail: contactEmail,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        clearDateOfBirth: clearDateOfBirth,
+        clearGender: clearGender,
+      ),
+    );
+  }
+
+  /// The server write behind updateBasicInfo(). Also run by offline replay.
+  Future<void> updateBasicInfoOnline({
+    String? fullName,
+    String? phoneNumber,
+    String? contactEmail,
+    DateTime? dateOfBirth,
+    String? gender,
     bool clearDateOfBirth = false,
     bool clearGender = false,
   }) async {
@@ -252,8 +315,7 @@ class FarmerProfileRepository {
           .maybeSingle();
     } catch (_) {}
 
-    // DOB / gender live on farmer_profiles (farmer personal info — NOT
-    // the SP3 member registry).
+    // DOB / gender live on farmer_profiles (farmer personal info).
     final farmerUpdate = <String, dynamic>{
       if (dateOfBirth != null)
         'date_of_birth': dateOfBirth.toIso8601String().split('T').first,
@@ -272,8 +334,8 @@ class FarmerProfileRepository {
       await _client
           .from('user_information')
           .update({
-        if (fullName != null) 'full_name': fullName,
-        if (phoneNumber != null) 'phone_number': phoneNumber,
+            if (fullName != null) 'full_name': fullName,
+            if (phoneNumber != null) 'phone_number': phoneNumber,
           })
           .eq('user_id', _userId);
     }
@@ -325,7 +387,7 @@ class FarmerProfileRepository {
       }
       if (newPhone != null &&
           (beforeUserInfo['phone_number'] as String?) != newPhone) {
-        changes.add('phone number');
+        changes.add('phone');
       }
       if (newEmail != null &&
           (beforeUserInfo['contact_email'] as String?) != newEmail) {
@@ -337,7 +399,7 @@ class FarmerProfileRepository {
       final newDobStr = newDateOfBirth?.toIso8601String().split('T').first;
       if ((newDateOfBirth != null && beforeDob != newDobStr) ||
           (clearDateOfBirth && beforeDob != null)) {
-        changes.add('date of birth');
+        changes.add('dob');
       }
       final beforeGender = beforeFarmerProfile['gender'] as String?;
       if ((newGender != null && beforeGender != newGender) ||
@@ -349,7 +411,11 @@ class FarmerProfileRepository {
     try {
       await _client.from('farmer_profile_activity').insert({
         'farmer_id': _userId,
-        'description': 'Updated ${changes.join(', ')}',
+        ...activityRowFields(
+          AdminLogMessage('activityProfileUpdated', {
+            'fields': changes.join(','),
+          }),
+        ),
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (_) {}
@@ -377,7 +443,47 @@ class FarmerProfileRepository {
 
   // ─── Update farm details (all fields incl. new ones) ──────────────────────
 
-  Future<void> updateFarmDetails({
+  /// Saves now, or keeps the change on this device when offline.
+  Future<SaveOutcome> updateFarmDetails({
+    String? farmName,
+    String? farmAddress,
+    double? landAreaHectares,
+    int? yearsFarming,
+    double? farmLatitude,
+    double? farmLongitude,
+    String? farmOwnershipType,
+    String? soilType,
+    String? waterSource,
+  }) {
+    return OfflineActions.run(
+      kind: 'farmer_farm_details',
+      payload: {
+        'farmName': farmName,
+        'farmAddress': farmAddress,
+        'landAreaHectares': landAreaHectares,
+        'yearsFarming': yearsFarming,
+        'farmLatitude': farmLatitude,
+        'farmLongitude': farmLongitude,
+        'farmOwnershipType': farmOwnershipType,
+        'soilType': soilType,
+        'waterSource': waterSource,
+      },
+      online: () => updateFarmDetailsOnline(
+        farmName: farmName,
+        farmAddress: farmAddress,
+        landAreaHectares: landAreaHectares,
+        yearsFarming: yearsFarming,
+        farmLatitude: farmLatitude,
+        farmLongitude: farmLongitude,
+        farmOwnershipType: farmOwnershipType,
+        soilType: soilType,
+        waterSource: waterSource,
+      ),
+    );
+  }
+
+  /// The server write behind updateFarmDetails(). Also run by offline replay.
+  Future<void> updateFarmDetailsOnline({
     String? farmName,
     String? farmAddress,
     double? landAreaHectares,
@@ -400,7 +506,7 @@ class FarmerProfileRepository {
       before = await _client
           .from('farmer_profiles')
           .select(
-              'farm_name, farm_address, land_area_hectares, years_farming, '
+            'farm_name, farm_address, land_area_hectares, years_farming, '
             'farm_latitude, farm_longitude, farm_ownership_type, soil_type, water_source',
           )
           .eq('user_id', _userId)
@@ -421,36 +527,36 @@ class FarmerProfileRepository {
     await _client
         .from('farmer_profiles')
         .update({
-      if (farmName != null) 'farm_name': farmName,
-      if (farmAddress != null) 'farm_address': farmAddress,
-      if (landAreaHectares != null) 'land_area_hectares': landAreaHectares,
-      if (yearsFarming != null) 'years_farming': yearsFarming,
-      if (farmLatitude != null) 'farm_latitude': farmLatitude,
-      if (farmLongitude != null) 'farm_longitude': farmLongitude,
+          if (farmName != null) 'farm_name': farmName,
+          if (farmAddress != null) 'farm_address': farmAddress,
+          if (landAreaHectares != null) 'land_area_hectares': landAreaHectares,
+          if (yearsFarming != null) 'years_farming': yearsFarming,
+          if (farmLatitude != null) 'farm_latitude': farmLatitude,
+          if (farmLongitude != null) 'farm_longitude': farmLongitude,
           if (farmOwnershipType != null)
             'farm_ownership_type': farmOwnershipType,
-      if (soilType != null) 'soil_type': soilType,
-      if (waterSource != null) 'water_source': waterSource,
+          if (soilType != null) 'soil_type': soilType,
+          if (waterSource != null) 'water_source': waterSource,
         })
         .eq('user_id', _userId);
 
     final changes = <String>[];
     if (before != null) {
       if (farmName != null && (before['farm_name'] as String?) != farmName) {
-        changes.add('farm name');
+        changes.add('farmName');
       }
       if (farmAddress != null &&
           (before['farm_address'] as String?) != farmAddress) {
-        changes.add('farm address');
+        changes.add('farmAddress');
       }
       if (landAreaHectares != null &&
           (before['land_area_hectares'] as num?)?.toDouble() !=
               landAreaHectares) {
-        changes.add('land area');
+        changes.add('landArea');
       }
       if (yearsFarming != null &&
           (before['years_farming'] as num?)?.toInt() != yearsFarming) {
-        changes.add('years farming');
+        changes.add('years');
       }
       final latChanged =
           farmLatitude != null &&
@@ -459,18 +565,18 @@ class FarmerProfileRepository {
           farmLongitude != null &&
           (before['farm_longitude'] as num?)?.toDouble() != farmLongitude;
       if (latChanged || lngChanged) {
-        changes.add('farm location');
+        changes.add('farmLocation');
       }
       if (farmOwnershipType != null &&
           (before['farm_ownership_type'] as String?) != farmOwnershipType) {
-        changes.add('ownership type');
+        changes.add('ownership');
       }
       if (soilType != null && (before['soil_type'] as String?) != soilType) {
-        changes.add('soil type');
+        changes.add('soil');
       }
       if (waterSource != null &&
           (before['water_source'] as String?) != waterSource) {
-        changes.add('water source');
+        changes.add('water');
       }
     } else if (hasAnyFieldToUpdate) {
       // The before-snapshot couldn't be read (a transient failure, or no
@@ -479,13 +585,17 @@ class FarmerProfileRepository {
       // generic label rather than silently logging nothing, which
       // previously let a real, successful save disappear from Recent
       // Activity with no trace (the bug behind a live-testing report).
-      changes.add('farm details');
+      changes.add('farmDetails');
     }
     if (changes.isEmpty) return;
     try {
       await _client.from('farmer_profile_activity').insert({
         'farmer_id': _userId,
-        'description': 'Updated ${changes.join(', ')}',
+        ...activityRowFields(
+          AdminLogMessage('activityProfileUpdated', {
+            'fields': changes.join(','),
+          }),
+        ),
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (_) {}
@@ -585,17 +695,20 @@ class FarmerProfileRepository {
 
   Future<List<MyProgramEntry>> fetchMyPrograms() async {
     try {
-      final rows = await _client
-          .from('program_members')
-          .select(
-            'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
+      final rows = await OfflineCache.load(
+        screen: 'my_programs',
+        fetch: () => _client
+            .from('program_members')
+            .select(
+              'id, program_id, status, enrolled_at, quantity_given, distributed_at, '
               'amount_returned, settled_at, distributed_item_name, '
-            'distribution_outcome, outcome_recorded_at, converted_loan_id, '
-            'cooperative_programs(program_name, program_type, description, benefit_type, program_purpose, status, expected_return_percent, distribution_category, image_url), '
-            'cooperative_inventory(item_name, unit, image_url)',
-          )
-          .eq('farmer_id', _userId)
-          .order('enrolled_at', ascending: false);
+              'distribution_outcome, outcome_recorded_at, converted_loan_id, '
+              'cooperative_programs(program_name, program_type, description, benefit_type, program_purpose, status, expected_return_percent, distribution_category, image_url), '
+              'cooperative_inventory(item_name, unit, image_url)',
+            )
+            .eq('farmer_id', _userId)
+            .order('enrolled_at', ascending: false),
+      );
       return rows.map((r) => MyProgramEntry.fromMap(r)).toList();
     } catch (_) {
       return [];
@@ -621,34 +734,58 @@ class FarmerProfileRepository {
   // says exists specifically so this logic isn't duplicated per-role.
   // This method still owns the Farmer-specific part: writing the
   // resulting URL to user_information.
-  Future<String?> updatePhoto({
+  /// Uploads now, or keeps the photo on this device when offline. A queued
+  /// photo has no URL until it syncs.
+  Future<PhotoSaveResult> updatePhoto({
+    required Uint8List imageBytes,
+    required String fileExtension,
+  }) async {
+    String? url;
+    try {
+      final outcome = await OfflineActions.run(
+        kind: 'farmer_photo',
+        payload: {'imageBytes': imageBytes, 'fileExtension': fileExtension},
+        online: () async {
+          url = await updatePhotoOnline(
+            imageBytes: imageBytes,
+            fileExtension: fileExtension,
+          );
+        },
+      );
+      return PhotoSaveResult(outcome: outcome, url: url);
+    } catch (_) {
+      return const PhotoSaveResult.failed();
+    }
+  }
+
+  /// Uploads the photo and writes its URL. Throws on failure, so a queued
+  /// photo that is rejected keeps its reason. Also run by offline replay.
+  Future<String> updatePhotoOnline({
     required Uint8List imageBytes,
     required String fileExtension,
   }) async {
     await AuthService.requireActiveMembership();
+    final url = await uploadProfilePhoto(
+      client: _client,
+      userId: _userId,
+      imageBytes: imageBytes,
+      fileExtension: fileExtension,
+    );
+    if (url == null) throw Exception('Photo upload failed.');
+    await _client
+        .from('user_information')
+        .update({'profile_photo_url': url})
+        .eq('user_id', _userId);
     try {
-      final url = await uploadProfilePhoto(
-        client: _client,
-        userId: _userId,
-        imageBytes: imageBytes,
-        fileExtension: fileExtension,
-      );
-      if (url == null) return null;
-      await _client
-          .from('user_information')
-          .update({'profile_photo_url': url})
-          .eq('user_id', _userId);
-      try {
-        await _client.from('farmer_profile_activity').insert({
-          'farmer_id': _userId,
-          'description': 'Updated profile photo',
-          'created_at': DateTime.now().toIso8601String(),
-        });
-      } catch (_) {}
-      return url;
-    } catch (_) {
-      return null;
-    }
+      await _client.from('farmer_profile_activity').insert({
+        'farmer_id': _userId,
+        ...activityRowFields(
+          const AdminLogMessage('activityProfilePhotoUpdated'),
+        ),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+    return url;
   }
 
   // ─── Log password change ────────────────────────────────────────────────
@@ -660,7 +797,7 @@ class FarmerProfileRepository {
     try {
       await _client.from('farmer_profile_activity').insert({
         'farmer_id': _userId,
-        'description': 'Changed password',
+        ...activityRowFields(const AdminLogMessage('activityPasswordChanged')),
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (_) {}

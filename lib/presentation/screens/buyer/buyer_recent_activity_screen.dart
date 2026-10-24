@@ -7,15 +7,19 @@ import '../../../data/models/buyer_activity_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../widgets/buyer_activity_card.dart';
+import '../../widgets/recent_activity_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
 
 /// Buyer's Recent Activity — a peer to Edit Profile/Notifications/Settings
 /// off the Profile tab, matching where farmerRecentActivity and
 /// adminActivityLog sit (both top-level routes, not nested under
 /// Settings). Two source categories (order lifecycle events and profile/
 /// address/security changes), presented as a single search-only feed
-/// (no filter chips) grouped by date — layout/cards shared with
-/// BuyerAccountScreen's inline preview via buyer_activity_card.dart, so
-/// the two surfaces can't drift apart.
+/// (no filter chips) grouped by date. Search, date groups, cards and the
+/// empty state are the shared Recent Activity widgets used by every role.
 class BuyerRecentActivityScreen extends StatefulWidget {
   const BuyerRecentActivityScreen({super.key});
 
@@ -30,6 +34,7 @@ class _BuyerRecentActivityScreenState extends State<BuyerRecentActivityScreen> {
   final _searchCtrl = TextEditingController();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   List<BuyerActivityItem> _allItems = [];
   String _searchQuery = '';
 
@@ -45,6 +50,9 @@ class _BuyerRecentActivityScreenState extends State<BuyerRecentActivityScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text),
@@ -102,168 +110,116 @@ class _BuyerRecentActivityScreenState extends State<BuyerRecentActivityScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: const BackButton(color: AppConstants.primaryGreen),
-        title: Text(
-          l10n.buyerActivityTitle,
-          style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
+      body: Column(
+        children: [
+          SubPageTopBar(
+            title: l10n.buyerActivityTitle,
+            onBack: () => Navigator.of(context).pop(),
           ),
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppConstants.spacingSafeH,
-                  4,
-                  AppConstants.spacingSafeH,
-                  8,
-                ),
-                child: TextField(
-                  controller: _searchCtrl,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppConstants.onSurface,
+          CachedDataNotice(
+            screen: 'buyer_profile_activity_3',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        12,
+                        AppConstants.spacingSafeH,
+                        8,
+                      ),
+                      child: RecentActivitySearchBar(
+                        controller: _searchCtrl,
+                        hint: l10n.buyerActivitySearchHint,
+                      ),
+                    ),
                   ),
-                  decoration: InputDecoration(
-                    hintText: l10n.buyerActivitySearchHint,
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            onPressed: _searchCtrl.clear,
-                          )
-                        : null,
-                  ),
-                ),
-              ),
-            ),
-            if (_isLoading)
-              const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
-                  ),
-                ),
-              )
-            else if (filtered.isEmpty)
-              SliverFillRemaining(
-                child: _EmptyState(hasSearch: _searchQuery.isNotEmpty),
-              )
-            else ...[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppConstants.spacingSafeH,
-                  4,
-                  AppConstants.spacingSafeH,
-                  4,
-                ),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final label = dateKeys[index];
-                    final group = grouped[label]!;
-                    return BuyerActivityDateGroup(label: label, items: group);
-                  }, childCount: dateKeys.length),
-                ),
-              ),
-              if (hasMore)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _visibleCount += _pageSize),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: sagana.cardBackground,
-                            borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull,
-                            ),
-                            border: Border.all(
-                              color: AppConstants.outline.withValues(
-                                alpha: 0.20,
+                  if (_isLoading)
+                    const SliverFillRemaining(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      ),
+                    )
+                  else if (filtered.isEmpty)
+                    SliverFillRemaining(
+                      child: RecentActivityEmptyState(
+                        hasSearch: _searchQuery.isNotEmpty,
+                        emptyTitle: l10n.buyerActivityAllEmptyTitle,
+                        emptyHint: l10n.buyerActivityAllEmptyBody,
+                        noMatchTitle: l10n.buyerActivityNoMatchTitle,
+                        noMatchHint: l10n.buyerActivityNoMatchBody,
+                      ),
+                    )
+                  else ...[
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        4,
+                        AppConstants.spacingSafeH,
+                        4,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final label = dateKeys[index];
+                          final group = grouped[label]!;
+                          return BuyerActivityDateGroup(
+                            label: label,
+                            items: group,
+                          );
+                        }, childCount: dateKeys.length),
+                      ),
+                    ),
+                    if (hasMore)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _visibleCount += _pageSize),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: sagana.cardBackground,
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusFull,
+                                  ),
+                                  border: Border.all(
+                                    color: AppConstants.outline.withValues(
+                                      alpha: 0.20,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  l10n.loadMore,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppConstants.primaryGreen,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          child: Text(
-                            l10n.loadMore,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppConstants.primaryGreen,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Empty State
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  final bool hasSearch;
-  const _EmptyState({required this.hasSearch});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              hasSearch ? Icons.search_off_rounded : Icons.history_rounded,
-              size: 56,
-              color: AppConstants.outline.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              hasSearch
-                  ? l10n.buyerActivityNoMatchTitle
-                  : l10n.buyerActivityAllEmptyTitle,
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              hasSearch
-                  ? l10n.buyerActivityNoMatchBody
-                  : l10n.buyerActivityAllEmptyBody,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

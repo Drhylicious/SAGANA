@@ -5,6 +5,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../data/models/admin_reports_model.dart' show ReportPeriod;
+import 'skeleton.dart';
 
 /// Localized label for a [ReportPeriod] filter chip — kept here rather
 /// than on the model (which has no BuildContext) so every report screen
@@ -335,7 +336,7 @@ class ReportHeroCard extends StatelessWidget {
           if (isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
+              child: SkeletonBlock(height: 160),
             )
           else
             GridView.count(

@@ -12,9 +12,6 @@ class AppConstants {
   static const String cooperativeLocation =
       'Barangay Payanas, Torrijos, Marinduque';
 
-  // ─── Assets ─────────────────────────────────────────────────────────────────
-  static const String logoPath = 'assets/images/sagana_logo.png';
-
   // ─── Brand Colors ────────────────────────────────────────────────────────────
   static const Color primaryGreen = Color(0xFF00450D);
   static const Color midGreen = Color(0xFF2E7D32);
@@ -36,6 +33,9 @@ class AppConstants {
   static const Color successGreen = Color(0xFF43A047);
   static const Color warningAmber = Color(0xFFFFB300);
   static const Color errorRed = Color(0xFFD32F2F);
+  // SnackBar fill for warnings. warningAmber is too light to carry white text
+  // (1.8:1); this deeper amber keeps the warning look at 4.7:1.
+  static const Color snackbarWarning = Color(0xFFB45F06);
   static const Color infoBlueBg = Color(0xFFDBF1FE);
   static const Color infoBlueFg = Color(0xFF455A64);
   static const Color buyerBlue = Color(0xFF1E88E5);
@@ -107,7 +107,7 @@ class AppConstants {
   static const Duration splashTextDelay = Duration(milliseconds: 600);
   static const Duration splashTextDuration = Duration(milliseconds: 600);
   static const Duration splashBarDuration = Duration(milliseconds: 1200);
-  static const Duration splashNavDelay = Duration(milliseconds: 2200);
+  static const Duration splashNavDelay = Duration(milliseconds: 1000);
 
   // Address label chip options (My Addresses). Adding or renaming a label
   // means editing this one list, not the Add/Edit Address screen's widget tree.
@@ -116,14 +116,6 @@ class AppConstants {
     'Work',
     'Farm',
     'Other',
-  ];
-
-  static const List<String> loanItemUnits = [
-    'bag',
-    'kg',
-    'sack',
-    'piece',
-    'liter',
   ];
 
   // ─── Harvest Storage Locations ──────────────────────────────────────────────
@@ -137,12 +129,25 @@ class AppConstants {
   static const String roleFarmer = 'farmer';
   static const String roleBuyer = 'buyer';
 
+  // ─── Selling Channels ────────────────────────────────────────────────────────
+  // SAGANA has exactly four selling channels (database table selling_channels):
+  // marketplace, offer_to_cooperative, informal_sale and da_amad_market_linking.
+  // Only DA-AMAD Market Linking is addressed by code: its Ginger-only workflow
+  // has its own screens. The other three are reached through their own screens
+  // and tables. Market TYPES are different: they are data (table market_types,
+  // read through MarketTypes) and are never compared to a literal in a screen.
+  static const String channelDaAmad = 'da_amad_market_linking';
+
   // ─── Hive Box Names ──────────────────────────────────────────────────────────
   static const String hiveBoxUser = 'user_box';
   static const String hiveBoxPrices = 'prices_box';
   static const String hiveBoxSettings = 'settings_box';
   static const String hiveBoxLoanQueue =
       'loan_queue_box'; // NEW — offline loan issuance queue
+  static const String hiveBoxOfflineCache =
+      'offline_cache_box'; // Phase 10 — last-loaded lists, for viewing offline; cleared on logout
+  static const String hiveBoxOfflineActions =
+      'offline_actions_box'; // Phase 9 — queued profile, address, photo, notification and capital writes
   static const String hiveBoxExportHistory =
       'export_history_box'; // NEW — Export Center's Recent Exports
   static const String hiveBoxHarvestQueue =
@@ -158,7 +163,6 @@ class AppConstants {
   static const String hiveKeyUserEmail = 'user_email';
   static const String hiveKeyUserName = 'user_name';
   static const String hiveKeyIsLoggedIn = 'is_logged_in';
-  static const String hiveKeyBackgroundSync = 'background_sync';
   static const String hiveKeyThemeMode = 'theme_mode';
   static const String hiveKeyLocale = 'locale';
 

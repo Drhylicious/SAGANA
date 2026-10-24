@@ -1,10 +1,15 @@
+import 'dart:math' show Random;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/connectivity_service.dart';
+import '../services/server_only.dart';
 import '../services/hive_service.dart';
 import '../../core/utils/bod_schedule_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/loan_model.dart';
 import 'admin_activity_repository.dart';
 import 'farmer_lookup.dart';
+import '../models/admin_log_message.dart';
 
 /// Repository for all admin-side loan operations.
 ///
@@ -183,41 +188,71 @@ class AdminLoanRepository {
     required int? limit,
   }) async {
     try {
-      var query = _client
-          .from('farmer_loans')
-          .select(
-            '*, farmer_loan_items(item_name), cooperative_programs(program_name)',
-          )
-          .inFilter('status', statuses)
-          .order('next_payment_date', ascending: true);
+      final enriched = await OfflineCache.load(
+        screen: 'loans_${statuses.join('_')}_${limit ?? 'all'}',
+        fetch: () async {
+          var query = _client
+              .from('farmer_loans')
+              .select(
+                '*, farmer_loan_items(item_name), cooperative_programs(program_name)',
+              )
+              .inFilter('status', statuses)
+              .order('next_payment_date', ascending: true);
 
-      final rows = limit != null ? await query.limit(limit) : await query;
+          final rows = limit != null ? await query.limit(limit) : await query;
 
-      if (rows.isEmpty) return [];
+          if (rows.isEmpty) return <Map<String, dynamic>>[];
 
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+          final farmerIds = rows
+              .map((r) => r['farmer_id'] as String)
+              .toSet()
+              .toList();
+          final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
-      return rows.map<AdminLoanSummary>((row) {
-        final info = farmerInfo[row['farmer_id']];
-        final items = ((row['farmer_loan_items'] as List?) ?? [])
-            .map((i) => i['item_name'] as String)
-            .toList();
-        return AdminLoanSummary.fromRow(
-          row,
-          farmerName: info?.fullName ?? 'Unknown Farmer',
-          itemNames: items,
-        );
-      }).toList();
+          return rows.map<Map<String, dynamic>>((row) {
+            final info = farmerInfo[row['farmer_id']];
+            final items = ((row['farmer_loan_items'] as List?) ?? [])
+                .map((i) => i['item_name'] as String)
+                .toList();
+            return {
+              ...row,
+              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_item_names': items,
+            };
+          }).toList();
+        },
+      );
+      return _summariesFromCachedRows(enriched);
     } catch (_) {
       return [];
     }
   }
 
+  // Rebuilds AdminLoanSummary from rows cached with the farmer name and item
+  // names merged in (see _fetchLoansByStatus / fetchAllLoans).
+  List<AdminLoanSummary> _summariesFromCachedRows(
+    List<Map<String, dynamic>> enriched,
+  ) {
+    return enriched
+        .map(
+          (row) => AdminLoanSummary.fromRow(
+            row,
+            farmerName: row['_farmer_name'] as String,
+            itemNames: (row['_item_names'] as List).cast<String>(),
+          ),
+        )
+        .toList();
+  }
+
   // ─── Loan History (all-loans registry) ─────────────────────────────────
+
+  /// OfflineCache key for the all-loans list with these date bounds (matches the key
+  /// written by fetchAllLoans with no status filter), for the loan report notice.
+  String allLoansCacheScreen({DateTime? issuedAfter, DateTime? issuedBefore}) {
+    final after = issuedAfter == null ? 'any' : _dateOnly(issuedAfter);
+    final before = issuedBefore == null ? 'any' : _dateOnly(issuedBefore);
+    return 'loans_all_any_${after}_$before';
+  }
 
   /// Fetches loans matching the given server-side filters. Farmer-name
   /// search is applied client-side afterward via AdminLoanListFilter,
@@ -229,42 +264,50 @@ class AdminLoanRepository {
     DateTime? issuedBefore,
   }) async {
     try {
-      var query = _client
-          .from('farmer_loans')
-          .select(
-            '*, farmer_loan_items(item_name), cooperative_programs(program_name)',
-          );
-      if (statusFilter != null) {
-        query = query.eq('status', statusFilter);
-      }
-      if (issuedAfter != null) {
-        query = query.gte('issued_date', _dateOnly(issuedAfter));
-      }
-      if (issuedBefore != null) {
-        query = query.lte('issued_date', _dateOnly(issuedBefore));
-      }
+      final after = issuedAfter == null ? 'any' : _dateOnly(issuedAfter);
+      final before = issuedBefore == null ? 'any' : _dateOnly(issuedBefore);
+      final enriched = await OfflineCache.load(
+        screen: 'loans_all_${statusFilter ?? 'any'}_${after}_$before',
+        fetch: () async {
+          var query = _client
+              .from('farmer_loans')
+              .select(
+                '*, farmer_loan_items(item_name), cooperative_programs(program_name)',
+              );
+          if (statusFilter != null) {
+            query = query.eq('status', statusFilter);
+          }
+          if (issuedAfter != null) {
+            query = query.gte('issued_date', _dateOnly(issuedAfter));
+          }
+          if (issuedBefore != null) {
+            query = query.lte('issued_date', _dateOnly(issuedBefore));
+          }
 
-      final rows = await query.order('issued_date', ascending: false);
+          final rows = await query.order('issued_date', ascending: false);
 
-      if (rows.isEmpty) return [];
+          if (rows.isEmpty) return <Map<String, dynamic>>[];
 
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-      final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+          final farmerIds = rows
+              .map((r) => r['farmer_id'] as String)
+              .toSet()
+              .toList();
+          final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
-      return rows.map<AdminLoanSummary>((row) {
-        final info = farmerInfo[row['farmer_id']];
-        final items = ((row['farmer_loan_items'] as List?) ?? [])
-            .map((i) => i['item_name'] as String)
-            .toList();
-        return AdminLoanSummary.fromRow(
-          row,
-          farmerName: info?.fullName ?? 'Unknown Farmer',
-          itemNames: items,
-        );
-      }).toList();
+          return rows.map<Map<String, dynamic>>((row) {
+            final info = farmerInfo[row['farmer_id']];
+            final items = ((row['farmer_loan_items'] as List?) ?? [])
+                .map((i) => i['item_name'] as String)
+                .toList();
+            return {
+              ...row,
+              '_farmer_name': info?.fullName ?? 'Unknown Farmer',
+              '_item_names': items,
+            };
+          }).toList();
+        },
+      );
+      return _summariesFromCachedRows(enriched);
     } catch (_) {
       return [];
     }
@@ -275,9 +318,12 @@ class AdminLoanRepository {
   /// outstanding (active + overdue) loans flips it to "Needs Attention".
   Future<AllTimeLoanSummary> fetchAllTimeLoanSummary() async {
     try {
-      final rows = await _client
-          .from('farmer_loans')
-          .select('status, total_value, amount_paid');
+      final rows = await OfflineCache.load(
+        screen: 'loan_all_time_summary',
+        fetch: () => _client
+            .from('farmer_loans')
+            .select('status, total_value, amount_paid'),
+      );
 
       double totalIssued = 0;
       double totalCollected = 0;
@@ -340,10 +386,13 @@ class AdminLoanRepository {
     try {
       final now = DateTime.now();
       final cutoff = DateTime(now.year, now.month - (months - 1), 1);
-      final rows = await _client
-          .from('farmer_loan_payments')
-          .select('amount_paid, payment_date')
-          .gte('payment_date', _dateOnly(cutoff));
+      final rows = await OfflineCache.load(
+        screen: 'loan_collection_trend_$months',
+        fetch: () => _client
+            .from('farmer_loan_payments')
+            .select('amount_paid, payment_date')
+            .gte('payment_date', _dateOnly(cutoff)),
+      );
       if (rows.isEmpty) return [];
 
       final buckets = <String, double>{};
@@ -471,10 +520,12 @@ class AdminLoanRepository {
     String farmerId,
   ) async {
     try {
-      final rows = await _client.rpc(
-        'loan_capital_eligibility',
-        params: {'p_farmer_id': farmerId},
-      ) as List<dynamic>;
+      final rows =
+          await _client.rpc(
+                'loan_capital_eligibility',
+                params: {'p_farmer_id': farmerId},
+              )
+              as List<dynamic>;
       if (rows.isEmpty) return (meets: true, minimum: 0.0);
       final row = rows.first as Map<String, dynamic>;
       return (
@@ -565,7 +616,7 @@ class AdminLoanRepository {
           .from('loan_items_master')
           .select(
             'id, unit_price, '
-            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)',
+            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url, source)',
           )
           .eq('is_loan_eligible', true)
           .eq('cooperative_inventory.is_active', true);
@@ -585,7 +636,7 @@ class AdminLoanRepository {
           .from('loan_items_master')
           .select(
             'id, unit_price, is_loan_eligible, notes, '
-            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url)',
+            'cooperative_inventory!inner(id, item_name, category, unit, quantity_on_hand, image_url, source)',
           )
           .eq('cooperative_inventory.is_active', true);
       return rows.map((r) => LoanCatalogItem.fromMap(r)).toList();
@@ -604,16 +655,17 @@ class AdminLoanRepository {
       await _client
           .from('loan_items_master')
           .update({
-        'unit_price': unitPrice,
-        'is_loan_eligible': isLoanEligible,
-        'notes': notes,
+            'unit_price': unitPrice,
+            'is_loan_eligible': isLoanEligible,
+            'notes': notes,
           })
           .eq('id', loanItemId);
       AdminActivityRepository().log(
         module: 'loans',
         actionType: 'updated',
-        description:
-            'Updated a loan catalog item (₱${unitPrice.toStringAsFixed(2)}).',
+        message: AdminLogMessage('adminLogLoanItemUpdated', {
+          'price': unitPrice.toStringAsFixed(2),
+        }),
         referenceId: loanItemId,
       );
       return true;
@@ -653,29 +705,30 @@ class AdminLoanRepository {
     String? notes,
     String? idempotencyKey,
   }) async {
+    await ServerOnly.ensureOnline();
     final rows =
         await _client.rpc(
               'issue_loan',
               params: {
-      'p_farmer_id': farmerId,
-      'p_items': items
+                'p_farmer_id': farmerId,
+                'p_items': items
                     .map(
                       (i) => {
-                'itemName': i['itemName'],
-                'inventoryItemId': i['inventoryItemId'],
-                'quantity': i['quantity'],
-                'unit': i['unit'],
-                'unitPrice': i['unitPrice'],
-                'lineTotal': i['lineTotal'],
+                        'itemName': i['itemName'],
+                        'inventoryItemId': i['inventoryItemId'],
+                        'quantity': i['quantity'],
+                        'unit': i['unit'],
+                        'unitPrice': i['unitPrice'],
+                        'lineTotal': i['lineTotal'],
                       },
                     )
-          .toList(),
-      'p_issued_date': _dateOnly(issuedDate),
-      'p_monthly_payment': monthlyPayment,
-      'p_next_payment_date': _dateOnly(nextPaymentDate),
-      'p_notes': notes,
-      'p_recorded_by': _client.auth.currentUser?.id,
-      'p_idempotency_key': idempotencyKey,
+                    .toList(),
+                'p_issued_date': _dateOnly(issuedDate),
+                'p_monthly_payment': monthlyPayment,
+                'p_next_payment_date': _dateOnly(nextPaymentDate),
+                'p_notes': notes,
+                'p_recorded_by': _client.auth.currentUser?.id,
+                'p_idempotency_key': idempotencyKey,
               },
             )
             as List;
@@ -684,8 +737,9 @@ class AdminLoanRepository {
     AdminActivityRepository().log(
       module: 'loans',
       actionType: 'issued',
-      description:
-          'Issued a loan (₱${monthlyPayment.toStringAsFixed(2)}/month).',
+      message: AdminLogMessage('adminLogLoanIssued', {
+        'monthly': monthlyPayment.toStringAsFixed(2),
+      }),
       referenceId: row['loan_id'] as String,
     );
     return IssuedLoanResult(
@@ -723,21 +777,37 @@ class AdminLoanRepository {
     String? notes,
     String? idempotencyKey,
   }) async {
+    // Offline (Batch 6): the payment is kept on this device with its own
+    // idempotency key and sent by Sync, which re-checks the balance on the
+    // server. A replay from Sync always carries the key, so it goes straight
+    // to the server and is never queued again.
+    if (idempotencyKey == null && !ConnectivityService.instance.isOnline) {
+      await HiveService.savePendingLoanPayment({
+        'loanId': loanId,
+        'amount': amount,
+        'paymentDate': paymentDate.toIso8601String(),
+        'notes': notes,
+        'idempotencyKey': _newIdempotencyKey(),
+      });
+      return const LoanPaymentResult.savedOnDevice();
+    }
+
+    await ServerOnly.ensureOnline();
     final candidateNextPaymentDate = BodSchedule.after(paymentDate);
 
     final rows =
         await _client.rpc(
               'record_loan_payment',
               params: {
-      'p_loan_id': loanId,
-      'p_amount': amount,
-      'p_payment_date': _dateOnly(paymentDate),
+                'p_loan_id': loanId,
+                'p_amount': amount,
+                'p_payment_date': _dateOnly(paymentDate),
                 'p_next_payment_date_if_active': _dateOnly(
                   candidateNextPaymentDate,
                 ),
-      'p_notes': notes,
-      'p_recorded_by': _client.auth.currentUser?.id,
-      'p_idempotency_key': idempotencyKey,
+                'p_notes': notes,
+                'p_recorded_by': _client.auth.currentUser?.id,
+                'p_idempotency_key': idempotencyKey,
               },
             )
             as List;
@@ -746,7 +816,9 @@ class AdminLoanRepository {
     AdminActivityRepository().log(
       module: 'loans',
       actionType: 'payment_recorded',
-      description: 'Recorded a loan payment (₱${amount.toStringAsFixed(2)}).',
+      message: AdminLogMessage('adminLogLoanPaymentRecorded', {
+        'amount': amount.toStringAsFixed(2),
+      }),
       referenceId: loanId,
     );
     return LoanPaymentResult(
@@ -756,6 +828,19 @@ class AdminLoanRepository {
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;
+
+  /// Random UUID-style key for one queued payment. A timestamp is not used
+  /// because two payments saved in the same millisecond would share a key,
+  /// and the server would then treat the second as a duplicate.
+  String _newIdempotencyKey() {
+    final r = Random.secure();
+    final b = List<int>.generate(16, (_) => r.nextInt(256));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+    return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}'
+        '-${h.substring(16, 20)}-${h.substring(20)}';
+  }
 
   // ─── Loan Details ───────────────────────────────────────────────────────
 
@@ -806,7 +891,7 @@ class AdminLoanRepository {
           .inFilter('user_id', adminIds);
       return {
         for (final r in rows)
-          r['user_id'] as String: r['full_name'] as String? ?? 'Admin',
+          r['user_id'] as String: r['full_name'] as String? ?? 'Manager',
       };
     } catch (_) {
       return {};
@@ -849,7 +934,7 @@ class AdminLoanRepository {
     AdminActivityRepository().log(
       module: 'loans',
       actionType: 'marked_paid',
-      description: 'Manually marked a loan as paid.',
+      message: const AdminLogMessage('adminLogLoanMarkedPaid'),
       referenceId: loanId,
     );
   }

@@ -1,8 +1,13 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_profile_model.dart';
 import '../models/buyer_activity_model.dart';
 import 'admin_activity_repository.dart';
+import '../services/offline_actions.dart';
+import '../models/admin_log_message.dart';
+import '../models/activity_text.dart';
 
 class BuyerProfileRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -10,21 +15,29 @@ class BuyerProfileRepository {
 
   Future<BuyerProfileModel?> fetchProfile() async {
     try {
-      final info = await _client
-          .from('user_information')
-          .select('full_name, phone_number, profile_photo_url, contact_email')
-          .eq('user_id', _userId)
-          .maybeSingle();
+      final infoRows = await OfflineCache.load(
+        screen: 'buyer_profile_info',
+        fetch: () => _client
+            .from('user_information')
+            .select('full_name, phone_number, profile_photo_url, contact_email')
+            .eq('user_id', _userId)
+            .limit(1),
+      );
+      final info = infoRows.isEmpty ? null : infoRows.first;
 
       DateTime memberSince = DateTime.now();
       DateTime? dateOfBirth;
       String? gender;
       try {
-        final buyerRow = await _client
-            .from('buyer_profiles')
-            .select('created_at, date_of_birth, gender')
-            .eq('user_id', _userId)
-            .maybeSingle();
+        final buyerRows = await OfflineCache.load(
+          screen: 'buyer_profile_row',
+          fetch: () => _client
+              .from('buyer_profiles')
+              .select('created_at, date_of_birth, gender')
+              .eq('user_id', _userId)
+              .limit(1),
+        );
+        final buyerRow = buyerRows.isEmpty ? null : buyerRows.first;
         if (buyerRow?['created_at'] != null) {
           memberSince = DateTime.parse(buyerRow!['created_at'] as String);
         }
@@ -49,17 +62,21 @@ class BuyerProfileRepository {
       int totalOrders = 0, completedOrders = 0;
       double totalSpent = 0;
       try {
-        final allOrderIds = await _client
-            .from('orders')
-            .select('id')
-            .eq('buyer_id', _userId);
+        final allOrderIds = await OfflineCache.load(
+          screen: 'buyer_profile_orders_all',
+          fetch: () =>
+              _client.from('orders').select('id').eq('buyer_id', _userId),
+        );
         totalOrders = allOrderIds.length;
 
-        final completed = await _client
-            .from('orders')
-            .select('total_price')
-            .eq('buyer_id', _userId)
-            .eq('status', 'completed');
+        final completed = await OfflineCache.load(
+          screen: 'buyer_profile_orders_completed',
+          fetch: () => _client
+              .from('orders')
+              .select('total_price')
+              .eq('buyer_id', _userId)
+              .eq('status', 'completed'),
+        );
         completedOrders = completed.length;
         for (final o in completed) {
           totalSpent += (o['total_price'] as num).toDouble();
@@ -94,7 +111,39 @@ class BuyerProfileRepository {
   // Write method — lets errors propagate rather than swallowing, since a
   // failed save needs to surface to the user, not silently no-op.
 
-  Future<void> updateProfile({
+  /// Saves now, or keeps the change on this device when offline.
+  Future<SaveOutcome> updateProfile({
+    required String fullName,
+    String? phoneNumber,
+    String? photoUrl,
+    String? contactEmail,
+    DateTime? dateOfBirth,
+    String? gender,
+  }) {
+    return OfflineActions.run(
+      kind: 'buyer_profile',
+      payload: {
+        'fullName': fullName,
+        'phoneNumber': phoneNumber,
+        'photoUrl': photoUrl,
+        'contactEmail': contactEmail,
+        'dateOfBirth': encodeDate(dateOfBirth),
+        'gender': gender,
+      },
+      queueWhenOffline: false,
+      online: () => updateProfileOnline(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        photoUrl: photoUrl,
+        contactEmail: contactEmail,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+      ),
+    );
+  }
+
+  /// The server write behind updateProfile(). Also run by offline replay.
+  Future<void> updateProfileOnline({
     required String fullName,
     String? phoneNumber,
     String? photoUrl,
@@ -113,9 +162,9 @@ class BuyerProfileRepository {
     try {
       final results = await Future.wait([
         _client
-          .from('user_information')
+            .from('user_information')
             .select('full_name, phone_number, profile_photo_url, contact_email')
-          .eq('user_id', _userId)
+            .eq('user_id', _userId)
             .maybeSingle(),
         _client
             .from('buyer_profiles')
@@ -135,9 +184,9 @@ class BuyerProfileRepository {
     await _client
         .from('user_information')
         .update({
-      'full_name': fullName.trim(),
-      if (phoneNumber != null) 'phone_number': phoneNumber.trim(),
-      if (photoUrl != null) 'profile_photo_url': photoUrl,
+          'full_name': fullName.trim(),
+          if (phoneNumber != null) 'phone_number': phoneNumber.trim(),
+          if (photoUrl != null) 'profile_photo_url': photoUrl,
         })
         .eq('user_id', _userId);
 
@@ -159,9 +208,9 @@ class BuyerProfileRepository {
       await _client
           .from('buyer_profiles')
           .update({
-        if (dateOfBirth != null)
-          'date_of_birth': dateOfBirth.toIso8601String().split('T').first,
-        if (gender != null) 'gender': gender,
+            if (dateOfBirth != null)
+              'date_of_birth': dateOfBirth.toIso8601String().split('T').first,
+            if (gender != null) 'gender': gender,
           })
           .eq('user_id', _userId);
     }
@@ -198,11 +247,11 @@ class BuyerProfileRepository {
         changes.add('name');
       if (newPhone != null &&
           (beforeInfo['phone_number'] as String?) != newPhone.trim()) {
-        changes.add('phone number');
+        changes.add('phone');
       }
       if (newPhotoUrl != null &&
           (beforeInfo['profile_photo_url'] as String?) != newPhotoUrl) {
-        changes.add('profile photo');
+        changes.add('photo');
       }
       if (newContactEmail != null &&
           (beforeInfo['contact_email'] as String?) != newContactEmail.trim()) {
@@ -215,7 +264,7 @@ class BuyerProfileRepository {
         final beforeDob = (beforeBuyer['date_of_birth'] as String?)
             ?.split('T')
             .first;
-        if (beforeDob != newDob) changes.add('date of birth');
+        if (beforeDob != newDob) changes.add('dob');
       }
       if (newGender != null &&
           (beforeBuyer['gender'] as String?) != newGender) {
@@ -224,26 +273,32 @@ class BuyerProfileRepository {
     }
     if (changes.isEmpty) return;
 
-    await logActivity('Updated ${changes.join(', ')}');
+    await logActivity(
+      AdminLogMessage('activityProfileUpdated', {'fields': changes.join(',')}),
+    );
   }
 
   // ─── Recent Activity (profile-derived entries) ─────────────────────────────
   Future<List<BuyerActivityItem>> fetchProfileActivity({int limit = 50}) async {
     try {
-      final rows = await _client
-          .from('buyer_profile_activity')
-          .select('id, description, created_at')
-          .eq('buyer_id', _userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
+      final rows = await OfflineCache.load(
+        screen: 'buyer_profile_activity_$limit',
+        fetch: () => _client
+            .from('buyer_profile_activity')
+            .select('id, description, created_at')
+            .eq('buyer_id', _userId)
+            .order('created_at', ascending: false)
+            .limit(limit),
+      );
       return rows
           .map(
             (r) => BuyerActivityItem(
-            id: r['id'] as String,
-            type: BuyerActivityType.profile,
-            title: r['description'] as String,
-            subtitle: 'Profile',
-            timestamp: DateTime.parse(r['created_at'] as String),
+              id: r['id'] as String,
+              type: BuyerActivityType.profile,
+              title: localizeActivityRow(r),
+              subtitle: 'Profile',
+              messageKey: activityKeyForRow(r, admin: false),
+              timestamp: DateTime.parse(r['created_at'] as String),
             ),
           )
           .toList();
@@ -262,11 +317,11 @@ class BuyerProfileRepository {
   // table _logProfileActivity's diff-based version writes to, just
   // without the diffing. BuyerAddressRepository calls this directly
   // rather than duplicating the insert.
-  Future<void> logActivity(String description) async {
+  Future<void> logActivity(AdminLogMessage message) async {
     try {
       await _client.from('buyer_profile_activity').insert({
         'buyer_id': _userId,
-        'description': description,
+        ...activityRowFields(message),
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
@@ -277,7 +332,8 @@ class BuyerProfileRepository {
   // Mirrors FarmerProfileRepository.logPasswordChanged — same
   // ChangePasswordDialog(onSuccess: ...) hook, wired from
   // buyer_edit_profile_screen.dart.
-  Future<void> logPasswordChanged() => logActivity('Changed password');
+  Future<void> logPasswordChanged() =>
+      logActivity(const AdminLogMessage('activityPasswordChanged'));
 
   // ─── Admin: fetch any buyer's profile by ID ────────────────────────────────
   // Separate from fetchProfile() above, which is scoped to the signed-in
@@ -388,69 +444,94 @@ class BuyerProfileRepository {
 
   Future<List<BuyerProfileModel>> fetchAllBuyers() async {
     try {
-      final roleRows = await _client
-          .from('user_roles')
-          .select('user_id, status, created_at')
-          .eq('role', 'buyer');
+      // Each buyer's merged row (role, profile, order totals) is cached, and the
+      // models are built after the cache, so the list can still be viewed offline.
+      final rows = await OfflineCache.load(
+        screen: 'buyers_all',
+        fetch: () async {
+          final roleRows = await _client
+              .from('user_roles')
+              .select('user_id, status, created_at')
+              .eq('role', 'buyer');
 
-      if (roleRows.isEmpty) return [];
+          if (roleRows.isEmpty) return <Map<String, dynamic>>[];
 
-      final userIds = roleRows.map((r) => r['user_id'] as String).toList();
-      final roleMap = {for (final r in roleRows) r['user_id'] as String: r};
+          final userIds = roleRows.map((r) => r['user_id'] as String).toList();
+          final roleMap = {for (final r in roleRows) r['user_id'] as String: r};
 
-      final infoRows = await _client
-          .from('user_information')
-          .select(
-            'user_id, full_name, phone_number, profile_photo_url, contact_email, last_active_at',
-          )
-          .inFilter('user_id', userIds);
-      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
+          final infoRows = await _client
+              .from('user_information')
+              .select(
+                'user_id, full_name, phone_number, profile_photo_url, contact_email, last_active_at',
+              )
+              .inFilter('user_id', userIds);
+          final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
-      // fetchAllBuyers aggregates across every buyer at once — unlike
-      // fetchProfile/fetchAdminView above, there's no single-buyer filter
-      // to split on, so the same two-query pattern can't cleanly apply
-      // here without either an RPC (excluded per Buyer review finding 2.6's
-      // scope) or a grouped count feature this file can't safely assume is
-      // available without the project's pinned supabase_flutter version.
-      // The one safe narrowing available without either of those: buyer_id
-      // and status are needed for every row regardless, but total_price is
-      // only ever used for completed rows — so it's no longer requested for
-      // rows this query doesn't need it for.
-      final orderRows = await _client
-          .from('orders')
-          .select('buyer_id, status, total_price')
-          .inFilter('buyer_id', userIds);
-      final orderCountMap = <String, int>{};
-      final completedCountMap = <String, int>{};
-      final orderSpentMap = <String, double>{};
-      for (final r in orderRows) {
-        final id = r['buyer_id'] as String;
-        orderCountMap[id] = (orderCountMap[id] ?? 0) + 1;
-        if (r['status'] == 'completed') {
-          completedCountMap[id] = (completedCountMap[id] ?? 0) + 1;
-          orderSpentMap[id] =
-              (orderSpentMap[id] ?? 0) + (r['total_price'] as num).toDouble();
-        }
-      }
+          // fetchAllBuyers aggregates across every buyer at once — unlike
+          // fetchProfile/fetchAdminView above, there's no single-buyer filter
+          // to split on, so the same two-query pattern can't cleanly apply
+          // here without either an RPC (excluded per Buyer review finding 2.6's
+          // scope) or a grouped count feature this file can't safely assume is
+          // available without the project's pinned supabase_flutter version.
+          // The one safe narrowing available without either of those: buyer_id
+          // and status are needed for every row regardless, but total_price is
+          // only ever used for completed rows — so it's no longer requested for
+          // rows this query doesn't need it for.
+          final orderRows = await _client
+              .from('orders')
+              .select('buyer_id, status, total_price')
+              .inFilter('buyer_id', userIds);
+          final orderCountMap = <String, int>{};
+          final completedCountMap = <String, int>{};
+          final orderSpentMap = <String, double>{};
+          for (final r in orderRows) {
+            final id = r['buyer_id'] as String;
+            orderCountMap[id] = (orderCountMap[id] ?? 0) + 1;
+            if (r['status'] == 'completed') {
+              completedCountMap[id] = (completedCountMap[id] ?? 0) + 1;
+              orderSpentMap[id] =
+                  (orderSpentMap[id] ?? 0) +
+                  (r['total_price'] as num).toDouble();
+            }
+          }
 
-      return userIds.map((uid) {
-        final role = roleMap[uid]!;
-        final info = infoMap[uid] ?? {};
+          return userIds.map<Map<String, dynamic>>((uid) {
+            final role = roleMap[uid]!;
+            final info = infoMap[uid] ?? {};
+            return {
+              'user_id': uid,
+              'full_name': info['full_name'] as String? ?? 'Buyer',
+              'phone_number': info['phone_number'] as String?,
+              'profile_photo_url': info['profile_photo_url'] as String?,
+              'contact_email': info['contact_email'] as String?,
+              'account_status': role['status'] as String? ?? 'active',
+              'total_orders': orderCountMap[uid] ?? 0,
+              'completed_orders': completedCountMap[uid] ?? 0,
+              'total_spent': orderSpentMap[uid] ?? 0,
+              'member_since': role['created_at'] as String,
+              'last_active_at': info['last_active_at'] as String?,
+            };
+          }).toList();
+        },
+      );
+
+      return rows.map((r) {
+        final lastActive = r['last_active_at'] as String?;
         return BuyerProfileModel(
-          userId: uid,
-          fullName: info['full_name'] as String? ?? 'Buyer',
-          phoneNumber: info['phone_number'] as String?,
-          profilePhotoUrl: info['profile_photo_url'] as String?,
+          userId: r['user_id'] as String,
+          fullName: r['full_name'] as String,
+          phoneNumber: r['phone_number'] as String?,
+          profilePhotoUrl: r['profile_photo_url'] as String?,
           email:
               '', // synthetic auth address — the card shows contactEmail instead
-          contactEmail: info['contact_email'] as String?,
-          accountStatus: role['status'] as String? ?? 'active',
-          totalOrders: orderCountMap[uid] ?? 0,
-          completedOrders: completedCountMap[uid] ?? 0,
-          totalSpent: orderSpentMap[uid] ?? 0,
-          memberSince: DateTime.parse(role['created_at'] as String),
-          lastActiveAt: info['last_active_at'] != null
-              ? DateTime.tryParse(info['last_active_at'] as String)
+          contactEmail: r['contact_email'] as String?,
+          accountStatus: r['account_status'] as String,
+          totalOrders: (r['total_orders'] as num).toInt(),
+          completedOrders: (r['completed_orders'] as num).toInt(),
+          totalSpent: (r['total_spent'] as num).toDouble(),
+          memberSince: DateTime.parse(r['member_since'] as String),
+          lastActiveAt: lastActive != null
+              ? DateTime.tryParse(lastActive)
               : null,
         );
       }).toList()..sort((a, b) => b.totalOrders.compareTo(a.totalOrders));
@@ -476,21 +557,24 @@ class BuyerProfileRepository {
     required String buyerId,
     required String status, // 'active' | 'suspended'
     String? reason,
+    DateTime? suspendedUntil, // null = until an admin reactivates
   }) async {
+    await ServerOnly.ensureOnline();
     if (status == 'suspended') {
       await _client.rpc(
         'suspend_member',
         params: {
           'p_user_id': buyerId,
           'p_reason': (reason == null || reason.trim().isEmpty)
-              ? 'Suspended by administrator'
+              ? 'Suspended by Manager'
               : reason.trim(),
+          'p_suspended_until': suspendedUntil?.toUtc().toIso8601String(),
         },
       );
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'suspended',
-        description: 'Suspended a buyer account.',
+        message: const AdminLogMessage('adminLogBuyerSuspended'),
         referenceId: buyerId,
       );
     } else {
@@ -498,7 +582,7 @@ class BuyerProfileRepository {
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'reactivated',
-        description: 'Reactivated a buyer account.',
+        message: const AdminLogMessage('adminLogBuyerReactivated'),
         referenceId: buyerId,
       );
     }

@@ -3,18 +3,22 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/farmer_registration_address.dart';
+import '../../../core/utils/db_error_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/models/buyer_address_model.dart';
 import '../../../data/models/farmer_profile_model.dart';
-import '../../../data/models/psgc_models.dart';
 import '../../../data/repositories/buyer_address_repository.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
-import '../../../data/repositories/psgc_repository.dart';
+import '../../../data/services/auth_service.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/auth_visuals.dart';
-import '../../widgets/psgc_address_fields.dart';
+import '../../widgets/fixed_farmer_address_fields.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Dedicated screen for an applicant to review and edit the personal and
 /// address information they submitted. Each card edits in place, so the
@@ -43,11 +47,14 @@ class _PendingReviewDetailsScreenState
   bool _savingPersonal = false;
   String? _personalError;
 
-  // Address information
-  final _addressDraft = AddressStructureDraft();
+  // Address information. Region, province, city, barangay and postal code
+  // are fixed to the cooperative's service area; only street, building and
+  // house number can be changed.
+  final _addressKey = GlobalKey<FormState>();
+  final _streetCtrl = TextEditingController();
+  final _buildingCtrl = TextEditingController();
+  final _houseNoCtrl = TextEditingController();
   BuyerAddressModel? _address;
-  PsgcHierarchy? _psgc;
-  bool _isPsgcLoading = false;
   bool _editingAddress = false;
   bool _savingAddress = false;
   String? _addressError;
@@ -66,7 +73,9 @@ class _PendingReviewDetailsScreenState
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
-    _addressDraft.dispose();
+    _streetCtrl.dispose();
+    _buildingCtrl.dispose();
+    _houseNoCtrl.dispose();
     super.dispose();
   }
 
@@ -86,7 +95,7 @@ class _PendingReviewDetailsScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: ok ? AppConstants.successGreen : AppConstants.charcoal,
+        backgroundColor: ok ? AppConstants.midGreen : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -130,6 +139,23 @@ class _PendingReviewDetailsScreenState
       setState(() => _personalError = l10n.pendingAgeError);
       return;
     }
+    // Same email check as registration: when the address was changed, its
+    // domain must be able to receive mail. The database enforces format and
+    // uniqueness.
+    final email = _emailCtrl.text.trim();
+    final originalEmail = _profile?.contactEmail?.trim() ?? '';
+    if (email.isNotEmpty && email.toLowerCase() != originalEmail.toLowerCase()) {
+      setState(() => _savingPersonal = true);
+      final domain = await AuthService.checkEmailDomain(email);
+      if (!mounted) return;
+      if (domain == EmailDomainStatus.noMailServer) {
+        setState(() {
+          _savingPersonal = false;
+          _personalError = l10n.registerEmailDomainInvalid;
+        });
+        return;
+      }
+    }
     setState(() {
       _savingPersonal = true;
       _personalError = null;
@@ -137,7 +163,7 @@ class _PendingReviewDetailsScreenState
     try {
       await _profileRepo.updateApplicantDetails(
         fullName: _nameCtrl.text.trim(),
-        phoneNumber: _phoneCtrl.text.trim(),
+        phoneNumber: normalizePhilippineMobile(_phoneCtrl.text) ?? '',
         contactEmail: _emailCtrl.text.trim(),
         dateOfBirth: _dob,
         gender: _gender,
@@ -153,35 +179,22 @@ class _PendingReviewDetailsScreenState
       if (!mounted) return;
       setState(() {
         _savingPersonal = false;
-        _personalError = e.toString().replaceFirst('Exception: ', '');
+        _personalError = friendlyErrorMessage(e);
       });
     }
   }
 
   // ── Address information ────────────────────────────────────────────────────
 
-  Future<void> _startAddressEdit() async {
+  void _startAddressEdit() {
+    final address = _address;
+    _streetCtrl.text = address?.street ?? '';
+    _buildingCtrl.text = address?.building ?? '';
+    _houseNoCtrl.text = address?.houseNo ?? '';
     setState(() {
       _editingAddress = true;
       _addressError = null;
     });
-    if (_psgc == null) {
-      setState(() => _isPsgcLoading = true);
-      final hierarchy = await PsgcRepository.load();
-      if (!mounted) return;
-      setState(() {
-        // An empty hierarchy means the asset failed to load; leave _psgc null
-        // so the next edit retries.
-        if (hierarchy.regions.isNotEmpty) _psgc = hierarchy;
-        _isPsgcLoading = false;
-      });
-    }
-    final psgc = _psgc;
-    final address = _address;
-    if (psgc != null && address != null) {
-      _addressDraft.loadFrom(address, psgc);
-    }
-    if (mounted) setState(() {});
   }
 
   void _cancelAddress() {
@@ -193,22 +206,33 @@ class _PendingReviewDetailsScreenState
 
   Future<void> _saveAddress() async {
     final l10n = AppLocalizations.of(context);
-    if (_addressDraft.postalCtrl.text.isNotEmpty && !_addressDraft.postalValid) {
-      setState(() => _addressError = l10n.registerPostalInvalid);
-      return;
-    }
-    if (!_addressDraft.isComplete) {
-      setState(() => _addressError = l10n.buyerAddressStructureRequired);
-      return;
-    }
+    if (!(_addressKey.currentState?.validate() ?? false)) return;
     setState(() {
       _savingAddress = true;
       _addressError = null;
     });
     final fullName = _profile?.fullName ?? '';
     final phone = _profile?.phoneNumber;
-    final structure = _addressDraft.toStructure();
-    final addressLine = _addressDraft.composeLine();
+    final building = _buildingCtrl.text.trim();
+    final structure = BuyerAddressStructure(
+      regionCode: FarmerRegistrationAddress.regionCode,
+      regionName: FarmerRegistrationAddress.regionName,
+      provinceCode: FarmerRegistrationAddress.provinceCode,
+      provinceName: FarmerRegistrationAddress.provinceName,
+      cityMunicipalityCode: FarmerRegistrationAddress.cityCode,
+      cityMunicipalityName: FarmerRegistrationAddress.cityName,
+      barangayCode: FarmerRegistrationAddress.barangayCode,
+      barangayName: FarmerRegistrationAddress.barangayName,
+      postalCode: FarmerRegistrationAddress.postalCode,
+      street: _streetCtrl.text.trim(),
+      building: building.isEmpty ? null : building,
+      houseNo: _houseNoCtrl.text.trim(),
+    );
+    final addressLine = FarmerRegistrationAddress.composeLine(
+      houseNo: _houseNoCtrl.text,
+      building: building,
+      street: _streetCtrl.text,
+    );
     try {
       final existing = _address;
       if (existing != null) {
@@ -247,7 +271,7 @@ class _PendingReviewDetailsScreenState
       if (!mounted) return;
       setState(() {
         _savingAddress = false;
-        _addressError = e.toString().replaceFirst('Exception: ', '');
+        _addressError = friendlyErrorMessage(e);
       });
     }
   }
@@ -259,52 +283,16 @@ class _PendingReviewDetailsScreenState
     final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
-    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // Same header height, background, and divider as the three tabs.
-          Container(
-            height: 64 + topPadding,
-            padding: EdgeInsets.only(top: topPadding, left: 8, right: 20),
-            decoration: BoxDecoration(
-              color: sagana.navBarBackground,
-              border: Border(
-                bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20)),
-              ),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  color: cs.onSurface,
-                  onPressed: () => context.pop(),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    l10n.pendingReviewEditButton,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          SubPageTopBar(title: l10n.pendingReviewEditButton, onBack: () => context.pop()),
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
                     children: [
@@ -487,7 +475,7 @@ class _PendingReviewDetailsScreenState
             validator: (v) {
               final t = v?.trim() ?? '';
               if (t.isEmpty) return null;
-              return RegExp(r'^09\d{9}$').hasMatch(t)
+              return normalizePhilippineMobile(t) != null
                   ? null
                   : l10n.pendingPhoneInvalid;
             },
@@ -500,6 +488,11 @@ class _PendingReviewDetailsScreenState
               label: l10n.pendingEmailOptionalLabel,
               icon: Icons.mail_outline_rounded,
             ),
+            validator: (v) {
+              final t = v?.trim() ?? '';
+              if (t.isEmpty) return null;
+              return isValidEmailFormat(t) ? null : l10n.registerInvalidEmail;
+            },
           ),
           const SizedBox(height: 12),
           InkWell(
@@ -587,14 +580,15 @@ class _PendingReviewDetailsScreenState
   }
 
   Widget _addressForm(AppLocalizations l10n, ColorScheme cs) {
-    return Column(
+    return Form(
+      key: _addressKey,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PsgcAddressFields(
-          draft: _addressDraft,
-          hierarchy: _psgc,
-          isLoading: _isPsgcLoading,
-          onChanged: () => setState(() {}),
+        FixedFarmerAddressFields(
+          streetController: _streetCtrl,
+          buildingController: _buildingCtrl,
+          houseNoController: _houseNoCtrl,
         ),
         if (_addressError != null) ...[
           const SizedBox(height: 10),
@@ -614,6 +608,7 @@ class _PendingReviewDetailsScreenState
           onSave: _saveAddress,
         ),
       ],
+      ),
     );
   }
 

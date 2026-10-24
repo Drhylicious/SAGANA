@@ -1,5 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/constants/app_constants.dart';
+import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 // ─── Market Linking Status ─────────────────────────────────────────────────────
 
@@ -264,61 +267,70 @@ class MarketLinkingRepository {
 
   Future<List<MarketLinkingModel>> fetchAll({String? statusFilter}) async {
     try {
-      var query = _client
-          .from('market_linking_programs')
-          .select('*, farmer_id');
+      // Names, photos and batch numbers are merged into each row before it is
+      // cached, so the list still reads correctly when the device is offline.
+      final enriched = await OfflineCache.load(
+        screen: 'market_linking_${statusFilter ?? 'all'}',
+        fetch: () async {
+          var query = _client
+              .from('market_linking_programs')
+              .select('*, farmer_id');
 
-      if (statusFilter != null) {
-        query = query.eq('status', statusFilter);
-      }
-
-      final rows = await query.order('submitted_at', ascending: false);
-      if (rows.isEmpty) return [];
-
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-
-      // Fetch farmer info
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name, profile_photo_url')
-          .inFilter('user_id', farmerIds);
-      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
-
-      // Batch numbers — only for rows that actually have one attached.
-      // Most enrollments never do, so this query is skipped entirely
-      // when nothing needs it.
-      final batchIds = rows
-          .map((r) => r['inventory_batch_id'] as String?)
-          .whereType<String>()
-          .toSet()
-          .toList();
-      final batchMap = <String, String>{};
-      if (batchIds.isNotEmpty) {
-        try {
-          final batchRows = await _client
-              .from('inventory_batches')
-              .select('id, batch_number')
-              .inFilter('id', batchIds);
-          for (final b in batchRows) {
-            batchMap[b['id'] as String] = b['batch_number'] as String;
+          if (statusFilter != null) {
+            query = query.eq('status', statusFilter);
           }
-        } catch (_) {}
-      }
 
-      return rows.map((r) {
-        final fid  = r['farmer_id'] as String;
-        final info = infoMap[fid] ?? {};
-        final batchId = r['inventory_batch_id'] as String?;
-        return MarketLinkingModel.fromMap({
-          ...r,
-          'farmer_name':      info['full_name'] as String? ?? 'Farmer',
-          'farmer_photo_url': info['profile_photo_url'] as String?,
-          'batch_number':     batchId != null ? batchMap[batchId] : null,
-        });
-      }).toList();
+          final rows = await query.order('submitted_at', ascending: false);
+          if (rows.isEmpty) return <Map<String, dynamic>>[];
+
+          final farmerIds = rows
+              .map((r) => r['farmer_id'] as String)
+              .toSet()
+              .toList();
+
+          // Fetch farmer info
+          final infoRows = await _client
+              .from('user_information')
+              .select('user_id, full_name, profile_photo_url')
+              .inFilter('user_id', farmerIds);
+          final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
+
+          // Batch numbers — only for rows that actually have one attached.
+          // Most enrollments never do, so this query is skipped entirely
+          // when nothing needs it.
+          final batchIds = rows
+              .map((r) => r['inventory_batch_id'] as String?)
+              .whereType<String>()
+              .toSet()
+              .toList();
+          final batchMap = <String, String>{};
+          if (batchIds.isNotEmpty) {
+            try {
+              final batchRows = await _client
+                  .from('inventory_batches')
+                  .select('id, batch_number')
+                  .inFilter('id', batchIds);
+              for (final b in batchRows) {
+                batchMap[b['id'] as String] = b['batch_number'] as String;
+              }
+            } catch (_) {}
+          }
+
+          return rows.map<Map<String, dynamic>>((r) {
+            final fid  = r['farmer_id'] as String;
+            final info = infoMap[fid] ?? {};
+            final batchId = r['inventory_batch_id'] as String?;
+            return {
+              ...r,
+              'farmer_name':      info['full_name'] as String? ?? 'Farmer',
+              'farmer_photo_url': info['profile_photo_url'] as String?,
+              'batch_number':     batchId != null ? batchMap[batchId] : null,
+            };
+          }).toList();
+        },
+      );
+
+      return enriched.map((r) => MarketLinkingModel.fromMap(r)).toList();
     } catch (_) {
       return [];
     }
@@ -368,20 +380,29 @@ class MarketLinkingRepository {
   // already enrolled" and "no farmer has Ginger registered at all" produced
   // identical output, so the UI couldn't tell them apart and always showed
   // the same (sometimes wrong) message.
-  // crop_master's da_amad_market classification now identifies Ginger
-  // growers, replacing the previous crop_name ILIKE '%ginger%' match — more
-  // robust (survives a variety-qualified name) and consistent with the
-  // same classification that already drives Ginger's exclusion from the
-  // Marketplace and Offer to Cooperative. Multi-step lookup (crop_master ->
-  // farmer_crops) rather than a nested PostgREST embed, matching this
-  // codebase's established resolution pattern (see
-  // harvest_entry_repository.dart's is_coop_eligible lookup).
+  // The crop(s) reserved for DA-AMAD Market Linking are the ones whose
+  // crop_master.exclusive_channel is the DA-AMAD channel. DA-AMAD is a selling
+  // channel, not a market type, and the reservation is set in the database
+  // only (never from the app), so this never depends on a crop's name or its
+  // market type. Multi-step lookup (crop_master -> farmer_crops) rather than a
+  // nested PostgREST embed, matching this codebase's established resolution
+  // pattern (see harvest_entry_repository.dart's is_coop_eligible lookup).
   Future<List<String>> _daAmadCropMasterIds() async {
     final rows = await _client
         .from('crop_master')
         .select('id')
-        .eq('crop_type', 'da_amad_market');
+        .eq('exclusive_channel', AppConstants.channelDaAmad);
     return rows.map((r) => r['id'] as String).toList();
+  }
+
+  /// Names of the crop(s) reserved for DA-AMAD, as the Manager's Crop Master
+  /// spells them (used to recognise a pending crop request for the same crop).
+  Future<List<String>> _daAmadCropNames() async {
+    final rows = await _client
+        .from('crop_master')
+        .select('crop_name')
+        .eq('exclusive_channel', AppConstants.channelDaAmad);
+    return rows.map((r) => r['crop_name'] as String).toList();
   }
 
   // fetchEnrollmentCandidates() / enrollFarmer() removed — Market Linking
@@ -426,7 +447,7 @@ class MarketLinkingRepository {
       AdminActivityRepository().log(
         module: 'market_linking',
         actionType: 'completed',
-        description: 'Completed a market linking round.',
+        message: const AdminLogMessage('adminLogMarketLinkingCompleted'),
         referenceId: id,
       );
       return;
@@ -450,7 +471,7 @@ class MarketLinkingRepository {
     AdminActivityRepository().log(
       module: 'market_linking',
       actionType: newStatus.value,
-      description: 'Updated a market linking status to "${newStatus.value}".',
+      message: AdminLogMessage('adminLogMarketLinkingStatus', {'status': newStatus.value}),
       referenceId: id,
     );
   }
@@ -477,7 +498,7 @@ class MarketLinkingRepository {
     AdminActivityRepository().log(
       module: 'market_linking',
       actionType: 'deleted',
-      description: 'Deleted a cancelled market linking entry.',
+      message: const AdminLogMessage('adminLogMarketLinkingDeleted'),
       referenceId: id,
     );
   }
@@ -496,7 +517,7 @@ class MarketLinkingRepository {
     AdminActivityRepository().log(
       module: 'market_linking',
       actionType: 'batch_attached',
-      description: 'Updated the linked batch on a market linking entry.',
+      message: const AdminLogMessage('adminLogMarketLinkingBatchAttached'),
       referenceId: id,
     );
   }
@@ -648,14 +669,19 @@ class MarketLinkingRepository {
     try {
       final uid = _client.auth.currentUser?.id;
       if (uid == null) return false;
+      final names = await _daAmadCropNames();
+      if (names.isEmpty) return false;
       final rows = await _client
           .from('crop_requests')
-          .select('id')
+          .select('id, requested_name')
           .eq('farmer_id', uid)
-          .eq('status', 'pending')
-          .ilike('requested_name', 'Ginger')
-          .limit(1);
-      return rows.isNotEmpty;
+          .eq('status', 'pending');
+      final reserved = names.map((n) => n.toLowerCase()).toSet();
+      return rows.any(
+        (r) => reserved.contains(
+          (r['requested_name'] as String? ?? '').trim().toLowerCase(),
+        ),
+      );
     } catch (_) {
       return false;
     }
@@ -786,9 +812,9 @@ class MarketLinkingRepository {
       AdminActivityRepository().log(
         module: 'market_linking',
         actionType: approve ? 'approved' : 'rejected',
-        description: approve
-            ? 'Approved a farmer\'s DA-AMAD Market Linking enrollment.'
-            : 'Declined a farmer\'s DA-AMAD Market Linking enrollment.',
+        message: approve
+? const AdminLogMessage('adminLogEnrollmentApproved')
+: const AdminLogMessage('adminLogEnrollmentDeclined'),
         referenceId: id,
       );
       return true;

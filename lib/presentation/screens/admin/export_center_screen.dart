@@ -18,6 +18,8 @@ import '../../../data/services/pdf_export_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../data/models/admin_log_message.dart';
 
 /// Export Center — Admin.
 /// Pushed above the shell. Route: /admin/export
@@ -113,8 +115,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       AdminActivityRepository().log(
         module: 'reports',
         actionType: 'exported',
-        description:
-            'Generated a ${_format.toUpperCase()} export (${_selectedModules.length} report${_selectedModules.length == 1 ? '' : 's'}).',
+        message: AdminLogMessage('adminLogExportGenerated', {'format': _format.toUpperCase(), 'count': '${_selectedModules.length}'}),
       );
       if (!mounted) return;
       _showSnack(l10n.exportGenerated(paths.length));
@@ -156,7 +157,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
-            : AppConstants.successGreen,
+            : AppConstants.midGreen,
       behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -277,39 +278,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsExportCenter,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.reportsExportCenter, onBack: () => context.pop());
   }
 
   Widget _buildPresets(

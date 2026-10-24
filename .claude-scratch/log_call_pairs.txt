@@ -1,0 +1,311 @@
+@@@ data/repositories/account_management_repository.dart
+description: 'Created Officer account for $fullName.',
+-->
+message: AdminLogMessage('adminLogAccountOfficerCreated', {'fullName': fullName}),
+@@@ data/repositories/account_management_repository.dart
+description: "Reset an account's password.",
+-->
+message: AdminLogMessage('adminLogAccountPasswordReset'),
+@@@ data/repositories/account_management_repository.dart
+description: 'Resolved a pending password reset request.',
+-->
+message: AdminLogMessage('adminLogAccountResetResolved'),
+@@@ data/repositories/add_member_repository.dart
+description: 'Added "${fullName.trim()}" as a new member.',
+-->
+message: AdminLogMessage('adminLogMemberAdded', {'fullName': fullName.trim()}),
+@@@ data/repositories/admin_listing_repository.dart
+description: 'Approved a marketplace listing.',
+-->
+message: AdminLogMessage('adminLogListingApproved'),
+@@@ data/repositories/admin_listing_repository.dart
+description: 'Rejected a marketplace listing.',
+-->
+message: AdminLogMessage('adminLogListingRejected'),
+@@@ data/repositories/admin_loan_repository.dart
+description:
+'Updated a loan catalog item (₱${unitPrice.toStringAsFixed(2)}).',
+-->
+message: AdminLogMessage('adminLogLoanItemUpdated', {'price': unitPrice.toStringAsFixed(2)}),
+@@@ data/repositories/admin_loan_repository.dart
+description:
+'Issued a loan (₱${monthlyPayment.toStringAsFixed(2)}/month).',
+-->
+message: AdminLogMessage('adminLogLoanIssued', {'monthly': monthlyPayment.toStringAsFixed(2)}),
+@@@ data/repositories/admin_loan_repository.dart
+description: 'Recorded a loan payment (₱${amount.toStringAsFixed(2)}).',
+-->
+message: AdminLogMessage('adminLogLoanPaymentRecorded', {'amount': amount.toStringAsFixed(2)}),
+@@@ data/repositories/admin_loan_repository.dart
+description: 'Manually marked a loan as paid.',
+-->
+message: AdminLogMessage('adminLogLoanMarkedPaid'),
+@@@ data/repositories/admin_order_repository.dart
+description: 'Approved an order.',
+-->
+message: AdminLogMessage('adminLogOrderApproved'),
+@@@ data/repositories/admin_order_repository.dart
+description: 'Cancelled an order.',
+-->
+message: AdminLogMessage('adminLogOrderCancelled'),
+@@@ data/repositories/admin_order_repository.dart
+description: 'Completed an order.',
+-->
+message: AdminLogMessage('adminLogOrderCompleted'),
+@@@ data/repositories/admin_profile_repository.dart
+description: '$fullName updated their profile information.',
+-->
+message: AdminLogMessage('adminLogProfileUpdated', {'fullName': fullName}),
+@@@ data/repositories/admin_profile_repository.dart
+description: 'Updated their profile picture.',
+-->
+message: AdminLogMessage('adminLogProfilePhotoUpdated'),
+@@@ data/repositories/admin_profile_repository.dart
+description: 'Removed their profile picture.',
+-->
+message: AdminLogMessage('adminLogProfilePhotoRemoved'),
+@@@ data/repositories/balik_tangkilik_repository.dart
+description: 'Confirmed a $year Balik Tangkilik payout decision.',
+-->
+message: AdminLogMessage('adminLogBalikPayoutConfirmed', {'year': '$year'}),
+@@@ data/repositories/balik_tangkilik_repository.dart
+description: 'Rejected a $year Balik Tangkilik payout decision.',
+-->
+message: AdminLogMessage('adminLogBalikPayoutRejected', {'year': '$year'}),
+@@@ data/repositories/broadcast_repository.dart
+description: 'Broadcast "$title" scheduled for ${scheduledAt.toIso8601String()}.',
+-->
+message: AdminLogMessage('adminLogBroadcastScheduled', {'title': title, 'when': scheduledAt.toIso8601String()}),
+@@@ data/repositories/broadcast_repository.dart
+description: 'Broadcast "$title" sent to ${recipientIds.length} recipient${recipientIds.length == 1 ? '' : 's'}.',
+-->
+message: AdminLogMessage('adminLogBroadcastSent', {'title': title, 'count': '${recipientIds.length}'}),
+@@@ data/repositories/buyer_profile_repository.dart
+description: 'Suspended a buyer account.',
+-->
+message: AdminLogMessage('adminLogBuyerSuspended'),
+@@@ data/repositories/buyer_profile_repository.dart
+description: 'Reactivated a buyer account.',
+-->
+message: AdminLogMessage('adminLogBuyerReactivated'),
+@@@ data/repositories/capital_contribution_repository.dart
+description:
+'Recorded a capital contribution (₱${amount.toStringAsFixed(2)}).',
+-->
+message: AdminLogMessage('adminLogContributionRecorded', {'amount': amount.toStringAsFixed(2)}),
+@@@ data/repositories/category_repository.dart
+description: 'Added "$result" as an inventory category.',
+-->
+message: AdminLogMessage('adminLogInventoryCategoryAdded', {'name': result}),
+@@@ data/repositories/category_repository.dart
+description: 'Added "$result" as a crop category.',
+-->
+message: AdminLogMessage('adminLogCropCategoryAdded', {'name': result}),
+@@@ data/repositories/cooperative_offer_repository.dart
+description: 'Confirmed a cooperative offer for ${confirmedQuantityKg.toStringAsFixed(1)}kg (₱${confirmedAmount.toStringAsFixed(2)}).',
+-->
+message: AdminLogMessage('adminLogCoopOfferConfirmed', {'kg': confirmedQuantityKg.toStringAsFixed(1), 'amount': confirmedAmount.toStringAsFixed(2)}),
+@@@ data/repositories/cooperative_offer_repository.dart
+description: 'Declined a cooperative offer.',
+-->
+message: AdminLogMessage('adminLogCoopOfferDeclined'),
+@@@ data/repositories/farmer_details_repository.dart
+description: 'Suspended a member.',
+-->
+message: AdminLogMessage('adminLogMemberSuspended'),
+@@@ data/repositories/farmer_details_repository.dart
+description: 'Reactivated a member.',
+-->
+message: AdminLogMessage('adminLogMemberReactivated'),
+@@@ data/repositories/farmer_management_repository.dart
+description: 'Approved $fullName\'s membership application.',
+-->
+message: AdminLogMessage('adminLogMembershipApproved', {'fullName': fullName}),
+@@@ data/repositories/farmer_management_repository.dart
+description: 'Rejected a membership application.',
+-->
+message: AdminLogMessage('adminLogMembershipRejected'),
+@@@ data/repositories/farmer_management_repository.dart
+description: 'Suspended a member.',
+-->
+message: AdminLogMessage('adminLogMemberSuspended'),
+@@@ data/repositories/farmer_management_repository.dart
+description: 'Reactivated a member.',
+-->
+message: AdminLogMessage('adminLogMemberReactivated'),
+@@@ data/repositories/inventory_repository.dart
+description:
+'Published an inventory item to the loan catalog (₱${loanPrice.toStringAsFixed(2)}).',
+-->
+message: AdminLogMessage('adminLogLoanCatalogPublished', {'price': loanPrice.toStringAsFixed(2)}),
+@@@ data/repositories/market_linking_repository.dart
+description: 'Completed a market linking round.',
+-->
+message: AdminLogMessage('adminLogMarketLinkingCompleted'),
+@@@ data/repositories/market_linking_repository.dart
+description: 'Updated a market linking status to "${newStatus.value}".',
+-->
+message: AdminLogMessage('adminLogMarketLinkingStatus', {'status': newStatus.value}),
+@@@ data/repositories/market_linking_repository.dart
+description: 'Deleted a cancelled market linking entry.',
+-->
+message: AdminLogMessage('adminLogMarketLinkingDeleted'),
+@@@ data/repositories/market_linking_repository.dart
+description: 'Updated the linked batch on a market linking entry.',
+-->
+message: AdminLogMessage('adminLogMarketLinkingBatchAttached'),
+@@@ data/repositories/market_linking_repository.dart
+description: approve
+? 'Approved a farmer\'s DA-AMAD Market Linking enrollment.'
+: 'Declined a farmer\'s DA-AMAD Market Linking enrollment.',
+-->
+message: approve
+? const AdminLogMessage('adminLogEnrollmentApproved')
+: const AdminLogMessage('adminLogEnrollmentDeclined'),
+@@@ data/repositories/price_management_repository.dart
+description:
+'Recorded a $priceType price for "${cropName.trim()}" (₱${price.toStringAsFixed(2)}/$unit).',
+-->
+message: AdminLogMessage('adminLogPriceRecorded', {'priceType': priceType, 'crop': cropName.trim(), 'price': price.toStringAsFixed(2), 'unit': unit}),
+@@@ data/repositories/price_management_repository.dart
+description: 'Deleted a price record.',
+-->
+message: AdminLogMessage('adminLogPriceDeleted'),
+@@@ data/repositories/price_management_repository.dart
+description:
+'Updated a cooperative market listing price to ₱${newPrice.toStringAsFixed(2)}.',
+-->
+message: AdminLogMessage('adminLogCoopListingPriceUpdated', {'price': newPrice.toStringAsFixed(2)}),
+@@@ data/repositories/program_repository.dart
+description: 'Created program "${name.trim()}".',
+-->
+message: AdminLogMessage('adminLogProgramCreated', {'name': name.trim()}),
+@@@ data/repositories/program_repository.dart
+description: 'Updated program "${name.trim()}".',
+-->
+message: AdminLogMessage('adminLogProgramUpdated', {'name': name.trim()}),
+@@@ data/repositories/program_repository.dart
+description: 'Deleted program "${row?['program_name'] ?? programId}".',
+-->
+message: AdminLogMessage('adminLogProgramDeleted', {'name': '${row?['program_name'] ?? programId}'}),
+@@@ data/repositories/program_repository.dart
+description: approve
+? 'Approved a farmer\'s program enrollment request.'
+: 'Declined a farmer\'s program enrollment request.',
+-->
+message: approve
+? const AdminLogMessage('adminLogProgramEnrollmentApproved')
+: const AdminLogMessage('adminLogProgramEnrollmentDeclined'),
+@@@ data/repositories/program_repository.dart
+description: 'Removed a member from a program.',
+-->
+message: AdminLogMessage('adminLogProgramMemberRemoved'),
+@@@ data/repositories/program_repository.dart
+description: 'Distributed a program benefit to a member.',
+-->
+message: AdminLogMessage('adminLogProgramBenefitDistributed'),
+@@@ data/repositories/program_repository.dart
+description: 'Added a product to a sales program.',
+-->
+message: AdminLogMessage('adminLogProgramProductAdded'),
+@@@ data/repositories/program_repository.dart
+description: 'Updated a sales program product.',
+-->
+message: AdminLogMessage('adminLogProgramProductUpdated'),
+@@@ data/repositories/program_repository.dart
+description: 'Removed a product from a sales program.',
+-->
+message: AdminLogMessage('adminLogProgramProductRemoved'),
+@@@ data/repositories/program_repository.dart
+description: 'Confirmed payment for a program product purchase.',
+-->
+message: AdminLogMessage('adminLogProgramPurchaseConfirmed'),
+@@@ data/repositories/program_repository.dart
+description: 'Cancelled a program product purchase.',
+-->
+message: AdminLogMessage('adminLogProgramPurchaseCancelled'),
+@@@ data/repositories/program_repository.dart
+description:
+'Confirmed a revenue-share return (₱${amountReturned.toStringAsFixed(2)}).',
+-->
+message: AdminLogMessage('adminLogProgramReturnConfirmed', {'amount': amountReturned.toStringAsFixed(2)}),
+@@@ data/repositories/program_repository.dart
+description: 'Recorded a distribution outcome as thriving.',
+-->
+message: AdminLogMessage('adminLogProgramOutcomeThriving'),
+@@@ data/repositories/program_repository.dart
+description: 'Converted a failed distribution into a loan.',
+-->
+message: AdminLogMessage('adminLogProgramConvertedToLoan'),
+@@@ data/repositories/program_repository.dart
+description: 'Scheduled "${title.trim()}" for a program.',
+-->
+message: AdminLogMessage('adminLogProgramActivityCreated', {'title': title.trim()}),
+@@@ data/repositories/program_repository.dart
+description: 'Deleted a program activity.',
+-->
+message: AdminLogMessage('adminLogProgramActivityDeleted'),
+@@@ presentation/screens/admin/admin_edit_profile_screen.dart
+description: 'Changed their account password.',
+-->
+message: AdminLogMessage('adminLogPasswordChanged'),
+@@@ presentation/screens/admin/admin_inventory_screen.dart
+description: 'Added inventory item "${name.trim()}" ($category).',
+-->
+message: AdminLogMessage('adminLogInventoryItemAdded', {'name': name.trim(), 'category': category}),
+@@@ presentation/screens/admin/admin_inventory_screen.dart
+description:
+'${quantity >= 0 ? 'Added' : 'Deducted'} ${quantity.abs()} units of stock ($transactionType).',
+-->
+message: quantity >= 0
+? AdminLogMessage('adminLogStockAdded', {'qty': '${quantity.abs()}', 'type': transactionType})
+: AdminLogMessage('adminLogStockDeducted', {'qty': '${quantity.abs()}', 'type': transactionType}),
+@@@ presentation/screens/admin/admin_inventory_screen.dart
+description: 'Updated the reorder level for an inventory item.',
+-->
+message: AdminLogMessage('adminLogReorderLevelUpdated'),
+@@@ presentation/screens/admin/admin_inventory_screen.dart
+description: 'Updated inventory item "${name.trim()}".',
+-->
+message: AdminLogMessage('adminLogInventoryItemUpdated', {'name': name.trim()}),
+@@@ presentation/screens/admin/admin_inventory_screen.dart
+description: 'Deactivated an inventory item.',
+-->
+message: AdminLogMessage('adminLogInventoryDeactivated'),
+@@@ presentation/screens/admin/admin_inventory_screen.dart
+description: 'Deleted inventory item.',
+-->
+message: AdminLogMessage('adminLogInventoryDeleted'),
+@@@ presentation/screens/admin/crop_management_screen.dart
+description: 'Added "$trimmedName" to the crop catalog ($category).',
+-->
+message: AdminLogMessage('adminLogCropCatalogAdded', {'name': trimmedName, 'category': category}),
+@@@ presentation/screens/admin/crop_management_screen.dart
+description: 'Updated "$trimmedName" in the crop catalog ($category).',
+-->
+message: AdminLogMessage('adminLogCropCatalogUpdated', {'name': trimmedName, 'category': category}),
+@@@ presentation/screens/admin/crop_management_screen.dart
+description: newValue
+? 'Reactivated a crop in the catalog.'
+: 'Deactivated a crop in the catalog.',
+-->
+message: newValue
+? const AdminLogMessage('adminLogCropReactivated')
+: const AdminLogMessage('adminLogCropDeactivated'),
+@@@ presentation/screens/admin/crop_management_screen.dart
+description: 'Deleted a crop from the catalog.',
+-->
+message: AdminLogMessage('adminLogCropDeleted'),
+@@@ presentation/screens/admin/crop_request_approval_screen.dart
+description: approve
+? 'Approved ${item.farmerName}\'s crop request for "${item.requestedName}".'
+: 'Rejected ${item.farmerName}\'s crop request for "${item.requestedName}".',
+-->
+message: approve
+? AdminLogMessage('adminLogCropRequestApproved', {'farmer': item.farmerName, 'crop': item.requestedName})
+: AdminLogMessage('adminLogCropRequestRejected', {'farmer': item.farmerName, 'crop': item.requestedName}),
+@@@ presentation/screens/admin/export_center_screen.dart
+description:
+'Generated a ${_format.toUpperCase()} export (${_selectedModules.length} report${_selectedModules.length == 1 ? '' : 's'}).',
+-->
+message: AdminLogMessage('adminLogExportGenerated', {'format': _format.toUpperCase(), 'count': '${_selectedModules.length}'}),

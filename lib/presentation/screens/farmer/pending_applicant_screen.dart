@@ -16,6 +16,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PendingApplicantScreen — Shell with 3 tabs (Home, Notifications, Profile)
@@ -42,8 +43,9 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
   bool _isLoading = true;
   bool _isBusy = false;
 
-  // 'draft' | 'pending' | 'rejected' | 'active'
-  String _status = 'draft';
+  // 'pending' | 'rejected' (shown as Disapproved) | 'active' (Approved);
+  // 'draft' only for an account registered under the old flow.
+  String _status = 'pending';
   bool _pendingAcknowledgement = false;
   String? _rejectionReason;
 
@@ -89,7 +91,7 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
       setState(() {
         _fullName = info?['full_name'] as String? ?? 'Applicant';
         _username = info?['username'] as String? ?? '';
-        _status = role?['status'] as String? ?? 'draft';
+        _status = role?['status'] as String? ?? 'pending';
         _pendingAcknowledgement =
             role?['pending_acknowledgement'] as bool? ?? false;
         _rejectionReason = role?['rejection_reason'] as String?;
@@ -103,7 +105,7 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
     }
   }
 
-  // Realtime — reload state whenever the admin changes anything on the row.
+  // Realtime — reload state whenever the Manager changes anything on the row.
   void _subscribeToStatus() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
@@ -213,7 +215,7 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: ok ? AppConstants.successGreen : AppConstants.charcoal,
+        backgroundColor: ok ? AppConstants.midGreen : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -251,17 +253,34 @@ class _PendingApplicantScreenState extends State<PendingApplicantScreen> {
         onEditDetails: _editDetails,
       ),
       const _PendingNotificationsTab(),
-      _PendingProfileTab(fullName: _fullName, username: _username),
+      _PendingProfileTab(
+        fullName: _fullName,
+        status: _status,
+        pendingAcknowledgement: _pendingAcknowledgement,
+      ),
     ];
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading && _currentTab == 0
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppConstants.primaryGreen,
-                strokeWidth: 2,
-              ),
+          ? CustomScrollView(
+              slivers: [
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SimpleTopBar(
+                    title: AppLocalizations.of(context).pendingHomeTitle,
+                    sagana: sagana,
+                    cs: cs,
+                    topPadding: MediaQuery.of(context).padding.top,
+                  ),
+                ),
+                // No hasScrollBody:false here: that mode measures the child's
+                // intrinsic height, and SkeletonList contains a LayoutBuilder,
+                // which cannot answer that (assertion in debug builds).
+                const SliverFillRemaining(
+                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                ),
+              ],
             )
           : screens[_currentTab],
       bottomNavigationBar: _PendingBottomNav(
@@ -526,7 +545,7 @@ class _PendingHomeTab extends StatelessWidget {
               const SizedBox(height: 20),
 
               if (!isOnline) ...[
-                OfflineBanner(message: l10n.pendingOfflineBanner),
+                OfflineStatusCard(message: l10n.pendingOfflineBanner),
                 const SizedBox(height: 20),
               ],
 
@@ -611,7 +630,7 @@ class _PendingHomeTab extends StatelessWidget {
           if (username.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              l10n.pendingYourUsername(username.toUpperCase()),
+              l10n.pendingYourUsername(username),
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: cs.onSurfaceVariant,
@@ -1034,12 +1053,7 @@ class _PendingNotificationsTabState extends State<_PendingNotificationsTab> {
 
         Expanded(
           child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
-                    strokeWidth: 2,
-                  ),
-                )
+              ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
               : RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
@@ -1154,9 +1168,16 @@ class _PendingNotificationsTabState extends State<_PendingNotificationsTab> {
 
 class _PendingProfileTab extends StatefulWidget {
   final String fullName;
-  final String username;
 
-  const _PendingProfileTab({required this.fullName, required this.username});
+  /// draft | pending | rejected | active (approved, waiting for Continue)
+  final String status;
+  final bool pendingAcknowledgement;
+
+  const _PendingProfileTab({
+    required this.fullName,
+    required this.status,
+    required this.pendingAcknowledgement,
+  });
 
   @override
   State<_PendingProfileTab> createState() => _PendingProfileTabState();
@@ -1272,12 +1293,7 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppConstants.primaryGreen,
-                    strokeWidth: 2,
-                  ),
-                )
+              ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
               : SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
                   child: Column(
@@ -1336,16 +1352,6 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
                               ),
                               textAlign: TextAlign.center,
                             ),
-                            if (widget.username.isNotEmpty)
-                              Text(
-                                widget.username.toUpperCase(),
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: cs.primary,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -1361,11 +1367,24 @@ class _PendingProfileTabState extends State<_PendingProfileTab> {
                                 ),
                               ),
                               child: Text(
-                                l10n.pendingVerificationBadge,
+                                widget.status == 'rejected'
+                                    ? l10n.pendingBadgeRejected
+                                    : widget.status == 'draft'
+                                    ? l10n.pendingBadgeDraft
+                                    : (widget.status == 'active' &&
+                                          widget.pendingAcknowledgement)
+                                    ? l10n.pendingBadgeApproved
+                                    : l10n.farmerDetailsPendingApplicantBadge
+                                          .toUpperCase(),
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: AppConstants.warningAmber,
+                                  color: widget.status == 'rejected'
+                                      ? AppConstants.errorRed
+                                      : (widget.status == 'active' &&
+                                            widget.pendingAcknowledgement)
+                                      ? AppConstants.successGreen
+                                      : AppConstants.warningAmber,
                                   letterSpacing: 0.5,
                                 ),
                               ),

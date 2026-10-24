@@ -55,6 +55,19 @@ class AppToast {
   }
 }
 
+/// Standard post-action feedback: green for success, red for anything
+/// negative (validation failure, blocked action, rejection, cancellation).
+/// Every in-app action message should go through here, not a raw SnackBar.
+class PostActionFeedback {
+  PostActionFeedback._();
+
+  static void success(BuildContext context, String message) =>
+      AppToast.show(context, message);
+
+  static void error(BuildContext context, String message) =>
+      AppToast.show(context, message, isError: true);
+}
+
 class _ToastWidget extends StatelessWidget {
   final String message;
   final bool isError;

@@ -6,7 +6,13 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/notification_day_groups.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
 
 // Buyer-local time-ago formatter — deliberately not modifying
 // NotificationModel.timeAgo since that getter is shared across
@@ -24,28 +30,23 @@ class BuyerNotificationsScreen extends StatefulWidget {
   const BuyerNotificationsScreen({super.key});
 
   @override
-  State<BuyerNotificationsScreen> createState() => _BuyerNotificationsScreenState();
+  State<BuyerNotificationsScreen> createState() =>
+      _BuyerNotificationsScreenState();
 }
 
 class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
   final _repository = NotificationRepository();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   List<NotificationModel> _all = [];
-  NotificationFilter _selectedFilter = NotificationFilter.all;
-
-  // Buyer-relevant filters only — Loans is structurally never populated
-  // for this role, so it's left off the chip row entirely.
-  static const _buyerFilters = [
-    NotificationFilter.all,
-    NotificationFilter.orders,
-    NotificationFilter.listings,
-    NotificationFilter.prices,
-  ];
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -59,29 +60,19 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
     });
   }
 
-  List<NotificationModel> get _filtered =>
-      _all.where((n) => _selectedFilter.matches(n)).toList();
-
-  // Buyer-local label override — avoids modifying the shared NotificationFilter
-  // enum (also used by Admin/Farmer notification screens). Falls back to the
-  // enum's own .label for any filter value outside Buyer's 4-chip row.
-  String _filterLabel(NotificationFilter filter, AppLocalizations l10n) {
-    switch (filter) {
-      case NotificationFilter.all: return l10n.buyerNotifFilterAll;
-      case NotificationFilter.orders: return l10n.buyerNavOrders;
-      case NotificationFilter.listings: return l10n.buyerNotifFilterListings;
-      case NotificationFilter.prices: return l10n.buyerNavPrices;
-      default: return filter.label;
-    }
+  bool _offlineBlocked() {
+    if (_isOnline) return false;
+    AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+    return true;
   }
 
   Future<void> _markAsRead(NotificationModel n) async {
-    if (n.isRead) return;
+    if (n.isRead || _offlineBlocked()) return;
     setState(() {
       final index = _all.indexWhere((x) => x.id == n.id);
       if (index != -1) _all[index] = n.copyWith(isRead: true);
     });
-    await _repository.markAsRead(n.id);
+    await _repository.markAsRead(n.id, queueWhenOffline: false);
   }
 
   Future<void> _onNotifTap(NotificationModel n) async {
@@ -97,119 +88,120 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
   }
 
   Future<void> _delete(NotificationModel n) async {
+    if (_offlineBlocked()) return;
     setState(() => _all.removeWhere((x) => x.id == n.id));
-    await _repository.deleteNotification(n.id);
+    await _repository.deleteNotification(n.id, queueWhenOffline: false);
   }
 
   Future<void> _markAllRead() async {
+    if (_offlineBlocked()) return;
     setState(() {
       _all = _all.map((n) => n.copyWith(isRead: true)).toList();
     });
-    await _repository.markAllAsRead();
+    await _repository.markAllAsRead(queueWhenOffline: false);
   }
 
   Future<void> _clearAll() async {
+    if (_offlineBlocked()) return;
     final confirmed = await AppDialog.show<bool>(
       context: context,
       child: _ClearAllConfirmDialog(),
     );
     if (confirmed != true) return;
     setState(() => _all = []);
-    await _repository.deleteAllNotifications();
+    await _repository.deleteAllNotifications(queueWhenOffline: false);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final filtered = _filtered;
     final hasUnread = _all.any((n) => n.isUnread);
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.sectionNotifications,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-        actions: [
-          if (_all.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded, color: AppConstants.primaryGreen),
-              onSelected: (value) {
-                if (value == 'read_all') _markAllRead();
-                if (value == 'clear_all') _clearAll();
-              },
-              itemBuilder: (context) => [
-                if (hasUnread)
-                  PopupMenuItem(value: 'read_all', child: Text(l10n.buyerNotifMenuMarkAllRead)),
-                PopupMenuItem(value: 'clear_all', child: Text(l10n.buyerNotifMenuClearAll)),
-              ],
-            ),
-        ],
-      ),
       body: Column(
         children: [
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH, vertical: 6),
-              itemCount: _buyerFilters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final filter = _buyerFilters[i];
-                final isSelected = filter == _selectedFilter;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedFilter = filter),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppConstants.primaryGreen : context.saganaColors.cardBackground,
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                      border: Border.all(color: isSelected ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.25)),
+          SubPageTopBar(
+            title: l10n.sectionNotifications,
+            onBack: () => Navigator.of(context).pop(),
+            trailing: _all.isNotEmpty
+                ? PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: AppConstants.primaryGreen,
                     ),
-                    alignment: Alignment.center,
-                    child: Text(_filterLabel(filter, l10n),
-                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600,
-                            color: isSelected ? Colors.white : AppConstants.onSurfaceVariant)),
-                  ),
-                );
-              },
-            ),
+                    onSelected: (value) {
+                      if (value == 'read_all') _markAllRead();
+                      if (value == 'clear_all') _clearAll();
+                    },
+                    itemBuilder: (context) => [
+                      if (hasUnread)
+                        PopupMenuItem(
+                          value: 'read_all',
+                          child: Text(l10n.buyerNotifMenuMarkAllRead),
+                        ),
+                      PopupMenuItem(
+                        value: 'clear_all',
+                        child: Text(l10n.buyerNotifMenuClearAll),
+                      ),
+                    ],
+                  )
+                : null,
           ),
+          CachedDataNotice(
+            screen: 'notifications',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineBuyerBody,
+          ),
+          const Divider(height: 1),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 32),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (context, i) {
-                            final n = filtered[i];
-                            return Dismissible(
-                              key: ValueKey(n.id),
-                              direction: DismissDirection.endToStart,
-                              background: Container(
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.only(right: 20),
-                                decoration: BoxDecoration(
-                                  color: AppConstants.errorRed,
-                                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                                ),
-                                child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : _all.isEmpty
+                ? _buildEmptyState()
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        8,
+                        AppConstants.spacingSafeH,
+                        32,
+                      ),
+                      children: notificationGroupChildren<NotificationModel>(
+                        items: _all,
+                        timeOf: (n) => n.createdAt,
+                        l10n: l10n,
+                        buildItem: (n) => Dismissible(
+                          key: ValueKey(n.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            decoration: BoxDecoration(
+                              color: AppConstants.errorRed,
+                              borderRadius: BorderRadius.circular(
+                                AppConstants.radiusLg,
                               ),
-                              onDismissed: (_) => _delete(n),
-                              child: _NotificationTile(notification: n, onTap: () => _onNotifTap(n)),
-                            );
-                          },
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          onDismissed: (_) => _delete(n),
+                          child: _NotificationTile(
+                            notification: n,
+                            onTap: () => _onNotifTap(n),
+                          ),
                         ),
                       ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -224,13 +216,28 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.notifications_none_rounded, size: 56, color: AppConstants.outline.withValues(alpha: 0.5)),
+            Icon(
+              Icons.notifications_none_rounded,
+              size: 56,
+              color: AppConstants.outline.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 16),
-            Text(l10n.buyerNotifEmptyTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(
+              l10n.buyerNotifEmptyTitle,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(l10n.buyerNotifEmptyBody,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+            Text(
+              l10n.buyerNotifEmptyBody,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
@@ -245,11 +252,16 @@ class _NotificationTile extends StatelessWidget {
 
   IconData get _icon {
     switch (notification.type) {
-      case NotificationType.order: return Icons.receipt_long_rounded;
-      case NotificationType.listing: return Icons.storefront_rounded;
-      case NotificationType.price: return Icons.trending_up_rounded;
-      case NotificationType.loan: return Icons.account_balance_wallet_rounded;
-      case NotificationType.sync: return Icons.sync_rounded;
+      case NotificationType.order:
+        return Icons.receipt_long_rounded;
+      case NotificationType.listing:
+        return Icons.storefront_rounded;
+      case NotificationType.price:
+        return Icons.trending_up_rounded;
+      case NotificationType.loan:
+        return Icons.account_balance_wallet_rounded;
+      case NotificationType.sync:
+        return Icons.sync_rounded;
       case NotificationType.system:
       case NotificationType.listingSubmitted:
       case NotificationType.loanOverdue:
@@ -276,17 +288,33 @@ class _NotificationTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: notification.isUnread ? AppConstants.primaryGreen.withValues(alpha: 0.05) : context.saganaColors.cardBackground,
+          color: notification.isUnread
+              ? AppConstants.primaryGreen.withValues(alpha: 0.05)
+              : context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: notification.isUnread ? Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.2)) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
+          border: notification.isUnread
+              ? Border.all(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
+                )
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: AppConstants.primaryGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
               child: Icon(_icon, size: 18, color: AppConstants.primaryGreen),
             ),
             const SizedBox(width: 12),
@@ -294,22 +322,47 @@ class _NotificationTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(notification.title,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: notification.isUnread ? FontWeight.w700 : FontWeight.w600)),
+                  Text(
+                    notification.title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: notification.isUnread
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(notification.body,
-                      style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(
+                    notification.body,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
-                  Text(_buyerNotifTimeAgo(notification.createdAt, l10n),
-                      style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant.withValues(alpha: 0.7))),
+                  Text(
+                    _buyerNotifTimeAgo(notification.createdAt, l10n),
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: AppConstants.onSurfaceVariant.withValues(
+                        alpha: 0.7,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
             if (notification.isUnread)
               Container(
                 margin: const EdgeInsets.only(top: 4),
-                width: 8, height: 8,
-                decoration: const BoxDecoration(color: AppConstants.primaryGreen, shape: BoxShape.circle),
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppConstants.primaryGreen,
+                  shape: BoxShape.circle,
+                ),
               ),
           ],
         ),
@@ -326,14 +379,29 @@ class _ClearAllConfirmDialog extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 40),
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.buyerNotifClearDialogTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+            Text(
+              l10n.buyerNotifClearDialogTitle,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 6),
-            Text(l10n.buyerNotifClearDialogMessage,
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+            Text(
+              l10n.buyerNotifClearDialogMessage,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 18),
             Row(
               children: [
@@ -346,9 +414,14 @@ class _ClearAllConfirmDialog extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppConstants.errorRed),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConstants.errorRed,
+                    ),
                     onPressed: () => Navigator.pop(context, true),
-                    child: Text(l10n.buyerNotifDialogClearAll, style: const TextStyle(color: Colors.white)),
+                    child: Text(
+                      l10n.buyerNotifDialogClearAll,
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],

@@ -69,37 +69,6 @@ class DashboardPriority {
   });
 }
 
-// ─── Inventory Alert Item ─────────────────────────────────────────────────────
-// Sourced from cooperative_inventory (Inventory Management's own stock) —
-// see fetchInventoryAlerts() in admin_dashboard_repository.dart. Reworked
-// per Phase 2 to replace the earlier inventory_batches (farmer harvest
-// stock)-sourced version, which described a different table than the one
-// "Inventory Management" and its "View Inventory" link actually manage.
-
-enum InventoryAlertLevel { low, depleted }
-
-class InventoryAlertItem {
-  final String id;
-  final String itemName;
-  final String category;
-  final double quantityOnHand;
-  final String unit;
-  final double reorderLevel;
-  final InventoryAlertLevel alertLevel;
-
-  const InventoryAlertItem({
-    required this.id,
-    required this.itemName,
-    required this.category,
-    required this.quantityOnHand,
-    required this.unit,
-    required this.reorderLevel,
-    required this.alertLevel,
-  });
-
-  bool get isDepleted => alertLevel == InventoryAlertLevel.depleted;
-}
-
 // ─── Calendar Event ───────────────────────────────────────────────────────────
 
 enum CalendarEventType { bodMeeting, loanDue, harvest, announcement, program }
@@ -268,7 +237,6 @@ class ManagementModuleCard {
   final String title;
   final String subtitle;
   final String badgeLabel;
-  final bool hasBadgeAlert;
   final String route;
   final bool
   useGo; // true = tab switch via context.go(), false = push above shell
@@ -278,7 +246,6 @@ class ManagementModuleCard {
     required this.title,
     required this.subtitle,
     required this.badgeLabel,
-    required this.hasBadgeAlert,
     required this.route,
     this.useGo = false,
   });

@@ -6,9 +6,12 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/account_management_repository.dart';
+import '../../widgets/account_card.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/temp_password_dialog.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
   final String initialTab;
@@ -166,55 +169,47 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          l10n.manageAccountsTitle,
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: cs.onSurface,
-          ),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: cs.primary,
-          unselectedLabelColor: cs.onSurfaceVariant,
-          tabs: [
-            const Tab(text: 'Farmers'),
-            const Tab(text: 'Officer'),
-            Tab(
-              text: _requests.isEmpty
-                ? l10n.manageAccountsRequestsTab
-                  : l10n.manageAccountsRequestsTabCount(_requests.length),
-            ),
-          ],
-        ),
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppConstants.primaryGreen,
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.manageAccountsTitle, onBack: () => context.pop()),
+          // The three sections: Farmers, Officers, Password Assistance Requests.
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: AppConstants.primaryGreen,
+              unselectedLabelColor: cs.onSurfaceVariant,
+              indicatorColor: AppConstants.primaryGreen,
+              labelStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
-            )
+              unselectedLabelStyle: GoogleFonts.inter(fontSize: 13),
+              tabs: [
+                Tab(text: l10n.manageAccountsFarmersTab),
+                Tab(text: l10n.manageAccountsOfficersTab),
+                Tab(
+                  text: _requests.isEmpty
+                      ? l10n.manageAccountsRequestsTab
+                      : l10n.manageAccountsRequestsTabCount(_requests.length),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: _isLoading
+          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
           : TabBarView(
               controller: _tabController,
               children: [
                 _AccountList(
                   accounts: _farmers,
                   cs: cs,
-                  sagana: sagana,
                   onTap: _showAccountActions,
                 ),
                 _AccountList(
                   accounts: _officers,
                   cs: cs,
-                  sagana: sagana,
                   onTap: _showAccountActions,
                 ),
                 _PasswordRequestsList(
@@ -224,7 +219,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
                   onResolve: _resolveRequest,
                 ),
               ],
-            ),
+            )),
+        ],
+      ),
     );
   }
 }
@@ -232,13 +229,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
 class _AccountList extends StatelessWidget {
   final List<AccountEntry> accounts;
   final ColorScheme cs;
-  final SaganaColors sagana;
   final void Function(AccountEntry) onTap;
 
   const _AccountList({
     required this.accounts,
     required this.cs,
-    required this.sagana,
     required this.onTap,
   });
 
@@ -262,67 +257,7 @@ class _AccountList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final account = accounts[index];
-        return InkWell(
-          onTap: () => onTap(account),
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: sagana.cardBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          ),
-          child: Row(
-            children: [
-              ProfileAvatar(
-                photoUrl: account.profilePhotoUrl,
-                displayName: account.name,
-                radius: 24,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      account.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                    ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                decoration: BoxDecoration(
-                    color: account.status == 'active'
-                        ? AppConstants.successGreen.withValues(alpha: 0.12)
-                        : cs.outline.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(
-                      AppConstants.radiusFull,
-                    ),
-                ),
-                child: Text(
-                  account.role,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: account.status == 'active'
-                          ? AppConstants.successGreen
-                          : cs.onSurfaceVariant,
-                    ),
-                ),
-              ),
-            ],
-          ),
-          ),
-        );
+        return AccountCard(account: account, onTap: () => onTap(account));
       },
     );
   }
@@ -341,22 +276,73 @@ class _PasswordRequestsList extends StatelessWidget {
     required this.onResolve,
   });
 
+  String _roleLabel(AppLocalizations l10n, String? role) {
+    switch (role) {
+      case 'farmer':
+        return l10n.registerRoleFarmer;
+      case 'buyer':
+        return l10n.registerRoleBuyer;
+      case 'officer':
+        return l10n.createOfficerSectionOfficer;
+      default:
+        return role ?? '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final header = Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.manageAccountsRequestsHeader,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.manageAccountsRequestsHint,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              height: 1.45,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+
     if (requests.isEmpty) {
-      return Center(
-        child: Text(
-          AppLocalizations.of(context).manageAccountsNoPendingRequests,
-          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
-        ),
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          header,
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              l10n.manageAccountsNoPendingRequests,
+              style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
       );
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: requests.length,
+      itemCount: requests.length + 1,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final request = requests[index];
+        if (index == 0) return header;
+        final request = requests[index - 1];
+        final role = _roleLabel(l10n, request.role);
+        final requested = MaterialLocalizations.of(context)
+            .formatMediumDate(request.requestedAt.toLocal());
         return Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -364,39 +350,100 @@ class _PasswordRequestsList extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: cs.primary.withValues(alpha: 0.12),
-                child: Icon(Icons.lock_reset_rounded, color: cs.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      request.fullName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ProfileAvatar(
+                    photoUrl: request.profilePhotoUrl,
+                    displayName: request.fullName,
+                    radius: 26,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  request.fullName,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.3,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (role.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: cs.primary.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.radiusFull,
+                                  ),
+                                ),
+                                child: Text(
+                                  role.toUpperCase(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
+                                    color: cs.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          request.username,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          l10n.manageAccountsRequestedOn(requested),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              ElevatedButton(
-                onPressed: () => onResolve(request),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryGreen,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                child: Text(
-                  AppLocalizations.of(context).manageAccountsResolveAction,
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => onResolve(request),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppConstants.primaryGreen,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  child: Text(l10n.manageAccountsResolveAction),
                 ),
               ),
             ],

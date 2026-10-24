@@ -4,6 +4,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/market_linking_repository.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin's DA-AMAD Ginger Market Linking Enrollment management — mirrors
 /// CropRequestApprovalScreen's shape exactly (Pending/Reviewed tabs,
@@ -93,7 +95,7 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
                         : 'Failed. Please try again.',
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -182,27 +184,7 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Market Linking Enrollments',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            SubPageTopBar(title: 'Market Linking Enrollments', onBack: () => Navigator.of(context).pop()),
             TabBar(
               controller: _tabController,
               labelColor: AppConstants.primaryGreen,
@@ -215,11 +197,7 @@ class _DaAmadEnrollmentScreenState extends State<DaAmadEnrollmentScreen>
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      ),
-                    )
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : TabBarView(
                       controller: _tabController,
                       children: [

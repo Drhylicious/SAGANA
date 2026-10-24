@@ -1,0 +1,160 @@
+  // One Admin row: module-coloured icon and badge, navigable rows get a
+  // chevron and tap through. Shared card look, so it matches Farmer and Buyer.
+  RecentActivityCard _adminCard(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    AdminActivityItem item,
+  ) {
+    final isNavigable =
+        item.referenceId != null ||
+        item.type == AdminActivityType.order ||
+        item.type == AdminActivityType.price ||
+        (item.type == AdminActivityType.logged &&
+            item.sourceModule != 'members');
+    final tappable = isNavigable &&
+        (membersAccessAllowed ||
+            !(item.type == AdminActivityType.member ||
+                item.type == AdminActivityType.harvest));
+
+    return RecentActivityCard(
+      icon: moduleIcon(item.sourceModule),
+      accentColor: moduleColor(item.sourceModule, cs),
+      title: adminActivityDescription(l10n, item),
+      subtitle: item.adminName ?? '',
+      timestamp: item.timestamp,
+      statusLabel: moduleLabel(l10n, item.sourceModule),
+      onTap: tappable ? () => _onItemTap(item) : null,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sagana = context.saganaColors;
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final filtered = _filteredItems;
+    final grouped = _groupByDate(filtered);
+    final dateKeys = grouped.keys.toList();
+    final hasSearch = _searchQuery.isNotEmpty || _filterCategory != null;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Column(
+        children: [
+          SubPageTopBar(
+            title: l10n.adminActivityTitle,
+            onBack: () => context.pop(),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : RefreshIndicator(
+                    color: AppConstants.primaryGreen,
+                    onRefresh: () => _loadPage(reset: true),
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                            child: RecentActivitySearchBar(
+                              controller: _searchCtrl,
+                              hint: l10n.adminActivitySearchHint,
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                            child: RecentActivityFilterChips<String?>(
+                              options: [
+                                for (final category in _visibleCategories)
+                                  RecentActivityFilterOption<String?>(
+                                    value: category,
+                                    label: _categoryLabel(l10n, category),
+                                  ),
+                              ],
+                              active: _filterCategory,
+                              onSelected: _onFilterTap,
+                            ),
+                          ),
+                        ),
+                        if (filtered.isEmpty)
+                          SliverFillRemaining(
+                            child: RecentActivityEmptyState(
+                              hasSearch: hasSearch,
+                              emptyTitle: l10n.adminActivityNoActivityYet,
+                              emptyHint: l10n.activityEmptyHint,
+                              noMatchTitle: l10n.activityNoMatchTitle,
+                              noMatchHint: l10n.activityNoMatchHint,
+                            ),
+                          )
+                        else ...[
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final label = dateKeys[index];
+                                  return RecentActivityDateGroup(
+                                    label: label,
+                                    cards: [
+                                      for (final item in grouped[label]!)
+                                        _adminCard(l10n, cs, item),
+                                    ],
+                                  );
+                                },
+                                childCount: dateKeys.length,
+                              ),
+                            ),
+                          ),
+                          if (_hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() => _page++);
+                                      _loadPage();
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: sagana.cardBackground,
+                                        borderRadius: BorderRadius.circular(
+                                          AppConstants.radiusFull,
+                                        ),
+                                        border: Border.all(
+                                          color: cs.outline.withValues(alpha: 0.20),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        l10n.adminActivityLoadMore,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: cs.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                        ],
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}

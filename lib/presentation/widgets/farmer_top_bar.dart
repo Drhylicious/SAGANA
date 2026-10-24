@@ -1,3 +1,4 @@
+import '../../core/l10n/app_localizations.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -17,17 +18,18 @@ import 'shared_widgets.dart';
 /// dedicated localization phase's job, not this one) so the Drawer's
 /// Sign Out row behaves identically to the existing Settings screen.
 Future<void> confirmFarmerSignOut(BuildContext context) async {
+  final l10n = AppLocalizations.of(context);
   final confirmed = await AppDialog.show<bool>(
     context: context,
-    child: const ConfirmDialog(
-      title: 'Sign Out?',
-      message:
-          'You will be signed out of SAGANA. '
-          'Offline records will remain on this device.',
-      confirmLabel: 'Sign Out',
+    child: ConfirmDialog(
+      title: l10n.signOutTitle,
+      message: l10n.signOutFarmerMessage,
+      confirmLabel: l10n.adminProfileSignOut,
+      cancelLabel: l10n.issueLoanCancel,
     ),
   );
   if (confirmed == true) {
+    FarmerProfileStateService.instance.clear();
     await AuthService.logout();
     if (context.mounted) GoRouter.of(context).go(AppRoutes.login);
   }

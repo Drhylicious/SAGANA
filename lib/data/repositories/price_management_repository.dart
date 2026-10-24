@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/market_types_service.dart';
+import '../services/offline_cache.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/price_record_model.dart';
 import 'admin_activity_repository.dart';
-import 'notification_repository.dart';
+import '../models/admin_log_message.dart';
 
 class PriceManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -20,10 +22,25 @@ class PriceManagementRepository {
       // stores its own copy. Left-join semantics (crop_id is nullable on
       // very old rows) mean a row with no linked crop just gets nulls
       // rather than being excluded.
-      final rows = await _client
-          .from('price_records')
-          .select('*, crop_master(image_url, category)')
-          .order('recorded_at', ascending: false);
+      final loaded = await OfflineCache.load(
+        screen: 'latest_prices',
+        fetch: () => _client
+            .from('price_records')
+            .select('*, crop_master(image_url, category)')
+            .order('recorded_at', ascending: false),
+      );
+      // Live rows are already limited by the database (a Buyer is never sent a
+      // farmer-only market's prices). A saved snapshot is re-checked against
+      // the current rules, so it cannot show prices this account may not see.
+      final rows = OfflineCache.servedFromCache('latest_prices')
+          ? loaded
+                .where(
+                  (r) => MarketTypes.instance.visibleToCurrentUser(
+                    r['price_type'] as String?,
+                  ),
+                )
+                .toList()
+          : loaded;
 
       final Map<String, PriceRecordModel> latest = {};
       for (final row in rows) {
@@ -38,22 +55,6 @@ class PriceManagementRepository {
       debugPrint(
         'PriceManagementRepository.fetchLatestPricePerCrop failed: $e',
       );
-      return [];
-    }
-  }
-
-  // ─── Fetch recent price history (for the history table) ───────────────────
-
-  Future<List<PriceRecordModel>> fetchPriceHistory({int limit = 20}) async {
-    try {
-      final rows = await _client
-          .from('price_records')
-          .select()
-          .order('recorded_at', ascending: false)
-          .limit(limit);
-      return rows.map((r) => PriceRecordModel.fromMap(r)).toList();
-    } catch (e) {
-      debugPrint('PriceManagementRepository.fetchPriceHistory failed: $e');
       return [];
     }
   }
@@ -136,14 +137,14 @@ class PriceManagementRepository {
     final row = await _client
         .from('price_records')
         .insert({
-          'crop_id':        cropId,
-          'crop_name':      cropName.trim(),
-          'price':          price,
-          'price_type':     priceType,
-          'unit':           unit,
+          'crop_id': cropId,
+          'crop_name': cropName.trim(),
+          'price': price,
+          'price_type': priceType,
+          'unit': unit,
           'previous_price': previousPrice,
-          'recorded_at':    (effectiveDate ?? DateTime.now()).toIso8601String(),
-          'recorded_by':    adminId,
+          'recorded_at': (effectiveDate ?? DateTime.now()).toIso8601String(),
+          'recorded_by': adminId,
           if (source != null && source.isNotEmpty) 'source': source.trim(),
         })
         .select()
@@ -152,8 +153,12 @@ class PriceManagementRepository {
     AdminActivityRepository().log(
       module: 'prices',
       actionType: 'recorded',
-      description:
-          'Recorded a $priceType price for "${cropName.trim()}" (₱${price.toStringAsFixed(2)}/$unit).',
+      message: AdminLogMessage('adminLogPriceRecorded', {
+        'priceType': priceType,
+        'crop': cropName.trim(),
+        'price': price.toStringAsFixed(2),
+        'unit': unit,
+      }),
       referenceId: cropId,
     );
 
@@ -167,7 +172,7 @@ class PriceManagementRepository {
     AdminActivityRepository().log(
       module: 'prices',
       actionType: 'deleted',
-      description: 'Deleted a price record.',
+      message: const AdminLogMessage('adminLogPriceDeleted'),
       referenceId: id,
     );
   }
@@ -192,140 +197,38 @@ class PriceManagementRepository {
     }
   }
 
-  // ─── Live farmer listings, by market type (Phase 6b) ───────────────────────
-  // Powers the two "Live Listings" sections. marketplace_listings has no
-  // confirmed crop_id FK in this schema history, so each listing's market
-  // type is resolved via lower(crop_name) against crop_master — same
-  // pattern as approve_crop_request(). Listings for a crop no longer in
-  // (or never added to) crop_master default to 'open_market' (Public
-  // Market) rather than being silently dropped.
-  Future<List<Map<String, dynamic>>> fetchLiveListings() async {
-    try {
-      final results = await Future.wait([
-        _client
-            .from('marketplace_listings')
-            .select(
-              'id, farmer_id, crop_name, variety, volume_kg, '
-              'remaining_kg, price_per_kg, photo_url',
-            )
-            .eq('status', 'approved')
-            .order('crop_name'),
-        _client.from('crop_master').select('crop_name, crop_type'),
-      ]);
-      final listings = results[0] as List;
-      final cropRows = results[1] as List;
-      if (listings.isEmpty) return [];
-
-      final typeByName = <String, String>{
-        for (final c in cropRows)
-          (c['crop_name'] as String).toLowerCase():
-              c['crop_type'] as String? ?? 'open_market',
-      };
-
-      return listings.map((r) {
-        final row = r as Map<String, dynamic>;
-        final cropType =
-            typeByName[(row['crop_name'] as String).toLowerCase()] ??
-                'open_market';
-        return {...row, 'crop_type': cropType};
-      }).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // Admin-only, Cooperative-Market-only, price-only edit — enforced inside
-  // admin_update_listing_price() (see supabase_schema_admin_edit_listing_price.sql),
-  // not just withheld in the UI. Deliberately an RPC rather than a raw
-  // .update(), matching this codebase's established precedent that every
-  // marketplace_listings write goes through a purpose-built RPC.
-  Future<bool> updateListingPrice({
-    required String listingId,
-    required double newPrice,
-  }) async {
-    try {
-      await _client.rpc(
-        'admin_update_listing_price',
-        params: {'p_listing_id': listingId, 'p_new_price': newPrice},
-      );
-      AdminActivityRepository().log(
-        module: 'prices',
-        actionType: 'updated',
-        description:
-            'Updated a cooperative market listing price to ₱${newPrice.toStringAsFixed(2)}.',
-        referenceId: listingId,
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // ─── Notification recipient count (for the pre-save preview note) ─────────
-  // Mirrors broadcastPriceNotification()'s own recipient query exactly, so
-  // the count shown to the admin before saving always matches who will
-  // actually be notified — was previously a hardcoded "52" placeholder.
-  Future<int> fetchNotificationRecipientCount() async {
-    try {
-      final rows = await _client
-          .from('user_roles')
-          .select('user_id')
-          .inFilter('role', ['farmer', 'buyer'])
-          .eq('status', 'active');
-      return rows.length;
-    } catch (_) {
-      return 0;
-    }
-  }
-
   // ─── Send notification to all farmers after price update ──────────────────
   // Inserts a notification row for every active farmer.
   // Admin-level operation: inserts into notifications table for all farmers.
 
+  // previousPrice is the price this save replaced (null for a first price), so
+  // the notice can say "set", "increased" or "decreased". An unchanged price
+  // sends nothing.
   Future<void> broadcastPriceNotification({
     required String cropName,
     required double newPrice,
     required String unit,
+    double? previousPrice,
+    String? priceType,
   }) async {
+    // The notices are written by the database (notify_price_update), so they
+    // don't depend on the device's permissions. A failure here does not undo the
+    // saved price, but it is logged instead of being silently ignored.
     try {
-      // Fetch all active farmer AND active buyer user IDs. Buyers were
-      // previously excluded here — the only code path that ever inserts a
-      // type:'price' notification — which meant NotificationFilter.prices
-      // could never return anything for any buyer (Buyer review finding
-      // 1.2). Buyers now receive the same price-update notification as
-      // farmers, for every price change, per business decision.
-      final recipients = await _client
-          .from('user_roles')
-          .select('user_id, role')
-          .inFilter('role', ['farmer', 'buyer'])
-          .eq('status', 'active');
-
-      if (recipients.isEmpty) return;
-
-      final now = DateTime.now();
-      final notifDrafts = recipients.map((r) {
-        final isBuyer = r['role'] == 'buyer';
-        // Role-aware body: farmers have an Analytics tab, buyers have a
-        // Prices tab — reusing one string for both would point buyers to
-        // a tab that doesn't exist for their role.
-        final tabHint = isBuyer
-            ? 'Check the Prices tab for the latest market rates.'
-            : 'Check the Analytics tab for the latest market rates.';
-        return NotificationDraft(
-          userId: r['user_id'] as String,
-          type: 'price',
-          title: 'Price Update: $cropName',
-          body:
-              'SP3 Admin updated the price of $cropName '
-              'to ₱${newPrice.toStringAsFixed(2)}/$unit. $tabHint',
-          createdAt: now,
-          routeOnTap: isBuyer ? '/buyer/prices' : '/farmer/analytics',
-        );
-      }).toList();
-
-      await NotificationRepository().createNotifications(notifDrafts);
-    } catch (_) {
-      // Notification failure is non-fatal — price was already saved
+      await _client.rpc(
+        'notify_price_update',
+        params: {
+          'p_crop_name': cropName,
+          'p_new_price': newPrice,
+          'p_unit': unit,
+          'p_previous_price': previousPrice,
+          'p_price_type': priceType,
+        },
+      );
+    } catch (e) {
+      debugPrint(
+        'PriceManagementRepository.broadcastPriceNotification failed: $e',
+      );
     }
   }
 }

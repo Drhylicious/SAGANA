@@ -1,6 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/dashboard_summary_model.dart';
 import '../services/hive_service.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../services/app_settings_service.dart';
+import '../models/activity_text.dart';
+import '../models/admin_log_message.dart';
+
+/// Localized labels for activity entries. Repositories have no BuildContext,
+/// so they resolve the user's current locale directly.
+AppLocalizations get _l =>
+    lookupAppLocalizations(AppSettingsService.instance.locale);
 
 class DashboardRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -8,6 +18,25 @@ class DashboardRepository {
   String get _userId => _client.auth.currentUser!.id;
 
   // ─── KPI Summary ─────────────────────────────────────────────────────────────
+
+  /// OfflineCache keys of the summary queries for the current dates (the same keys
+  /// fetchSummary writes), for the farmer dashboard notice.
+  static List<String> summaryCacheScreens() {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+    final startOfYear = DateTime(now.year, 1, 1);
+    return [
+      'dash_yield_month_${startOfMonth.toIso8601String()}',
+      'dash_yield_last_month_${startOfLastMonth.toIso8601String()}',
+      'dash_yield_year_${startOfYear.toIso8601String()}',
+      'dash_earnings_goal',
+      'dash_marketplace_${startOfYear.toIso8601String()}',
+      'dash_coop_sales_${startOfYear.toIso8601String()}',
+      'dash_informal_${startOfYear.toIso8601String()}',
+      'dash_market_linking_${startOfYear.toIso8601String()}',
+    ];
+  }
 
   Future<DashboardSummaryModel> fetchSummary() async {
     final now = DateTime.now();
@@ -21,11 +50,14 @@ class DashboardRepository {
 
     // Monthly yield — this calendar month's harvest_records rows.
     try {
-      final yieldResponse = await _client
-          .from('harvest_records')
-          .select('quantity_kg')
-          .eq('farmer_id', _userId)
-          .gte('harvest_date', startOfMonth.toIso8601String());
+      final yieldResponse = await OfflineCache.load(
+        screen: 'dash_yield_month_${startOfMonth.toIso8601String()}',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('quantity_kg')
+            .eq('farmer_id', _userId)
+            .gte('harvest_date', startOfMonth.toIso8601String()),
+      );
       monthlyYield = yieldResponse.fold<double>(
         0,
         (sum, row) => sum + (row['quantity_kg'] as num).toDouble(),
@@ -34,12 +66,15 @@ class DashboardRepository {
 
     // Yield last month for trend
     try {
-      final lastMonthYieldResponse = await _client
-          .from('harvest_records')
-          .select('quantity_kg')
-          .eq('farmer_id', _userId)
-          .gte('harvest_date', startOfLastMonth.toIso8601String())
-          .lte('harvest_date', endOfLastMonth.toIso8601String());
+      final lastMonthYieldResponse = await OfflineCache.load(
+        screen: 'dash_yield_last_month_${startOfLastMonth.toIso8601String()}',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('quantity_kg')
+            .eq('farmer_id', _userId)
+            .gte('harvest_date', startOfLastMonth.toIso8601String())
+            .lte('harvest_date', endOfLastMonth.toIso8601String()),
+      );
       lastMonthYield = lastMonthYieldResponse.fold<double>(
         0,
         (sum, row) => sum + (row['quantity_kg'] as num).toDouble(),
@@ -53,11 +88,14 @@ class DashboardRepository {
     // from here instead (see harvest_hub_screen.dart / HarvestRepository).
     double annualYield = 0;
     try {
-      final annualYieldResponse = await _client
-          .from('harvest_records')
-          .select('quantity_kg')
-          .eq('farmer_id', _userId)
-          .gte('harvest_date', startOfYear.toIso8601String());
+      final annualYieldResponse = await OfflineCache.load(
+        screen: 'dash_yield_year_${startOfYear.toIso8601String()}',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('quantity_kg')
+            .eq('farmer_id', _userId)
+            .gte('harvest_date', startOfYear.toIso8601String()),
+      );
       annualYield = annualYieldResponse.fold<double>(
         0,
         (sum, row) => sum + (row['quantity_kg'] as num).toDouble(),
@@ -94,11 +132,15 @@ class DashboardRepository {
     // if the read fails.
     double earningsGoal = 5000;
     try {
-      final goalRow = await _client
-          .from('farmer_dashboard_settings')
-          .select('monthly_earnings_goal')
-          .eq('id', 1)
-          .single();
+      final goalRows = await OfflineCache.load(
+        screen: 'dash_earnings_goal',
+        fetch: () => _client
+            .from('farmer_dashboard_settings')
+            .select('monthly_earnings_goal')
+            .eq('id', 1)
+            .limit(1),
+      );
+      final goalRow = goalRows.first;
       earningsGoal = (goalRow['monthly_earnings_goal'] as num).toDouble();
     } catch (_) {}
 
@@ -114,12 +156,15 @@ class DashboardRepository {
     // toward a plausible-but-wrong bigger number.
     double marketplaceMonthly = 0, marketplaceAnnual = 0;
     try {
-      final rows = await _client
-          .from('orders')
-          .select('total_price, created_at')
-          .eq('farmer_id', _userId)
-          .eq('status', 'completed')
-          .gte('created_at', startOfYear.toIso8601String());
+      final rows = await OfflineCache.load(
+        screen: 'dash_marketplace_${startOfYear.toIso8601String()}',
+        fetch: () => _client
+            .from('orders')
+            .select('total_price, created_at')
+            .eq('farmer_id', _userId)
+            .eq('status', 'completed')
+            .gte('created_at', startOfYear.toIso8601String()),
+      );
       for (final row in rows) {
         final amount = (row['total_price'] as num).toDouble();
         marketplaceAnnual += amount;
@@ -137,17 +182,20 @@ class DashboardRepository {
           '${d.year.toString().padLeft(4, '0')}-'
           '${d.month.toString().padLeft(2, '0')}-'
           '${d.day.toString().padLeft(2, '0')}';
-      final rows = await _client
-          .from('member_sales_transactions')
-          .select('amount, sale_date')
-          .eq('farmer_id', _userId)
-          .gte('sale_date', dateOnly(startOfYear));
+      final rows = await OfflineCache.load(
+        screen: 'dash_coop_sales_${startOfYear.toIso8601String()}',
+        fetch: () => _client
+            .from('member_sales_transactions')
+            .select('amount, sale_date')
+            .eq('farmer_id', _userId)
+            .gte('sale_date', dateOnly(startOfYear)),
+      );
       for (final row in rows) {
         final amount = (row['amount'] as num).toDouble();
         cooperativeAnnual += amount;
         final saleDate = DateTime.parse(row['sale_date'] as String);
         if (!saleDate.isBefore(startOfMonth)) cooperativeMonthly += amount;
-    }
+      }
     } catch (_) {}
 
     // informal_sales.sale_date is a TIMESTAMPTZ (same shape as
@@ -155,11 +203,14 @@ class DashboardRepository {
     // (confirmed product decision, not an oversight).
     double informalMonthly = 0, informalAnnual = 0;
     try {
-      final rows = await _client
-          .from('informal_sales')
-          .select('amount, sale_date')
-          .eq('farmer_id', _userId)
-          .gte('sale_date', startOfYear.toIso8601String());
+      final rows = await OfflineCache.load(
+        screen: 'dash_informal_${startOfYear.toIso8601String()}',
+        fetch: () => _client
+            .from('informal_sales')
+            .select('amount, sale_date')
+            .eq('farmer_id', _userId)
+            .gte('sale_date', startOfYear.toIso8601String()),
+      );
       for (final row in rows) {
         final amount = (row['amount'] as num?)?.toDouble() ?? 0;
         informalAnnual += amount;
@@ -178,14 +229,17 @@ class DashboardRepository {
     // itself already applies via COALESCE.
     double marketLinkingMonthly = 0, marketLinkingAnnual = 0;
     try {
-      final rows = await _client
-          .from('market_linking_programs')
-          .select(
-            'confirmed_volume_kg, requested_volume_kg, volume_kg, price_per_kg, completed_at',
-          )
-          .eq('farmer_id', _userId)
-          .eq('status', 'completed')
-          .gte('completed_at', startOfYear.toIso8601String());
+      final rows = await OfflineCache.load(
+        screen: 'dash_market_linking_${startOfYear.toIso8601String()}',
+        fetch: () => _client
+            .from('market_linking_programs')
+            .select(
+              'confirmed_volume_kg, requested_volume_kg, volume_kg, price_per_kg, completed_at',
+            )
+            .eq('farmer_id', _userId)
+            .eq('status', 'completed')
+            .gte('completed_at', startOfYear.toIso8601String()),
+      );
       for (final row in rows) {
         final pricePerKg = (row['price_per_kg'] as num?)?.toDouble();
         if (pricePerKg == null) continue;
@@ -198,7 +252,7 @@ class DashboardRepository {
         marketLinkingAnnual += amount;
         final completedAt = DateTime.parse(row['completed_at'] as String);
         if (!completedAt.isBefore(startOfMonth)) marketLinkingMonthly += amount;
-    }
+      }
     } catch (_) {}
 
     final monthlyEarnings =
@@ -238,7 +292,55 @@ class DashboardRepository {
   // every source with a generous fixed limit regardless of typeFilter,
   // collect, sort once, then apply typeFilter and offset/limit in Dart.
 
+  /// OfflineCache key for one fetchActivity() page. Screens use it to show the
+  /// cache notice for the page they display.
+  static String activityCacheScreen({
+    int limit = 50,
+    int offset = 0,
+    ActivityFilter? typeFilter,
+    String? searchQuery,
+    Set<ActivityType>? excludeTypes,
+  }) {
+    final excluded =
+        (excludeTypes ?? <ActivityType>{}).map((t) => t.name).toList()..sort();
+    return 'activity_${typeFilter?.name ?? 'all'}_'
+        '${searchQuery ?? ''}_${excluded.join(',')}_${limit}_$offset';
+  }
+
+  /// Recent activity, cached per filter combination so the feed can still be
+  /// viewed offline. The cache holds the whole result for these inputs.
   Future<List<ActivityItem>> fetchActivity({
+    int limit = 50,
+    int offset = 0,
+    ActivityFilter? typeFilter,
+    String? searchQuery,
+    Set<ActivityType>? excludeTypes,
+  }) async {
+    final screen = activityCacheScreen(
+      limit: limit,
+      offset: offset,
+      typeFilter: typeFilter,
+      searchQuery: searchQuery,
+      excludeTypes: excludeTypes,
+    );
+    try {
+      final rows = await OfflineCache.load(
+        screen: screen,
+        fetch: () async => (await _fetchActivityLive(
+          limit: limit,
+          offset: offset,
+          typeFilter: typeFilter,
+          searchQuery: searchQuery,
+          excludeTypes: excludeTypes,
+        )).map((item) => item.toMap()).toList(),
+      );
+      return rows.map(ActivityItem.fromMap).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ActivityItem>> _fetchActivityLive({
     int limit = 50,
     int offset = 0,
     ActivityFilter? typeFilter,
@@ -259,34 +361,32 @@ class DashboardRepository {
         text.toLowerCase().contains(searchQuery.toLowerCase());
 
     // Harvests
-    try {
-      final harvests = await _client
-          .from('harvest_records')
-          .select(
-            'id, crop_name, quantity_kg, batch_number, created_at, is_synced',
-          )
-          .eq('farmer_id', _userId)
-          .order('created_at', ascending: false)
-          .limit(sourceLimit);
-      for (final h in harvests) {
-        final cropName = h['crop_name'] as String;
-        final batchNo = h['batch_number'] as String? ?? '—';
-        if (!matchesSearch(cropName) && !matchesSearch(batchNo)) continue;
-        final isSynced = h['is_synced'] as bool? ?? false;
-        items.add(
-          ActivityItem(
+    final harvests = await _client
+        .from('harvest_records')
+        .select(
+          'id, crop_name, quantity_kg, batch_number, created_at, is_synced',
+        )
+        .eq('farmer_id', _userId)
+        .order('created_at', ascending: false)
+        .limit(sourceLimit);
+    for (final h in harvests) {
+      final cropName = h['crop_name'] as String;
+      final batchNo = h['batch_number'] as String? ?? '—';
+      if (!matchesSearch(cropName) && !matchesSearch(batchNo)) continue;
+      final isSynced = h['is_synced'] as bool? ?? false;
+      items.add(
+        ActivityItem(
           id: h['id'] as String,
           type: ActivityType.harvest,
-          title: '$cropName Harvest',
+          title: _l.activityHarvestTitle(cropName),
           subtitle:
               'Batch #$batchNo • ${_formatRelative(DateTime.parse(h['created_at'] as String))}',
           valueLabel: '${h['quantity_kg']} kg',
-          statusLabel: isSynced ? 'Synced' : 'Pending Sync',
+          statusLabel: isSynced ? _l.activitySynced : _l.activityPendingSync,
           timestamp: DateTime.parse(h['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+        ),
+      );
+    }
 
     // Listings — the farmer's own submission is a permanent historical fact
     // and must always show, regardless of the row's CURRENT status. Fixed
@@ -301,47 +401,45 @@ class DashboardRepository {
     // entry only for a status that is itself a farmer-driven, terminal fact
     // (withdrawn). Approved/rejected/sold are still never surfaced — those
     // remain Admin's/the marketplace's own decision, not the farmer's action.
-    try {
-      final listings = await _client
-          .from('marketplace_listings')
-          .select(
-            'id, crop_name, variety, status, updated_at, submitted_at, created_at',
-          )
-          .eq('farmer_id', _userId)
-          .order('created_at', ascending: false)
-          .limit(sourceLimit);
-      for (final l in listings) {
-        final cropName = l['crop_name'] as String;
-        final variety = l['variety'] as String? ?? '';
-        final status = l['status'] as String;
-        if (!matchesSearch(cropName)) continue;
-        final subtitle = variety.isNotEmpty ? variety : cropName;
+    final listings = await _client
+        .from('marketplace_listings')
+        .select(
+          'id, crop_name, variety, status, updated_at, submitted_at, created_at',
+        )
+        .eq('farmer_id', _userId)
+        .order('created_at', ascending: false)
+        .limit(sourceLimit);
+    for (final l in listings) {
+      final cropName = l['crop_name'] as String;
+      final variety = l['variety'] as String? ?? '';
+      final status = l['status'] as String;
+      if (!matchesSearch(cropName)) continue;
+      final subtitle = variety.isNotEmpty ? variety : cropName;
+      items.add(
+        ActivityItem(
+          id: '${l['id']}-submitted',
+          type: ActivityType.listing,
+          title: _l.activityListingSubmittedTitle(cropName),
+          subtitle: subtitle,
+          statusLabel: _l.activityPendingReview,
+          timestamp: DateTime.parse(
+            (l['submitted_at'] ?? l['created_at']) as String,
+          ),
+        ),
+      );
+      if (status == 'withdrawn') {
         items.add(
           ActivityItem(
-            id: '${l['id']}-submitted',
+            id: '${l['id']}-withdrawn',
             type: ActivityType.listing,
-            title: '$cropName Listing Submitted',
+            title: _l.activityListingWithdrawnTitle(cropName),
             subtitle: subtitle,
-            statusLabel: 'Pending Review',
-            timestamp: DateTime.parse(
-              (l['submitted_at'] ?? l['created_at']) as String,
-            ),
+            statusLabel: _l.activityWithdrawn,
+            timestamp: DateTime.parse(l['updated_at'] as String),
           ),
         );
-        if (status == 'withdrawn') {
-          items.add(
-            ActivityItem(
-              id: '${l['id']}-withdrawn',
-          type: ActivityType.listing,
-              title: '$cropName Listing Withdrawn',
-              subtitle: subtitle,
-              statusLabel: 'Withdrawn',
-              timestamp: DateTime.parse(l['updated_at'] as String),
-            ),
-          );
-        }
       }
-    } catch (_) {}
+    }
 
     // Orders placed BY this farmer, as a buyer, in the Farmer-to-Farmer
     // Marketplace (orders.buyer_id = this farmer) — a genuine gap found
@@ -353,45 +451,43 @@ class DashboardRepository {
     // Only the placement moment is shown; subsequent status changes
     // (approved/completed/cancelled) are Admin's actions on the order, not
     // the farmer's, same reasoning as everywhere else.
-    try {
-      final orders = await _client
-          .from('orders')
-          .select(
-            'id, quantity_kg, total_price, created_at, fulfillment_method, marketplace_listings(crop_name)',
-          )
-          .eq('buyer_id', _userId)
-          .order('created_at', ascending: false)
-          .limit(sourceLimit);
-      for (final o in orders) {
-        final cropName =
-            (o['marketplace_listings'] as Map?)?['crop_name'] as String? ??
-            'Produce';
-        if (!matchesSearch(cropName)) continue;
-        // Every checkout path (direct or from cart, pickup or delivery)
-        // converges on this one place_order() insert — fulfillment_method
-        // is the only thing that distinguishes them, so it's surfaced here
-        // rather than needing a separate source per flow.
-        final fulfillment = o['fulfillment_method'] as String?;
-        final fulfillmentLabel = fulfillment == 'delivery'
-            ? 'Delivery'
-            : fulfillment == 'pickup'
-            ? 'Pickup'
-            : null;
-        items.add(
-          ActivityItem(
-            id: o['id'] as String,
-            type: ActivityType.orderPlaced,
-            title: 'Placed an Order',
-            subtitle: fulfillmentLabel != null
-                ? '${o['quantity_kg']}kg $cropName • $fulfillmentLabel'
-                : '${o['quantity_kg']}kg $cropName',
-            valueLabel: '₱${(o['total_price'] as num).toStringAsFixed(0)}',
-            statusLabel: fulfillmentLabel,
-            timestamp: DateTime.parse(o['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+    final orders = await _client
+        .from('orders')
+        .select(
+          'id, quantity_kg, total_price, created_at, fulfillment_method, marketplace_listings(crop_name)',
+        )
+        .eq('buyer_id', _userId)
+        .order('created_at', ascending: false)
+        .limit(sourceLimit);
+    for (final o in orders) {
+      final cropName =
+          (o['marketplace_listings'] as Map?)?['crop_name'] as String? ??
+          'Produce';
+      if (!matchesSearch(cropName)) continue;
+      // Every checkout path (direct or from cart, pickup or delivery)
+      // converges on this one place_order() insert — fulfillment_method
+      // is the only thing that distinguishes them, so it's surfaced here
+      // rather than needing a separate source per flow.
+      final fulfillment = o['fulfillment_method'] as String?;
+      final fulfillmentLabel = fulfillment == 'delivery'
+          ? 'Delivery'
+          : fulfillment == 'pickup'
+          ? 'Pickup'
+          : null;
+      items.add(
+        ActivityItem(
+          id: o['id'] as String,
+          type: ActivityType.orderPlaced,
+          title: _l.activityOrderPlacedTitle,
+          subtitle: fulfillmentLabel != null
+              ? '${o['quantity_kg']}kg $cropName • $fulfillmentLabel'
+              : '${o['quantity_kg']}kg $cropName',
+          valueLabel: '₱${(o['total_price'] as num).toStringAsFixed(0)}',
+          statusLabel: fulfillmentLabel,
+          timestamp: DateTime.parse(o['created_at'] as String),
+        ),
+      );
+    }
 
     // Loan Payment Due was removed from here entirely (a later correction):
     // it's a passive reminder computed from Admin-issued loan data, not a
@@ -405,27 +501,27 @@ class DashboardRepository {
     // Crop requests (submission only — see _fetchCropRequestActivity)
     items.addAll(
       await _fetchCropRequestActivity(
-      userId: _userId,
-      searchQuery: searchQuery,
-      limit: sourceLimit,
+        userId: _userId,
+        searchQuery: searchQuery,
+        limit: sourceLimit,
       ),
     );
 
     // Crop added (instant catalog add)
     items.addAll(
       await _fetchCropAddedActivity(
-      userId: _userId,
-      searchQuery: searchQuery,
-      limit: sourceLimit,
+        userId: _userId,
+        searchQuery: searchQuery,
+        limit: sourceLimit,
       ),
     );
 
     // Informal sales
     items.addAll(
       await _fetchInformalSaleActivity(
-      userId: _userId,
-      searchQuery: searchQuery,
-      limit: sourceLimit,
+        userId: _userId,
+        searchQuery: searchQuery,
+        limit: sourceLimit,
       ),
     );
 
@@ -441,9 +537,9 @@ class DashboardRepository {
     // _fetchCooperativeSaleActivity, Phase 3).
     items.addAll(
       await _fetchCooperativeOfferActivity(
-      userId: _userId,
-      searchQuery: searchQuery,
-      limit: sourceLimit,
+        userId: _userId,
+        searchQuery: searchQuery,
+        limit: sourceLimit,
       ),
     );
 
@@ -512,8 +608,8 @@ class DashboardRepository {
     // scope for this entry.
     items.addAll(
       await _fetchCapitalReinvestmentActivity(
-      userId: _userId,
-      limit: sourceLimit,
+        userId: _userId,
+        limit: sourceLimit,
       ),
     );
 
@@ -542,36 +638,34 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      // Only the farmer's own submission is a farmer action — Admin's
-      // approve/reject decision is not, so it no longer generates an
-      // entry here (see recent_activity.md's farmer-actions-only scope
-      // decision).
-      final requests = await _client
-          .from('crop_requests')
-          .select('id, requested_name, created_at')
-          .eq('farmer_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in requests) {
-        final name = r['requested_name'] as String;
-        if (searchQuery != null &&
-            searchQuery.isNotEmpty &&
-            !name.toLowerCase().contains(searchQuery.toLowerCase())) {
-          continue;
-        }
-        items.add(
-          ActivityItem(
+    // Only the farmer's own submission is a farmer action — Admin's
+    // approve/reject decision is not, so it no longer generates an
+    // entry here (see recent_activity.md's farmer-actions-only scope
+    // decision).
+    final requests = await _client
+        .from('crop_requests')
+        .select('id, requested_name, created_at')
+        .eq('farmer_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in requests) {
+      final name = r['requested_name'] as String;
+      if (searchQuery != null &&
+          searchQuery.isNotEmpty &&
+          !name.toLowerCase().contains(searchQuery.toLowerCase())) {
+        continue;
+      }
+      items.add(
+        ActivityItem(
           id: '${r['id']}-submitted',
           type: ActivityType.cropRequest,
-          title: 'Crop Request Submitted',
+          title: _l.activityCropRequestSubmitted,
           subtitle: name,
-          statusLabel: 'Pending Review',
+          statusLabel: _l.activityPendingReview,
           timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+        ),
+      );
+    }
     return items;
   }
 
@@ -583,33 +677,31 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final crops = await _client
-          .from('farmer_crops')
-          .select('id, crop_name, created_at')
-          .eq('farmer_id', userId)
-          .not('crop_master_id', 'is', null)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final c in crops) {
-        final name = c['crop_name'] as String;
-        if (searchQuery != null &&
-            searchQuery.isNotEmpty &&
-            !name.toLowerCase().contains(searchQuery.toLowerCase())) {
-          continue;
-        }
-        items.add(
-          ActivityItem(
+    final crops = await _client
+        .from('farmer_crops')
+        .select('id, crop_name, created_at')
+        .eq('farmer_id', userId)
+        .not('crop_master_id', 'is', null)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final c in crops) {
+      final name = c['crop_name'] as String;
+      if (searchQuery != null &&
+          searchQuery.isNotEmpty &&
+          !name.toLowerCase().contains(searchQuery.toLowerCase())) {
+        continue;
+      }
+      items.add(
+        ActivityItem(
           id: c['id'] as String,
           type: ActivityType.cropAdded,
-          title: 'Crop Added',
+          title: _l.activityCropAdded,
           subtitle: name,
-          statusLabel: 'Added',
+          statusLabel: _l.activityAdded,
           timestamp: DateTime.parse(c['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+        ),
+      );
+    }
     return items;
   }
 
@@ -621,26 +713,25 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final sales = await _client
-          .from('informal_sales')
-          .select('id, crop_name, quantity_kg, amount, buyer_name, sale_date')
-          .eq('farmer_id', userId)
-          .order('sale_date', ascending: false)
-          .limit(limit);
-      for (final s in sales) {
-        final cropName = s['crop_name'] as String;
-        if (searchQuery != null &&
-            searchQuery.isNotEmpty &&
-            !cropName.toLowerCase().contains(searchQuery.toLowerCase())) {
-          continue;
-        }
-        final buyer = s['buyer_name'] as String?;
-        items.add(
-          ActivityItem(
+    final sales = await _client
+        .from('informal_sales')
+        .select('id, crop_name, quantity_kg, amount, buyer_name, sale_date')
+        .eq('farmer_id', userId)
+        .order('sale_date', ascending: false)
+        .limit(limit);
+    for (final s in sales) {
+      final cropName = s['crop_name'] as String;
+      if (searchQuery != null &&
+          searchQuery.isNotEmpty &&
+          !cropName.toLowerCase().contains(searchQuery.toLowerCase())) {
+        continue;
+      }
+      final buyer = s['buyer_name'] as String?;
+      items.add(
+        ActivityItem(
           id: s['id'] as String,
           type: ActivityType.informalSale,
-          title: 'Informal Sale',
+          title: _l.activityInformalSaleTitle,
           subtitle: buyer != null && buyer.isNotEmpty
               ? '$cropName • Sold to $buyer'
               : cropName,
@@ -649,10 +740,9 @@ class DashboardRepository {
               : null,
           statusLabel: '${s['quantity_kg']} kg',
           timestamp: DateTime.parse(s['sale_date'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+        ),
+      );
+    }
     return items;
   }
 
@@ -663,26 +753,24 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('farmer_crop_activity')
-          .select('id, description, created_at')
-          .eq('farmer_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.cropPhotoUpdated,
-            title: r['description'] as String,
-            subtitle: 'Crop Roster',
-            statusLabel: 'Updated',
-            timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+    final rows = await _client
+        .from('farmer_crop_activity')
+        .select('id, description, created_at')
+        .eq('farmer_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.cropPhotoUpdated,
+          title: localizeActivityRow(r),
+          subtitle: _l.activityCropRoster,
+          statusLabel: _l.activityUpdated,
+          timestamp: DateTime.parse(r['created_at'] as String),
+        ),
+      );
+    }
     return items;
   }
 
@@ -696,32 +784,30 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final offers = await _client
-          .from('cooperative_purchase_offers')
-          .select('id, crop_name, offered_quantity_kg, offered_at')
-          .eq('farmer_id', userId)
-          .order('offered_at', ascending: false)
-          .limit(limit);
-      for (final o in offers) {
-        final cropName = o['crop_name'] as String;
-        if (searchQuery != null &&
-            searchQuery.isNotEmpty &&
-            !cropName.toLowerCase().contains(searchQuery.toLowerCase())) {
-          continue;
-        }
-        items.add(
-          ActivityItem(
-            id: o['id'] as String,
-            type: ActivityType.cooperativeOffer,
-            title: 'Offered to Cooperative',
-          subtitle: cropName,
-            statusLabel: '${o['offered_quantity_kg']} kg',
-            timestamp: DateTime.parse(o['offered_at'] as String),
-          ),
-        );
+    final offers = await _client
+        .from('cooperative_purchase_offers')
+        .select('id, crop_name, offered_quantity_kg, offered_at')
+        .eq('farmer_id', userId)
+        .order('offered_at', ascending: false)
+        .limit(limit);
+    for (final o in offers) {
+      final cropName = o['crop_name'] as String;
+      if (searchQuery != null &&
+          searchQuery.isNotEmpty &&
+          !cropName.toLowerCase().contains(searchQuery.toLowerCase())) {
+        continue;
       }
-    } catch (_) {}
+      items.add(
+        ActivityItem(
+          id: o['id'] as String,
+          type: ActivityType.cooperativeOffer,
+          title: _l.activityOfferedToCoop,
+          subtitle: cropName,
+          statusLabel: '${o['offered_quantity_kg']} kg',
+          timestamp: DateTime.parse(o['offered_at'] as String),
+        ),
+      );
+    }
     return items;
   }
 
@@ -735,26 +821,24 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('da_amad_enrollments')
-          .select('id, submitted_at')
-          .eq('farmer_id', userId)
-          .order('submitted_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.marketLinkingEnrollment,
-            title: 'Submitted Market Linking Enrollment',
-            subtitle: 'Ginger Market Linking (DA-AMAD)',
-            statusLabel: 'Pending Review',
-            timestamp: DateTime.parse(r['submitted_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+    final rows = await _client
+        .from('da_amad_enrollments')
+        .select('id, submitted_at')
+        .eq('farmer_id', userId)
+        .order('submitted_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.marketLinkingEnrollment,
+          title: _l.activityMarketLinkingSubmitted,
+          subtitle: _l.activityGingerMarketLinking,
+          statusLabel: _l.activityPendingReview,
+          timestamp: DateTime.parse(r['submitted_at'] as String),
+        ),
+      );
+    }
     return items;
   }
 
@@ -768,27 +852,25 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('market_linking_programs')
-          .select('id, volume_kg, submitted_at')
-          .eq('farmer_id', userId)
-          .not('submitted_at', 'is', null)
-          .order('submitted_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.gingerBatchSubmission,
-            title: 'Submitted Ginger Batch for Sale',
-            subtitle: 'Market Linking',
-            statusLabel: '${r['volume_kg']} kg',
-            timestamp: DateTime.parse(r['submitted_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+    final rows = await _client
+        .from('market_linking_programs')
+        .select('id, volume_kg, submitted_at')
+        .eq('farmer_id', userId)
+        .not('submitted_at', 'is', null)
+        .order('submitted_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.gingerBatchSubmission,
+          title: _l.activityGingerBatchSubmitted,
+          subtitle: _l.activityMarketLinking,
+          statusLabel: '${r['volume_kg']} kg',
+          timestamp: DateTime.parse(r['submitted_at'] as String),
+        ),
+      );
+    }
     return items;
   }
 
@@ -799,26 +881,24 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('farmer_profile_activity')
-          .select('id, description, created_at')
-          .eq('farmer_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
+    final rows = await _client
+        .from('farmer_profile_activity')
+        .select('id, description, created_at')
+        .eq('farmer_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
           id: r['id'] as String,
           type: ActivityType.profile,
-          title: r['description'] as String,
-          subtitle: 'Account',
-          statusLabel: 'Updated',
+          title: localizeActivityRow(r),
+          subtitle: _l.activityAccount,
+          statusLabel: _l.activityUpdated,
           timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+        ),
+      );
+    }
     return items;
   }
 
@@ -835,26 +915,24 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('buyer_profile_activity')
-          .select('id, description, created_at')
-          .eq('buyer_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.addressUpdated,
-            title: r['description'] as String,
-            subtitle: 'Address',
-            statusLabel: 'Updated',
-            timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
-  }
-    } catch (_) {}
+    final rows = await _client
+        .from('buyer_profile_activity')
+        .select('id, description, created_at')
+        .eq('buyer_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.addressUpdated,
+          title: localizeActivityRow(r),
+          subtitle: _l.activityAddress,
+          statusLabel: _l.activityUpdated,
+          timestamp: DateTime.parse(r['created_at'] as String),
+        ),
+      );
+    }
     return items;
   }
 
@@ -867,39 +945,37 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('farmer_expenses')
-          .select(
-            'id, name, description, category, amount, is_subsidy, created_at',
-          )
-          .eq('farmer_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        final isSubsidy = r['is_subsidy'] as bool? ?? false;
-        // `name` is a nullable, later-added column — older rows (confirmed
-        // via live DB check) predate it and have it null. `description` is
-        // NOT NULL on this table, so it's the reliable fallback rather than
-        // ever rendering the literal string "null" in the subtitle.
-        final nameText = (r['name'] as String?)?.trim();
-        final label = (nameText != null && nameText.isNotEmpty)
-            ? nameText
-            : r['description'] as String;
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.expenseAdded,
-            title: 'Expense Added',
-            subtitle: '$label • ${r['category']}',
-            valueLabel: isSubsidy
-                ? 'Subsidized'
-                : '₱${(r['amount'] as num).toStringAsFixed(0)}',
-            timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
-      }
-    } catch (_) {}
+    final rows = await _client
+        .from('farmer_expenses')
+        .select(
+          'id, name, description, category, amount, is_subsidy, created_at',
+        )
+        .eq('farmer_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      final isSubsidy = r['is_subsidy'] as bool? ?? false;
+      // `name` is a nullable, later-added column — older rows (confirmed
+      // via live DB check) predate it and have it null. `description` is
+      // NOT NULL on this table, so it's the reliable fallback rather than
+      // ever rendering the literal string "null" in the subtitle.
+      final nameText = (r['name'] as String?)?.trim();
+      final label = (nameText != null && nameText.isNotEmpty)
+          ? nameText
+          : localizeActivityRow(r);
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.expenseAdded,
+          title: _l.activityExpenseAdded,
+          subtitle: '$label • ${r['category']}',
+          valueLabel: isSubsidy
+              ? 'Subsidized'
+              : '₱${(r['amount'] as num).toStringAsFixed(0)}',
+          timestamp: DateTime.parse(r['created_at'] as String),
+        ),
+      );
+    }
     return items;
   }
 
@@ -913,29 +989,27 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('program_enrollment_requests')
-          .select('id, submitted_at, cooperative_programs(program_name)')
-          .eq('farmer_id', userId)
-          .order('submitted_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        final programName =
-            (r['cooperative_programs'] as Map?)?['program_name'] as String? ??
-            'Program';
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.programEnrollment,
-            title: 'Requested Program Enrollment',
-            subtitle: programName,
-            statusLabel: 'Pending Review',
-            timestamp: DateTime.parse(r['submitted_at'] as String),
-          ),
-        );
+    final rows = await _client
+        .from('program_enrollment_requests')
+        .select('id, submitted_at, cooperative_programs(program_name)')
+        .eq('farmer_id', userId)
+        .order('submitted_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      final programName =
+          (r['cooperative_programs'] as Map?)?['program_name'] as String? ??
+          'Program';
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.programEnrollment,
+          title: _l.activityProgramEnrollmentRequested,
+          subtitle: programName,
+          statusLabel: _l.activityPendingReview,
+          timestamp: DateTime.parse(r['submitted_at'] as String),
+        ),
+      );
     }
-    } catch (_) {}
     return items;
   }
 
@@ -949,39 +1023,37 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('program_product_purchases')
-          .select(
-            'id, quantity, total_amount, requested_at, '
-            'cooperative_programs(program_name), '
-            'program_products(cooperative_inventory(item_name))',
-          )
-          .eq('farmer_id', userId)
-          .order('requested_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        final programName =
-            (r['cooperative_programs'] as Map?)?['program_name'] as String? ??
-            'Program';
-        final product = r['program_products'] as Map?;
-        final itemName =
-            (product?['cooperative_inventory'] as Map?)?['item_name']
-                as String? ??
-            programName;
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.programPurchase,
-            title: 'Requested Program Purchase',
-            subtitle: '${r['quantity']} × $itemName',
-            valueLabel: '₱${(r['total_amount'] as num).toStringAsFixed(0)}',
-            statusLabel: 'Pending',
-            timestamp: DateTime.parse(r['requested_at'] as String),
-          ),
-        );
+    final rows = await _client
+        .from('program_product_purchases')
+        .select(
+          'id, quantity, total_amount, requested_at, '
+          'cooperative_programs(program_name), '
+          'program_products(cooperative_inventory(item_name))',
+        )
+        .eq('farmer_id', userId)
+        .order('requested_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      final programName =
+          (r['cooperative_programs'] as Map?)?['program_name'] as String? ??
+          'Program';
+      final product = r['program_products'] as Map?;
+      final itemName =
+          (product?['cooperative_inventory'] as Map?)?['item_name']
+              as String? ??
+          programName;
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.programPurchase,
+          title: _l.activityProgramPurchaseRequested,
+          subtitle: '${r['quantity']} × $itemName',
+          valueLabel: '₱${(r['total_amount'] as num).toStringAsFixed(0)}',
+          statusLabel: _l.activityPending,
+          timestamp: DateTime.parse(r['requested_at'] as String),
+        ),
+      );
     }
-    } catch (_) {}
     return items;
   }
 
@@ -996,27 +1068,25 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('capital_contribution_events')
-          .select('id, amount, created_at')
-          .eq('farmer_id', userId)
-          .eq('source', 'patronage_capital')
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.capitalReinvestment,
-            title: 'Added to Capital Share',
-            subtitle: 'My Contribution',
-            valueLabel: '₱${(r['amount'] as num).toStringAsFixed(0)}',
-            timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
+    final rows = await _client
+        .from('capital_contribution_events')
+        .select('id, amount, created_at')
+        .eq('farmer_id', userId)
+        .eq('source', 'patronage_capital')
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.capitalReinvestment,
+          title: _l.activityCapitalAdded,
+          subtitle: _l.activityMyContribution,
+          valueLabel: '₱${(r['amount'] as num).toStringAsFixed(0)}',
+          timestamp: DateTime.parse(r['created_at'] as String),
+        ),
+      );
     }
-    } catch (_) {}
     return items;
   }
 
@@ -1027,13 +1097,13 @@ class DashboardRepository {
   // a nonzero unsynced count before SyncService.syncPending() ran — a sync
   // tap that had nothing queued isn't a meaningful action to log.
   Future<void> logSyncCompleted() async {
-    try {
-      await _client.from('farmer_home_activity').insert({
-        'farmer_id': _userId,
-        'description': 'Synced offline records',
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    } catch (_) {}
+    await _client.from('farmer_home_activity').insert({
+      'farmer_id': _userId,
+      ...activityRowFields(
+        const AdminLogMessage('activitySyncedOfflineRecords'),
+      ),
+      'created_at': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<List<ActivityItem>> _fetchSyncActivity({
@@ -1041,26 +1111,24 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    try {
-      final rows = await _client
-          .from('farmer_home_activity')
-          .select('id, description, created_at')
-          .eq('farmer_id', userId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-      for (final r in rows) {
-        items.add(
-          ActivityItem(
-            id: r['id'] as String,
-            type: ActivityType.syncCompleted,
-            title: r['description'] as String,
-            subtitle: 'Home',
-            statusLabel: 'Synced',
-            timestamp: DateTime.parse(r['created_at'] as String),
-          ),
-        );
+    final rows = await _client
+        .from('farmer_home_activity')
+        .select('id, description, created_at')
+        .eq('farmer_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    for (final r in rows) {
+      items.add(
+        ActivityItem(
+          id: r['id'] as String,
+          type: ActivityType.syncCompleted,
+          title: localizeActivityRow(r),
+          subtitle: _l.activityHome,
+          statusLabel: _l.activitySynced,
+          timestamp: DateTime.parse(r['created_at'] as String),
+        ),
+      );
     }
-    } catch (_) {}
     return items;
   }
 

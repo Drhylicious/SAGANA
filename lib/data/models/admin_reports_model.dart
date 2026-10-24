@@ -197,6 +197,38 @@ class SalesTransactionRow {
     this.buyerName,
     this.orderStatus,
   });
+
+  /// Plain-map form, so a channel's rows can be cached offline.
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'farmerName': farmerName,
+    'cropType': cropType,
+    'cropName': cropName,
+    'quantityKg': quantityKg,
+    'amount': amount,
+    'saleDate': saleDate.toIso8601String(),
+    'referenceNo': referenceNo,
+    'sellingType': sellingType,
+    'marketType': marketType,
+    'buyerName': buyerName,
+    'orderStatus': orderStatus,
+  };
+
+  factory SalesTransactionRow.fromMap(Map<String, dynamic> map) =>
+      SalesTransactionRow(
+        id: map['id'] as String,
+        farmerName: map['farmerName'] as String,
+        cropType: map['cropType'] as String,
+        cropName: map['cropName'] as String,
+        quantityKg: (map['quantityKg'] as num).toDouble(),
+        amount: (map['amount'] as num).toDouble(),
+        saleDate: DateTime.parse(map['saleDate'] as String),
+        referenceNo: map['referenceNo'] as String?,
+        sellingType: map['sellingType'] as String,
+        marketType: map['marketType'] as String?,
+        buyerName: map['buyerName'] as String?,
+        orderStatus: map['orderStatus'] as String?,
+      );
 }
 
 /// One Selling Type's aggregate — Sales Report's four channel cards.
@@ -463,14 +495,14 @@ class HarvestReportData {
   });
 
   factory HarvestReportData.empty() => const HarvestReportData(
-        totalYieldKg: 0,
-        harvestCount: 0,
-        unsyncedCount: 0,
-        monthlyTrend: [],
-        cropBreakdown: [],
-        harvests: [],
+    totalYieldKg: 0,
+    harvestCount: 0,
+    unsyncedCount: 0,
+    monthlyTrend: [],
+    cropBreakdown: [],
+    harvests: [],
     soldKgInPeriod: 0,
-      );
+  );
 }
 
 // ─── Expense Report ─────────────────────────────────────────────────────────
@@ -570,11 +602,11 @@ class ExpenseReportData {
   int get totalEntryCount => subsidizedCount + farmerFundedCount;
 
   factory ExpenseReportData.empty() => const ExpenseReportData(
-        totalFarmerFundedAmount: 0,
-        subsidizedCount: 0,
-        farmerFundedCount: 0,
-        categoryBreakdown: [],
-        monthlyTrend: [],
-        expenses: [],
-      );
+    totalFarmerFundedAmount: 0,
+    subsidizedCount: 0,
+    farmerFundedCount: 0,
+    categoryBreakdown: [],
+    monthlyTrend: [],
+    expenses: [],
+  );
 }

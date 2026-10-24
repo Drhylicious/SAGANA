@@ -2,12 +2,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/harvest_model.dart';
 import '../models/admin_reports_model.dart';
 import '../services/hive_service.dart';
+import '../services/offline_cache.dart';
 import 'farmer_lookup.dart';
 
 class HarvestRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
   String get _userId => _client.auth.currentUser!.id;
+
+  // For the "is this MY data?" comparisons in the any-farmer paths below. Null
+  // (nobody signed in) simply never matches, instead of throwing, so an Admin
+  // view of another farmer's history behaves the same however it is reached.
+  String? get _signedInUserId => _client.auth.currentUser?.id;
 
   // Locally-queued harvests (not yet synced to Supabase) for the CURRENT
   // device's farmer only — never merged in when farmerId is someone else's
@@ -40,17 +46,22 @@ class HarvestRepository {
   Future<List<HarvestModel>> _fetchHarvestsForFarmer(String farmerId) async {
     List<HarvestModel> synced = [];
     try {
-      final response = await _client
+      // Only the signed-in farmer's own history is kept for offline viewing.
+      // An admin viewing another farmer always reads live.
+      Future<List<Map<String, dynamic>>> query() => _client
           .from('harvest_records')
           .select()
           .eq('farmer_id', farmerId)
           .order('harvest_date', ascending: false);
+      final response = farmerId == _signedInUserId
+          ? await OfflineCache.load(screen: 'harvests', fetch: query)
+          : await query();
       synced = response.map((row) => HarvestModel.fromMap(row)).toList();
     } catch (_) {
       synced = [];
     }
 
-    if (farmerId != _userId) return synced;
+    if (farmerId != _signedInUserId) return synced;
 
     final pending = _pendingHarvestModels();
     if (pending.isEmpty) return synced;
@@ -84,7 +95,7 @@ class HarvestRepository {
       // Falls through to the pending-only figures below.
     }
 
-    if (farmerId == _userId) {
+    if (farmerId == _signedInUserId) {
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
       final pending = _pendingHarvestModels().where(
         (h) => h.harvestDate.isAfter(cutoff),
@@ -120,11 +131,14 @@ class HarvestRepository {
     int unsyncedCount = 0;
 
     try {
-      final response = await _client
-          .from('harvest_records')
-          .select('is_synced')
-          .eq('farmer_id', _userId)
-          .gte('harvest_date', startOfSeason.toIso8601String());
+      final response = await OfflineCache.load(
+        screen: 'harvest_season_stats_${now.year}',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('is_synced')
+            .eq('farmer_id', _userId)
+            .gte('harvest_date', startOfSeason.toIso8601String()),
+      );
 
       seasonCount = response.length;
       for (final row in response) {
@@ -149,10 +163,13 @@ class HarvestRepository {
 
   Future<Map<String, int>> fetchInventoryStats() async {
     try {
-      final response = await _client
-          .from('inventory_batches')
-          .select('status')
-          .eq('farmer_id', _userId);
+      final response = await OfflineCache.load(
+        screen: 'inventory_stats',
+        fetch: () => _client
+            .from('inventory_batches')
+            .select('status')
+            .eq('farmer_id', _userId),
+      );
 
       int total = response.length;
       int lowStock = response.where((r) => r['status'] == 'low_stock').length;

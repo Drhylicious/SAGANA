@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
+import '../models/farmer_member_model.dart';
 
 /// Admin-side account management: creating Officer accounts, listing
 /// non-Farmer accounts (Officer/Buyer), and admin-assisted password
@@ -9,16 +11,15 @@ import 'admin_activity_repository.dart';
 class AccountManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
-  /// Creates an Officer account. Email + phone are optional (Decision
-  /// D23); [registryId] must reference an available officer_registry row
-  /// (Decision D22). Date of birth / gender are also optional (Admin
-  /// Profile & Settings Phase 2 correction) — the 18+ check only applies
-  /// if a date is given.
+  /// Creates an Officer account. Nothing is looked up in a registry: the
+  /// Manager enters the details, the username must be unique across all
+  /// accounts, and the database issues the Officer ID (OFF-YYYY-NNN).
+  /// Email + phone are optional. Date of birth / gender are also optional —
+  /// the 18+ check only applies if a date is given.
   Future<void> createOfficerAccount({
     required String username,
     required String password,
     required String fullName,
-    required String registryId,
     String? email,
     String? phoneNumber,
     String? position,
@@ -35,7 +36,6 @@ class AccountManagementRepository {
         'p_email': email,
         'p_phone_number': phoneNumber,
         'p_position': position,
-        'p_registry_id': registryId,
         'p_date_of_birth': dateOfBirth == null
             ? null
             : '${dateOfBirth.year.toString().padLeft(4, '0')}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}',
@@ -45,30 +45,10 @@ class AccountManagementRepository {
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'created',
-        description: 'Created Officer account for $fullName.',
+        message: AdminLogMessage('adminLogAccountOfficerCreated', {'fullName': fullName}),
       );
     } on PostgrestException catch (e) {
       throw Exception(e.message);
-    }
-  }
-
-  /// Officer Registry lookup for the create form (Decision D22).
-  Future<OfficerRegistryMatch?> checkOfficerRegistry(String fullName) async {
-    try {
-      final result = await _client.rpc(
-        'check_officer_registry',
-        params: {'p_full_name': fullName.trim()},
-      );
-      if (result == null || (result as List).isEmpty) return null;
-      final row = result.first as Map<String, dynamic>;
-      return OfficerRegistryMatch(
-        registryId: row['registry_id'] as String,
-        isAvailable: row['is_available'] as bool? ?? false,
-        phone: (row['phone_number'] as String?)?.trim(),
-        email: (row['email'] as String?)?.trim(),
-      );
-    } catch (_) {
-      return null;
     }
   }
 
@@ -95,11 +75,14 @@ class AccountManagementRepository {
     final userIds = roles.map((r) => r['user_id'] as String).toList();
     final infoRows = await _client
         .from('user_information')
-        .select('user_id, full_name, username, profile_photo_url')
+        .select(
+          'user_id, full_name, username, profile_photo_url, '
+          'contact_email, phone_number, last_active_at',
+        )
         .inFilter('user_id', userIds);
     final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
-    return roles.map((r) {
+    final entries = roles.map((r) {
       final userId = r['user_id'] as String;
       final info = infoMap[userId];
       return AccountEntry(
@@ -109,8 +92,15 @@ class AccountManagementRepository {
         role: role,
         status: r['status'] as String? ?? 'active',
         profilePhotoUrl: info?['profile_photo_url'] as String?,
+        email: _clean(info?['contact_email'] as String?),
+        phone: _clean(info?['phone_number'] as String?),
+        lastActiveAt: info?['last_active_at'] == null
+            ? null
+            : DateTime.tryParse(info!['last_active_at'] as String),
       );
     }).toList();
+    entries.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return entries;
   }
 
   /// Returns the generated temporary password exactly once. Nothing in
@@ -125,7 +115,7 @@ class AccountManagementRepository {
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'password_reset',
-        description: "Reset an account's password.",
+        message: const AdminLogMessage('adminLogAccountPasswordReset'),
         referenceId: userId,
       );
       return result as String;
@@ -150,21 +140,30 @@ class AccountManagementRepository {
     final userIds = requests.map((r) => r['user_id'] as String).toList();
     final infoRows = await _client
         .from('user_information')
-        .select('user_id, full_name')
+        .select('user_id, full_name, profile_photo_url')
         .inFilter('user_id', userIds);
-    final nameMap = {
-      for (final r in infoRows)
-        r['user_id'] as String: r['full_name'] as String?,
+    final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
+    // Farmers, Officers and Buyers can all ask for assistance, so the role is
+    // looked up to tell the Manager who is asking.
+    final roleRows = await _client
+        .from('user_roles')
+        .select('user_id, role')
+        .inFilter('user_id', userIds);
+    final roleMap = {
+      for (final r in roleRows) r['user_id'] as String: r['role'] as String?,
     };
 
     return requests.map((r) {
       final userId = r['user_id'] as String;
+      final info = infoMap[userId];
       return PasswordResetRequest(
         id: r['id'] as String,
         userId: userId,
         username: r['username'] as String,
-        fullName: nameMap[userId] ?? r['username'] as String,
+        fullName: (info?['full_name'] as String?) ?? r['username'] as String,
         requestedAt: DateTime.parse(r['requested_at'] as String),
+        role: roleMap[userId],
+        profilePhotoUrl: info?['profile_photo_url'] as String?,
       );
     }).toList();
   }
@@ -178,7 +177,7 @@ class AccountManagementRepository {
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'password_request_resolved',
-        description: 'Resolved a pending password reset request.',
+        message: const AdminLogMessage('adminLogAccountResetResolved'),
         referenceId: requestId,
       );
     } on PostgrestException catch (e) {
@@ -187,17 +186,10 @@ class AccountManagementRepository {
   }
 }
 
-class OfficerRegistryMatch {
-  final String registryId;
-  final bool isAvailable;
-  final String? phone;
-  final String? email;
-  const OfficerRegistryMatch({
-    required this.registryId,
-    required this.isAvailable,
-    this.phone,
-    this.email,
-  });
+/// A blank value counts as not set.
+String? _clean(String? value) {
+  final v = value?.trim();
+  return (v == null || v.isEmpty) ? null : v;
 }
 
 class AccountEntry {
@@ -208,6 +200,14 @@ class AccountEntry {
   final String status;
   final String? profilePhotoUrl;
 
+  /// The person's own contact e-mail and phone number (never the internal
+  /// username@sagana.local sign-in address). Null when not set.
+  final String? email;
+  final String? phone;
+
+  /// user_information.last_active_at, stamped at every sign-in.
+  final DateTime? lastActiveAt;
+
   const AccountEntry({
     required this.userId,
     required this.name,
@@ -215,7 +215,16 @@ class AccountEntry {
     required this.role,
     required this.status,
     this.profilePhotoUrl,
+    this.email,
+    this.phone,
+    this.lastActiveAt,
   });
+
+  /// What the badge shows. Inactive is derived, never stored: a stored status
+  /// of 'active' whose last activity is older than 30 days. This is the same
+  /// rule the Members list uses, so both screens always agree.
+  MemberStatus get effectiveStatus =>
+      MemberStatusExt.derive(status, lastActiveAt);
 }
 
 class PasswordResetRequest {
@@ -225,11 +234,17 @@ class PasswordResetRequest {
   final String fullName;
   final DateTime requestedAt;
 
+  /// 'farmer', 'officer' or 'buyer' (null if the role could not be read).
+  final String? role;
+  final String? profilePhotoUrl;
+
   const PasswordResetRequest({
     required this.id,
     required this.userId,
     required this.username,
     required this.fullName,
     required this.requestedAt,
+    this.role,
+    this.profilePhotoUrl,
   });
 }

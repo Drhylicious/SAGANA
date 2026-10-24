@@ -212,7 +212,7 @@ const List<BroadcastTemplate> kBroadcastTemplates = [
   ),
   BroadcastTemplate(
     title: 'Price Update Notice',
-    body: 'Abiso: Ang presyo ng ating mga produkto ay na-update na ng SP3 Admin. '
+    body: 'Abiso: Ang presyo ng ating mga produkto ay na-update na ng SP3 Manager. '
         'Pakitingnan ang inyong Analytics tab para sa pinakabagong presyo. '
         'Para sa katanungan, makipag-ugnayan sa ating opisina.',
     category: BroadcastCategory.update,

@@ -1,7 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import '../models/farmer_crop_model.dart' show marketTypeLabelFor;
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
+import '../models/admin_log_message.dart';
 
 // ─── Admin Order Model ─────────────────────────────────────────────────────
 
@@ -20,6 +23,9 @@ class AdminOrderModel {
   final double totalPrice;
   final String status; // pending | approved | completed | cancelled
   final String? notes;
+  // 'buyer' | 'farmer' for a pending order the buyer or farmer cancelled
+  // (batch9_01). Null for rejections and for older cancellations.
+  final String? cancelledBy;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -62,6 +68,7 @@ class AdminOrderModel {
     required this.totalPrice,
     required this.status,
     this.notes,
+    this.cancelledBy,
     required this.createdAt,
     required this.updatedAt,
     this.fulfillmentMethod,
@@ -100,13 +107,15 @@ class AdminOrderModel {
   String get statusLabel {
     switch (status) {
       case 'pending':
-        return 'Pending Review';
+        return 'Pending Order';
       case 'approved':
         return 'Approved';
       case 'completed':
         return 'Completed';
       case 'cancelled':
         return 'Cancelled';
+      case 'rejected':
+        return 'Disapproved';
       default:
         return status;
     }
@@ -140,6 +149,7 @@ class AdminOrderModel {
       totalPrice: (map['total_price'] as num).toDouble(),
       status: map['status'] as String? ?? 'pending',
       notes: map['notes'] as String?,
+      cancelledBy: map['cancelled_by'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       fulfillmentMethod: map['fulfillment_method'] as String?,
@@ -199,80 +209,91 @@ class AdminOrderRepository {
     String? searchQuery,
   }) async {
     try {
-      var query = _client
-          .from('orders')
-          .select(
-        'id, listing_id, buyer_id, quantity_kg, price_per_kg, total_price, '
-            'status, notes, created_at, updated_at, fulfillment_method',
+      // Merged order maps are cached per status and buyer filter (search text is
+      // applied after the read). Models are built after the cache.
+      final enriched = await OfflineCache.load(
+        screen: 'orders_${statusFilter ?? 'all'}_${buyerId ?? 'all'}',
+        fetch: () async {
+          var query = _client
+              .from('orders')
+              .select(
+                'id, listing_id, buyer_id, quantity_kg, price_per_kg, total_price, '
+                'status, notes, cancelled_by, created_at, updated_at, fulfillment_method',
+              );
+
+          if (statusFilter != null) query = query.eq('status', statusFilter);
+          if (buyerId != null) query = query.eq('buyer_id', buyerId);
+
+          final rows = await query.order('created_at', ascending: false);
+          if (rows.isEmpty) return <Map<String, dynamic>>[];
+
+          final buyerIds = rows
+              .map((r) => r['buyer_id'] as String)
+              .toSet()
+              .toList();
+          final listingIds = rows
+              .map((r) => r['listing_id'] as String)
+              .toSet()
+              .toList();
+
+          final buyerMap = <String, Map<String, dynamic>>{};
+          try {
+            final buyers = await _client
+                .from('user_information')
+                .select('user_id, full_name, phone_number, profile_photo_url')
+                .inFilter('user_id', buyerIds);
+            for (final b in buyers) {
+              buyerMap[b['user_id'] as String] = b;
+            }
+          } catch (_) {}
+
+          final listingMap = <String, Map<String, dynamic>>{};
+          try {
+            final listings = await _client
+                .from('marketplace_listings')
+                .select('id, crop_name, crop_id, variety, photo_url')
+                .inFilter('id', listingIds);
+            for (final l in listings) {
+              listingMap[l['id'] as String] = l;
+            }
+          } catch (_) {}
+
+          final cropIds = listingMap.values
+              .map((l) => l['crop_id'] as String?)
+              .whereType<String>()
+              .toSet()
+              .toList();
+          final canonicalNames = await fetchCropNameMap(_client, cropIds);
+
+          return rows.map<Map<String, dynamic>>((r) {
+            final buyer = buyerMap[r['buyer_id']];
+            final listing = listingMap[r['listing_id']];
+            final cropId = listing?['crop_id'] as String?;
+            return {
+              ...r,
+              'buyer_name': buyer?['full_name'],
+              'buyer_phone': buyer?['phone_number'],
+              'buyer_photo_url': buyer?['profile_photo_url'],
+              'crop_name': listing?['crop_name'],
+              'variety': listing?['variety'],
+              'photo_url': listing?['photo_url'],
+              'canonical_crop_name': cropId != null
+                  ? canonicalNames[cropId]
+                  : null,
+            };
+          }).toList();
+        },
       );
 
-      if (statusFilter != null) query = query.eq('status', statusFilter);
-      if (buyerId != null) query = query.eq('buyer_id', buyerId);
-
-      final rows = await query.order('created_at', ascending: false);
-      if (rows.isEmpty) return [];
-
-      final buyerIds = rows
-          .map((r) => r['buyer_id'] as String)
-          .toSet()
-          .toList();
-      final listingIds = rows
-          .map((r) => r['listing_id'] as String)
-          .toSet()
-          .toList();
-
-      final buyerMap = <String, Map<String, dynamic>>{};
-      try {
-        final buyers = await _client
-            .from('user_information')
-            .select('user_id, full_name, phone_number, profile_photo_url')
-            .inFilter('user_id', buyerIds);
-        for (final b in buyers) {
-          buyerMap[b['user_id'] as String] = b;
-        }
-      } catch (_) {}
-
-      final listingMap = <String, Map<String, dynamic>>{};
-      try {
-        final listings = await _client
-            .from('marketplace_listings')
-            .select('id, crop_name, crop_id, variety, photo_url')
-            .inFilter('id', listingIds);
-        for (final l in listings) {
-          listingMap[l['id'] as String] = l;
-        }
-      } catch (_) {}
-
-      final cropIds = listingMap.values
-          .map((l) => l['crop_id'] as String?)
-          .whereType<String>()
-          .toSet()
-          .toList();
-      final canonicalNames = await fetchCropNameMap(_client, cropIds);
-
-      var result = rows.map((r) {
-        final buyer = buyerMap[r['buyer_id']];
-        final listing = listingMap[r['listing_id']];
-        final cropId = listing?['crop_id'] as String?;
-        return AdminOrderModel.fromMap({
-          ...r,
-          'buyer_name': buyer?['full_name'],
-          'buyer_phone': buyer?['phone_number'],
-          'buyer_photo_url': buyer?['profile_photo_url'],
-          'crop_name': listing?['crop_name'],
-          'variety': listing?['variety'],
-          'photo_url': listing?['photo_url'],
-          'canonical_crop_name': cropId != null ? canonicalNames[cropId] : null,
-        });
-      }).toList();
+      var result = enriched.map((m) => AdminOrderModel.fromMap(m)).toList();
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final q = searchQuery.toLowerCase();
         result = result
             .where(
               (o) =>
-            o.buyerName.toLowerCase().contains(q) ||
-            o.cropName.toLowerCase().contains(q) ||
+                  o.buyerName.toLowerCase().contains(q) ||
+                  o.cropName.toLowerCase().contains(q) ||
                   o.orderReference.toLowerCase().contains(q),
             )
             .toList();
@@ -286,7 +307,10 @@ class AdminOrderRepository {
 
   Future<OrderSummaryStats> fetchSummaryStats() async {
     try {
-      final rows = await _client.from('orders').select('status');
+      final rows = await OfflineCache.load(
+        screen: 'order_status_rows',
+        fetch: () => _client.from('orders').select('status'),
+      );
       int pending = 0, approved = 0, completed = 0, cancelled = 0;
       for (final r in rows) {
         switch (r['status'] as String?) {
@@ -322,7 +346,7 @@ class AdminOrderRepository {
           .from('orders')
           .select(
             'id, listing_id, buyer_id, quantity_kg, price_per_kg, '
-            'total_price, status, notes, created_at, updated_at, '
+            'total_price, status, notes, cancelled_by, created_at, updated_at, '
             'fulfillment_method, delivery_address, delivery_latitude, '
             'delivery_longitude, delivery_contact_number, delivery_notes, '
             'delivery_recipient_name, delivery_label',
@@ -441,6 +465,7 @@ class AdminOrderRepository {
   // cancel_order. Returns false (silently, matching the old "no-op if
   // already moved on" behavior) if the order isn't pending anymore.
   Future<void> approveOrder(String orderId) async {
+    await ServerOnly.ensureOnline();
     final applied =
         await _client.rpc('approve_order', params: {'p_order_id': orderId})
             as bool;
@@ -448,7 +473,7 @@ class AdminOrderRepository {
     AdminActivityRepository().log(
       module: 'orders',
       actionType: 'approved',
-      description: 'Approved an order.',
+      message: const AdminLogMessage('adminLogOrderApproved'),
       referenceId: orderId,
     );
   }
@@ -457,6 +482,7 @@ class AdminOrderRepository {
   /// Once an order is approved, the cooperative has committed to
   /// fulfilling it; the only forward action left is Complete Order.
   Future<void> cancelOrder(String orderId, {String? reason}) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'cancel_order',
       params: {'p_order_id': orderId, if (reason != null) 'p_reason': reason},
@@ -464,17 +490,18 @@ class AdminOrderRepository {
     AdminActivityRepository().log(
       module: 'orders',
       actionType: 'cancelled',
-      description: 'Cancelled an order.',
+      message: const AdminLogMessage('adminLogOrderCancelled'),
       referenceId: orderId,
     );
   }
 
   Future<void> completeOrder(String orderId) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc('complete_order', params: {'p_order_id': orderId});
     AdminActivityRepository().log(
       module: 'orders',
       actionType: 'completed',
-      description: 'Completed an order.',
+      message: const AdminLogMessage('adminLogOrderCompleted'),
       referenceId: orderId,
     );
   }

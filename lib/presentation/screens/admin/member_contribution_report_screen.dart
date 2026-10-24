@@ -13,6 +13,10 @@ import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../../core/utils/member_access.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 
 /// Member Patronage Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/contributions
@@ -45,6 +49,7 @@ class _MemberContributionReportScreenState
 
   late int _year;
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   String _searchQuery = '';
   MemberContributionReportData _data = MemberContributionReportData.empty(
     DateTime.now().year,
@@ -55,6 +60,9 @@ class _MemberContributionReportScreenState
   void initState() {
     super.initState();
     _year = DateTime.now().year;
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _loadAvailableYears();
     _load();
   }
@@ -105,6 +113,11 @@ class _MemberContributionReportScreenState
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
+          CachedDataNotice(
+            screen: AdminReportsRepository.memberContributionCacheScreen(_year),
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineStaffBody,
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -128,7 +141,7 @@ class _MemberContributionReportScreenState
                   if (_isLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 60),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
                     )
                   else ...[
                     _buildSummaryCard(context, l10n, cs, sagana),
@@ -150,50 +163,7 @@ class _MemberContributionReportScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsMemberContributionReport,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.primary),
-                onPressed: () => context.push(
-                  AppRoutes.exportCenter,
-                  extra: ExportCenterArgs(
-                    preselectedModule: ReportModuleType.memberContribution,
-                    contributionYear: _year,
-                  ),
-                ),
-                tooltip: l10n.reportsExportCenter,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.reportsMemberContributionReport, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.file_download_outlined, color: cs.primary), onPressed: () => context.push( AppRoutes.exportCenter, extra: ExportCenterArgs( preselectedModule: ReportModuleType.memberContribution, contributionYear: _year, ), ), tooltip: l10n.reportsExportCenter, ));
   }
 
   // Redesigned off ReportHeroCard's 2-column grid onto a single balanced

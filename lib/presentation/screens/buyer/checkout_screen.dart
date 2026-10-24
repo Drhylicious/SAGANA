@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../data/services/connectivity_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -14,6 +15,9 @@ import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 enum _FulfillmentMethod { pickup, delivery }
 
@@ -51,23 +55,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   List<BuyerAddressModel> _addresses = [];
   BuyerAddressModel? _selectedAddress;
   bool _isLoadingAddresses = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   bool _isSubmitting = false;
   int _checkoutIndex = 0;
   String? _error;
 
   double get _total => widget.items.fold(0.0, (s, i) => s + i.subtotal);
 
-  String get _orderSuccessRoute =>
-      widget.isFarmerContext ? AppRoutes.farmerMarketplaceOrderSuccess : AppRoutes.orderSuccess;
-  String get _cartCheckoutResultRoute =>
-      widget.isFarmerContext ? AppRoutes.farmerMarketplaceCartResult : AppRoutes.cartCheckoutResult;
+  String get _orderSuccessRoute => widget.isFarmerContext
+      ? AppRoutes.farmerMarketplaceOrderSuccess
+      : AppRoutes.orderSuccess;
+  String get _cartCheckoutResultRoute => widget.isFarmerContext
+      ? AppRoutes.farmerMarketplaceCartResult
+      : AppRoutes.cartCheckoutResult;
 
   bool get _canPlaceOrder =>
-      !_isSubmitting && (_method == _FulfillmentMethod.pickup || _selectedAddress != null);
+      !_isSubmitting &&
+      (_method == _FulfillmentMethod.pickup || _selectedAddress != null);
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _loadAddresses();
   }
 
@@ -78,7 +89,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _addresses = addresses;
       _selectedAddress = addresses.isEmpty
           ? null
-          : addresses.firstWhere((a) => a.isDefault, orElse: () => addresses.first);
+          : addresses.firstWhere(
+              (a) => a.isDefault,
+              orElse: () => addresses.first,
+            );
       _isLoadingAddresses = false;
     });
   }
@@ -96,7 +110,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     final method = _method == _FulfillmentMethod.pickup ? 'pickup' : 'delivery';
-    final address = _method == _FulfillmentMethod.delivery ? _selectedAddress : null;
+    final address = _method == _FulfillmentMethod.delivery
+        ? _selectedAddress
+        : null;
 
     if (!widget.isCartCheckout) {
       final item = widget.items.single;
@@ -164,19 +180,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // of a second implementation of "success."  CartCheckoutResultScreen
       // is reserved for the one genuinely different message: some items
       // didn't go through.
-      context.pushReplacement(_orderSuccessRoute, extra: succeeded.map((s) => s.$2).toList());
+      context.pushReplacement(
+        _orderSuccessRoute,
+        extra: succeeded.map((s) => s.$2).toList(),
+      );
       return;
     }
-    context.pushReplacement(_cartCheckoutResultRoute, extra: {
-      'succeeded': succeeded,
-      'failed': failed,
-      'fulfillmentMethod': method,
-      'deliveryAddress': address?.addressLine,
-      'deliveryContactNumber': address?.contactNumber,
-      'deliveryRecipientName': address?.recipientName,
-      'deliveryLabel': address?.label,
-      'deliveryNotes': address?.notes,
-    });
+    context.pushReplacement(
+      _cartCheckoutResultRoute,
+      extra: {
+        'succeeded': succeeded,
+        'failed': failed,
+        'fulfillmentMethod': method,
+        'deliveryAddress': address?.addressLine,
+        'deliveryContactNumber': address?.contactNumber,
+        'deliveryRecipientName': address?.recipientName,
+        'deliveryLabel': address?.label,
+        'deliveryNotes': address?.notes,
+      },
+    );
   }
 
   @override
@@ -186,82 +208,138 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: const BackButton(color: AppConstants.primaryGreen),
-        title: Text(l10n.checkoutTitle,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 12, AppConstants.spacingSafeH, 24),
+
+      body: Column(
         children: [
-          _sectionHeader(Icons.local_shipping_outlined, l10n.checkoutFulfillmentSectionTitle),
-          const SizedBox(height: 12),
-          _buildFulfillmentSelector(l10n),
-          const SizedBox(height: 14),
-          if (_method == _FulfillmentMethod.pickup)
-            _buildPickupCard(l10n)
-          else
-            _buildDeliveryCard(l10n),
-          const SizedBox(height: 18),
-          _sectionHeader(Icons.shopping_bag_outlined, l10n.checkoutOrderSummary),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: AppConstants.cardBorder,
-              boxShadow: AppConstants.cardShadow,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
+          SubPageTopBar(
+            title: l10n.checkoutTitle,
+            onBack: () => Navigator.of(context).pop(),
+          ),
+          CachedDataNotice(
+            screen: 'buyer_addresses',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingSafeH,
+                12,
+                AppConstants.spacingSafeH,
+                24,
+              ),
               children: [
-                for (int i = 0; i < widget.items.length; i++) ...[
-                  _buildItemRow(widget.items[i]),
-                  if (i < widget.items.length - 1)
-                    Divider(height: 1, indent: 14, endIndent: 14, color: AppConstants.outline.withValues(alpha: 0.08)),
-                ],
+                _sectionHeader(
+                  Icons.local_shipping_outlined,
+                  l10n.checkoutFulfillmentSectionTitle,
+                ),
+                const SizedBox(height: 12),
+                _buildFulfillmentSelector(l10n),
+                const SizedBox(height: 14),
+                if (_method == _FulfillmentMethod.pickup)
+                  _buildPickupCard(l10n)
+                else
+                  _buildDeliveryCard(l10n),
+                const SizedBox(height: 18),
+                _sectionHeader(
+                  Icons.shopping_bag_outlined,
+                  l10n.checkoutOrderSummary,
+                ),
+                const SizedBox(height: 12),
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                  decoration: BoxDecoration(color: sagana.scaffoldBackground.withValues(alpha: 0.6)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  decoration: BoxDecoration(
+                    color: sagana.cardBackground,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                    border: AppConstants.cardBorder,
+                    boxShadow: AppConstants.cardShadow,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
                     children: [
-                      Text(l10n.checkoutSubtotalLabel(widget.items.length),
-                          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-                      Text('₱${_total.toStringAsFixed(2)}',
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+                      for (int i = 0; i < widget.items.length; i++) ...[
+                        _buildItemRow(widget.items[i]),
+                        if (i < widget.items.length - 1)
+                          Divider(
+                            height: 1,
+                            indent: 14,
+                            endIndent: 14,
+                            color: AppConstants.outline.withValues(alpha: 0.08),
+                          ),
+                      ],
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                        decoration: BoxDecoration(
+                          color: sagana.scaffoldBackground.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              l10n.checkoutSubtotalLabel(widget.items.length),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppConstants.onSurfaceVariant,
+                              ),
+                            ),
+                            Text(
+                              '₱${_total.toStringAsFixed(2)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppConstants.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+                _buildAdditionalInfoCard(l10n),
+                if (_error != null) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppConstants.errorRed.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
+                      border: Border.all(
+                        color: AppConstants.errorRed.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          size: 16,
+                          color: AppConstants.errorRed,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppConstants.errorRed,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                // Space for the sticky Total/Place Order bar below.
+                const SizedBox(height: 12),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          _buildAdditionalInfoCard(l10n),
-          if (_error != null) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppConstants.errorRed.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, size: 16, color: AppConstants.errorRed),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed))),
-                ],
-              ),
-            ),
-          ],
-          // Space for the sticky Total/Place Order bar below.
-          const SizedBox(height: 12),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -269,10 +347,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           constraints: const BoxConstraints(maxHeight: 96),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 12, AppConstants.spacingSafeH, 12),
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.spacingSafeH,
+              12,
+              AppConstants.spacingSafeH,
+              12,
+            ),
             decoration: BoxDecoration(
               color: sagana.cardBackground,
-              border: Border(top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10))),
+              border: Border(
+                top: BorderSide(
+                  color: AppConstants.outline.withValues(alpha: 0.10),
+                ),
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -282,21 +369,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(l10n.checkoutTotal, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                      Text('₱${_total.toStringAsFixed(2)}',
-                          style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                      Text(
+                        l10n.checkoutTotal,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppConstants.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        '₱${_total.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 16),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 130, maxWidth: 190),
+                  constraints: const BoxConstraints(
+                    minWidth: 130,
+                    maxWidth: 190,
+                  ),
                   child: PrimaryButton(
                     label: widget.isCartCheckout && _isSubmitting
-                        ? l10n.checkoutPlacingOrders(_checkoutIndex, widget.items.length)
+                        ? l10n.checkoutPlacingOrders(
+                            _checkoutIndex,
+                            widget.items.length,
+                          )
                         : l10n.checkoutPlaceOrder,
                     isLoading: _isSubmitting,
-                    onPressed: _canPlaceOrder ? _placeOrder : null,
+                    onPressed:
+                        (_canPlaceOrder &&
+                            ConnectivityService.instance.isOnline)
+                        ? _placeOrder
+                        : null,
                   ),
                 ),
               ],
@@ -312,7 +421,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       children: [
         Icon(icon, size: 16, color: AppConstants.primaryGreen),
         const SizedBox(width: 6),
-        Text(title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+        Text(
+          title,
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
       ],
     );
   }
@@ -354,21 +466,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 44, height: 44,
-            decoration: const BoxDecoration(color: AppConstants.primaryGreen, shape: BoxShape.circle),
-            child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 22),
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppConstants.primaryGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.storefront_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.checkoutPickupAt, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                Text(
+                  l10n.checkoutPickupAt,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(AppConstants.cooperativeName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(
+                  AppConstants.cooperativeName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(AppConstants.cooperativeLocation,
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                Text(
+                  AppConstants.cooperativeLocation,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -381,7 +518,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_isLoadingAddresses) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: SkeletonBlock(height: 72),
       );
     }
     if (_addresses.isEmpty) {
@@ -390,18 +527,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         decoration: BoxDecoration(
           color: AppConstants.warningAmber.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: AppConstants.warningAmber.withValues(alpha: 0.3),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 18, color: AppConstants.warningAmber),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: AppConstants.warningAmber,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(l10n.checkoutNoAddressesPrompt,
-                      style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+                  child: Text(
+                    l10n.checkoutNoAddressesPrompt,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -451,14 +599,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: BoxDecoration(
                 color: context.saganaColors.cardBackground,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.radiusLg)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppConstants.radiusLg),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Center(
                     child: Container(
-                      width: 40, height: 4,
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
                         color: AppConstants.outline.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(2),
@@ -466,8 +617,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Text(l10n.checkoutSelectAddressSheetTitle,
-                      style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(
+                    l10n.checkoutSelectAddressSheetTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Expanded(
                     child: ListView(
@@ -511,8 +667,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _buildAdditionalInfoCard(AppLocalizations l10n) {
     final totalQty = widget.items.fold<double>(0, (s, i) => s + i.quantityKg);
-    final qtyLabel = totalQty == totalQty.roundToDouble() ? totalQty.toStringAsFixed(0) : totalQty.toStringAsFixed(2);
-    final notes = _method == _FulfillmentMethod.delivery ? _selectedAddress?.notes : null;
+    final qtyLabel = totalQty == totalQty.roundToDouble()
+        ? totalQty.toStringAsFixed(0)
+        : totalQty.toStringAsFixed(2);
+    final notes = _method == _FulfillmentMethod.delivery
+        ? _selectedAddress?.notes
+        : null;
 
     return Container(
       width: double.infinity,
@@ -526,13 +686,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.checkoutAdditionalInfoTitle,
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurfaceVariant)),
+          Text(
+            l10n.checkoutAdditionalInfoTitle,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 12),
-          _infoRow(Icons.inventory_2_outlined, l10n.checkoutItemsSummary(widget.items.length, qtyLabel)),
+          _infoRow(
+            Icons.inventory_2_outlined,
+            l10n.checkoutItemsSummary(widget.items.length, qtyLabel),
+          ),
           const SizedBox(height: 10),
           _infoRow(
-            _method == _FulfillmentMethod.pickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
+            _method == _FulfillmentMethod.pickup
+                ? Icons.storefront_rounded
+                : Icons.local_shipping_outlined,
             '${l10n.checkoutFulfillmentMethodLabel}: '
             '${_method == _FulfillmentMethod.pickup ? l10n.checkoutFulfillmentPickup : l10n.checkoutFulfillmentDelivery}',
           ),
@@ -541,16 +712,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             _infoRow(Icons.note_outlined, '${l10n.checkoutNotesLabel}: $notes'),
           ],
           const SizedBox(height: 12),
-          Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.1)),
+          Divider(
+            height: 1,
+            color: AppConstants.outline.withValues(alpha: 0.1),
+          ),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded, size: 15, color: AppConstants.onSurfaceVariant),
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 15,
+                color: AppConstants.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(l10n.checkoutReviewNote,
-                    style: GoogleFonts.inter(fontSize: 11.5, color: AppConstants.onSurfaceVariant)),
+                child: Text(
+                  l10n.checkoutReviewNote,
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
               ),
             ],
           ),
@@ -565,7 +748,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       children: [
         Icon(icon, size: 16, color: AppConstants.primaryGreen),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.onSurface))),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              color: AppConstants.onSurface,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -579,7 +770,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             child: SizedBox(
-              width: 56, height: 56,
+              width: 56,
+              height: 56,
               child: item.photoUrl != null
                   ? Image.network(item.photoUrl!, fit: BoxFit.cover)
                   : Container(color: AppConstants.limeGreen),
@@ -590,25 +782,51 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.displayName, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                Text(
+                  item.displayName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppConstants.infoBlueBg.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                   ),
-                  child: Text(marketTypeLabelFor(item.marketType),
-                      style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppConstants.infoBlueFg)),
+                  child: Text(
+                    marketTypeLabelFor(item.marketType),
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.infoBlueFg,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text('${item.quantityKg.toStringAsFixed(item.quantityKg == item.quantityKg.roundToDouble() ? 0 : 2)} kg × ₱${item.pricePerKg.toStringAsFixed(2)}',
-                    style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                Text(
+                  '${item.quantityKg.toStringAsFixed(item.quantityKg == item.quantityKg.roundToDouble() ? 0 : 2)} kg × ₱${item.pricePerKg.toStringAsFixed(2)}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
-          Text('₱${item.subtotal.toStringAsFixed(2)}',
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+          Text(
+            '₱${item.subtotal.toStringAsFixed(2)}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppConstants.primaryGreen,
+            ),
+          ),
         ],
       ),
     );
@@ -636,22 +854,41 @@ class _MethodChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppConstants.primaryGreen : context.saganaColors.cardBackground,
+          color: selected
+              ? AppConstants.primaryGreen
+              : context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: Border.all(color: selected ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.2)),
+          border: Border.all(
+            color: selected
+                ? AppConstants.primaryGreen
+                : AppConstants.outline.withValues(alpha: 0.2),
+          ),
           boxShadow: selected
-              ? [BoxShadow(color: AppConstants.primaryGreen.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]
+              ? [
+                  BoxShadow(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
               : null,
         ),
         child: Column(
           children: [
-            Icon(icon, color: selected ? Colors.white : AppConstants.primaryGreen, size: 22),
+            Icon(
+              icon,
+              color: selected ? Colors.white : AppConstants.primaryGreen,
+              size: 22,
+            ),
             const SizedBox(height: 6),
-            Text(label,
-                style: GoogleFonts.poppins(
-                  fontSize: 13, fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : AppConstants.primaryGreen,
-                )),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : AppConstants.primaryGreen,
+              ),
+            ),
           ],
         ),
       ),
@@ -668,7 +905,11 @@ class _AddressOptionTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _AddressOptionTile({required this.address, required this.selected, required this.onTap});
+  const _AddressOptionTile({
+    required this.address,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -678,10 +919,14 @@ class _AddressOptionTile extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: selected ? AppConstants.primaryGreen.withValues(alpha: 0.06) : context.saganaColors.cardBackground,
+          color: selected
+              ? AppConstants.primaryGreen.withValues(alpha: 0.06)
+              : context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           border: Border.all(
-            color: selected ? AppConstants.primaryGreen : AppConstants.outline.withValues(alpha: 0.15),
+            color: selected
+                ? AppConstants.primaryGreen
+                : AppConstants.outline.withValues(alpha: 0.15),
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -699,22 +944,50 @@ class _AddressOptionTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppConstants.primaryGreen.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusFull,
+                      ),
                     ),
-                    child: Text(address.label,
-                        style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+                    child: Text(
+                      address.label,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 6),
-                  Text(address.recipientName ?? '',
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text(
+                    address.recipientName ?? '',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(address.addressLine, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    address.addressLine,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
                   if (address.contactNumber != null) ...[
                     const SizedBox(height: 2),
-                    Text(address.contactNumber!, style: GoogleFonts.inter(fontSize: 11.5, color: AppConstants.onSurfaceVariant)),
+                    Text(
+                      address.contactNumber!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: AppConstants.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ],
               ),

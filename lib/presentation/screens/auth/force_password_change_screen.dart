@@ -85,7 +85,7 @@ class _ForcePasswordChangeScreenState extends State<ForcePasswordChangeScreen> {
                 obscureConfirm: _obscureConfirm,
                 isSaving: _isSaving,
                 errorMessage: _formError,
-                subtitle: 'Your password was reset by an Admin. Please choose a new one to continue.',
+                subtitle: 'Your password was reset by a Manager. Please choose a new one to continue.',
                 submitLabel: 'Continue',
                 onToggleObscurePassword: () => setState(() => _obscurePassword = !_obscurePassword),
                 onToggleObscureConfirm: () => setState(() => _obscureConfirm = !_obscureConfirm),

@@ -9,7 +9,7 @@ class BuyerOrderModel {
   final double quantityKg;
   final double pricePerKg;
   final double totalPrice;
-  final String status; // pending | approved | completed | cancelled
+  final String status; // pending | approved | completed | cancelled | rejected
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -79,20 +79,23 @@ class BuyerOrderModel {
   bool get isApproved => status == 'approved';
   bool get isCompleted => status == 'completed';
   bool get isCancelled => status == 'cancelled';
+  bool get isRejected => status == 'rejected';
 
   /// Same display-label-vs-stored-value pattern as MarketplaceListingModel's
-  /// pending_review → "Pending" convention — 'pending' is stored,
-  /// "Pending Review" is what the buyer sees.
+  /// pending_review → "Pending" convention — 'pending' and 'rejected' are
+  /// stored; "Pending Order" and "Disapproved" are what people read.
   String get statusLabel {
     switch (status) {
       case 'pending':
-        return 'Pending Review';
+        return 'Pending Order';
       case 'approved':
         return 'Approved';
       case 'completed':
         return 'Completed';
       case 'cancelled':
         return 'Cancelled';
+      case 'rejected':
+        return 'Disapproved';
       default:
         return status;
     }

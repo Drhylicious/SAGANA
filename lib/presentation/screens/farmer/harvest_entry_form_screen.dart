@@ -13,6 +13,10 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/channel_only_badge.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class HarvestEntryFormScreen extends StatefulWidget {
   final FarmerCropModel? crop; // optional pre-fill from Crop Roster's shortcut
@@ -152,12 +156,12 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     setState(() => _errorMessage = null);
     if (_selectedCrop == null) {
       setState(() => _errorMessage = _blockedCrop != null
-          ? '${_blockedCrop!.cropName} is still awaiting admin approval and can\'t be harvested yet.'
+          ? '${_blockedCrop!.cropName} is still awaiting Manager approval and can\'t be harvested yet.'
           : 'Please select a crop.');
       return;
     }
     if (_selectedCrop!.isPendingApproval) {
-      setState(() => _errorMessage = 'This crop is still awaiting admin approval and can\'t be harvested yet.');
+      setState(() => _errorMessage = 'This crop is still awaiting Manager approval and can\'t be harvested yet.');
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -194,7 +198,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         _isSuccess = true;
       });
 
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) {
         _showSuccessDialog(qty, batchNumber, wasQueuedOffline: !harvest.isSynced);
       }
@@ -282,9 +286,32 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingCrops) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(
-            color: AppConstants.primaryGreen)),
+      return Scaffold(
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                const SizedBox(height: 72),
+                const Expanded(
+                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                ),
+              ],
+            ),
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: FarmerTopBar(
+                title: '',
+                onBack: () => Navigator.of(context).pop(),
+                profilePhotoUrl: null,
+                onProfileTap: () {},
+                onNotificationTap: () {},
+                onSettingsTap: null,
+                hideProfileAvatar: true,
+                showNotificationButton: false,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -331,9 +358,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
             children: [
               const SizedBox(height: 72),
               if (!_isOnline)
-                const OfflineBanner(
+                OfflineStatusCard(
                   message:
-                      "You're offline — new harvest entries are saved on your device and will sync automatically once you're reconnected.",
+                      AppLocalizations.of(context).offlineHarvestEntriesSave,
                 ),
               Expanded(
                 child: SingleChildScrollView(
@@ -373,6 +400,15 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const _FieldLabel('Market Type'),
                         const SizedBox(height: 8),
                         _LockedField(value: selectedCrop.marketTypeLabel),
+                        if (selectedCrop.exclusiveChannel != null) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ChannelOnlyBadge(
+                              channel: selectedCrop.exclusiveChannel,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
 
                         // ── Batch Number ──────────────────────────────────
@@ -428,7 +464,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
               onSettingsTap: null,
               hideProfileAvatar: true,
               showNotificationButton: false,
-              // trailing badge removed; use the standardized OfflineBanner above
+              // trailing badge removed; use the standardized OfflineStatusCard above
             ),
           ),
 
@@ -439,7 +475,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 }
 
 
-// _OnlineBadge and _PulsingDot removed — standardized OfflineBanner is used instead
+// _OnlineBadge and _PulsingDot removed — standardized OfflineStatusCard is used instead
 
 // _CropSelectorField removed — the Crop field is locked (read-only) now
 // that every navigation path into this screen always supplies a crop;
@@ -465,8 +501,11 @@ class _CropsLoadError extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: Center(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+          Expanded(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -508,6 +547,8 @@ class _CropsLoadError extends StatelessWidget {
             ],
           ),
         ),
+      )),
+        ],
       ),
     );
   }
@@ -521,8 +562,11 @@ class _NoCropsEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: Center(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+          Expanded(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -566,6 +610,8 @@ class _NoCropsEmptyState extends StatelessWidget {
             ],
           ),
         ),
+      )),
+        ],
       ),
     );
   }
@@ -590,8 +636,11 @@ class _PendingCropBlockedState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: Center(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+          Expanded(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -636,6 +685,8 @@ class _PendingCropBlockedState extends StatelessWidget {
             ],
           ),
         ),
+      )),
+        ],
       ),
     );
   }
@@ -667,7 +718,7 @@ class _PendingCropBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '$cropName is still awaiting admin approval and can\'t be harvested yet. '
+              '$cropName is still awaiting Manager approval and can\'t be harvested yet. '
               'Pick another crop below, or go back once it\'s approved.',
               style: GoogleFonts.inter(fontSize: 13, color: AppConstants.amber),
             ),

@@ -15,6 +15,8 @@ import '../../widgets/app_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../core/utils/member_access.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Loan Details — Admin (read-only).
 /// Pushed above the shell. Route: /admin/loans/details, extra: String loanId
@@ -124,7 +126,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
-            : AppConstants.successGreen,
+            : AppConstants.midGreen,
       behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -158,45 +160,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    final sagana = context.saganaColors;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  _detail != null
-                      ? l10n.loanDetailsContextualTitle(
-                          _detail!.loan.referenceNo,
-                        )
-                      : l10n.loanDetailsTitle,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: _detail != null ? l10n.loanDetailsContextualTitle( _detail!.loan.referenceNo, ) : l10n.loanDetailsTitle, onBack: () => context.pop());
   }
 
   Widget _buildBody(
@@ -206,7 +170,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     SaganaColors sagana,
   ) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
     if (_offlineUnavailable) {
       return _buildMessageState(

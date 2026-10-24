@@ -12,6 +12,7 @@ import '../../../data/services/app_settings_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
 
 class FarmerSettingsScreen extends StatefulWidget {
   const FarmerSettingsScreen({super.key});
@@ -108,8 +109,30 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
     if (_isLoading || _isSigningOut) {
       return Scaffold(
         backgroundColor: sagana.scaffoldBackground,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                const SizedBox(height: 72),
+                const Expanded(
+                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                ),
+              ],
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: FarmerTopBar(
+                title: l10n.settingsTitle,
+                onBack: () => context.popRoute(),
+                hideProfileAvatar: true,
+                onProfileTap: () {},
+                onNotificationTap: () {},
+                showNotificationButton: false,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -118,14 +141,13 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
       backgroundColor: sagana.scaffoldBackground,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — changing your password requires an internet connection."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 64),
+                    if (!_isOnline) OfflineStatusCard(message: AppLocalizations.of(context).offlinePasswordNeedsInternet),
                     Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 60),

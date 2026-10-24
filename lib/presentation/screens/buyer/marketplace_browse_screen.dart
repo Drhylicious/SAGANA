@@ -14,6 +14,9 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/animated_pressable.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/buyer_top_bar.dart';
+import '../../widgets/skeleton.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
 
 class MarketplaceBrowseScreen extends StatefulWidget {
   const MarketplaceBrowseScreen({super.key});
@@ -31,6 +34,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   List<BuyerListingModel> _allListings = [];
   String _searchQuery = '';
   String _selectedCategory = 'All';
@@ -47,12 +51,17 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
     _loadCartCount();
     _loadUnreadCount();
     _loadBuyerProfile();
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
     _scrollController.addListener(_onScroll);
   }
@@ -96,7 +105,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   // refresh fetch — always resets back to page one.
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final listings = await _repository.fetchApprovedListings(limit: _pageSize, offset: 0);
+    final listings = await _repository.fetchApprovedListings(
+      limit: _pageSize,
+      offset: 0,
+    );
     if (!mounted) return;
     setState(() {
       _allListings = listings;
@@ -108,7 +120,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
 
   Future<void> _loadMore() async {
     setState(() => _isLoadingMore = true);
-    final more = await _repository.fetchApprovedListings(limit: _pageSize, offset: _offset);
+    final more = await _repository.fetchApprovedListings(
+      limit: _pageSize,
+      offset: _offset,
+    );
     if (!mounted) return;
     setState(() {
       _allListings = [..._allListings, ...more];
@@ -121,12 +136,9 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   // Only categories actually present among current listings — never a
   // filter chip that's guaranteed to return zero results.
   List<String> get _availableCategories {
-    final cats = _allListings
-        .map((l) => l.category)
-        .whereType<String>()
-        .toSet()
-        .toList()
-      ..sort();
+    final cats =
+        _allListings.map((l) => l.category).whereType<String>().toSet().toList()
+          ..sort();
     return ['All', ...cats];
   }
 
@@ -134,7 +146,8 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     return _allListings.where((l) {
       final matchesCategory =
           _selectedCategory == 'All' || l.category == _selectedCategory;
-      final matchesSearch = _searchQuery.isEmpty ||
+      final matchesSearch =
+          _searchQuery.isEmpty ||
           l.cropName.toLowerCase().contains(_searchQuery) ||
           (l.variety?.toLowerCase().contains(_searchQuery) ?? false);
       return matchesCategory && matchesSearch;
@@ -173,6 +186,13 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: BuyerMarketplaceRepository.listingsCacheScreen(
+                  limit: _pageSize,
+                ),
+                isOnline: _isOnline,
+                offlineMessage: l10n.offlineBuyerBody,
+              ),
               Expanded(
                 child: SafeArea(
                   top: false,
@@ -186,19 +206,30 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                           SliverToBoxAdapter(child: _buildCategoryChips()),
                         if (_isLoading)
                           const SliverFillRemaining(
-                            child: Center(child: CircularProgressIndicator()),
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SkeletonList(),
+                            ),
                           )
                         else if (_allListings.isEmpty)
-                          SliverFillRemaining(child: _buildEmptyState(l10n, isFilterEmpty: false))
+                          SliverFillRemaining(
+                            child: _buildEmptyState(l10n, isFilterEmpty: false),
+                          )
                         else if (filtered.isEmpty)
-                          SliverFillRemaining(child: _buildEmptyState(l10n, isFilterEmpty: true))
+                          SliverFillRemaining(
+                            child: _buildEmptyState(l10n, isFilterEmpty: true),
+                          )
                         else ...[
                           _buildGrid(filtered),
                           if (_isLoadingMore)
                             const SliverToBoxAdapter(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(vertical: 20),
-                                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
                               ),
                             ),
                         ],
@@ -210,7 +241,9 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
             ],
           ),
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: BuyerTopBar(
               title: l10n.buyerBrowseTitle,
               unreadCount: _unreadCount,
@@ -235,7 +268,12 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
 
   Widget _buildHeader(AppLocalizations l10n) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 12),
+      padding: const EdgeInsets.fromLTRB(
+        AppConstants.spacingSafeH,
+        16,
+        AppConstants.spacingSafeH,
+        12,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -278,7 +316,9 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
         height: 34,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSafeH,
+          ),
           itemCount: cats.length,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, i) {
@@ -288,7 +328,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
               onTap: () => setState(() => _selectedCategory = cat),
               scaleDown: 0.95,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? AppConstants.primaryGreen : Colors.white,
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
@@ -304,7 +347,9 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? Colors.white : AppConstants.onSurfaceVariant,
+                    color: isSelected
+                        ? Colors.white
+                        : AppConstants.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -318,7 +363,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   Widget _buildGrid(List<BuyerListingModel> listings) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(
-        AppConstants.spacingSafeH, 4, AppConstants.spacingSafeH, 100,
+        AppConstants.spacingSafeH,
+        4,
+        AppConstants.spacingSafeH,
+        100,
       ),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -331,29 +379,39 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           childAspectRatio: 0.71,
         ),
         delegate: SliverChildBuilderDelegate(
-          (context, i) => _ListingCard(listing: listings[i], onReturn: _loadCartCount),
+          (context, i) =>
+              _ListingCard(listing: listings[i], onReturn: _loadCartCount),
           childCount: listings.length,
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(AppLocalizations l10n, {required bool isFilterEmpty}) {
+  Widget _buildEmptyState(
+    AppLocalizations l10n, {
+    required bool isFilterEmpty,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.storefront_outlined, size: 56,
-                color: AppConstants.outline.withValues(alpha: 0.5)),
+            Icon(
+              Icons.storefront_outlined,
+              size: 56,
+              color: AppConstants.outline.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 16),
             Text(
               isFilterEmpty
                   ? l10n.buyerBrowseNoResultsTitle
                   : l10n.buyerBrowseEmptyTitle,
               textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -361,7 +419,10 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
                   ? l10n.buyerBrowseNoResultsBody
                   : l10n.buyerBrowseEmptyBody,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -426,7 +487,8 @@ class _ListingCard extends StatelessWidget {
                           ),
                     if (soldOut)
                       Positioned(
-                        top: 8, left: 8,
+                        top: 8,
+                        left: 8,
                         child: _Badge(
                           label: l10n.buyerBrowseSoldOut,
                           color: AppConstants.errorRed,
@@ -434,7 +496,8 @@ class _ListingCard extends StatelessWidget {
                       )
                     else if (listing.isLowStock)
                       Positioned(
-                        top: 8, left: 8,
+                        top: 8,
+                        left: 8,
                         child: _Badge(
                           label: l10n.buyerBrowseLowStock,
                           color: AppConstants.warningAmber,
@@ -454,7 +517,10 @@ class _ListingCard extends StatelessWidget {
                       listing.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 1),
                     // Price left, units sold right — same row, per reference.
@@ -464,14 +530,20 @@ class _ListingCard extends StatelessWidget {
                           child: Text(
                             '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
                             style: GoogleFonts.poppins(
-                              fontSize: 14, fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
                               color: AppConstants.primaryGreen,
                             ),
                           ),
                         ),
                         Text(
-                          l10n.buyerBrowseUnitsSold(listing.soldKg.toStringAsFixed(0)),
-                          style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                          l10n.buyerBrowseUnitsSold(
+                            listing.soldKg.toStringAsFixed(0),
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppConstants.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -480,12 +552,18 @@ class _ListingCard extends StatelessWidget {
                       listing.marketTypeLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppConstants.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 1),
                     Text(
                       '${listing.displayAvailableKg.toStringAsFixed(0)} kg ${l10n.buyerBrowseAvailableSuffix}',
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppConstants.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -509,12 +587,17 @@ class _CartIconButton extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          icon: const Icon(Icons.shopping_cart_outlined, color: AppConstants.primaryGreen, size: 26),
+          icon: const Icon(
+            Icons.shopping_cart_outlined,
+            color: AppConstants.primaryGreen,
+            size: 26,
+          ),
           onPressed: onTap,
         ),
         if (count > 0)
           Positioned(
-            top: 6, right: 6,
+            top: 6,
+            right: 6,
             child: IgnorePointer(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -525,8 +608,14 @@ class _CartIconButton extends StatelessWidget {
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 alignment: Alignment.center,
-                child: Text(count > 9 ? '9+' : '$count',
-                    style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                child: Text(
+                  count > 9 ? '9+' : '$count',
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ),
@@ -550,7 +639,11 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+        style: GoogleFonts.poppins(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
       ),
     );
   }

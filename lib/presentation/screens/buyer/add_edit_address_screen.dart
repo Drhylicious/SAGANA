@@ -4,19 +4,21 @@ import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/farmer_registration_address.dart';
 import '../../../core/constants/osm_config.dart';
+import '../../../core/utils/db_error_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_address_model.dart';
 import '../../../data/repositories/buyer_address_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
-import '../../../data/repositories/psgc_repository.dart';
-import '../../../data/models/psgc_models.dart';
 import '../../../data/services/device_location_service.dart';
 import '../../../data/services/nominatim_service.dart';
+import '../../widgets/fixed_farmer_address_fields.dart';
 import '../../widgets/map_attribution_links.dart';
-import '../../widgets/psgc_address_fields.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 // Same Barangay Payanas default center/zoom, same OpenStreetMap tile
 // source, as the farmer Edit Farm Details map picker — reusing that exact
@@ -27,10 +29,16 @@ const _pinZoom = 16.5;
 
 /// Add/Edit Address — one screen for Farmers and Buyers (nullable `existing`).
 ///
-/// Sections: Address Label (chips), Complete Address (structured PSGC
-/// fields, postal code, street, building, house number), Contact
-/// Information (read-only, from the live profile), Map (current location and
-/// a pin), Notes, and the default checkbox.
+/// Sections: Address Label (chips), Complete Address, Contact Information
+/// (read-only, from the live profile), Map (current location and a pin),
+/// Notes, and the default checkbox.
+///
+/// For every account, Farmer or Buyer, the five area fields (Region, Province,
+/// City / Municipality, Barangay, Postal Code) are fixed to MIMAROPA Region /
+/// Marinduque / Torrijos / Payanas / 4903: shown locked, using the same
+/// [FixedFarmerAddressFields] and [FarmerRegistrationAddress] as Farmer
+/// registration, and also forced by the database. Only Street, Building and
+/// House No., the label, the map pin and the notes are editable.
 ///
 /// The map pin is this address's delivery location. It is saved on the
 /// address row only and never changes a Farmer's farm location.
@@ -47,7 +55,10 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   final _profileRepo = BuyerProfileRepository();
   final _mapCtrl = fm.MapController();
 
-  final _draft = AddressStructureDraft();
+  // The only typed parts of the address. The area is fixed.
+  final _streetCtrl = TextEditingController();
+  final _buildingCtrl = TextEditingController();
+  final _houseNoCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
   String? _selectedLabel;
@@ -58,10 +69,6 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   String? _error;
-
-  PsgcHierarchy? _psgc;
-  bool _psgcLoading = true;
-
 
   bool _locating = false;
   String? _locationMessage;
@@ -84,30 +91,33 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
 
   @override
   void dispose() {
-    _draft.dispose();
+    _streetCtrl.dispose();
+    _buildingCtrl.dispose();
+    _houseNoCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    // Contact info is always the buyer's CURRENT profile — never a
-    // per-address snapshot the buyer can drift out of sync by editing
-    // here. Still written into the address row's own columns on save
-    // (schema unchanged), just never edited from this screen.
+    // Contact info is always the user's CURRENT profile — never a per-address
+    // snapshot that can drift out of sync by editing here. Still written into
+    // the address row's own columns on save (schema unchanged), just never
+    // edited from this screen.
     final profile = await _profileRepo.fetchProfile();
-    final hierarchy = await PsgcRepository.load();
     final existing = widget.existing;
     if (!mounted) return;
     setState(() {
       _profileFullName = profile?.fullName ?? '';
       _profilePhone = profile?.phoneNumber ?? '';
-      if (hierarchy.regions.isNotEmpty) _psgc = hierarchy;
-      _psgcLoading = false;
       if (existing != null) {
         _selectedLabel = existing.label;
         _notesCtrl.text = existing.notes ?? '';
         _isDefault = existing.isDefault;
-        if (_psgc != null) _draft.loadFrom(existing, _psgc!);
+        // Only the three typed fields are read back; the area is fixed, so an
+        // older address saved elsewhere shows (and is saved with) the fixed area.
+        _streetCtrl.text = existing.street ?? '';
+        _buildingCtrl.text = existing.building ?? '';
+        _houseNoCtrl.text = existing.houseNo ?? '';
         if (existing.latitude != null && existing.longitude != null) {
           _pinnedLocation = LatLng(existing.latitude!, existing.longitude!);
         }
@@ -192,11 +202,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
       setState(() => _error = l10n.buyerAddressFormRequired);
       return;
     }
-    if (_draft.postalCtrl.text.isNotEmpty && !_draft.postalValid) {
-      setState(() => _error = l10n.registerPostalInvalid);
-      return;
-    }
-    if (!_draft.isComplete) {
+    if (_streetCtrl.text.trim().isEmpty || _houseNoCtrl.text.trim().isEmpty) {
       setState(() => _error = l10n.buyerAddressStructureRequired);
       return;
     }
@@ -208,8 +214,26 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
       _isSubmitting = true;
       _error = null;
     });
-    final structure = _draft.toStructure();
-    final addressLine = _draft.composeLine();
+    final building = _buildingCtrl.text.trim();
+    final structure = BuyerAddressStructure(
+      regionCode: FarmerRegistrationAddress.regionCode,
+      regionName: FarmerRegistrationAddress.regionName,
+      provinceCode: FarmerRegistrationAddress.provinceCode,
+      provinceName: FarmerRegistrationAddress.provinceName,
+      cityMunicipalityCode: FarmerRegistrationAddress.cityCode,
+      cityMunicipalityName: FarmerRegistrationAddress.cityName,
+      barangayCode: FarmerRegistrationAddress.barangayCode,
+      barangayName: FarmerRegistrationAddress.barangayName,
+      postalCode: FarmerRegistrationAddress.postalCode,
+      street: _streetCtrl.text.trim(),
+      building: building.isEmpty ? null : building,
+      houseNo: _houseNoCtrl.text.trim(),
+    );
+    final addressLine = FarmerRegistrationAddress.composeLine(
+      houseNo: _houseNoCtrl.text,
+      building: building,
+      street: _streetCtrl.text,
+    );
     try {
       final existing = widget.existing;
       if (existing != null) {
@@ -255,7 +279,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = friendlyErrorMessage(e);
       });
     }
   }
@@ -267,24 +291,13 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          color: AppConstants.primaryGreen,
-        ),
-        title: Text(
-          _isEditing ? l10n.buyerAddressEditTitle : l10n.buyerAddressAddTitle,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
-          ),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: _isEditing ? l10n.buyerAddressEditTitle : l10n.buyerAddressAddTitle, onBack: () => Navigator.of(context).pop()),
+          OfflineStatusCard(title: l10n.offlineStatusTitle, message: l10n.offlineBuyerBody),
+          Expanded(child: _isLoading
+          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
           : ListView(
               padding: const EdgeInsets.fromLTRB(
                 AppConstants.spacingSafeH,
@@ -308,11 +321,10 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                         ),
                         const SizedBox(height: 10),
                       ],
-                      PsgcAddressFields(
-                        draft: _draft,
-                        hierarchy: _psgc,
-                        isLoading: _psgcLoading,
-                        onChanged: () => setState(() {}),
+                      FixedFarmerAddressFields(
+                        streetController: _streetCtrl,
+                        buildingController: _buildingCtrl,
+                        houseNoController: _houseNoCtrl,
                       ),
                     ],
                   ),
@@ -593,7 +605,9 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                   ),
                 ),
               ],
-            ),
+            )),
+        ],
+      ),
     );
   }
 
@@ -838,43 +852,7 @@ class _AddressFullMapScreenState extends State<_AddressFullMapScreen> {
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   child: BackdropFilter(
                     filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: context.saganaColors.glassBackground,
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.radiusMd,
-                        ),
-                        border: Border.all(
-                          color: context.saganaColors.glassBorder,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => Navigator.of(context).pop(),
-                            child: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: AppConstants.primaryGreen,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              l10n.buyerAddressMapSection,
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppConstants.primaryGreen,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: SubPageTopBar(title: l10n.buyerAddressMapSection, onBack: () => Navigator.of(context).pop()),
                   ),
                 ),
               ),

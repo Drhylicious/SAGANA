@@ -9,7 +9,10 @@ import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/notification_day_groups.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/skeleton.dart';
 
 class FarmerNotificationsScreen extends StatefulWidget {
   const FarmerNotificationsScreen({super.key});
@@ -26,7 +29,6 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
   bool _isLoading = true;
   bool _isOnline = true;
   bool _loadFailed = false;
-  NotificationFilter _activeFilter = NotificationFilter.all;
 
   @override
   void initState() {
@@ -66,8 +68,6 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     }
   }
 
-  List<NotificationModel> get _filtered =>
-      _notifications.where(_activeFilter.matches).toList();
 
   int get _unreadCount => _notifications.where((n) => n.isUnread).length;
 
@@ -111,241 +111,77 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — you may not see your latest notifications until you're reconnected."),
+          SubPageTopBar(
+            title: l10n.sectionNotifications,
+            onBack: () => Navigator.of(context).pop(),
+            trailing: _unreadCount > 0
+                ? PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: AppConstants.primaryGreen,
+                    ),
+                    onSelected: (value) {
+                      if (value == 'read_all') _markAllRead();
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'read_all',
+                        child: Text(l10n.buyerNotifMenuMarkAllRead),
+                      ),
+                    ],
+                  )
+                : null,
+          ),
+          const Divider(height: 1),
+          CachedDataNotice(
+            screen: 'notifications',
+            isOnline: _isOnline,
+            offlineMessage:
+                AppLocalizations.of(context).offlineNotifications,
+          ),
           Expanded(
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    const SizedBox(height: 64),
-                    Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadNotifications,
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppConstants.primaryGreen,
-                          ),
-                        )
-                      : _loadFailed
-                      ? _NotificationsLoadError(
-                          onRetry: _loadNotifications,
-                          isOnline: _isOnline,
-                        )
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      AppLocalizations.of(context).sectionNotifications,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppConstants.onSurface,
-                                      ),
-                                    ),
-                                    if (_unreadCount > 0)
-                                      Text(
-                                        '$_unreadCount unread',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          color: AppConstants.onSurfaceVariant,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                if (_unreadCount > 0)
-                                  GestureDetector(
-                                    onTap: _markAllRead,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppConstants.primaryGreen
-                                            .withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(
-                                          AppConstants.radiusFull,
-                                        ),
-                                        border: Border.all(
-                                          color: AppConstants.primaryGreen
-                                              .withValues(alpha: 0.20),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Mark all read',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppConstants.primaryGreen,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              height: 34,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: NotificationFilter.values.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(width: 8),
-                                itemBuilder: (context, i) {
-                                  final f = NotificationFilter.values[i];
-                                  final active = _activeFilter == f;
-                                  return GestureDetector(
-                                    onTap: () =>
-                                        setState(() => _activeFilter = f),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 180,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: active
-                                            ? cs.primary
-                                            : sagana.cardBackground,
-                                        borderRadius: BorderRadius.circular(
-                                          AppConstants.radiusFull,
-                                        ),
-                                        border: Border.all(
-                                          color: active
-                                              ? cs.primary
-                                              : cs.outline.withValues(
-                                                  alpha: 0.25,
-                                                ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        f.label,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: active
-                                              ? FontWeight.w600
-                                              : FontWeight.w400,
-                                          color: active
-                                              ? cs.onPrimary
-                                              : cs.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (_filtered.isEmpty)
-                              _EmptyState(filter: _activeFilter)
-                            else
-                              ..._buildGrouped(),
-                          ],
+            child: RefreshIndicator(
+              color: AppConstants.primaryGreen,
+              onRefresh: _loadNotifications,
+              child: _isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SkeletonList(),
+                    )
+                  : _loadFailed
+                  ? _NotificationsLoadError(
+                      onRetry: _loadNotifications,
+                      isOnline: _isOnline,
+                    )
+                  : _notifications.isEmpty
+                  ? ListView(
+                      children: [
+                        _EmptyState(filter: NotificationFilter.all),
+                      ],
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                      children: notificationGroupChildren<NotificationModel>(
+                        items: _notifications,
+                        timeOf: (n) => n.createdAt,
+                        l10n: l10n,
+                        buildItem: (n) => _NotifCard(
+                          item: n,
+                          onTap: () => _onNotifTap(n),
+                          onDelete: () => _delete(n.id),
                         ),
-                ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: AppLocalizations.of(context).sectionNotifications,
-              onBack: () => Navigator.of(context).pop(),
-              hideProfileAvatar: true,
-              onProfileTap: () {},
-              onNotificationTap: () {},
-              showNotificationButton: false,
-            ),
-          ),
-              ],
+                      ),
+                    ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  List<Widget> _buildGrouped() {
-    final now = DateTime.now();
-    final items = _filtered;
-    final today = items.where((n) => _isToday(n.createdAt, now)).toList();
-    final yesterday = items
-        .where((n) => _isYesterday(n.createdAt, now))
-        .toList();
-    final older = items
-        .where(
-          (n) => !_isToday(n.createdAt, now) && !_isYesterday(n.createdAt, now),
-        )
-        .toList();
-
-    final widgets = <Widget>[];
-
-    void addGroup(String label, List<NotificationModel> group) {
-      if (group.isEmpty) return;
-      widgets.add(_GroupLabel(label: label));
-      for (final n in group) {
-        widgets.add(
-          _NotifCard(
-            item: n,
-            onTap: () => _onNotifTap(n),
-            onDelete: () => _delete(n.id),
-          ),
-        );
-        widgets.add(const SizedBox(height: 8));
-      }
-    }
-
-    addGroup('Today', today);
-    addGroup('Yesterday', yesterday);
-    addGroup('Earlier', older);
-    return widgets;
-  }
-
-  bool _isToday(DateTime dt, DateTime now) =>
-      dt.year == now.year && dt.month == now.month && dt.day == now.day;
-
-  bool _isYesterday(DateTime dt, DateTime now) {
-    final y = now.subtract(const Duration(days: 1));
-    return dt.year == y.year && dt.month == y.month && dt.day == y.day;
-  }
-}
-
-class _GroupLabel extends StatelessWidget {
-  final String label;
-  const _GroupLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 4),
-      child: Text(
-        label.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: AppConstants.outline,
-          letterSpacing: 0.6,
-        ),
       ),
     );
   }

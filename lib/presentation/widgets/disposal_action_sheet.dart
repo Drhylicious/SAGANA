@@ -23,7 +23,7 @@ Future<DisposalAction?> showDisposalActionSheet(
   required String cropName,
   required double availableKg,
   required bool isCoopEligible,
-  required String? cropType,
+  required String? exclusiveChannel,
 }) {
   return showManagementModal<DisposalAction>(
     context: context,
@@ -31,7 +31,7 @@ Future<DisposalAction?> showDisposalActionSheet(
       cropName: cropName,
       availableKg: availableKg,
       isCoopEligible: isCoopEligible,
-      cropType: cropType,
+      exclusiveChannel: exclusiveChannel,
     ),
   );
 }
@@ -40,26 +40,23 @@ class _DisposalActionSheet extends StatelessWidget {
   final String cropName;
   final double availableKg;
   final bool isCoopEligible;
-  final String? cropType;
+  final String? exclusiveChannel;
 
   const _DisposalActionSheet({
     required this.cropName,
     required this.availableKg,
     required this.isCoopEligible,
-    required this.cropType,
+    required this.exclusiveChannel,
   });
 
-  // Ginger is DA-AMAD-exclusive — it can only ever move through Market
-  // Linking, never the open Marketplace, Offer to Cooperative, or an
-  // informal sale. Keyed off the batch's denormalized crop_type (set at
-  // harvest time from crop_master.crop_type — see
-  // supabase_schema_harvest_market_type_persistence.sql), matching the
-  // same crop_type-based check market_linking_repository.dart already
-  // uses. Previously a crop-name substring match ('ginger'.contains) —
-  // fragile in both directions: it would misclassify any future crop
-  // whose name happens to contain "ginger", and would miss a DA-AMAD
-  // crop that doesn't literally have that name.
-  bool get _isDaAmadExclusive => cropType == 'da_amad_market';
+  // A crop reserved for one selling channel (Ginger → DA-AMAD Market Linking)
+  // can only ever move through that channel — never the Marketplace, Offer to
+  // Cooperative or an Informal Sale. Read from the batch's exclusive_channel
+  // (copied from the crop's own setting in the database), not from the crop's
+  // name or its market type. The database enforces the same rule
+  // (enforce_selling_channel); this just avoids offering a choice that would
+  // be refused.
+  bool get _isDaAmadExclusive => exclusiveChannel != null;
 
   @override
   Widget build(BuildContext context) {

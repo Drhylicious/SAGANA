@@ -7,6 +7,8 @@ import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/order_result_pieces.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
 
 /// The single Order Success design for every checkout path — Buy Now
 /// (one order) and an all-succeeded Cart checkout (several orders) both
@@ -43,16 +45,22 @@ class OrderSuccessScreen extends StatefulWidget {
 class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   final _repository = BuyerOrderRepository();
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   List<BuyerOrderModel> _orders = [];
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
   Future<void> _load() async {
-    final results = await Future.wait(widget.orderIds.map(_repository.fetchOrderById));
+    final results = await Future.wait(
+      widget.orderIds.map(_repository.fetchOrderById),
+    );
     if (!mounted) return;
     setState(() {
       _orders = results.whereType<BuyerOrderModel>().toList();
@@ -73,26 +81,55 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
       backgroundColor: sagana.scaffoldBackground,
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: AppConstants.primaryGreen,
+                ),
+              )
             : ListView(
-                padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.spacingSafeH,
+                  vertical: 24,
+                ),
                 children: [
+                  CachedDataNotice(
+                    screen:
+                        'buyer_order_${widget.orderIds.isEmpty ? '' : widget.orderIds.first}',
+                    otherScreens: widget.orderIds
+                        .map((id) => 'buyer_order_$id')
+                        .toList(),
+                    isOnline: _isOnline,
+                    offlineMessage: l10n.offlineBuyerBody,
+                  ),
                   const SizedBox(height: 12),
-                  const Center(child: OrderResultIcon(icon: Icons.check_rounded, color: AppConstants.successGreen)),
+                  const Center(
+                    child: OrderResultIcon(
+                      icon: Icons.check_rounded,
+                      color: AppConstants.successGreen,
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     l10n.buyerOrderSuccessTitle,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen),
+                    style: GoogleFonts.poppins(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppConstants.primaryGreen,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     l10n.buyerOrderSuccessSubtitle,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  if (firstOrder != null && firstOrder.hasFulfillmentChoice) ...[
+                  if (firstOrder != null &&
+                      firstOrder.hasFulfillmentChoice) ...[
                     FulfillmentInfoCard(
                       fulfillmentMethod: firstOrder.fulfillmentMethod,
                       deliveryAddress: firstOrder.deliveryAddress,
@@ -121,7 +158,9 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
       // Fixed position, outside the scrollable content — per explicit
       // request, the two actions never move regardless of how much
       // fulfillment/order content is above them.
-      bottomNavigationBar: _isLoading ? null : OrderResultActions(isFarmerContext: widget.isFarmerContext),
+      bottomNavigationBar: _isLoading
+          ? null
+          : OrderResultActions(isFarmerContext: widget.isFarmerContext),
     );
   }
 }

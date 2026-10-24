@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/server_only.dart';
 import '../models/inventory_batch_model.dart';
 import '../models/cooperative_offer_model.dart';
 import 'admin_activity_repository.dart';
 import 'admin_listing_repository.dart';
+import '../models/admin_log_message.dart';
 
 class CooperativeOfferRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -14,14 +16,25 @@ class CooperativeOfferRepository {
     return AdminListingRepository().fetchCropsByCategory(category: category);
   }
 
+  // ─── Farmer: submit an offer with an asking price per kg ─────────────────
+  //
+  // The database checks the batch is the caller's own and eligible, reserves
+  // the quantity, records the first step of the negotiation and tells the
+  // Cooperative. Needs a connection: the price, the reservation and the
+  // eligibility are all decided on the server.
+
   Future<void> offerToCooperative({
     required InventoryBatchModel batch,
     required double quantityKg,
+    required double askingPricePerKg,
+    String? note,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc('offer_batch_to_cooperative', params: {
       'p_batch_id': batch.id,
-      'p_crop_name': batch.cropName,
       'p_quantity_kg': quantityKg,
+      'p_asking_price_per_kg': askingPricePerKg,
+      'p_note': note,
     });
   }
 
@@ -60,10 +73,9 @@ class CooperativeOfferRepository {
     String? categoryFilter,
   }) async {
     try {
-      var query = _client.from('cooperative_purchase_offers').select(
-        'id, farmer_id, crop_name, offered_quantity_kg, offered_at, '
-        'inventory_batch_id, status, confirmed_quantity_kg, confirmed_amount, admin_notes',
-      );
+      var query = _client
+          .from('cooperative_purchase_offers')
+          .select(CooperativeOfferModel.selectColumns);
       if (statusFilter != null) query = query.eq('status', statusFilter);
       if (cropFilter != null) query = query.eq('crop_name', cropFilter);
 
@@ -106,15 +118,13 @@ class CooperativeOfferRepository {
   //     fields fetchOffers() doesn't bother resolving (farmer phone/photo,
   //     batch number, harvest date, category) — same multi-step resolution
   //     pattern as AdminOrderRepository.fetchOrderById(). Used by
-  //     OfferDetailScreen, opened for a confirmed/declined offer.
+  //     CoopOfferNegotiationScreen, which also serves the Farmer.
 
   Future<CooperativeOfferModel?> fetchOfferById(String offerId) async {
     try {
       final row = await _client
           .from('cooperative_purchase_offers')
-          .select('id, farmer_id, crop_name, offered_quantity_kg, offered_at, '
-              'inventory_batch_id, status, confirmed_quantity_kg, confirmed_amount, '
-              'admin_notes, confirmed_at')
+          .select(CooperativeOfferModel.selectColumns)
           .eq('id', offerId)
           .maybeSingle();
       if (row == null) return null;
@@ -181,58 +191,159 @@ class CooperativeOfferRepository {
     }
   }
 
-  // ─── Admin: pending offers only — still used by MarketplaceDashboardScreen
-  //     for the KPI count. Kept as its own method (rather than making the
-  //     dashboard call fetchOffers(statusFilter: 'pending')) purely because
-  //     that call site only ever wants .length and this reads clearer there.
+  // ─── Admin: offers waiting for the Cooperative's answer — the Dashboard
+  //     KPI count. Offers where the Cooperative has already replied and the
+  //     Farmer has to answer next are not waiting on the Cooperative.
 
-  Future<List<CooperativeOfferModel>> fetchPendingOffers() =>
-      fetchOffers(statusFilter: 'pending');
+  Future<List<CooperativeOfferModel>> fetchOffersAwaitingCooperative() async {
+    final open = await fetchOffers(statusFilter: 'pending');
+    return open.where((o) => o.awaitingCooperative).toList();
+  }
 
-  // ─── Admin: confirm an offer, recording the actual settlement ─────────────
+  // ─── Farmer: every offer this farmer has made, newest first ───────────────
 
-  // Returns the created member_sales_transactions id — or null for a
-  // confirmed offer on any crop other than Palay/Peanut, which settles
-  // directly on the offer row instead (Scoped Fix decision, Admin
-  // Marketplace review). Callers don't currently use this value either
-  // way, but the nullability must be honest since the RPC can now
-  // genuinely return no id.
-  Future<String?> confirmCooperativeOffer({
+  Future<List<CooperativeOfferModel>> fetchMyOffers() async {
+    try {
+      final userId = _client.auth.currentUser!.id;
+      final rows = await _client
+          .from('cooperative_purchase_offers')
+          .select(CooperativeOfferModel.selectColumns)
+          .eq('farmer_id', userId)
+          .order('offered_at', ascending: false);
+      return rows.map((r) => CooperativeOfferModel.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// The open offer on [batchId], if any — what "Offer Status" opens.
+  Future<String?> fetchPendingOfferIdForBatch(String batchId) async {
+    try {
+      final userId = _client.auth.currentUser!.id;
+      final row = await _client
+          .from('cooperative_purchase_offers')
+          .select('id')
+          .eq('farmer_id', userId)
+          .eq('inventory_batch_id', batchId)
+          .eq('status', 'pending')
+          .maybeSingle();
+      return row?['id'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── Both sides: the negotiation history of one offer, oldest first ───────
+
+  Future<List<CooperativeOfferEvent>> fetchHistory(String offerId) async {
+    try {
+      final rows = await _client
+          .from('cooperative_offer_events')
+          .select()
+          .eq('offer_id', offerId)
+          .order('created_at', ascending: true)
+          .order('round', ascending: true);
+      return rows.map((r) => CooperativeOfferEvent.fromMap(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ─── Negotiation actions ─────────────────────────────────────────────────
+  //
+  // Each one is a single database function that checks who is calling, that
+  // the offer is still open, that it is the caller's turn and that the price
+  // on the caller's screen is still the latest ([expectedRound]). A refusal
+  // comes back as a readable message (see friendlyErrorMessage). None of
+  // these can be queued offline.
+
+  /// Sends a counteroffer. Either side; the database works out which.
+  /// [asCooperative] only decides whether it is written to the Manager's
+  /// activity log.
+  Future<void> counterOffer({
     required String offerId,
-    required double confirmedQuantityKg,
-    required double confirmedAmount,
-    String? adminNotes,
+    required double pricePerKg,
+    required int expectedRound,
+    String? note,
+    bool asCooperative = false,
   }) async {
-    final result = await _client.rpc('confirm_cooperative_offer', params: {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('counter_cooperative_offer', params: {
       'p_offer_id': offerId,
-      'p_confirmed_quantity_kg': confirmedQuantityKg,
-      'p_confirmed_amount': confirmedAmount,
-      'p_admin_notes': adminNotes,
+      'p_price_per_kg': pricePerKg,
+      'p_expected_round': expectedRound,
+      'p_note': note,
     });
-    AdminActivityRepository().log(
-      module: 'offers',
-      actionType: 'confirmed',
-      description: 'Confirmed a cooperative offer for ${confirmedQuantityKg.toStringAsFixed(1)}kg (₱${confirmedAmount.toStringAsFixed(2)}).',
-      referenceId: offerId,
-    );
+    if (asCooperative) {
+      AdminActivityRepository().log(
+        module: 'offers',
+        actionType: 'countered',
+        message: AdminLogMessage('adminLogCoopOfferCountered', {
+          'price': pricePerKg.toStringAsFixed(2),
+        }),
+        referenceId: offerId,
+      );
+    }
+  }
+
+  /// Accepts the latest price and settles the sale. Returns the created
+  /// member_sales_transactions id. [kg] and [amount] are only used for the
+  /// Manager's activity log line.
+  Future<String?> acceptOffer({
+    required String offerId,
+    required int expectedRound,
+    String? note,
+    bool asCooperative = false,
+    double? kg,
+    double? amount,
+  }) async {
+    await ServerOnly.ensureOnline();
+    final result = await _client.rpc('accept_cooperative_offer', params: {
+      'p_offer_id': offerId,
+      'p_expected_round': expectedRound,
+      'p_note': note,
+    });
+    if (asCooperative) {
+      AdminActivityRepository().log(
+        module: 'offers',
+        actionType: 'confirmed',
+        message: AdminLogMessage('adminLogCoopOfferConfirmed', {
+          'kg': (kg ?? 0).toStringAsFixed(1),
+          'amount': (amount ?? 0).toStringAsFixed(2),
+        }),
+        referenceId: offerId,
+      );
+    }
     return result as String?;
   }
 
-  // ─── Admin: decline an offer, releasing the reserved quantity ─────────────
-
-  Future<void> declineCooperativeOffer({
+  /// The Cooperative ends the negotiation and the reserved kg go back to the
+  /// Farmer's batch.
+  Future<void> declineOffer({
     required String offerId,
-    String? adminNotes,
+    required int expectedRound,
+    String? note,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc('decline_cooperative_offer', params: {
       'p_offer_id': offerId,
-      'p_admin_notes': adminNotes,
+      'p_admin_notes': note,
+      'p_expected_round': expectedRound,
     });
     AdminActivityRepository().log(
       module: 'offers',
       actionType: 'declined',
-      description: 'Declined a cooperative offer.',
+      message: const AdminLogMessage('adminLogCoopOfferDeclined'),
       referenceId: offerId,
     );
+  }
+
+  /// The Farmer ends the negotiation and the reserved kg go back to the batch.
+  Future<void> cancelOffer({required String offerId, String? note}) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('cancel_cooperative_offer', params: {
+      'p_offer_id': offerId,
+      'p_note': note,
+    });
   }
 }

@@ -3,14 +3,21 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/app_toast.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../data/models/cart_eligibility.dart';
 import '../../../data/models/cart_item_model.dart';
+import '../../../data/services/auth_service.dart';
+import '../../../data/services/market_types_service.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class CartScreen extends StatefulWidget {
   // Phase 9 — reused as-is for the Farmer Marketplace tab's cart; only the
@@ -40,6 +47,9 @@ class _CartScreenState extends State<CartScreen> {
   bool _isEditMode = false;
   List<CartItemModel> _items = [];
   final Set<String> _selectedIds = {};
+  // Lines that can no longer be bought, with the reason. Filled by
+  // _refreshIssues() while online; empty when offline (nothing is checked then).
+  Map<String, CartIssue> _issues = {};
 
   @override
   void initState() {
@@ -50,19 +60,84 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final items = await _cartService.getItems();
+    final issues = await _evaluate(items);
     if (!mounted) return;
     setState(() {
       _items = items;
-      _selectedIds.removeWhere((id) => !items.any((i) => i.listingId == id));
+      _issues = issues;
+      // A line that cannot be bought is never left selected for checkout.
+      _selectedIds.removeWhere(
+        (id) => !items.any((i) => i.listingId == id) || _blocked(id),
+      );
       _isLoading = false;
     });
+  }
+
+  /// Checks every saved line against the live listing and this account's
+  /// market access. Offline (or if the lookup fails) nothing is flagged: the
+  /// database still refuses an ineligible order at checkout.
+  Future<Map<String, CartIssue>> _evaluate(List<CartItemModel> items) async {
+    if (items.isEmpty || !ConnectivityService.instance.isOnline) return {};
+    final rows = await _marketRepo.fetchCartListingRows(
+      items.map((i) => i.listingId).toList(),
+    );
+    if (rows == null) return {};
+    final uid = AuthService.currentUser?.id;
+    final result = <String, CartIssue>{};
+    for (final item in items) {
+      final issue = evaluateCartItem(
+        item: item,
+        listing: rows[item.listingId],
+        currentUserId: uid,
+        canSeeMarket: MarketTypes.instance.visibleToCurrentUser,
+      );
+      if (issue != CartIssue.none) result[item.listingId] = issue;
+    }
+    return result;
+  }
+
+  bool _blocked(String listingId) =>
+      (_issues[listingId] ?? CartIssue.none) != CartIssue.none;
+
+  String _issueText(AppLocalizations l10n, CartIssue issue) {
+    switch (issue) {
+      case CartIssue.restricted:
+        return l10n.buyerCartIssueRestricted;
+      case CartIssue.soldOut:
+        return l10n.buyerCartIssueSoldOut;
+      case CartIssue.ownListing:
+        return l10n.buyerCartIssueOwn;
+      case CartIssue.unavailable:
+      case CartIssue.none:
+        return l10n.buyerCartIssueUnavailable;
+    }
+  }
+
+  /// Removes every line that cannot be purchased.
+  Future<void> _removeBlocked() async {
+    if (!ConnectivityService.instance.isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
+    for (final id in _issues.keys.toList()) {
+      await _cartService.removeItem(id);
+      _selectedIds.remove(id);
+    }
+    _load();
   }
 
   double get _selectedTotal => _items
       .where((i) => _selectedIds.contains(i.listingId))
       .fold(0.0, (sum, i) => sum + i.subtotal);
 
-  bool get _allSelected => _items.isNotEmpty && _selectedIds.length == _items.length;
+  // Lines that can be selected for checkout. In Edit Mode every line can be
+  // selected (to delete it), including one that can no longer be bought.
+  List<CartItemModel> get _selectable => _isEditMode
+      ? _items
+      : _items.where((i) => !_blocked(i.listingId)).toList();
+
+  bool get _allSelected =>
+      _selectable.isNotEmpty && _selectedIds.length == _selectable.length;
 
   void _toggleEditMode() {
     setState(() {
@@ -72,6 +147,9 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   void _toggleItem(String listingId) {
+    // A line that cannot be bought cannot be selected for checkout (it can
+    // still be selected in Edit Mode, to delete it).
+    if (!_isEditMode && _blocked(listingId)) return;
     setState(() {
       if (_selectedIds.contains(listingId)) {
         _selectedIds.remove(listingId);
@@ -88,12 +166,16 @@ class _CartScreenState extends State<CartScreen> {
       } else {
         _selectedIds
           ..clear()
-          ..addAll(_items.map((i) => i.listingId));
+          ..addAll(_selectable.map((i) => i.listingId));
       }
     });
   }
 
   Future<void> _deleteSelected() async {
+    if (!ConnectivityService.instance.isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
     for (final id in _selectedIds.toList()) {
       await _cartService.removeItem(id);
     }
@@ -105,6 +187,10 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _updateQuantity(CartItemModel item, double delta) async {
+    if (!ConnectivityService.instance.isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
     // Lower bound must never exceed availableKgSnapshot — a hardcoded 1.0
     // floor would throw (ArgumentError: lowerLimit > upperLimit) for any
     // listing with under 1kg remaining, which is a real, valid state now
@@ -117,6 +203,10 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _removeItem(CartItemModel item) async {
+    if (!ConnectivityService.instance.isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
     await _cartService.removeItem(item.listingId);
     _selectedIds.remove(item.listingId);
     _load();
@@ -145,7 +235,34 @@ class _CartScreenState extends State<CartScreen> {
     final l10n = AppLocalizations.of(context);
     setState(() => _isCheckingOut = true);
 
-    final selectedItems = _items.where((i) => _selectedIds.contains(i.listingId)).toList();
+    final selectedItems = _items
+        .where((i) => _selectedIds.contains(i.listingId))
+        .toList();
+
+    // Re-check eligibility right before checkout (a listing may have been
+    // withdrawn, sold out, or moved out of this account's reach since the cart
+    // was opened). Ineligible lines are taken out of the selection and the
+    // buyer is told why; nothing is sent to checkout.
+    final latestIssues = await _evaluate(selectedItems);
+    if (latestIssues.isNotEmpty) {
+      final lines = [
+        for (final i in selectedItems)
+          if (latestIssues.containsKey(i.listingId))
+            l10n.buyerCartIssueLine(
+              i.displayName,
+              _issueText(l10n, latestIssues[i.listingId]!),
+            ),
+      ];
+      _selectedIds.removeAll(latestIssues.keys);
+      await _load();
+      if (!mounted) return;
+      setState(() => _isCheckingOut = false);
+      await AppDialog.show<void>(
+        context: context,
+        child: _CartBlockedDialog(messages: lines),
+      );
+      return;
+    }
 
     final liveStock = await _marketRepo.fetchCurrentRemainingKg(
       selectedItems.map((i) => i.listingId).toList(),
@@ -160,7 +277,9 @@ class _CartScreenState extends State<CartScreen> {
         adjustments.add(l10n.buyerCartAdjustedRemoved(item.displayName));
       } else if (live < item.quantityKg) {
         await _cartService.updateQuantity(item.listingId, live);
-        adjustments.add(l10n.buyerCartAdjustedReduced(item.displayName, _fmtCartQty(live)));
+        adjustments.add(
+          l10n.buyerCartAdjustedReduced(item.displayName, _fmtCartQty(live)),
+        );
       }
     }
 
@@ -186,13 +305,14 @@ class _CartScreenState extends State<CartScreen> {
     // stops at handing over a stock-accurate, selection-scoped item list.
     setState(() => _isCheckingOut = false);
     if (!mounted) return;
-    final finalItems = _items.where((i) => _selectedIds.contains(i.listingId)).toList();
+    final finalItems = _items
+        .where((i) => _selectedIds.contains(i.listingId))
+        .toList();
     context.push(
-      widget.isFarmerContext ? AppRoutes.farmerMarketplaceCheckout : AppRoutes.checkout,
-      extra: {
-        'items': finalItems,
-        'isCartCheckout': true,
-      },
+      widget.isFarmerContext
+          ? AppRoutes.farmerMarketplaceCheckout
+          : AppRoutes.checkout,
+      extra: {'items': finalItems, 'isCartCheckout': true},
     );
   }
 
@@ -203,50 +323,128 @@ class _CartScreenState extends State<CartScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(
-          _items.isEmpty ? l10n.buyerCartTitle : '${l10n.buyerCartTitle} (${_items.length})',
-          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
-        ),
-        actions: [
-          if (_items.isNotEmpty)
-            TextButton(
-              onPressed: _toggleEditMode,
-              child: Text(
-                _isEditMode ? l10n.buyerCartDone : l10n.buyerCartEdit,
-                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
-              ),
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? _buildEmptyState(l10n)
-              : Column(
-                  children: [
-                    Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 12, AppConstants.spacingSafeH, 12),
-                        itemCount: _items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, i) => _CartItemTile(
-                          item: _items[i],
-                          selected: _selectedIds.contains(_items[i].listingId),
-                          swipeToDeleteEnabled: !_isEditMode,
-                          onToggleSelect: () => _toggleItem(_items[i].listingId),
-                          onIncrement: () => _updateQuantity(_items[i], 1),
-                          onDecrement: () => _updateQuantity(_items[i], -1),
-                          onRemove: () => _removeItem(_items[i]),
-                        ),
+
+      body: Column(
+        children: [
+          SubPageTopBar(
+            title: _items.isEmpty
+                ? l10n.buyerCartTitle
+                : '${l10n.buyerCartTitle} (${_items.length})',
+            onBack: () => Navigator.of(context).pop(),
+            trailing: _items.isNotEmpty
+                ? TextButton(
+                    onPressed: _toggleEditMode,
+                    child: Text(
+                      _isEditMode ? l10n.buyerCartDone : l10n.buyerCartEdit,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppConstants.primaryGreen,
                       ),
                     ),
-                    _buildBottomBar(l10n),
-                  ],
-                ),
+                  )
+                : null,
+          ),
+          OfflineStatusCard(
+            title: l10n.offlineStatusTitle,
+            message: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : _items.isEmpty
+                ? _buildEmptyState(l10n)
+                : Column(
+                    children: [
+                      if (_issues.isNotEmpty) _buildBlockedBanner(l10n),
+                      Expanded(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppConstants.spacingSafeH,
+                            12,
+                            AppConstants.spacingSafeH,
+                            12,
+                          ),
+                          itemCount: _items.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, i) => _CartItemTile(
+                            item: _items[i],
+                            selected: _selectedIds.contains(
+                              _items[i].listingId,
+                            ),
+                            swipeToDeleteEnabled: !_isEditMode,
+                            issueText: _blocked(_items[i].listingId)
+                                ? _issueText(l10n, _issues[_items[i].listingId]!)
+                                : null,
+                            selectable:
+                                _isEditMode || !_blocked(_items[i].listingId),
+                            onToggleSelect: () =>
+                                _toggleItem(_items[i].listingId),
+                            onIncrement: () => _updateQuantity(_items[i], 1),
+                            onDecrement: () => _updateQuantity(_items[i], -1),
+                            onRemove: () => _removeItem(_items[i]),
+                          ),
+                        ),
+                      ),
+                      _buildBottomBar(l10n),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlockedBanner(AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+        AppConstants.spacingSafeH,
+        12,
+        AppConstants.spacingSafeH,
+        0,
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: AppConstants.errorRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.remove_shopping_cart_outlined,
+            size: 18,
+            color: AppConstants.errorRed,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.buyerCartBlockedBanner(_issues.length),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.errorRed,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _removeBlocked,
+            child: Text(
+              l10n.buyerCartRemoveBlocked,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.errorRed,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -257,15 +455,33 @@ class _CartScreenState extends State<CartScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.shopping_cart_outlined, size: 56, color: AppConstants.outline.withValues(alpha: 0.5)),
+            Icon(
+              Icons.shopping_cart_outlined,
+              size: 56,
+              color: AppConstants.outline.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 16),
-            Text(l10n.buyerCartEmptyTitle, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(
+              l10n.buyerCartEmptyTitle,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(l10n.buyerCartEmptyBody,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+            Text(
+              l10n.buyerCartEmptyBody,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 16),
-            PrimaryButton(label: l10n.browseMarketplace, onPressed: () => context.pop()),
+            PrimaryButton(
+              label: l10n.browseMarketplace,
+              onPressed: () => context.pop(),
+            ),
           ],
         ),
       ),
@@ -280,8 +496,16 @@ class _CartScreenState extends State<CartScreen> {
       padding: const EdgeInsets.fromLTRB(16, 10, 20, 14),
       decoration: BoxDecoration(
         color: context.saganaColors.cardBackground,
-        border: Border(top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10))),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, -3))],
+        border: Border(
+          top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -304,8 +528,11 @@ class _CartScreenState extends State<CartScreen> {
                       onChanged: (_) => _toggleSelectAll(),
                     ),
                     Flexible(
-                      child: Text(l10n.buyerCartSelectAll,
-                          overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 13)),
+                      child: Text(
+                        l10n.buyerCartSelectAll,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 13),
+                      ),
                     ),
                   ],
                 ),
@@ -317,7 +544,11 @@ class _CartScreenState extends State<CartScreen> {
                 onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppConstants.errorRed,
-                  side: BorderSide(color: _selectedIds.isEmpty ? AppConstants.outline.withValues(alpha: 0.3) : AppConstants.errorRed),
+                  side: BorderSide(
+                    color: _selectedIds.isEmpty
+                        ? AppConstants.outline.withValues(alpha: 0.3)
+                        : AppConstants.errorRed,
+                  ),
                   // The app-wide OutlinedButtonThemeData forces minimumSize
                   // to Size(double.infinity, 52) — fine when this button is
                   // the sole child of a full-width SizedBox, but here it's a
@@ -325,7 +556,10 @@ class _CartScreenState extends State<CartScreen> {
                   // overridden or layout crashes with "BoxConstraints forces
                   // an infinite width".
                   minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
                 child: Text(l10n.buyerCartDelete),
               )
@@ -334,9 +568,21 @@ class _CartScreenState extends State<CartScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(l10n.buyerCartTotalLabel, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                  Text('₱${_selectedTotal.toStringAsFixed(2)}',
-                      style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+                  Text(
+                    l10n.buyerCartTotalLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    '₱${_selectedTotal.toStringAsFixed(2)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppConstants.primaryGreen,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -358,6 +604,10 @@ class _CartItemTile extends StatelessWidget {
   final CartItemModel item;
   final bool selected;
   final bool swipeToDeleteEnabled;
+  // Why this line cannot be purchased (null when it can), and whether its
+  // checkbox may be used (always in Edit Mode, so it can still be deleted).
+  final String? issueText;
+  final bool selectable;
   final VoidCallback onToggleSelect;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
@@ -367,6 +617,8 @@ class _CartItemTile extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.swipeToDeleteEnabled,
+    required this.issueText,
+    required this.selectable,
     required this.onToggleSelect,
     required this.onIncrement,
     required this.onDecrement,
@@ -377,11 +629,16 @@ class _CartItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dismissible(
       key: ValueKey(item.listingId),
-      direction: swipeToDeleteEnabled ? DismissDirection.endToStart : DismissDirection.none,
+      direction: swipeToDeleteEnabled
+          ? DismissDirection.endToStart
+          : DismissDirection.none,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(color: AppConstants.errorRed, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+        decoration: BoxDecoration(
+          color: AppConstants.errorRed,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        ),
         child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
       ),
       onDismissed: (_) => onRemove(),
@@ -390,7 +647,9 @@ class _CartItemTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.saganaColors.cardBackground,
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          border: selected ? Border.all(color: AppConstants.primaryGreen, width: 1.5) : AppConstants.cardBorder,
+          border: selected
+              ? Border.all(color: AppConstants.primaryGreen, width: 1.5)
+              : AppConstants.cardBorder,
           boxShadow: AppConstants.cardShadow,
         ),
         child: Row(
@@ -399,22 +658,53 @@ class _CartItemTile extends StatelessWidget {
             Checkbox(
               value: selected,
               activeColor: AppConstants.primaryGreen,
-              onChanged: (_) => onToggleSelect(),
+              onChanged: selectable ? (_) => onToggleSelect() : null,
             ),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusSm),
               child: item.photoUrl != null
-                  ? Image.network(item.photoUrl!, width: 56, height: 56, fit: BoxFit.cover)
-                  : Container(width: 56, height: 56, color: AppConstants.limeGreen),
+                  ? Image.network(
+                      item.photoUrl!,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      width: 56,
+                      height: 56,
+                      color: AppConstants.limeGreen,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.displayName, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
-                  Text('₱${item.pricePerKg.toStringAsFixed(2)}/kg',
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+                  Text(
+                    item.displayName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '₱${item.pricePerKg.toStringAsFixed(2)}/kg',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                  ),
+                  if (issueText != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      issueText!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.errorRed,
+                      ),
+                    ),
+                  ],
                   if (item.category != null || item.marketType != null) ...[
                     const SizedBox(height: 4),
                     Wrap(
@@ -422,27 +712,51 @@ class _CartItemTile extends StatelessWidget {
                       runSpacing: 4,
                       children: [
                         if (item.category != null) _CartTag(item.category!),
-                        if (item.marketType != null) _CartTag(marketTypeLabelFor(item.marketType)),
+                        if (item.marketType != null)
+                          _CartTag(marketTypeLabelFor(item.marketType)),
                       ],
                     ),
                   ],
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      _stepperBtn(context, Icons.remove, item.quantityKg > 0.01 ? onDecrement : null),
+                      _stepperBtn(
+                        context,
+                        Icons.remove,
+                        issueText == null && item.quantityKg > 0.01 ? onDecrement : null,
+                      ),
                       SizedBox(
                         width: 40,
-                        child: Text(_fmtCartQty(item.quantityKg),
-                            textAlign: TextAlign.center, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                        child: Text(
+                          _fmtCartQty(item.quantityKg),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                      _stepperBtn(context, Icons.add, item.quantityKg < item.availableKgSnapshot ? onIncrement : null),
+                      _stepperBtn(
+                        context,
+                        Icons.add,
+                        issueText == null &&
+                                item.quantityKg < item.availableKgSnapshot
+                            ? onIncrement
+                            : null,
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
-            Text('₱${item.subtotal.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
+            Text(
+              '₱${item.subtotal.toStringAsFixed(2)}',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
           ],
         ),
       ),
@@ -453,12 +767,21 @@ class _CartItemTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 26, height: 26,
+        width: 26,
+        height: 26,
         decoration: BoxDecoration(
-          color: onTap == null ? AppConstants.outline.withValues(alpha: 0.1) : context.saganaColors.scaffoldBackground,
+          color: onTap == null
+              ? AppConstants.outline.withValues(alpha: 0.1)
+              : context.saganaColors.scaffoldBackground,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Icon(icon, size: 14, color: onTap == null ? AppConstants.outline : AppConstants.primaryGreen),
+        child: Icon(
+          icon,
+          size: 14,
+          color: onTap == null
+              ? AppConstants.outline
+              : AppConstants.primaryGreen,
+        ),
       ),
     );
   }
@@ -479,8 +802,14 @@ class _CartTag extends StatelessWidget {
         color: AppConstants.infoBlueBg.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppConstants.radiusSm),
       ),
-      child: Text(label,
-          style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppConstants.infoBlueFg)),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w600,
+          color: AppConstants.infoBlueFg,
+        ),
+      ),
     );
   }
 }
@@ -507,21 +836,37 @@ class _NoItemsSelectedDialog extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: AppConstants.warningAmber),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppConstants.warningAmber,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(l10n.buyerCartNoSelectionTitle,
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
+                  child: Text(
+                    l10n.buyerCartNoSelectionTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text(l10n.buyerCartNoSelectionBody,
-                style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+            Text(
+              l10n.buyerCartNoSelectionBody,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: PrimaryButton(label: l10n.buyerCartNoSelectionOk, onPressed: () => Navigator.pop(context)),
+              child: PrimaryButton(
+                label: l10n.buyerCartNoSelectionOk,
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
           ],
         ),
@@ -554,27 +899,45 @@ class _StockChangedDialog extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.info_rounded, color: AppConstants.warningAmber),
+                const Icon(
+                  Icons.info_rounded,
+                  color: AppConstants.warningAmber,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(l10n.buyerCartStockChangedTitle,
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800)),
+                  child: Text(
+                    l10n.buyerCartStockChangedTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            Text(l10n.buyerCartStockChangedBody,
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+            Text(
+              l10n.buyerCartStockChangedBody,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 12),
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: messages
-                      .map((m) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text('• $m', style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
-                          ))
+                      .map(
+                        (m) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            '• $m',
+                            style: GoogleFonts.inter(fontSize: 13, height: 1.4),
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -582,7 +945,94 @@ class _StockChangedDialog extends StatelessWidget {
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              child: PrimaryButton(label: l10n.buyerCartReviewCart, onPressed: () => Navigator.pop(context)),
+              child: PrimaryButton(
+                label: l10n.buyerCartReviewCart,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when the lines picked for checkout include ones that can no longer be
+/// bought. Same look as the stock-changed dialog, with its own wording.
+class _CartBlockedDialog extends StatelessWidget {
+  final List<String> messages;
+  const _CartBlockedDialog({required this.messages});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.all(20),
+        constraints: const BoxConstraints(maxHeight: 420),
+        decoration: BoxDecoration(
+          color: context.saganaColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+          border: AppConstants.cardBorder,
+          boxShadow: AppConstants.cardShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.remove_shopping_cart_outlined,
+                  color: AppConstants.errorRed,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.buyerCartCannotCheckoutTitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.buyerCartCannotCheckoutBody,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: messages
+                      .map(
+                        (m) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            '• $m',
+                            style: GoogleFonts.inter(fontSize: 13, height: 1.4),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: PrimaryButton(
+                label: l10n.buyerCartReviewCart,
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
           ],
         ),

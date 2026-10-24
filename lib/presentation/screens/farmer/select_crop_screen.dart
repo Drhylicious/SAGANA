@@ -10,6 +10,10 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/crop_category_chips.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/channel_only_badge.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// Shared "choose which crop" step, standing between "Record New Harvest"
 /// (from the Harvest Hub or Manage Inventory) and the Harvest Entry Form.
@@ -107,23 +111,16 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message: "You're offline — your crop list may not be up to date.",
-            ),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(screen: 'farmer_crops_approved', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineCropList),
                     Expanded(
                       child: _isLoading
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                color: AppConstants.primaryGreen,
-                              ),
-                            )
+                          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                           : _crops.isEmpty
                           ? _NoCropsEmptyState(
                               onGoToMyCrops: () =>
@@ -361,6 +358,10 @@ class _SelectableCropCard extends StatelessWidget {
                       color: AppConstants.onSurfaceVariant,
                     ),
                   ),
+                  if (crop.exclusiveChannel != null) ...[
+                    const SizedBox(height: 6),
+                    ChannelOnlyBadge(channel: crop.exclusiveChannel),
+                  ],
                 ],
               ),
             ),

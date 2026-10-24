@@ -2,6 +2,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_order_model.dart';
 import '../models/buyer_activity_model.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../services/app_settings_service.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
+
+/// Localized labels for activity entries. Repositories have no BuildContext,
+/// so they resolve the user's current locale directly.
+AppLocalizations get _l =>
+    lookupAppLocalizations(AppSettingsService.instance.locale);
 
 /// Buyer-scoped access to the orders table.
 ///
@@ -20,68 +29,86 @@ class BuyerOrderRepository {
 
   Future<List<BuyerOrderModel>> fetchMyOrders() async {
     try {
-      final orders = await _client
-          .from('orders')
-          .select(
-            'id, listing_id, quantity_kg, price_per_kg, total_price, '
-            'status, notes, created_at, updated_at, fulfillment_method',
-          )
-          .eq('buyer_id', _userId)
-          .order('created_at', ascending: false);
-
-      if (orders.isEmpty) return [];
-
-      final listingIds = orders
-          .map((o) => o['listing_id'] as String)
-          .toSet()
-          .toList();
-      final listingMap = <String, Map<String, dynamic>>{};
-      try {
-        final listings = await _client
-            .from('marketplace_listings')
-            .select('id, crop_name, variety, photo_url')
-            .inFilter('id', listingIds);
-        for (final l in listings) {
-          listingMap[l['id'] as String] = l;
-        }
-      } catch (e) {
-        debugPrint(
-          'BuyerOrderRepository.fetchMyOrders: listing lookup '
-          'failed ($e) — crop name/photo will be missing',
-        );
-      }
-
-      return orders.map((o) {
-        final listing = listingMap[o['listing_id']];
-        return BuyerOrderModel.fromMap({
-          ...o,
-          'crop_name': listing?['crop_name'],
-          'variety': listing?['variety'],
-          'photo_url': listing?['photo_url'],
-        });
-      }).toList();
+      final rows = await OfflineCache.load(
+        screen: 'orders',
+        fetch: _fetchMyOrderRows,
+      );
+      return rows.map((r) => BuyerOrderModel.fromMap(r)).toList();
     } catch (e) {
       debugPrint('BuyerOrderRepository.fetchMyOrders failed: $e');
       return [];
     }
   }
 
+  /// Order rows with their listing's name, variety and photo merged in, in
+  /// the shape BuyerOrderModel.fromMap() reads. This is what gets cached.
+  Future<List<Map<String, dynamic>>> _fetchMyOrderRows() async {
+    final orders = await _client
+        .from('orders')
+        .select(
+          'id, listing_id, quantity_kg, price_per_kg, total_price, '
+          'status, notes, created_at, updated_at, fulfillment_method',
+        )
+        .eq('buyer_id', _userId)
+        .order('created_at', ascending: false);
+
+    if (orders.isEmpty) return [];
+
+    final listingIds = orders
+        .map((o) => o['listing_id'] as String)
+        .toSet()
+        .toList();
+    final listingMap = <String, Map<String, dynamic>>{};
+    try {
+      // my_order_listings: only the listings THIS buyer has ordered, whatever
+      // market they are in (see supabase_schema_market_rules_by_data.sql).
+      // marketplace_listings itself hides farmer-only markets from buyers, so
+      // an old order on one would otherwise lose its crop name and photo.
+      final listings = await _client
+          .from('my_order_listings')
+          .select('id, crop_name, variety, photo_url')
+          .inFilter('id', listingIds);
+      for (final l in listings) {
+        listingMap[l['id'] as String] = l;
+      }
+    } catch (e) {
+      debugPrint(
+        'BuyerOrderRepository.fetchMyOrders: listing lookup '
+        'failed ($e) — crop name/photo will be missing',
+      );
+    }
+
+    return orders.map((o) {
+      final listing = listingMap[o['listing_id']];
+      return <String, dynamic>{
+        ...o,
+        'crop_name': listing?['crop_name'],
+        'variety': listing?['variety'],
+        'photo_url': listing?['photo_url'],
+      };
+    }).toList();
+  }
+
   // ─── Single order, full detail ─────────────────────────────────────────────
 
   Future<BuyerOrderModel?> fetchOrderById(String orderId) async {
     try {
-      final order = await _client
-          .from('orders')
-          .select(
-            'id, listing_id, quantity_kg, price_per_kg, total_price, '
-            'status, notes, created_at, updated_at, '
-            'fulfillment_method, delivery_address, delivery_latitude, '
-            'delivery_longitude, delivery_contact_number, delivery_notes, '
-            'delivery_recipient_name, delivery_label',
-          )
-          .eq('id', orderId)
-          .eq('buyer_id', _userId)
-          .maybeSingle();
+      final orderRows = await OfflineCache.load(
+        screen: 'buyer_order_$orderId',
+        fetch: () => _client
+            .from('orders')
+            .select(
+              'id, listing_id, quantity_kg, price_per_kg, total_price, '
+              'status, notes, created_at, updated_at, '
+              'fulfillment_method, delivery_address, delivery_latitude, '
+              'delivery_longitude, delivery_contact_number, delivery_notes, '
+              'delivery_recipient_name, delivery_label',
+            )
+            .eq('id', orderId)
+            .eq('buyer_id', _userId)
+            .limit(1),
+      );
+      final order = orderRows.isEmpty ? null : orderRows.first;
 
       if (order == null) return null;
 
@@ -97,13 +124,18 @@ class BuyerOrderRepository {
       DateTime? harvestDate;
 
       try {
-        final listing = await _client
-            .from('marketplace_listings')
-            .select(
-              'crop_name, variety, photo_url, description, inventory_batch_id',
-            )
-            .eq('id', listingId)
-            .maybeSingle();
+        final listingRows = await OfflineCache.load(
+          screen: 'buyer_order_listing_$listingId',
+          fetch: () => _client
+              .from('my_order_listings')
+              .select(
+                'crop_name, variety, photo_url, description, inventory_batch_id',
+              )
+              .eq('id', listingId)
+              .limit(1),
+        );
+        final listing = listingRows.isEmpty ? null : listingRows.first;
+
         cropName = listing?['crop_name'] as String? ?? 'Produce';
         variety = listing?['variety'] as String?;
         photoUrl = listing?['photo_url'] as String?;
@@ -172,6 +204,18 @@ class BuyerOrderRepository {
     }
   }
 
+  // ─── Cancel (pending orders only) ─────────────────────────────────────────
+  // cancel_my_order() re-checks ownership and 'pending' status on the server,
+  // so the UI only decides whether to offer the action.
+
+  Future<void> cancelMyOrder(String orderId, {String? reason}) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'cancel_my_order',
+      params: {'p_order_id': orderId, 'p_reason': reason},
+    );
+  }
+
   // setFulfillment() removed (Checkout + My Addresses, Phase 6c) — fulfillment
   // is now captured once, atomically with order creation via place_order(),
   // not via a separate post-approval RPC call. set_order_fulfillment() itself
@@ -193,14 +237,16 @@ class BuyerOrderRepository {
             'marketplace_listings(crop_name, photo_url)',
           )
           .eq('buyer_id', _userId)
-          .order('updated_at', ascending: false)
+          .order('created_at', ascending: false)
           .limit(limit);
 
+      // Recent Activity records only what the Buyer did: placing the order.
+      // Later status changes (approved, completed, cancelled) are Admin's
+      // actions and belong to Notifications, so they are not shown here.
       return rows.map((r) {
         final listing = r['marketplace_listings'] as Map?;
         final cropName = listing?['crop_name'] as String? ?? 'Produce';
         final photoUrl = listing?['photo_url'] as String?;
-        final status = r['status'] as String;
         // Folds "used Pickup/Delivery" into the order-placed entry's
         // subtitle rather than logging it as a separate activity item —
         // it's a property of the order, not a distinct event.
@@ -210,32 +256,19 @@ class BuyerOrderRepository {
           'pickup' => 'Pickup',
           _ => null,
         };
-        // English title/statusLabel kept as a defensive fallback only —
-        // buyer_account_screen.dart's _RecentActivityTile and
-        // buyer_recent_activity_screen.dart's _ActivityCard (the only two
-        // consumers of this model) now derive the displayed, localized
-        // text from orderStatus below instead of reading these directly.
-        final title = switch (status) {
-          'pending' => 'Order Placed',
-          'approved' => 'Order Approved',
-          'completed' => 'Order Completed',
-          'cancelled' => 'Order Cancelled',
-          _ => 'Order Updated',
-        };
-        final timestamp = status == 'pending'
-            ? DateTime.parse(r['created_at'] as String)
-            : DateTime.parse(r['updated_at'] as String);
+        // Every entry here is a placement, so orderStatus is fixed to 'pending'
+        // (the placed state) for the consumers that localize from it.
         return BuyerActivityItem(
           id: r['id'] as String,
           type: BuyerActivityType.order,
-          title: title,
+          title: _l.activityOrderPlaced,
           subtitle: fulfillmentLabel != null
               ? '$cropName · $fulfillmentLabel'
               : cropName,
           valueLabel: '₱${(r['total_price'] as num).toStringAsFixed(2)}',
-          statusLabel: status[0].toUpperCase() + status.substring(1),
-          timestamp: timestamp,
-          orderStatus: status,
+          statusLabel: _l.activityPlaced,
+          timestamp: DateTime.parse(r['created_at'] as String),
+          orderStatus: 'pending',
           imageUrl: photoUrl,
         );
       }).toList();

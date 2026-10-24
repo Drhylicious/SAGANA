@@ -1,0 +1,31 @@
+activityHarvestTitle|crop|{crop} Harvest|Ani ng {crop}
+activityPendingSync||Pending Sync|Naghihintay ng Sync
+activitySynced||Synced|Na-sync
+activityListingSubmittedTitle|crop|{crop} Listing Submitted|Naisumite ang Listing ng {crop}
+activityPendingReview||Pending Review|Naghihintay ng Review
+activityListingWithdrawnTitle|crop|{crop} Listing Withdrawn|Binawi ang Listing ng {crop}
+activityWithdrawn||Withdrawn|Binawi
+activityOrderPlacedTitle||Placed an Order|Naglagay ng Order
+activityCropRequestSubmitted||Crop Request Submitted|Naisumite ang Request ng Pananim
+activityCropAdded||Crop Added|Naidagdag ang Pananim
+activityAdded||Added|Naidagdag
+activityInformalSaleTitle||Informal Sale|Impormal na Bentahan
+activityCropRoster||Crop Roster|Listahan ng Pananim
+activityUpdated||Updated|Na-update
+activityOfferedToCoop||Offered to Cooperative|Inialok sa Kooperatiba
+activityMarketLinkingSubmitted||Submitted Market Linking Enrollment|Naisumite ang Enrollment sa Market Linking
+activityGingerMarketLinking||Ginger Market Linking (DA-AMAD)|Ginger Market Linking (DA-AMAD)
+activityGingerBatchSubmitted||Submitted Ginger Batch for Sale|Naisumite ang Batch ng Luya para Ibenta
+activityMarketLinking||Market Linking|Market Linking
+activityAccount||Account|Akawnt
+activityAddress||Address|Address
+activityExpenseAdded||Expense Added|Naidagdag ang Gastos
+activityProgramEnrollmentRequested||Requested Program Enrollment|Humiling ng Pagsali sa Programa
+activityProgramPurchaseRequested||Requested Program Purchase|Humiling ng Pagbili sa Programa
+activityMyContribution||My Contribution|Aking Kontribusyon
+activityCapitalAdded||Added to Capital Share|Idinagdag sa Capital Share
+activitySyncedOfflineRecords||Synced offline records|Na-sync ang mga offline na record
+activityHome||Home|Home
+activityPending||Pending|Nakabinbin
+activityOrderPlaced||Order Placed|Naka-place ang Order
+activityPlaced||Placed|Naka-place

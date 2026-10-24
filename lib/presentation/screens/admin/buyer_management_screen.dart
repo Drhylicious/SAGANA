@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_profile_model.dart';
@@ -12,7 +13,9 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/profile_avatar.dart';
-import '../../widgets/suspend_reason_dialog.dart';
+import '../../widgets/suspension_dialogs.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -93,54 +96,25 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
 
   // ─── Suspend flow — two-step (reason, then confirm), same shape as
   // FarmerDetailsScreen's flow (both now share promptSuspendReason from
-  // suspend_reason_dialog.dart). Reactivate stays single-tap, also
+  // suspension_dialogs.dart). Reactivate stays single-tap, also
   // matching Farmer.
 
   Future<void> _suspendOrReactivate(BuyerProfileModel buyer) async {
     final l10n = AppLocalizations.of(context);
     if (buyer.isActive) {
-      final reason = await promptSuspendReason(
-      context: context,
-        title: l10n.buyerDetailsSuspendTitle,
-        hint: l10n.buyerDetailsSuspendReasonHint,
-          );
-      if (reason == null || reason.trim().isEmpty || !mounted) return;
-      final ok = await showDialog<bool>(
+      final request = await promptSuspension(
         context: context,
-        builder: (dc) => AlertDialog(
-          title: Text(
-            l10n.farmerMgmtConfirmSuspensionTitle,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-          ),
-          content: Text(
-            '${l10n.buyerMgmtSuspendBuyerLine(buyer.fullName)}\n'
-            '${l10n.farmerMgmtSuspendOutcomeLine}\n'
-            '${l10n.farmerMgmtReasonLine(reason.trim())}',
-            style: GoogleFonts.inter(fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dc, false),
-              child: Text(l10n.farmerMgmtBack),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dc, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.errorRed,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(l10n.farmerMgmtSuspendAccountAction),
-            ),
-          ],
-        ),
-          );
-      if (ok != true) return;
+        role: 'buyer',
+        displayName: buyer.fullName,
+      );
+      if (request == null || !mounted) return;
       try {
-          await _repo.setBuyerStatus(
-            buyerId: buyer.userId,
+        await _repo.setBuyerStatus(
+          buyerId: buyer.userId,
           status: 'suspended',
-          reason: reason.trim(),
-          );
+          reason: request.reason,
+          suspendedUntil: request.suspendedUntil,
+        );
       } catch (_) {
         if (mounted)
           AppToast.show(context, l10n.suspendActionError, isError: true);
@@ -172,16 +146,17 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: 'buyers_all',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineStaffBody,
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppConstants.primaryGreen,
-                          ),
-                        )
+                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
                           children: [
@@ -331,37 +306,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(
-                  AppLocalizations.of(context).buyerMgmtTitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: AppLocalizations.of(context).buyerMgmtTitle, onBack: onBack);
   }
 }
 

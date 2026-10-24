@@ -2,11 +2,13 @@ import 'dart:async' show unawaited;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../../core/constants/app_constants.dart';
-import '../models/buyer_address_model.dart';
+import '../../core/utils/input_validation_utils.dart';
+import '../models/suspension_notice.dart';
 import '../models/user_model.dart';
+import 'account_status_watcher.dart';
 import 'app_settings_service.dart';
 import 'hive_service.dart';
-import 'sync_service.dart';
+import 'market_types_service.dart';
 
 /// Thrown when a failed self-registration could not be rolled back. The
 /// account may still exist, so the user is asked to contact the cooperative.
@@ -95,7 +97,7 @@ class AuthService {
       final statusRow = await _client
           .from('user_roles')
           .select(
-            'status, must_change_password, pending_acknowledgement, suspension_reason',
+            'status, must_change_password, pending_acknowledgement, suspension_reason, suspended_until',
           )
           .eq('user_id', response.user!.id)
           .single();
@@ -121,20 +123,23 @@ class AuthService {
       if ((role == 'farmer' || role == 'buyer') &&
           memberStatus == 'suspended') {
           final reason = statusRow['suspension_reason'] as String?;
+          final until = statusRow['suspended_until'] as String?;
           await _client.auth.signOut();
-          throw AuthException(
-            (reason != null && reason.trim().isNotEmpty)
-                ? 'Your account has been suspended. Reason: ${reason.trim()} '
-                    'Please contact the SP3 Cooperative.'
-                : 'Your account has been suspended by the SP3 Administrator. '
-                    'Please contact the cooperative for assistance.',
+          // The login screen shows the red suspension notice from this.
+          throw AccountSuspendedException(
+            SuspensionNotice(
+              reason: reason?.trim(),
+              suspendedUntil: until == null
+                  ? null
+                  : DateTime.parse(until).toLocal(),
+            ),
           );
         }
       mustChangePassword = statusRow['must_change_password'] as bool? ?? false;
     } catch (e) {
-      // Re-throw a suspension AuthException; swallow only genuine
-      // connectivity/shape failures (the original behaviour).
-      if (e is AuthException) rethrow;
+      // Re-throw a suspension (AccountSuspendedException); swallow only
+      // genuine connectivity/shape failures (the original behaviour).
+      if (e is AuthException || e is AccountSuspendedException) rethrow;
     }
 
     // Stamp last activity for the derived "Inactive" indicator (Decision
@@ -174,34 +179,57 @@ class AuthService {
 
     await AppSettingsService.instance.reloadForUser(userModel.id);
 
+    // Market types and selling channels are database data; load them for this
+    // user before the first screen needs a label.
+    await MarketTypes.instance.refresh();
+    MarketTypes.instance.start();
+
+    AccountStatusWatcher.instance.start();
+
     return userModel;
   }
 
-  // ── Self-Registration (Farmers not in SP3 registry + Buyers) ─────────────────
-  // For official SP3 members, admin creates accounts via add_new_member_screen.
-  // This method handles non-member farmer self-registration and buyer registration.
+  // ── Self-Registration (Farmers + Buyers) ─────────────────────────────────────
+  // Creates the sign-in identity, then hands everything else to the database:
+  // register_account() decides the role/status, validates every field, writes
+  // the profile rows and the fixed Farmer address, and issues the member
+  // identifier in one transaction. Registration does not look the person up in
+  // any registry; the full name is ordinary text and need not be unique.
+  //
+  // A new Farmer lands in 'pending' (it appears in Manager > Members at once);
+  // a Buyer is 'active' and never enters the Members approval workflow.
 
   static Future<UserModel> register({
-    required String username, // chosen by user or SP3-XXXX if verified member
+    required String username,
     required String password,
     required String fullName,
     required String role, // 'farmer' | 'buyer'
-    String? phoneNumber, // optional (Issue 1)
-    String?
-    contactEmail, // optional (Issue 1) — stored in user_information only
-    DateTime? dateOfBirth, // farmer personal info (Phase B) — 18+ enforced
+    String? phoneNumber, // optional; Philippine mobile
+    String? contactEmail, // optional; stored as a contact address, not verified
+    DateTime? dateOfBirth, // farmers — 18+ enforced here and by the database
     String? gender, // male | female | prefer_not_to_say
-    String? registryId, // non-null if user matched SP3 registry
-    // Outsider Farmers only: address saved to buyer_addresses after the
-    // profile rows. Both must be non-null to write one.
-    BuyerAddressStructure? structuredAddress,
-    String? addressLine,
+    // Farmers only. Region, province, city, barangay and postal code are fixed
+    // by the database, so only these three are sent.
+    String? street,
+    String? building,
+    String? houseNo,
   }) async {
     final trimmedName = fullName.trim();
-    final trimmedPhone = phoneNumber?.trim();
+    final normalizedUsername = normalizeUsername(username);
     final trimmedContactEmail = contactEmail?.trim();
+    final trimmedPhone = phoneNumber?.trim();
 
-    // 18+ membership rule (farmers/members only — not Buyers).
+    if (trimmedName.length < 2) {
+      throw const AuthException('Please enter your full name.');
+    }
+    if (!isValidUsernameFormat(normalizedUsername)) {
+      throw const AuthException(
+        'Username must be 3 to 30 characters: letters, numbers, dots, '
+        'underscores or hyphens.',
+      );
+    }
+
+    // 18+ membership rule (farmers only — not Buyers).
     if (role == AppConstants.roleFarmer && dateOfBirth != null) {
       final now = DateTime.now();
       final eighteenthBirthday = DateTime(
@@ -216,17 +244,28 @@ class AuthService {
       }
     }
 
-    // ── Duplicate-account guard (Issue 3) ──────────────────────────────────
-    // Belt-and-braces: the register screen already blocks on this, but a
-    // stale UI or a race could still get here. 'error' (RPC unreachable)
-    // is NOT treated as a conflict — the row inserts below have their own
-    // uniqueness constraints as the final authority.
-    final nameStatus = await checkFullNameAvailability(trimmedName);
-    if (nameStatus == 'taken_account' || nameStatus == 'taken_registry') {
-      throw const AuthException(
-        'This full name is already registered. Please log in instead, or '
-        'contact the SP3 Cooperative if you believe this is a mistake.',
-      );
+    String? normalizedPhone;
+    if (trimmedPhone != null && trimmedPhone.isNotEmpty) {
+      normalizedPhone = normalizePhilippineMobile(trimmedPhone);
+      if (normalizedPhone == null) {
+        throw const AuthException(
+          'Please enter a valid Philippine mobile number.',
+        );
+      }
+    }
+    if (trimmedContactEmail != null && trimmedContactEmail.isNotEmpty) {
+      if (!isValidEmailFormat(trimmedContactEmail)) {
+        throw const AuthException('Please enter a valid email address.');
+      }
+    }
+
+    // Pre-checks, so an unavailable username or email is reported before any
+    // sign-in identity exists. They are a convenience only: the database
+    // re-checks username, email and phone and is the final authority, so a
+    // check that cannot run never blocks registration.
+    final usernameStatus = await checkUsernameAvailability(normalizedUsername);
+    if (usernameStatus == UsernameStatus.taken) {
+      throw const AuthException('This username is already taken.');
     }
     if (trimmedContactEmail != null && trimmedContactEmail.isNotEmpty) {
       final emailFree = await isEmailAvailable(trimmedContactEmail);
@@ -235,9 +274,20 @@ class AuthService {
           'This email address is already used by another account.',
         );
       }
+      // The domain after the @ must be able to receive mail. This catches a
+      // mistyped or made-up domain; it does not prove the mailbox exists or
+      // is the person's (see supabase/functions/validate-contact). A lookup
+      // that cannot run is not a "no".
+      if (await checkEmailDomain(trimmedContactEmail) ==
+          EmailDomainStatus.noMailServer) {
+        throw const AuthException(
+          'This email address cannot receive mail. Please check it for '
+          'typing mistakes.',
+        );
+      }
     }
 
-    final authEmail = toAuthEmail(username.trim());
+    final authEmail = toAuthEmail(normalizedUsername);
 
     final response = await _client.auth.signUp(
       email: authEmail,
@@ -251,98 +301,39 @@ class AuthService {
     final userId = response.user!.id;
 
     try {
-      await _client.from('user_roles').insert({
-        'user_id': userId,
-        'role': role,
-        // SP3-verified farmers become active immediately.
-        // Buyers self-activate on registration — no admin verification.
-        // Outsider farmers now start in 'draft' (Issue 5 / Decision D5):
-        // the account exists but the application is NOT sent until they
-        // tap "Submit Application" on the Pending Applicant screen. They
-        // stay hidden from the Admin Members list while in draft.
-        'status': (role == AppConstants.roleBuyer || registryId != null)
-            ? 'active'
-            : 'draft',
-      });
+      final result = await _client.rpc(
+        'register_account',
+        params: {
+          'p_role': role,
+          'p_full_name': trimmedName,
+          'p_username': normalizedUsername,
+          'p_phone_number': normalizedPhone,
+          'p_contact_email':
+              (trimmedContactEmail != null && trimmedContactEmail.isNotEmpty)
+              ? trimmedContactEmail
+              : null,
+          'p_date_of_birth': role == AppConstants.roleFarmer
+              ? dateOfBirth?.toIso8601String().split('T').first
+              : null,
+          'p_gender': role == AppConstants.roleFarmer ? gender : null,
+          'p_street': role == AppConstants.roleFarmer ? street?.trim() : null,
+          'p_building': role == AppConstants.roleFarmer
+              ? building?.trim()
+              : null,
+          'p_house_no': role == AppConstants.roleFarmer
+              ? houseNo?.trim()
+              : null,
+        },
+      );
 
-      await _client.from('user_information').insert({
-        'user_id': userId,
-        'full_name': trimmedName,
-        // Phone and email are both optional now (Issue 1). Store NULL
-        // rather than an empty string when not provided.
-        'phone_number': (trimmedPhone != null && trimmedPhone.isNotEmpty)
-            ? trimmedPhone
-            : null,
-        'contact_email':
-            (trimmedContactEmail != null && trimmedContactEmail.isNotEmpty)
-                ? trimmedContactEmail
-                : null,
-        'username': username.trim().toLowerCase(),
-      });
-
-      if (role == 'farmer') {
-        await _client.from('farmer_profiles').insert({
-          'user_id': userId,
-          'is_verified': registryId != null,
-          'date_of_birth': dateOfBirth?.toIso8601String().split('T').first,
-          'gender': gender,
-        });
-        // Outsider Farmers: the address from the registration wizard. Runs
-        // inside this try, so a failure takes the same path as any other
-        // registration error.
-        if (structuredAddress != null && addressLine != null) {
-          try {
-            await _client.from('buyer_addresses').insert({
-              'user_id': userId,
-              'label': 'Home',
-              'recipient_name': trimmedName,
-              'contact_number':
-                  (trimmedPhone != null && trimmedPhone.isNotEmpty)
-                  ? trimmedPhone
-                  : null,
-              'address_line': addressLine,
-              'is_default': true,
-              ...structuredAddress.toColumns(),
-            });
-          } catch (e) {
-            debugPrint('AuthService.register: address save failed: $e');
-            // Rethrown into the catch below, which rolls the account back.
-            throw const AuthException(
-              'Your address could not be saved, so this registration was '
-              'cancelled. Please try again.',
-            );
-          }
-        }
-        // Official members only: creates the member_capital_shares row
-        // (₱0 opening balance — parity with create_farmer_account()/
-        // approve_member()) and links the registry row — inside one
-        // SECURITY DEFINER transaction, scoped to the caller's own new
-        // account only.
-        if (registryId != null) {
-          try {
-            await _client.rpc(
-              'finalize_official_membership',
-              params: {'p_registry_id': registryId},
-            );
-          } catch (_) {
-            // Non-fatal — the account is still valid; an Admin can finish
-            // membership setup later from the member record (Manage
-            // Membership) if this ever fails.
-          }
-        }
-      } else if (role == 'buyer') {
-        await _client.from('buyer_profiles').insert({'user_id': userId});
-      }
-
+      final data = result is Map ? result : const <String, dynamic>{};
       return UserModel(
         id: userId,
         email: authEmail,
         role: role,
-        status: registryId != null ? 'active' : 'pending',
+        status: data['status'] as String? ?? 'pending',
         fullName: trimmedName,
-        phoneNumber: (trimmedPhone != null && trimmedPhone.isNotEmpty)
-            ? trimmedPhone
-            : null,
+        phoneNumber: normalizedPhone,
       );
     } catch (e) {
       // Technical detail stays in the log only.
@@ -352,6 +343,11 @@ class AuthService {
       final rolledBack = await _cancelFailedRegistration();
       await _client.auth.signOut();
       if (!rolledBack) throw const RegistrationNotCancelledException();
+      // The database's own validation messages (raised with RAISE EXCEPTION,
+      // SQLSTATE P0001) are written for people; anything else is not.
+      if (e is PostgrestException && e.code == 'P0001' && e.message.isNotEmpty) {
+        throw AuthException(e.message);
+      }
       rethrow;
     }
   }
@@ -359,12 +355,8 @@ class AuthService {
   // ── Logout ────────────────────────────────────────────────────────────────────
 
   static Future<void> logout() async {
-    // Stop the periodic sync timer before signing out — otherwise it
-    // keeps firing every 5 minutes until app restart, each tick failing
-    // silently (no authenticated user) via SyncService's own try/catch.
-    // Harmless in practice, but wasteful and adjacent to Profile's Sign
-    // Out action (Phase 4 / W3).
-    SyncService.stopAutoSync();
+    AccountStatusWatcher.instance.stop();
+    MarketTypes.instance.stop();
     await _client.auth.signOut();
     await HiveService.clearUserSession();
   }
@@ -450,73 +442,54 @@ class AuthService {
 
   // ── Check username availability ───────────────────────────────────────────────
 
-  static Future<bool> isUsernameAvailable(String username) async {
-    try {
-      final rows = await _client
-          .from('user_information')
-          .select('user_id')
-          .eq('username', username.trim().toLowerCase());
-      return rows.isEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // ── SP3 Registry check ────────────────────────────────────────────────────────
-
-  /// Looks up [fullName] in the SP3 member registry.
-  ///
-  /// Returns `null` only when there is NO matching registry row. When a
-  /// row matches but is already registered, a result is still returned
-  /// with [Sp3RegistryResult.alreadyRegistered] == true so the caller
-  /// can show a "please log in instead" error rather than treating the
-  /// person as an outsider (Issue 3).
-  static Future<Sp3RegistryResult?> checkSp3Registry(String fullName) async {
+  /// Asks the database whether [username] can be used. The database is the one
+  /// place that can answer: it sees every account (a signed-out caller cannot
+  /// read account rows) and applies the same case-insensitive rule the unique
+  /// index enforces. [UsernameStatus.error] means the check could not run.
+  static Future<UsernameStatus> checkUsernameAvailability(
+    String username,
+  ) async {
     try {
       final result = await _client.rpc(
-        'check_sp3_registry',
-        params: {'p_full_name': fullName.trim()},
+        'check_username_available',
+        params: {'p_username': username.trim()},
       );
-      if (result == null || (result as List).isEmpty) return null;
-      final row = result.first as Map<String, dynamic>;
-      final isAvailable = row['is_available'] as bool? ?? false;
-      return Sp3RegistryResult(
-        registryId: row['registry_id'] as String,
-        phone: (row['phone_number'] as String?)?.trim().isEmpty ?? true
-            ? null
-            : (row['phone_number'] as String).trim(),
-        email: (row['email'] as String?)?.trim().isEmpty ?? true
-            ? null
-            : (row['email'] as String).trim(),
-        alreadyRegistered: !isAvailable,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ── Duplicate-account guards (Issue 3, Decision D10) ─────────────────────────
-
-  /// Global, case-insensitive full-name uniqueness check across the SP3
-  /// registry (registered rows) AND existing accounts. Returns one of
-  /// `'available'`, `'taken_account'`, `'taken_registry'`, or `'error'`
-  /// (network/RPC failure — the caller should not hard-block on `'error'`,
-  /// the server-side inserts remain the final authority).
-  static Future<String> checkFullNameAvailability(String fullName) async {
-    try {
-      final result = await _client.rpc(
-        'check_full_name_available',
-        params: {'p_full_name': fullName.trim()},
-      );
-      final value = result as String?;
-      if (value == 'taken_account' ||
-          value == 'taken_registry' ||
-          value == 'available') {
-        return value!;
+      switch (result) {
+        case 'available':
+          return UsernameStatus.available;
+        case 'taken':
+          return UsernameStatus.taken;
+        case 'invalid':
+          return UsernameStatus.invalid;
       }
-      return 'error';
+      return UsernameStatus.error;
     } catch (_) {
-      return 'error';
+      return UsernameStatus.error;
+    }
+  }
+
+  // ── Duplicate-contact guards ──────────────────────────────────────────────────
+  // Full names are ordinary text and are NOT checked for duplicates: two
+  // people may share a name. Only the username, email and phone number are
+  // unique.
+
+  /// Asks the validate-contact Edge Function whether the domain of [email]
+  /// can receive mail at all (it publishes a mail server). This is a check of
+  /// the DOMAIN only: it cannot tell whether the mailbox exists or whether the
+  /// person owns it. [EmailDomainStatus.unknown] means the check could not run
+  /// (offline, function not deployed, DNS trouble) and must not block anyone.
+  static Future<EmailDomainStatus> checkEmailDomain(String email) async {
+    try {
+      final response = await _client.functions
+          .invoke('validate-contact', body: {'email': email.trim()})
+          .timeout(const Duration(seconds: 6));
+      final data = response.data;
+      final status = data is Map ? data['status'] : null;
+      if (status == 'ok') return EmailDomainStatus.ok;
+      if (status == 'no_mail_server') return EmailDomainStatus.noMailServer;
+      return EmailDomainStatus.unknown;
+    } catch (_) {
+      return EmailDomainStatus.unknown;
     }
   }
 
@@ -567,21 +540,6 @@ class AuthService {
     } catch (e) {
       debugPrint('AuthService: could not roll back failed registration: $e');
       return false;
-    }
-  }
-
-  // ── Suggest next username from server ────────────────────────────────────────
-
-  static Future<String> suggestNextUsername(String prefix) async {
-    try {
-      final result = await _client.rpc(
-        'suggest_next_username',
-        params: {'p_prefix': prefix.toUpperCase()},
-      );
-      return result as String;
-    } catch (_) {
-      // Fallback client-side
-      return '${prefix.toUpperCase()}-0001';
     }
   }
 
@@ -684,10 +642,10 @@ class AuthService {
         : '';
     switch (status) {
       case 'suspended':
-        return 'Your account has been suspended by the SP3 Administrator.$r '
+        return 'Your account has been suspended by the SP3 Manager.$r '
             'Please contact the cooperative for assistance.';
       case 'rejected':
-        return 'Your membership application was not approved.$r '
+        return 'Your membership application was disapproved.$r '
             'Open the app to review your details and resubmit.';
       case 'draft':
         return 'Please finish and submit your membership application first. '
@@ -698,7 +656,7 @@ class AuthService {
             'SP3 farmer access.';
       default: // 'pending'
         return 'Your membership is pending approval. '
-            'This feature will be available once the SP3 Administrator '
+            'This feature will be available once the SP3 Manager '
             'approves your application.';
     }
   }
@@ -753,27 +711,15 @@ class AuthService {
   }
 }
 
-// ─── SP3 Registry Result ──────────────────────────────────────────────────────
+// ─── Username availability ────────────────────────────────────────────────────
 
-class Sp3RegistryResult {
-  final String registryId;
+/// Result of [AuthService.checkUsernameAvailability].
+/// [invalid] = not 3-30 characters of letters, numbers, dots, underscores or
+/// hyphens. [error] = the check could not run (offline, server error); it is
+/// not a verdict, and the database still decides at registration.
+enum UsernameStatus { available, taken, invalid, error }
 
-  /// Official contact phone from the registry, if recorded. Auto-filled
-  /// into the Register screen (editable).
-  final String? phone;
-
-  /// Official contact email from the registry, if recorded. Auto-filled
-  /// into the Register screen (editable).
-  final String? email;
-
-  /// TRUE when the matched registry row is already marked registered —
-  /// the person should log in instead of creating another account.
-  final bool alreadyRegistered;
-
-  const Sp3RegistryResult({
-    required this.registryId,
-    this.phone,
-    this.email,
-    this.alreadyRegistered = false,
-  });
-}
+/// Result of [AuthService.checkEmailDomain]. [ok] = the domain can receive
+/// mail (not proof the mailbox exists or is the person's). [noMailServer] = it
+/// cannot. [unknown] = the check could not run.
+enum EmailDomainStatus { ok, noMailServer, unknown }

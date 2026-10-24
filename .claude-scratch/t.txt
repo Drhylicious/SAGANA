@@ -1,0 +1,285 @@
+00:00 +0: loading C:/Users/Administrator/sagana/test/activity_text_test.dart
+00:00 +0: C:/Users/Administrator/sagana/test/activity_text_test.dart: legacy English rows map back to keys profile update lists field names
+00:00 +1: C:/Users/Administrator/sagana/test/activity_text_test.dart: legacy English rows map back to keys address and password sentences
+00:00 +2: C:/Users/Administrator/sagana/test/activity_text_test.dart: legacy English rows map back to keys crop photo is not mistaken for a profile photo
+00:00 +3: C:/Users/Administrator/sagana/test/activity_text_test.dart: legacy English rows map back to keys unknown sentences are not matched
+00:00 +4: C:/Users/Administrator/sagana/test/activity_text_test.dart: legacy English rows map back to keys admin log templates with parameters
+00:00 +5: C:/Users/Administrator/sagana/test/activity_text_test.dart: legacy English rows map back to keys admin log plural templates
+00:00 +6: C:/Users/Administrator/sagana/test/activity_text_test.dart: rendering follows the language a keyed admin entry renders in Tagalog and English
+00:00 +7: C:/Users/Administrator/sagana/test/activity_text_test.dart: rendering follows the language profile field names are translated inside the sentence
+00:00 +8: C:/Users/Administrator/sagana/test/activity_text_test.dart: rendering follows the language legacy rows still display their English text in English
+00:00 +9: C:/Users/Administrator/sagana/test/admin_farmer_harvest_history_navigation_test.dart: admin harvest history screen opens in view-only form
+Error: google_fonts was unable to load font Poppins-ExtraBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/959b003f035e38fa3f274632c1f7b54983688f9e8860c1bd0335fd1b309dec74.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test:
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/959b003f035e38fa3f274632c1f7b54983688f9e8860c1bd0335fd1b309dec74.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+
+The test description was:
+  admin harvest history screen opens in view-only form
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +9 -1: C:/Users/Administrator/sagana/test/admin_farmer_harvest_history_navigation_test.dart: admin harvest history screen opens in view-only form [E]
+  Test failed. See exception logs above.
+  The test description was: admin harvest history screen opens in view-only form
+  
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+Error: google_fonts was unable to load font Poppins-Bold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/ed709f2ba2be295030614990104cb4c9c62bc2a2445c25ccb19a1500158a5a8b.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test (but after the test had completed):
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/ed709f2ba2be295030614990104cb4c9c62bc2a2445c25ccb19a1500158a5a8b.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: admin harvest history screen opens in view-only form
+  
+Error: google_fonts was unable to load font Poppins-Medium because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c0ba5609d6562c76ab7db73fa9c9b283d210598cb318a45d4085f540e4753d60.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test (but after the test had completed):
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/c0ba5609d6562c76ab7db73fa9c9b283d210598cb318a45d4085f540e4753d60.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: admin harvest history screen opens in view-only form
+  
+Error: google_fonts was unable to load font Inter-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/ecdb53099b1a68cd24c6900ea5beeafec81bd3c8cb9d0f3c51b9986583ba3982.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test (but after the test had completed):
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/ecdb53099b1a68cd24c6900ea5beeafec81bd3c8cb9d0f3c51b9986583ba3982.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: admin harvest history screen opens in view-only form
+  
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test (but after the test had completed):
+Expected: exactly one matching candidate
+  Actual: _TypeWidgetFinder:<Found 0 widgets with type "AdminFarmerHarvestHistoryScreen": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#0      fail (package:matcher/src/expect/expect.dart:187:31)
+#1      _expect (package:matcher/src/expect/expect.dart:182:3)
+#2      expect (package:matcher/src/expect/expect.dart:65:3)
+#3      expect (package:flutter_test/src/widget_tester.dart:473:18)
+#4      main.<anonymous closure> (file:///C:/Users/Administrator/sagana/test/admin_farmer_harvest_history_navigation_test.dart:27:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: admin harvest history screen opens in view-only form
+  
+00:01 +9 -1: C:/Users/Administrator/sagana/test/admin_top_bar_test.dart: AdminTopBar uses shared admin profile state for the avatar
+00:02 +10 -1: C:/Users/Administrator/sagana/test/app_theme_test.dart: applySystemOverlay can be called from initState safely
+00:03 +11 -1: C:/Users/Administrator/sagana/test/auth_service_test.dart: AuthService.toAuthEmail converts SAGANA usernames into the auth email format
+00:03 +12 -1: C:/Users/Administrator/sagana/test/auth_service_test.dart: AuthService.toAuthEmail keeps real email addresses unchanged
+00:03 +13 -1: C:/Users/Administrator/sagana/test/balik_tangkilik_localization_test.dart: Balik Tangkilik history localization strings are available
+00:04 +14 -1: C:/Users/Administrator/sagana/test/dropdown_button_overflow_test.dart: DropdownButtonFormField fits within a narrow container
+00:04 +15 -1: C:/Users/Administrator/sagana/test/farmer_details_navigation_test.dart: farmer details screen opens for the farmer it is given
+Error: google_fonts was unable to load font Poppins-ExtraBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/959b003f035e38fa3f274632c1f7b54983688f9e8860c1bd0335fd1b309dec74.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test:
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/959b003f035e38fa3f274632c1f7b54983688f9e8860c1bd0335fd1b309dec74.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+
+The test description was:
+  farmer details screen opens for the farmer it is given
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +15 -2: C:/Users/Administrator/sagana/test/farmer_management_header_test.dart: farmer management header stays within bounds on narrow width
+00:05 +15 -2: C:/Users/Administrator/sagana/test/farmer_details_navigation_test.dart: farmer details screen opens for the farmer it is given [E]
+  Test failed. See exception logs above.
+  The test description was: farmer details screen opens for the farmer it is given
+  
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+Error: google_fonts was unable to load font Poppins-Bold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/ed709f2ba2be295030614990104cb4c9c62bc2a2445c25ccb19a1500158a5a8b.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test (but after the test had completed):
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/ed709f2ba2be295030614990104cb4c9c62bc2a2445c25ccb19a1500158a5a8b.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: farmer details screen opens for the farmer it is given
+  
+Error: google_fonts was unable to load font Poppins-Medium because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c0ba5609d6562c76ab7db73fa9c9b283d210598cb318a45d4085f540e4753d60.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test (but after the test had completed):
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/c0ba5609d6562c76ab7db73fa9c9b283d210598cb318a45d4085f540e4753d60.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: farmer details screen opens for the farmer it is given
+  
+Error: google_fonts was unable to load font Inter-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/ecdb53099b1a68cd24c6900ea5beeafec81bd3c8cb9d0f3c51b9986583ba3982.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test (but after the test had completed):
+Exception: Failed to load font with url:
+https://fonts.gstatic.com/s/a/ecdb53099b1a68cd24c6900ea5beeafec81bd3c8cb9d0f3c51b9986583ba3982.ttf
+
+When the exception was thrown, this was the stack:
+#0      _httpFetchFontAndSaveToDevice (package:google_fonts/src/google_fonts_base.dart:288:5)
+<asynchronous suspension>
+#1      loadFontIfNecessary (package:google_fonts/src/google_fonts_base.dart:175:11)
+<asynchronous suspension>
+#2      googleFontsTextStyle.<anonymous closure> (package:google_fonts/src/google_fonts_base.dart:112:22)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: farmer details screen opens for the farmer it is given
+  
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test (but after the test had completed):
+Expected: exactly one matching candidate
+  Actual: _TypeWidgetFinder:<Found 0 widgets with type "FarmerDetailsScreen": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#0      fail (package:matcher/src/expect/expect.dart:187:31)
+#1      _expect (package:matcher/src/expect/expect.dart:182:3)
+#2      expect (package:matcher/src/expect/expect.dart:65:3)
+#3      expect (package:flutter_test/src/widget_tester.dart:473:18)
+#4      main.<anonymous closure> (file:///C:/Users/Administrator/sagana/test/farmer_details_navigation_test.dart:30:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: farmer details screen opens for the farmer it is given
+  
+00:06 +16 -2: C:/Users/Administrator/sagana/test/farmer_management_router_test.dart: farmer management localization keys are available
+00:07 +17 -2: C:/Users/Administrator/sagana/test/management_modal_test.dart: ManagementModalShell renders ListTile content without assertion
+00:07 +18 -2: C:/Users/Administrator/sagana/test/management_modal_test.dart: ManagementModalShell renders ListTile content without assertion
+00:07 +19 -2: C:/Users/Administrator/sagana/test/material_list_tile_test.dart: renders a ListTile inside a decorated container without throwing
+00:08 +20 -2: C:/Users/Administrator/sagana/test/material_list_tile_test.dart: renders a ListTile inside a decorated container without throwing
+00:08 +21 -2: C:/Users/Administrator/sagana/test/material_list_tile_test.dart: renders a ListTile inside a decorated container without throwing
+00:08 +22 -2: C:/Users/Administrator/sagana/test/material_list_tile_test.dart: renders a ListTile inside a decorated container without throwing
+00:08 +23 -2: C:/Users/Administrator/sagana/test/material_list_tile_test.dart: renders a ListTile inside a decorated container without throwing
+00:09 +24 -2: C:/Users/Administrator/sagana/test/offer_card_layout_test.dart: offer card row layout does not throw with unbounded height
+00:09 +25 -2: C:/Users/Administrator/sagana/test/offer_card_layout_test.dart: offer card row layout does not throw with unbounded height
+00:09 +26 -2: C:/Users/Administrator/sagana/test/offer_card_layout_test.dart: offer card row layout does not throw with unbounded height
+00:09 +27 -2: C:/Users/Administrator/sagana/test/offer_card_layout_test.dart: offer card row layout does not throw with unbounded height
+00:09 +28 -2: C:/Users/Administrator/sagana/test/offer_card_layout_test.dart: offer card row layout does not throw with unbounded height
+00:10 +29 -2: C:/Users/Administrator/sagana/test/operational_reports_router_test.dart: operational reports localization keys are available
+00:10 +30 -2: C:/Users/Administrator/sagana/test/osm_map_attribution_test.dart: OSM attribution label fits a narrow map without overflow
+00:10 +31 -2: C:/Users/Administrator/sagana/test/osm_map_attribution_test.dart: OSM attribution label fits a narrow map without overflow
+00:11 +32 -2: C:/Users/Administrator/sagana/test/planting_forecast_card_test.dart: planting forecast header stays within bounds on narrow width
+00:12 +33 -2: C:/Users/Administrator/sagana/test/post_action_feedback_test.dart: AppToast action is reachable while an AlertDialog is open
+00:12 +34 -2: C:/Users/Administrator/sagana/test/post_action_feedback_test.dart: SnackBar fired from inside an AlertDialog sits behind the dialog barrier (current behaviour)
+00:12 +35 -2: C:/Users/Administrator/sagana/test/widget_test.dart: localized string resolves for "en"
+00:13 +36 -2: C:/Users/Administrator/sagana/test/widget_test.dart: localized string resolves for "tl"
+00:13 +37 -2: Some tests failed.
+
+Failing tests:
+  C:/Users/Administrator/sagana/test/admin_farmer_harvest_history_navigation_test.dart: admin harvest history screen opens in view-only form
+  C:/Users/Administrator/sagana/test/farmer_details_navigation_test.dart: farmer details screen opens for the farmer it is given

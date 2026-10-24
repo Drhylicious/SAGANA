@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/sagana_colors.dart';
 import '../../data/repositories/admin_listing_repository.dart';
 import '../../data/repositories/category_repository.dart';
+import '../../data/services/market_types_service.dart';
 import 'management_modal.dart';
+import 'skeleton.dart';
 
 /// Localized label for an [AdminListingModel] status — kept here rather
 /// than on the repository model (which has no BuildContext) so every
@@ -13,15 +16,93 @@ import 'management_modal.dart';
 String listingStatusLabel(AppLocalizations l10n, String status) {
   switch (status) {
     case 'pending_review':
-      return l10n.buyerOrderDetailPendingTimestamp;
+      return l10n.listingStatePendingApproval;
     case 'approved':
-      return l10n.marketplaceFilterLive;
+      return l10n.listingStateAvailable;
     case 'sold':
-      return l10n.marketplaceFilterSold;
+      return l10n.listingStateSoldOut;
     case 'rejected':
-      return l10n.farmerMgmtStatusRejectedLabel;
+      return l10n.listingStateDisapproved;
+    case 'withdrawn':
+      return l10n.listingStateWithdrawn;
     default:
       return status;
+  }
+}
+
+/// Small pill naming a listing's market: Public Market (also open to Buyers)
+/// or Cooperative Market (farmers and staff only). Renders nothing when the
+/// market type is unknown (an offline snapshot from before it was fetched).
+class ListingMarketBadge extends StatelessWidget {
+  final String? marketType;
+
+  const ListingMarketBadge({super.key, required this.marketType});
+
+  @override
+  Widget build(BuildContext context) {
+    if (marketType == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    final color = MarketTypeDisplay.color(context, marketType!);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Text(
+        MarketTypeDisplay.label(l10n, marketType!),
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+/// Second chip row for listing screens: All markets / Public / Cooperative.
+/// [value] is null for "All markets", otherwise a crop_type value. Filtering
+/// is done by the caller on the already-loaded list.
+class ListingMarketFilterRow extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const ListingMarketFilterRow({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    Widget chip(String? v, String label, Color color) => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ListingStatusFilterChip(
+        label: label,
+        active: value == v,
+        color: color,
+        onTap: () => onChanged(v),
+        cs: cs,
+      ),
+    );
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          chip(null, l10n.marketplaceFilterAllMarkets, cs.primary),
+          for (final t in MarketTypes.instance.activeTypes)
+            chip(
+              t.code,
+              MarketTypes.instance.label(t.code),
+              MarketTypeDisplay.color(context, t.code),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -116,7 +197,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
           if (_categoriesLoading)
             const Padding(
               padding: EdgeInsets.all(12),
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: SkeletonBlock(height: 36),
             )
           else if (_categories.isEmpty)
             Text(l10n.listingFilterNoCategoriesYet,
@@ -135,7 +216,7 @@ class _ListingFilterModalState extends State<ListingFilterModal> {
           if (_isLoading)
             const Padding(
               padding: EdgeInsets.all(12),
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: SkeletonBlock(height: 36),
             )
           else if (_crops.isEmpty)
             Text(l10n.listingFilterNoCropsInCategory,

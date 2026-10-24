@@ -51,6 +51,10 @@ class AppRoutes {
   static const String programDetails = '/farmer/profile/programs/detail';
   static const String myMarketLinking = '/farmer/profile/market-linking';
   static const String myTransactionHistory = '/farmer/profile/transactions';
+  // Offer to Cooperative price negotiations: the Farmer's list and one offer.
+  static const String farmerCoopOffers = '/farmer/profile/cooperative-offers';
+  static const String farmerCoopOfferDetail =
+      '/farmer/profile/cooperative-offers/detail';
   static const String farmerMyOrders = '/farmer/profile/orders';
   static const String farmerOrderDetail = '/farmer/profile/orders/detail';
   static const String farmerSettings = '/farmer/settings';

@@ -1,7 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/inventory_batch_model.dart';
+import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
+import '../models/admin_log_message.dart';
 
 class InventoryRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -12,12 +14,15 @@ class InventoryRepository {
 
   Future<List<InventoryBatchModel>> fetchBatches() async {
     try {
-      final response = await _client
-          .from('inventory_batches')
-          .select('*, harvest_records(harvest_date)')
-          .eq('farmer_id', _userId)
-          .order('created_at', ascending: false);
-      return response.map((row) => InventoryBatchModel.fromMap(row)).toList();
+      final rows = await OfflineCache.load(
+        screen: 'inventory_batches',
+        fetch: () => _client
+            .from('inventory_batches')
+            .select('*, harvest_records(harvest_date)')
+            .eq('farmer_id', _userId)
+            .order('created_at', ascending: false),
+      );
+      return rows.map((row) => InventoryBatchModel.fromMap(row)).toList();
     } catch (_) {
       return [];
     }
@@ -89,8 +94,9 @@ class InventoryRepository {
       AdminActivityRepository().log(
         module: 'loans',
         actionType: 'created',
-        description:
-            'Published an inventory item to the loan catalog (₱${loanPrice.toStringAsFixed(2)}).',
+        message: AdminLogMessage('adminLogLoanCatalogPublished', {
+          'price': loanPrice.toStringAsFixed(2),
+        }),
         referenceId: inventoryItemId,
       );
       return true;
@@ -158,7 +164,7 @@ extension AvailableBatchesFetch on InventoryRepository {
               'category': categoryMap[row['crop_id']],
             }),
           )
-          .where((batch) => batch.cropType != 'da_amad_market')
+          .where((batch) => batch.exclusiveChannel == null)
           .toList();
     } catch (_) {
       return [];
@@ -172,12 +178,16 @@ extension AvailableBatchesFetch on InventoryRepository {
   Future<InventoryBatchModel?> fetchBatchById(String batchId) async {
     final client = Supabase.instance.client;
     try {
-      final row = await client
-          .from('inventory_batches')
-          .select('*, harvest_records(harvest_date)')
-          .eq('id', batchId)
-          .maybeSingle();
-      if (row == null) return null;
+      final batchRows = await OfflineCache.load(
+        screen: 'batch_$batchId',
+        fetch: () => client
+            .from('inventory_batches')
+            .select('*, harvest_records(harvest_date)')
+            .eq('id', batchId)
+            .limit(1),
+      );
+      if (batchRows.isEmpty) return null;
+      final row = batchRows.first;
 
       final cropId = row['crop_id'] as String?;
       final imageMap = cropId != null

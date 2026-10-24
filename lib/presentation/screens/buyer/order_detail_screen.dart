@@ -8,21 +8,16 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/fulfillment_info_card.dart';
+import '../../widgets/management_modal.dart';
+import '../../widgets/order_status_style.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
-// Local bypasses, duplicated from my_orders_screen.dart's 3a addendum
-// pattern — BuyerOrderModel.statusLabel/.harvestedLabel hardcode English.
-// Same ARB keys reused across both files for consistency.
-String _orderStatusBadge(String status, AppLocalizations l10n) {
-  switch (status) {
-    case 'pending':   return l10n.buyerOrdersStatusPending;
-    case 'approved':  return l10n.buyerOrdersStatusApproved;
-    case 'completed': return l10n.buyerOrdersStatusCompleted;
-    case 'cancelled': return l10n.buyerOrdersStatusCancelled;
-    default:          return status.toUpperCase();
-  }
-}
 
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -43,11 +38,15 @@ class OrderDetailScreen extends StatefulWidget {
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   final _repository = BuyerOrderRepository();
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   BuyerOrderModel? _order;
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -60,14 +59,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     });
   }
 
-  Color get _statusColor {
-    switch (_order?.status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending': return AppConstants.warningAmber;
-      case 'completed': return AppConstants.primaryGreen;
-      default: return AppConstants.outline;
-    }
-  }
+  Color get _statusColor => orderStatusColor(_order?.status ?? '');
 
   @override
   Widget build(BuildContext context) {
@@ -75,12 +67,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final sagana = context.saganaColors;
 
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        body: Column(
+          children: [
+            SubPageTopBar(title: '', onBack: () => context.pop()),
+            const Expanded(
+              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+            ),
+          ],
+        ),
+      );
     }
     if (_order == null) {
       return Scaffold(
-        appBar: AppBar(leading: BackButton(onPressed: () => context.pop())),
-        body: Center(child: Text(l10n.buyerOrderDetailNotFound)),
+
+        body: Column(
+        children: [
+          SubPageTopBar(title: '', onBack: () => Navigator.of(context).pop()),
+          Expanded(child: Center(child: Text(l10n.buyerOrderDetailNotFound))),
+        ],
+      ),
       );
     }
 
@@ -88,14 +94,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.buyerOrderDetailTitle(order.orderReference),
-            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-      ),
-      body: ListView(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.buyerOrderDetailTitle(order.orderReference), onBack: () => Navigator.of(context).pop()),
+          CachedDataNotice(
+                screen: 'buyer_order_${widget.orderId}',
+                isOnline: _isOnline,
+                offlineMessage: l10n.offlineBuyerBody,
+              ),
+          Expanded(child: ListView(
         padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 32),
         children: [
           // Fulfillment first — how the order arrives is the thing a buyer
@@ -114,7 +122,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ],
           _buildStatusSection(order, l10n),
           const SizedBox(height: 16),
-          if (!order.isCancelled) ...[
+          if (!order.isCancelled && !order.isRejected) ...[
             _buildTimeline(order, l10n),
             const SizedBox(height: 16),
           ],
@@ -123,6 +131,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           _buildOrderSummary(order, l10n),
           const SizedBox(height: 16),
           _buildPaymentInfo(l10n),
+          if (order.isPending) ...[
+            const SizedBox(height: 16),
+            _buildCancelSection(context, order, l10n),
+          ],
           // Browse More Products doesn't belong once an order is approved —
           // Pickup/Delivery are the only appropriate actions left at that
           // point. Still shown for pending/completed/cancelled orders,
@@ -131,6 +143,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             const SizedBox(height: 20),
             _buildSupportSection(context, l10n),
           ],
+        ],
+      )),
         ],
       ),
     );
@@ -147,12 +161,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       'approved' => l10n.buyerOrderDetailReadyPickup,
       'pending' => l10n.buyerOrdersAwaitingReview,
       'completed' => l10n.buyerOrderDetailPickedUp,
+      'rejected' => l10n.buyerOrderDetailRejectedStatus,
       _ => l10n.buyerOrderDetailCancelledStatus,
     };
     final message = switch (order.status) {
       'approved' => l10n.buyerOrderDetailMsgApproved(AppConstants.cooperativeName),
       'pending' => l10n.buyerOrderDetailMsgPending(AppConstants.cooperativeName),
       'completed' => l10n.buyerOrderDetailMsgCompleted,
+      'rejected' => l10n.buyerOrderDetailMsgRejected,
       _ => l10n.buyerOrderDetailMsgCancelled,
     };
     final statusIcon = switch (order.status) {
@@ -182,7 +198,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_orderStatusBadge(order.status, l10n),
+                      Text(buyerOrderStatusLabel(order.status, l10n),
                           style: GoogleFonts.poppins(fontSize: 15.5, fontWeight: FontWeight.w800, color: _statusColor)),
                       const SizedBox(height: 2),
                       Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
@@ -199,7 +215,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(message, style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: AppConstants.onSurfaceVariant)),
-                if (order.isCancelled && order.notes != null && order.notes!.trim().isNotEmpty) ...[
+                if ((order.isCancelled || order.isRejected) && order.notes != null && order.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text('${l10n.adminOrderDetailReasonLabel}: ${order.notes}',
                       style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
@@ -484,6 +500,97 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ),
       ),
     );
+  }
+
+  // Buyer-side cancel. Offered only while the order is still pending: once the
+  // cooperative approves it, only the cooperative can reject it. The server
+  // re-checks ownership and status (cancel_my_order), so this is UI only.
+  Widget _buildCancelSection(BuildContext context, BuyerOrderModel order, AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(l10n.buyerOrderCancelHint,
+              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: () => _confirmCancel(l10n),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppConstants.errorRed,
+              side: const BorderSide(color: AppConstants.errorRed),
+            ),
+            child: Text(l10n.buyerOrderCancelAction,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmCancel(AppLocalizations l10n) async {
+    final reasonCtrl = TextEditingController();
+    bool isSaving = false;
+    // Stays null when the sheet is dismissed without cancelling, so no
+    // feedback is shown for a dismissal.
+    bool? cancelled;
+    await showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => ManagementModalShell(
+          title: l10n.buyerOrderCancelTitle,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l10n.buyerOrderCancelBody),
+              const SizedBox(height: 14),
+              TextField(
+                controller: reasonCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(labelText: l10n.buyerOrderCancelReasonLabel),
+              ),
+            ],
+          ),
+          footer: ManagementModalActions(
+            cancelLabel: l10n.buyerOrderCancelKeep,
+            primaryLabel: l10n.buyerOrderCancelAction,
+            isDestructive: true,
+            isLoading: isSaving,
+            onPrimary: () async {
+              setSheet(() => isSaving = true);
+              final reason = reasonCtrl.text.trim();
+              try {
+                await _repository.cancelMyOrder(
+                  widget.orderId,
+                  reason: reason.isEmpty ? null : reason,
+                );
+                cancelled = true;
+              } catch (_) {
+                cancelled = false;
+              }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+            },
+          ),
+        ),
+      ),
+    );
+    reasonCtrl.dispose();
+    final ok = cancelled;
+    if (ok == null || !mounted) return;
+    AppToast.show(
+      context,
+      ok ? l10n.buyerOrderCancelDone : l10n.buyerOrderCancelFailed,
+      isError: !ok,
+    );
+    if (ok) _load();
   }
 
   String _formatDateTime(DateTime d, AppLocalizations l10n) {

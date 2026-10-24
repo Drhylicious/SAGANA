@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../data/services/connectivity_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -9,6 +11,9 @@ import '../../../data/repositories/admin_order_repository.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
+import 'order_delivery_map_screen.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin-facing order detail — approve / cancel / complete a single order.
 /// Rebuilt from scratch after admin_order_detail_screen.dart was found to be
@@ -64,10 +69,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       case 'completed':
         return AppConstants.primaryGreen;
       case 'cancelled':
+      case 'rejected':
         return AppConstants.errorRed;
       default:
         return AppConstants.outline;
     }
+  }
+
+  // ─── Delivery pinpoint ──────────────────────────────────────────────────
+
+  // Read-only: the map screen has no edit path, so opening it never changes
+  // the order's saved coordinates.
+  void _openDeliveryMap(LatLng point) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OrderDeliveryMapScreen(point: point),
+      ),
+    );
   }
 
   // ─── Actions ────────────────────────────────────────────────────────────
@@ -157,7 +175,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ),
                           backgroundColor: error != null
                               ? AppConstants.errorRed
-                              : AppConstants.successGreen,
+                              : AppConstants.midGreen,
                       behavior: SnackBarBehavior.floating,
                         ),
                       );
@@ -212,7 +230,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 content: Text(error ?? successMessage),
                     backgroundColor: error != null
                         ? AppConstants.errorRed
-                        : AppConstants.successGreen,
+                        : AppConstants.midGreen,
                 behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -242,11 +260,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _order == null
                     ? Center(
                     child: Text(
@@ -276,12 +290,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 _order!.deliveryRecipientName,
                             deliveryLabel: _order!.deliveryLabel,
                             deliveryNotes: _order!.deliveryNotes,
+                            onViewMap: _order!.deliveryLatitude == null ||
+                                    _order!.deliveryLongitude == null
+                                ? null
+                                : () => _openDeliveryMap(
+                                      LatLng(
+                                        _order!.deliveryLatitude!,
+                                        _order!.deliveryLongitude!,
+                                      ),
+                                    ),
                           ),
                           const SizedBox(height: 12),
                         ],
                             _buildStatusCard(_order!, cs, l10n),
                         const SizedBox(height: 12),
-                            if (!_order!.isCancelled) ...[
+                            if (!_order!.isCancelled && _order!.status != 'rejected') ...[
                               _buildTimeline(_order!),
                               const SizedBox(height: 16),
                             ],
@@ -307,7 +330,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget? _buildBottomBar() {
     if (widget.readOnly) return null;
     final order = _order;
-    if (order == null || order.isCompleted || order.isCancelled) return null;
+    if (order == null ||
+        order.isCompleted ||
+        order.isCancelled ||
+        order.status == 'rejected') {
+      return null;
+    }
     final l10n = AppLocalizations.of(context);
 
     if (order.isPending) {
@@ -344,7 +372,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   // left too little room for "Approve Order", causing the
                   // label to ellipsis-clip.
                   label: l10n.adminOrderDetailApproveTitle,
-                  onPressed: _confirmApprove,
+                  onPressed: ConnectivityService.instance.isOnline
+                      ? _confirmApprove
+                      : null,
                 ),
               ),
             ],
@@ -361,7 +391,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           height: 46,
           icon: Icons.task_alt_rounded,
           label: l10n.adminOrderDetailCompleteTitle,
-          onPressed: _confirmComplete,
+          onPressed: ConnectivityService.instance.isOnline
+              ? _confirmComplete
+              : null,
         ),
       ),
     );
@@ -377,6 +409,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       'pending' => l10n.adminOrderDetailAwaitingReview,
       'approved' => l10n.adminOrderDetailApprovedAwaitingCompletion,
       'completed' => l10n.statCompleted,
+      'rejected' => l10n.adminOrderNoteRejectedByCoop,
       _ => l10n.buyerActivityStatusCancelled,
     };
     return _SectionCard(
@@ -416,7 +449,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ],
           ),
-          if (order.isCancelled &&
+          if (order.isCancelled && order.cancelledBy != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              order.cancelledBy == 'farmer'
+                  ? l10n.adminOrderCancelledByFarmer
+                  : l10n.adminOrderCancelledByBuyer,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+          if ((order.isCancelled || order.status == 'rejected') &&
               order.notes != null &&
               order.notes!.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -853,41 +899,8 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sagana = context.saganaColors;
-    final cs = Theme.of(context).colorScheme;
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: title, onBack: onBack);
   }
 }
 

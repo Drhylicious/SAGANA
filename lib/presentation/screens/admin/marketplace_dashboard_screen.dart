@@ -5,10 +5,11 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
-import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
@@ -64,7 +65,7 @@ class _MarketplaceDashboardScreenState
     final results = await Future.wait([
       _repo.fetchSummaryStats(),
       _orderRepo.fetchSummaryStats(),
-      _offerRepo.fetchPendingOffers(),
+      _offerRepo.fetchOffersAwaitingCooperative(),
       _buyerRepo.fetchBuyerCount(),
       _marketLinkingRepo.fetchSummaryStats(),
     ]);
@@ -99,7 +100,7 @@ class _MarketplaceDashboardScreenState
           final profile = AdminProfileStateService.instance.profile;
           return AppNavigationDrawer(
             photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Admin',
+            displayName: profile?.fullName ?? 'Manager',
             contactEmail: profile?.contactEmail ?? profile?.email,
             phoneNumber: profile?.phoneNumber,
             onEditProfile: () {
@@ -119,8 +120,6 @@ class _MarketplaceDashboardScreenState
         onRefresh: _loadAll,
         child: CustomScrollView(
           slivers: [
-            if (!_isOnline)
-              const SliverToBoxAdapter(child: OfflineBanner()),
 
             // Top bar unchanged — same shared AdminTopBarDelegate as before.
             SliverPersistentHeader(
@@ -133,6 +132,13 @@ class _MarketplaceDashboardScreenState
                 enableMenu: true,
               ),
             ),
+            SliverToBoxAdapter(
+              child: CachedDataNotice(
+                screen: 'listing_status_rows',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineFeaturesUnavailable,
+              ),
+            ),
 
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -143,7 +149,7 @@ class _MarketplaceDashboardScreenState
                   // Untouched, per your call — already data-driven, not a
                   // redesign candidate.
                   if (_isLoading)
-                    const _ShimmerBlock(height: 108)
+                    const SkeletonBlock(height: 108)
                   else
                     _MarketplaceOverviewCard(
                       stats: _stats,
@@ -163,7 +169,7 @@ class _MarketplaceDashboardScreenState
                   // Report tab uses (Executive Snapshot etc.), not just
                   // individually restyled cards.
                   if (_isLoading)
-                    const _ShimmerBlock(height: 150)
+                    const SkeletonBlock(height: 150)
                   else
                     ReportSectionCard(
                       title: l10n.marketDashOverviewTitle,
@@ -585,15 +591,3 @@ class _ActionItem {
 }
 
 
-class _ShimmerBlock extends StatelessWidget {
-  final double height;
-  const _ShimmerBlock({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
-    );
-  }
-}

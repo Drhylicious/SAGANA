@@ -109,8 +109,4 @@ class BuyerProfileModel {
     return fullName.isNotEmpty ? fullName[0].toUpperCase() : 'B';
   }
 
-  String? get dateOfBirthLabel {
-    if (dateOfBirth == null) return null;
-    return '${dateOfBirth!.year}-${dateOfBirth!.month.toString().padLeft(2, '0')}-${dateOfBirth!.day.toString().padLeft(2, '0')}';
-  }
 }

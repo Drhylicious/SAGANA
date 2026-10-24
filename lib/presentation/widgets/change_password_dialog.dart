@@ -7,6 +7,7 @@ import '../../core/theme/sagana_colors.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/services/auth_service.dart';
 import '../../routes/app_routes.dart';
+import 'app_toast.dart';
 import 'password_requirements.dart';
 import 'shared_widgets.dart';
 
@@ -72,11 +73,11 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       );
       widget.onSuccess?.call();
       if (!mounted) return;
+      // Shown before the dialog closes, and as a root-overlay toast rather
+      // than a SnackBar: sign-out replaces the whole route stack, which would
+      // tear down a Scaffold-attached SnackBar before it could be read.
+      PostActionFeedback.success(context, l10n.passwordUpdatedSigningOut);
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.passwordUpdatedSigningOut), backgroundColor: AppConstants.successGreen),
-      );
-      await Future.delayed(const Duration(seconds: 2));
       await AuthService.logout();
       if (mounted) context.go(AppRoutes.login);
     } catch (e) {

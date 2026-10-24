@@ -10,6 +10,8 @@ import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class BuyerSettingsScreen extends StatefulWidget {
   const BuyerSettingsScreen({super.key});
@@ -76,20 +78,25 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: sagana.scaffoldBackground,
-        body: const Center(child: CircularProgressIndicator()),
+        body: Column(
+          children: [
+            SubPageTopBar(title: l10n.settingsTitle, onBack: () => Navigator.of(context).pop()),
+            const Expanded(
+              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+            ),
+          ],
+        ),
       );
     }
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.settingsTitle,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-      ),
-      body: ListView(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.settingsTitle, onBack: () => Navigator.of(context).pop()),
+          OfflineStatusCard(title: l10n.offlineStatusTitle, message: l10n.offlineBuyerBody),
+          Expanded(child: ListView(
         padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 40),
         children: [
           SectionLabel(label: l10n.sectionAccount),
@@ -168,6 +175,8 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
           const SizedBox(height: 24),
 
           const AppBrandingBlock(),
+        ],
+      )),
         ],
       ),
     );

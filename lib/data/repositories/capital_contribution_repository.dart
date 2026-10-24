@@ -1,7 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/contribution_model.dart';
+import '../services/offline_actions.dart';
 import 'admin_activity_repository.dart';
-import 'notification_repository.dart';
+import '../models/admin_log_message.dart';
 
 /// Capital-share contribution management (Issue 4d).
 ///
@@ -37,7 +39,33 @@ class CapitalContributionRepository {
   /// annual share), `patronage_capital` (member left their Balik-
   /// Tangkilik refund in the coop), `manual_adjustment` (correction — may
   /// be negative), `opening_balance`.
-  Future<void> recordContribution({
+  /// Records now, or keeps the entry on this device to be recorded by the
+  /// next Sync when offline.
+  Future<SaveOutcome> recordContribution({
+    required String farmerId,
+    required double amount,
+    String source = 'member_payment',
+    String? note,
+  }) {
+    return OfflineActions.run(
+      kind: 'capital_record',
+      payload: {
+        'farmerId': farmerId,
+        'amount': amount,
+        'source': source,
+        'note': note,
+      },
+      online: () => recordContributionOnline(
+        farmerId: farmerId,
+        amount: amount,
+        source: source,
+        note: note,
+      ),
+    );
+  }
+
+  /// The server write behind recordContribution(). Also run by offline replay.
+  Future<void> recordContributionOnline({
     required String farmerId,
     required double amount,
     String source = 'member_payment',
@@ -54,23 +82,11 @@ class CapitalContributionRepository {
     AdminActivityRepository().log(
       module: 'members',
       actionType: 'contribution_recorded',
-      description:
-          'Recorded a capital contribution (₱${amount.toStringAsFixed(2)}).',
+      message: AdminLogMessage('adminLogContributionRecorded', {
+        'amount': amount.toStringAsFixed(2),
+      }),
       referenceId: farmerId,
     );
-
-    try {
-      await NotificationRepository().createNotification(
-        userId: farmerId,
-        type: 'capital',
-        title: 'Capital Contribution Recorded',
-        body:
-            'Your capital contribution of ₱${amount.toStringAsFixed(2)} was recorded.',
-        routeOnTap: '/farmer/profile/contribution',
-      );
-    } catch (_) {
-      // Notification failure is non-fatal — the contribution was already recorded.
-    }
   }
 
   /// Ledger for one member, newest first.
@@ -79,12 +95,15 @@ class CapitalContributionRepository {
     int limit = 50,
   }) async {
     try {
-      final rows = await _client
-          .from('capital_contribution_events')
-          .select()
-          .eq('farmer_id', farmerId)
-          .order('created_at', ascending: false)
-          .limit(limit);
+      final rows = await OfflineCache.load(
+        screen: 'capital_ledger_$farmerId',
+        fetch: () => _client
+            .from('capital_contribution_events')
+            .select()
+            .eq('farmer_id', farmerId)
+            .order('created_at', ascending: false)
+            .limit(limit),
+      );
       return rows.map((r) => CapitalContributionEvent.fromMap(r)).toList();
     } catch (_) {
       return [];
@@ -95,22 +114,28 @@ class CapitalContributionRepository {
   /// Members-tab record needs to render its progress + warning UI.
   Future<MemberCapitalSummary> fetchCapitalSummary(String farmerId) async {
     try {
-      final shareRow = await _client
-          .from('member_capital_shares')
-          .select(
-            'farmer_id, total_shares, share_value_per_unit, total_contribution',
-          )
-          .eq('farmer_id', farmerId)
-          .maybeSingle();
-
-      final policyRow = await _client
-          .from('loan_policy_settings')
-          .select(
-            'minimum_capital_contribution, monthly_dues_amount, annual_capital_share_target',
-          )
-          .eq('id', 1)
-          .maybeSingle();
-
+      final shareRowRows = await OfflineCache.load(
+        screen: 'capital_summary_share_$farmerId',
+        fetch: () => _client
+            .from('member_capital_shares')
+            .select(
+              'farmer_id, total_shares, share_value_per_unit, total_contribution',
+            )
+            .eq('farmer_id', farmerId)
+            .limit(1),
+      );
+      final shareRow = shareRowRows.isEmpty ? null : shareRowRows.first;
+      final policyRowRows = await OfflineCache.load(
+        screen: 'capital_summary_policy',
+        fetch: () => _client
+            .from('loan_policy_settings')
+            .select(
+              'minimum_capital_contribution, monthly_dues_amount, annual_capital_share_target',
+            )
+            .eq('id', 1)
+            .limit(1),
+      );
+      final policyRow = policyRowRows.isEmpty ? null : policyRowRows.first;
       final shares = shareRow != null
           ? CapitalSharesModel.fromMap(shareRow)
           : CapitalSharesModel(
@@ -161,8 +186,8 @@ class MemberCapitalSummary {
   bool get meetsLoanEligibility => shares.totalContribution >= minimumForLoan;
 
   double get loanShortfall => (minimumForLoan - shares.totalContribution)
-          .clamp(0, double.infinity)
-          .toDouble();
+      .clamp(0, double.infinity)
+      .toDouble();
 
   /// 0..1 progress toward the farmer's NEXT ₱2,000 capital share.
   ///

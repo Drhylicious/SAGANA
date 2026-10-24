@@ -13,6 +13,8 @@ import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Loan History — Admin (all-loans registry).
 /// Pushed above the shell. Route: /admin/loans/history, extra: String? statusFilter
@@ -146,40 +148,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    final sagana = context.saganaColors;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.loanHistoryTitle,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.loanHistoryTitle, onBack: () => context.pop());
   }
 
   Widget _buildBody(
@@ -219,7 +188,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
           if (_isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator()),
+              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
             )
           else if (visibleLoans.isEmpty)
             _buildMessageState(

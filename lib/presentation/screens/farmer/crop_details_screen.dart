@@ -6,7 +6,9 @@ import '../../../data/models/farmer_crop_model.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/channel_only_badge.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// Read-only crop details — what tapping a crop card in Crop Roster opens.
 /// Actions (record harvest, view history, delete) stay in the three-dot
@@ -31,9 +33,9 @@ class CropDetailsScreen extends StatelessWidget {
                 children: [
                   const SizedBox(height: 72),
                   if (!isOnline)
-                    const OfflineBanner(
+                    OfflineStatusCard(
                       message:
-                          "You're offline — some features elsewhere in the app may be unavailable until you're reconnected.",
+                          AppLocalizations.of(context).offlineFeaturesUnavailable,
                     ),
                   Expanded(
                     child: ListView(
@@ -56,7 +58,7 @@ class CropDetailsScreen extends StatelessWidget {
                         _InfoRow(
                           label: 'Catalog status',
                           value: crop.isPendingApproval
-                              ? (crop.isRejected ? 'Request declined' : 'Pending admin approval')
+                              ? (crop.isRejected ? 'Request declined' : 'Pending Manager approval')
                               : 'Approved',
                         ),
                         if (crop.isRejected && crop.requestNotes != null) ...[
@@ -207,6 +209,10 @@ class _HeaderCard extends StatelessWidget {
                   fontSize: 20, fontWeight: FontWeight.w700,
                   color: AppConstants.charcoal)),
           const SizedBox(height: 8),
+          if (crop.exclusiveChannel != null) ...[
+            ChannelOnlyBadge(channel: crop.exclusiveChannel),
+            const SizedBox(height: 8),
+          ],
           if (crop.isPendingApproval)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

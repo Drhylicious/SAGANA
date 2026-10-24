@@ -5,14 +5,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../widgets/map_attribution_links.dart';
 import '../../../core/constants/osm_config.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/offline_actions.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/shared_widgets.dart';
 import 'farm_location_full_map_screen.dart';
+import '../../widgets/skeleton.dart';
 
 // ─── Barangay Payanas default center ─────────────────────────────────────────
 const _defaultCenter = LatLng(13.6302, 121.9392);
@@ -139,24 +142,26 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
-    if (!_isOnline) {
-      _showSnack('You\'re offline. Connect to the internet to save changes.');
+    final l10n = AppLocalizations.of(context);
+    // Detect an explicit pin-clear: the profile previously had coordinates
+    // but the pin is now null. updateFarmDetails() uses conditional
+    // `if (x != null)` writes, so passing null lat/lng here would be
+    // silently omitted from the update payload — clearing requires the
+    // dedicated clearFarmCoordinates() method instead.
+    final pinWasCleared =
+        (_profile?.hasCoordinates ?? false) && _pinnedLocation == null;
+    // Clearing the pin is not queued yet, so it needs a connection.
+    if (pinWasCleared && !_isOnline) {
+      _showSnack('You\'re offline. Connect to the internet to clear the pin.');
       return;
     }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
-      // Detect an explicit pin-clear: the profile previously had coordinates
-      // but the pin is now null. updateFarmDetails() uses conditional
-      // `if (x != null)` writes, so passing null lat/lng here would be
-      // silently omitted from the update payload — clearing requires the
-      // dedicated clearFarmCoordinates() method instead.
-      final pinWasCleared =
-          (_profile?.hasCoordinates ?? false) && _pinnedLocation == null;
       if (pinWasCleared) {
         await _repo.clearFarmCoordinates();
       }
-      await _repo.updateFarmDetails(
+      final outcome = await _repo.updateFarmDetails(
         farmName: _farmNameCtrl.text.trim().isEmpty
             ? null
             : _farmNameCtrl.text.trim(),
@@ -170,7 +175,11 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
         farmOwnershipType: _ownershipType,
       );
       if (mounted) {
-        _showSnack('Farm details saved successfully.');
+        _showSnack(
+          outcome == SaveOutcome.queued
+              ? l10n.savedOnDeviceSyncLater
+              : 'Farm details saved successfully.',
+        );
         // Use go_router's pop helper to ensure we pop the correct navigator
         // when this screen is presented from different navigator roots.
         // true = refresh caller
@@ -221,24 +230,18 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message:
-                  "You're offline — you won't be able to save changes until you're reconnected.",
-            ),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 64),
+                    if (!_isOnline) OfflineStatusCard(
+              message: AppLocalizations.of(context).offlineSaveNotice,
+            ),
                     Expanded(
                       child: _isLoading
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                color: AppConstants.primaryGreen,
-                              ),
-                            )
+                          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                           : _loadFailed
                           ? _FarmDetailsLoadError(
                               onRetry: _retryLoadProfile,
@@ -721,7 +724,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            'Your farm location pin helps SP3 Admin verify your membership '
+                                            'Your farm location pin helps SP3 Manager verify your membership '
                                             'and will be used in future cooperative planning features.',
                                             style: GoogleFonts.inter(
                                               fontSize: 11,
@@ -747,7 +750,7 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Edit Farm Details',
+                    title: AppLocalizations.of(context).editFarmDetails,
                     onBack: () => context.popRoute(),
                     hideProfileAvatar: true,
                     onProfileTap: () {},
@@ -779,13 +782,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
           ),
         ),
         child: PrimaryButton(
-          label: !_isOnline
-              ? 'Offline'
-              : _isSaving
-              ? 'Saving...'
-              : 'Save Farm Details',
+          label: _isSaving ? 'Saving...' : 'Save Farm Details',
           isLoading: _isSaving,
-          onPressed: (!_isOnline || _isSaving) ? null : _save,
+          onPressed: _isSaving ? null : _save,
           icon: Icons.check_rounded,
         ),
       ),

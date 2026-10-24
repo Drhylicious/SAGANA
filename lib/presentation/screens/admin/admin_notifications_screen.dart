@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/notification_day_groups.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -78,7 +80,6 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   final _repo = NotificationRepository();
 
   List<AdminNotif> _all = [];
-  AdminNotifCategory _selected = AdminNotifCategory.all;
   bool _isLoading = true;
 
   @override
@@ -96,18 +97,6 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       _all = result.map(AdminNotif.fromNotification).toList();
       _isLoading = false;
     });
-  }
-
-  List<AdminNotif> get _filtered {
-    if (_selected == AdminNotifCategory.all) return _all;
-    return _all.where((n) => n.category == _selected).toList();
-  }
-
-  int _unreadCount(AdminNotifCategory cat) {
-    final source = cat == AdminNotifCategory.all
-        ? _all
-        : _all.where((n) => n.category == cat);
-    return source.where((n) => !n.isRead).length;
   }
 
   Future<void> _onNotifTap(AdminNotif notif) async {
@@ -172,21 +161,6 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     }
   }
 
-  String _categoryLabel(AppLocalizations l10n, AdminNotifCategory cat) {
-    switch (cat) {
-      case AdminNotifCategory.all:
-        return l10n.buyerNotifFilterAll;
-      case AdminNotifCategory.actions:
-        return l10n.adminNotifCategoryActions;
-      case AdminNotifCategory.members:
-        return l10n.adminNavMembers;
-      case AdminNotifCategory.inventory:
-        return l10n.supplyChainFlowInventory;
-      case AdminNotifCategory.system:
-        return l10n.adminNotifCategorySystem;
-    }
-  }
-
   String _timeLabel(AppLocalizations l10n, DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
@@ -200,157 +174,22 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    final filtered = _filtered;
-    final unreadTotal = _unreadCount(AdminNotifCategory.all);
+    final filtered = _all;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // Top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        l10n.pendingNotificationsTitle,
-                        style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                    if (unreadTotal > 0)
-                      TextButton(
-                        onPressed: () async {
-                          await _repo.markAllAsRead();
-                          _load();
-                        },
-                        child: Text(
-                          l10n.adminNotifMarkAllRead,
-                          style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            color: cs.primary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          SubPageTopBar(title: l10n.pendingNotificationsTitle, onBack: () => context.pop()),
 
-          // Category tabs
-          Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: AdminNotifCategory.values.map((cat) {
-                  final isSelected = _selected == cat;
-                  final unread = _unreadCount(cat);
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selected = cat),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? cs.primary
-                              : sagana.cardBackground,
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                          border: Border.all(
-                            color: isSelected
-                                ? cs.primary
-                                : cs.outline.withValues(alpha: 0.20),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _categoryLabel(l10n, cat),
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? Colors.white
-                                    : cs.onSurfaceVariant,
-                              ),
-                            ),
-                            if (unread > 0) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 18,
-                                height: 18,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? Colors.white.withValues(alpha: 0.30)
-                                      : AppConstants.errorRed,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    unread > 9 ? '9+' : '$unread',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
+          const Divider(height: 1),
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
@@ -379,15 +218,14 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                             ),
                             ],
                           )
-                        : ListView.separated(
+                        : ListView(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, __) => Divider(
-                                height: 1,
-                              color: cs.outline.withValues(alpha: 0.08),
-                            ),
-                            itemBuilder: (_, i) {
-                              final notif = filtered[i];
+                            children: notificationGroupChildren<AdminNotif>(
+                              items: filtered,
+                              timeOf: (n) => n.createdAt,
+                              l10n: l10n,
+                              itemGap: 0,
+                              buildItem: (notif) {
                               final color = _categoryColor(notif.category, cs);
                               final icon = _categoryIcon(notif.category);
 
@@ -503,7 +341,8 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                                 ),
                                 ),
                               );
-                            },
+                              },
+                            ),
                           ),
                   ),
           ),

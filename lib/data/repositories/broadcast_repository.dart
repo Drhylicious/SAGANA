@@ -1,8 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/server_only.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/broadcast_model.dart';
 import 'admin_activity_repository.dart';
-import 'notification_repository.dart';
+import 'dart:math' show Random;
+import '../models/admin_log_message.dart';
+
+class BroadcastNoRecipientsException implements Exception {
+  const BroadcastNoRecipientsException();
+}
 
 class BroadcastRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -38,63 +44,29 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
   }
 }
 
-  // ─── Resolve recipient user IDs based on type ─────────────────────────────
-
-  Future<List<String>> resolveRecipientIds({
-    required RecipientType type,
-    String? filter, // crop name for specificCrop, user_id for specificFarmer
-  }) async {
-    try {
-      switch (type) {
-        case RecipientType.allMembers:
-          final rows = await _client
-              .from('user_roles')
-              .select('user_id')
-              .eq('role', 'farmer')
-              .eq('status', 'active');
-          return rows.map((r) => r['user_id'] as String).toList();
-
-        case RecipientType.allBuyers:
-          final rows = await _client
-              .from('user_roles')
-              .select('user_id')
-              .eq('role', 'buyer')
-              .eq('status', 'active');
-          return rows.map((r) => r['user_id'] as String).toList();
-
-        case RecipientType.outstandingLoans:
-          final rows = await _client
-              .from('farmer_loans')
-              .select('farmer_id')
-              .neq('status', 'paid');
-          return rows.map((r) => r['farmer_id'] as String).toSet().toList();
-
-        case RecipientType.specificCrop:
-          if (filter == null || filter.isEmpty) return [];
-          final rows = await _client
-              .from('farmer_crops')
-              .select('farmer_id')
-              .ilike('crop_name', filter);
-          return rows.map((r) => r['farmer_id'] as String).toSet().toList();
-
-        case RecipientType.specificFarmer:
-          if (filter == null || filter.isEmpty) return [];
-          return [filter];
-
-        case RecipientType.specificBuyer:
-          if (filter == null || filter.isEmpty) return [];
-          return [filter];
-      }
-    } catch (e) {
-      debugPrint('BroadcastRepository.resolveRecipientIds failed: $e');
-      return [];
-    }
-  }
-
   // ─── Send broadcast ───────────────────────────────────────────────────────
   // 1. Resolves recipient IDs
   // 2. Inserts notification rows into notifications table
   // 3. Logs to broadcast_logs
+
+  /// A new key identifies one send attempt. Keep it across retries of the same
+  /// attempt so a repeated request is recognized and not sent twice.
+  static String newClientKey() {
+    final r = Random.secure();
+    final b = List<int>.generate(16, (_) => r.nextInt(256));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+    return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}'
+        '-${h.substring(16, 20)}-${h.substring(20)}';
+  }
+
+  // ─── Send broadcast ──────────────────────────────────────────────────────────
+  // Immediate sends go through send_broadcast(): recipients are resolved,
+  // notices are inserted and the log is written in one database transaction.
+  // The returned count is the number of notices actually inserted.
+  // Scheduled sends are queued in broadcast_logs and sent by
+  // process_scheduled_broadcasts().
 
   Future<int> sendBroadcast({
     required String title,
@@ -103,83 +75,68 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
     required RecipientType recipientType,
     String? recipientFilter,
     DateTime? scheduledAt,
+    String? clientKey,
   }) async {
+    await ServerOnly.ensureOnline();
     final adminId = _client.auth.currentUser?.id;
     final now     = DateTime.now();
     final isDeferred = scheduledAt != null && scheduledAt.isAfter(now);
+    final key = clientKey ?? newClientKey();
 
-    // 1. Resolve recipients now — for an immediate send this is the actual
-    //    recipient list; for a deferred one it's only an estimate for
-    //    display (recipient_count gets overwritten with the real count
-    //    once process_scheduled_broadcasts() actually sends it, since the
-    //    matching set — e.g. outstanding loans — can shift by then).
-    final recipientIds = await resolveRecipientIds(
+    if (!isDeferred) {
+      final int count;
+      try {
+        count = await _client.rpc('send_broadcast', params: {
+          'p_title': title,
+          'p_body': body,
+          'p_category': category.value,
+          'p_recipient_type': recipientType.value,
+          'p_recipient_filter': recipientFilter,
+          'p_client_key': key,
+        }) as int;
+      } on PostgrestException catch (e) {
+        if (e.message.contains('NO_RECIPIENTS')) {
+          throw const BroadcastNoRecipientsException();
+        }
+        rethrow;
+      }
+
+      AdminActivityRepository().log(
+        module: 'broadcast',
+        actionType: 'sent',
+        message: AdminLogMessage('adminLogBroadcastSent', {'title': title, 'count': '$count'}),
+      );
+      return count;
+    }
+
+    // Deferred: queue only. Recipients are an estimate for display; the real set
+    // is resolved when process_scheduled_broadcasts() sends it.
+    final recipientCount = await previewRecipientCount(
       type:   recipientType,
       filter: recipientFilter,
     );
 
-    if (!isDeferred && recipientIds.isEmpty) return 0;
-
-    if (isDeferred) {
-      // Queue only. Notifications are inserted later, once scheduled_at
-      // has passed, by process_scheduled_broadcasts() (run periodically —
-      // see supabase/functions/process-scheduled-broadcasts).
-      await _client.from('broadcast_logs').insert({
-        'title':            title,
-        'body':             body,
-        'category':         category.value,
-        'recipient_type':   recipientType.value,
-        'recipient_filter': recipientFilter,
-        'recipient_count':  recipientIds.length,
-        'scheduled_at':     scheduledAt.toIso8601String(),
-        'sent_at':          null,
-        'created_by':       adminId,
-        'created_at':       now.toIso8601String(),
-      });
-
-      AdminActivityRepository().log(
-        module: 'broadcast',
-        actionType: 'scheduled',
-        description: 'Broadcast "$title" scheduled for ${scheduledAt.toIso8601String()}.',
-      );
-
-      return recipientIds.length;
-    }
-
-    // 2. Insert notification rows for each recipient (immediate send)
-    final notifDrafts = recipientIds
-        .map((uid) => NotificationDraft(
-              userId: uid,
-              type: 'system',
-              title: title,
-              body: body,
-              createdAt: now,
-            ))
-        .toList();
-
-    await NotificationRepository().createNotifications(notifDrafts);
-
-    // 3. Log the broadcast
-    await _client.from('broadcast_logs').insert({
+    await _client.from('broadcast_logs').upsert({
       'title':            title,
       'body':             body,
       'category':         category.value,
       'recipient_type':   recipientType.value,
       'recipient_filter': recipientFilter,
-      'recipient_count':  recipientIds.length,
-      'scheduled_at':     scheduledAt?.toIso8601String(),
-      'sent_at':          now.toIso8601String(),
+      'recipient_count':  recipientCount,
+      'scheduled_at':     scheduledAt.toIso8601String(),
+      'sent_at':          null,
       'created_by':       adminId,
       'created_at':       now.toIso8601String(),
-    });
+      'client_key':       key,
+    }, onConflict: 'client_key', ignoreDuplicates: true);
 
     AdminActivityRepository().log(
       module: 'broadcast',
-      actionType: 'sent',
-      description: 'Broadcast "$title" sent to ${recipientIds.length} recipient${recipientIds.length == 1 ? '' : 's'}.',
+      actionType: 'scheduled',
+      message: AdminLogMessage('adminLogBroadcastScheduled', {'title': title, 'when': scheduledAt.toIso8601String()}),
     );
 
-    return recipientIds.length;
+    return recipientCount;
   }
 
   // ─── Fetch dynamic recipient count preview ────────────────────────────────
@@ -190,8 +147,14 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
     String? filter,
   }) async {
     try {
-      final ids = await resolveRecipientIds(type: type, filter: filter);
-      return ids.length;
+      final count = await _client.rpc(
+        'preview_broadcast_recipients',
+        params: {
+          'p_recipient_type': type.value,
+          'p_recipient_filter': filter,
+        },
+      );
+      return (count as num).toInt();
     } catch (e) {
       debugPrint('BroadcastRepository.previewRecipientCount failed: $e');
       return 0;

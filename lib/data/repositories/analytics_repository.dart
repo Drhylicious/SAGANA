@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/analytics_model.dart';
 import '../services/hive_service.dart';
 import 'crop_lookup.dart';
@@ -24,6 +25,11 @@ class AnalyticsRepository {
 
   // ─── Farm Performance (own data) ──────────────────────────────────────────
 
+  /// OfflineCache key for the synced harvest rows of [period] (matches the key
+  /// written by fetchFarmPerformance), so the farmer analytics screen can show the notice.
+  static String farmPerformanceCacheScreen(AnalyticsPeriod period) =>
+      'analytics_harvests_${period.startDate?.toIso8601String() ?? 'any'}';
+
   Future<FarmPerformanceSummary> fetchFarmPerformance(
     AnalyticsPeriod period,
   ) async {
@@ -40,7 +46,11 @@ class AnalyticsRepository {
         );
       }
 
-      final harvestRows = await query;
+      final harvestRows = await OfflineCache.load(
+        screen:
+            'analytics_harvests_${period.startDate?.toIso8601String() ?? 'any'}',
+        fetch: () => query,
+      );
 
       double totalYield = 0;
       // Accumulated per harvest_records.crop_id (== farmer_crops.id), not
@@ -95,7 +105,7 @@ class AnalyticsRepository {
         debugPrint(
           'AnalyticsRepository.fetchFarmPerformance/pendingHarvests failed: $e',
         );
-        }
+      }
 
       // Resolve canonical crop_master.crop_name for every accumulated
       // crop_id via the same two-hop path (crop_id -> farmer_crops.id ->
@@ -148,23 +158,27 @@ class AnalyticsRepository {
       final marketplaceRevenue = await _safeFetch(
         'fetchFarmPerformance/orders',
         () async {
-        var ordersQuery = _client
-            .from('orders')
-            .select('total_price')
-            .eq('farmer_id', _userId)
-            .eq('status', 'completed');
-        if (period.startDate != null) {
+          var ordersQuery = _client
+              .from('orders')
+              .select('total_price')
+              .eq('farmer_id', _userId)
+              .eq('status', 'completed');
+          if (period.startDate != null) {
             ordersQuery = ordersQuery.gte(
               'created_at',
               period.startDate!.toIso8601String(),
             );
-        }
-        final orderRows = await ordersQuery;
-        double revenue = 0;
-        for (final row in orderRows) {
-          revenue += (row['total_price'] as num).toDouble();
-        }
-        return revenue;
+          }
+          final orderRows = await OfflineCache.load(
+            screen:
+                'analytics_orders_${period.startDate?.toIso8601String() ?? 'any'}',
+            fetch: () => ordersQuery,
+          );
+          double revenue = 0;
+          for (final row in orderRows) {
+            revenue += (row['total_price'] as num).toDouble();
+          }
+          return revenue;
         },
         0.0,
       );
@@ -175,23 +189,27 @@ class AnalyticsRepository {
       final cooperativeRevenue = await _safeFetch(
         'fetchFarmPerformance/memberSales',
         () async {
-        String dateOnly(DateTime d) =>
-            '${d.year.toString().padLeft(4, '0')}-'
-            '${d.month.toString().padLeft(2, '0')}-'
-            '${d.day.toString().padLeft(2, '0')}';
-        var coopQuery = _client
-            .from('member_sales_transactions')
-            .select('amount')
-            .eq('farmer_id', _userId);
-        if (period.startDate != null) {
-          coopQuery = coopQuery.gte('sale_date', dateOnly(period.startDate!));
-        }
-        final coopRows = await coopQuery;
-        double revenue = 0;
-        for (final row in coopRows) {
-          revenue += (row['amount'] as num).toDouble();
-        }
-        return revenue;
+          String dateOnly(DateTime d) =>
+              '${d.year.toString().padLeft(4, '0')}-'
+              '${d.month.toString().padLeft(2, '0')}-'
+              '${d.day.toString().padLeft(2, '0')}';
+          var coopQuery = _client
+              .from('member_sales_transactions')
+              .select('amount')
+              .eq('farmer_id', _userId);
+          if (period.startDate != null) {
+            coopQuery = coopQuery.gte('sale_date', dateOnly(period.startDate!));
+          }
+          final coopRows = await OfflineCache.load(
+            screen:
+                'analytics_coop_sales_${period.startDate?.toIso8601String() ?? 'any'}',
+            fetch: () => coopQuery,
+          );
+          double revenue = 0;
+          for (final row in coopRows) {
+            revenue += (row['amount'] as num).toDouble();
+          }
+          return revenue;
         },
         0.0,
       );
@@ -199,22 +217,26 @@ class AnalyticsRepository {
       final informalRevenue = await _safeFetch(
         'fetchFarmPerformance/informalSales',
         () async {
-        var informalQuery = _client
-            .from('informal_sales')
-            .select('amount')
-            .eq('farmer_id', _userId);
-        if (period.startDate != null) {
+          var informalQuery = _client
+              .from('informal_sales')
+              .select('amount')
+              .eq('farmer_id', _userId);
+          if (period.startDate != null) {
             informalQuery = informalQuery.gte(
               'sale_date',
               period.startDate!.toIso8601String(),
             );
-        }
-        final informalRows = await informalQuery;
-        double revenue = 0;
-        for (final row in informalRows) {
-          revenue += ((row['amount'] as num?)?.toDouble() ?? 0);
-        }
-        return revenue;
+          }
+          final informalRows = await OfflineCache.load(
+            screen:
+                'analytics_informal_sales_${period.startDate?.toIso8601String() ?? 'any'}',
+            fetch: () => informalQuery,
+          );
+          double revenue = 0;
+          for (final row in informalRows) {
+            revenue += ((row['amount'] as num?)?.toDouble() ?? 0);
+          }
+          return revenue;
         },
         0.0,
       );
@@ -229,22 +251,22 @@ class AnalyticsRepository {
       final totalExpenses = await _safeFetch(
         'fetchFarmPerformance/expenses',
         () async {
-        var expenseQuery = _client
-            .from('farmer_expenses')
-            .select('amount, expense_date')
-            .eq('farmer_id', _userId);
-        if (period.startDate != null) {
+          var expenseQuery = _client
+              .from('farmer_expenses')
+              .select('amount, expense_date')
+              .eq('farmer_id', _userId);
+          if (period.startDate != null) {
             expenseQuery = expenseQuery.gte(
               'expense_date',
               period.startDate!.toIso8601String().split('T').first,
             );
-        }
-        final expenseRows = await expenseQuery;
-        double expenses = 0;
-        for (final row in expenseRows) {
-          expenses += (row['amount'] as num).toDouble();
-        }
-        return expenses;
+          }
+          final expenseRows = await expenseQuery;
+          double expenses = 0;
+          for (final row in expenseRows) {
+            expenses += (row['amount'] as num).toDouble();
+          }
+          return expenses;
         },
         0.0,
       );
@@ -256,15 +278,15 @@ class AnalyticsRepository {
           byCrop.entries
               .map(
                 (e) => CropYieldBreakdown(
-                cropName: e.key,
-                quantityKg: e.value,
+                  cropName: e.key,
+                  quantityKg: e.value,
                   percentOfMax: maxQty > 0
                       ? (e.value / maxQty).clamp(0.0, 1.0)
                       : 0,
                 ),
               )
-          .toList()
-        ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
+              .toList()
+            ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
 
       return FarmPerformanceSummary(
         totalYieldKg: totalYield,
@@ -295,48 +317,54 @@ class AnalyticsRepository {
   // caption never listed Recent Transactions as period-independent by
   // intent, unlike Price Monitoring/Planting Forecast/Top Harvested Crops,
   // which are).
+  /// OfflineCache key for the recent transactions with these arguments (matches the
+  /// key written by fetchRecentTransactions), for the screen notice.
+  static String recentTransactionsCacheScreen({
+    int limit = 5,
+    DateTime? startDate,
+  }) => 'analytics_recent_tx_${limit}_${startDate?.toIso8601String() ?? 'any'}';
+
   Future<List<TransactionRecord>> fetchRecentTransactions({
     int limit = 5,
     DateTime? startDate,
   }) async {
-    final ordersList = await _safeFetch(
-      'fetchRecentTransactions/orders',
-      () async {
-        var ordersQuery = _client
+    final ordersList = await _safeFetch('fetchRecentTransactions/orders', () async {
+      var ordersQuery = _client
           .from('orders')
-            .select(
-              'id, quantity_kg, total_price, created_at, marketplace_listings(crop_name)',
-            )
+          .select(
+            'id, quantity_kg, total_price, created_at, marketplace_listings(crop_name)',
+          )
           .eq('farmer_id', _userId)
-            .eq('status', 'completed');
-        if (startDate != null) {
-          ordersQuery = ordersQuery.gte(
-            'created_at',
-            startDate.toIso8601String(),
-          );
-        }
-        final rows = await ordersQuery
-          .order('created_at', ascending: false)
-          .limit(limit);
+          .eq('status', 'completed');
+      if (startDate != null) {
+        ordersQuery = ordersQuery.gte(
+          'created_at',
+          startDate.toIso8601String(),
+        );
+      }
+      final rows = await OfflineCache.load(
+        screen:
+            'analytics_recent_tx_${limit}_${startDate?.toIso8601String() ?? 'any'}',
+        fetch: () =>
+            ordersQuery.order('created_at', ascending: false).limit(limit),
+      );
       final List<TransactionRecord> list = [];
       for (final row in rows) {
         final id = row['id'] as String;
         final listing = row['marketplace_listings'] as Map<String, dynamic>?;
-          list.add(
-            TransactionRecord(
-          id: id,
-          cropName: listing?['crop_name'] as String? ?? 'Unknown crop',
-          quantityKg: (row['quantity_kg'] as num).toDouble(),
-          totalAmount: (row['total_price'] as num).toDouble(),
-          date: DateTime.parse(row['created_at'] as String),
-          reference: 'ORD-${id.substring(0, 4).toUpperCase()}',
-            ),
-          );
+        list.add(
+          TransactionRecord(
+            id: id,
+            cropName: listing?['crop_name'] as String? ?? 'Unknown crop',
+            quantityKg: (row['quantity_kg'] as num).toDouble(),
+            totalAmount: (row['total_price'] as num).toDouble(),
+            date: DateTime.parse(row['created_at'] as String),
+            reference: 'ORD-${id.substring(0, 4).toUpperCase()}',
+          ),
+        );
       }
       return list;
-      },
-      <TransactionRecord>[],
-    );
+    }, <TransactionRecord>[]);
 
     final coopList = await _safeFetch(
       'fetchRecentTransactions/memberSales',
@@ -349,30 +377,30 @@ class AnalyticsRepository {
             '${d.month.toString().padLeft(2, '0')}-'
             '${d.day.toString().padLeft(2, '0')}';
         var coopQuery = _client
-          .from('member_sales_transactions')
-          .select('id, crop_name, quantity_kg, amount, sale_date')
+            .from('member_sales_transactions')
+            .select('id, crop_name, quantity_kg, amount, sale_date')
             .eq('farmer_id', _userId);
         if (startDate != null) {
           coopQuery = coopQuery.gte('sale_date', dateOnly(startDate));
         }
         final rows = await coopQuery
-          .order('sale_date', ascending: false)
-          .limit(limit);
-      final List<TransactionRecord> list = [];
-      for (final row in rows) {
-        final id = row['id'] as String;
+            .order('sale_date', ascending: false)
+            .limit(limit);
+        final List<TransactionRecord> list = [];
+        for (final row in rows) {
+          final id = row['id'] as String;
           list.add(
             TransactionRecord(
-          id: id,
-          cropName: row['crop_name'] as String,
-          quantityKg: (row['quantity_kg'] as num).toDouble(),
-          totalAmount: (row['amount'] as num).toDouble(),
-          date: DateTime.parse(row['sale_date'] as String),
-          reference: 'COOP-${id.substring(0, 4).toUpperCase()}',
+              id: id,
+              cropName: row['crop_name'] as String,
+              quantityKg: (row['quantity_kg'] as num).toDouble(),
+              totalAmount: (row['amount'] as num).toDouble(),
+              date: DateTime.parse(row['sale_date'] as String),
+              reference: 'COOP-${id.substring(0, 4).toUpperCase()}',
             ),
           );
-      }
-      return list;
+        }
+        return list;
       },
       <TransactionRecord>[],
     );
@@ -381,8 +409,8 @@ class AnalyticsRepository {
       'fetchRecentTransactions/informalSales',
       () async {
         var informalQuery = _client
-          .from('informal_sales')
-          .select('id, crop_name, quantity_kg, amount, sale_date')
+            .from('informal_sales')
+            .select('id, crop_name, quantity_kg, amount, sale_date')
             .eq('farmer_id', _userId);
         if (startDate != null) {
           informalQuery = informalQuery.gte(
@@ -391,23 +419,23 @@ class AnalyticsRepository {
           );
         }
         final rows = await informalQuery
-          .order('sale_date', ascending: false)
-          .limit(limit);
-      final List<TransactionRecord> list = [];
-      for (final row in rows) {
-        final id = row['id'] as String;
+            .order('sale_date', ascending: false)
+            .limit(limit);
+        final List<TransactionRecord> list = [];
+        for (final row in rows) {
+          final id = row['id'] as String;
           list.add(
             TransactionRecord(
-          id: id,
-          cropName: row['crop_name'] as String,
-          quantityKg: (row['quantity_kg'] as num).toDouble(),
-          totalAmount: ((row['amount'] as num?)?.toDouble() ?? 0),
-          date: DateTime.parse(row['sale_date'] as String),
-          reference: 'INF-${id.substring(0, 4).toUpperCase()}',
+              id: id,
+              cropName: row['crop_name'] as String,
+              quantityKg: (row['quantity_kg'] as num).toDouble(),
+              totalAmount: ((row['amount'] as num?)?.toDouble() ?? 0),
+              date: DateTime.parse(row['sale_date'] as String),
+              reference: 'INF-${id.substring(0, 4).toUpperCase()}',
             ),
           );
-      }
-      return list;
+        }
+        return list;
       },
       <TransactionRecord>[],
     );
@@ -427,12 +455,15 @@ class AnalyticsRepository {
       // farmer_crops two-hop harvest_records/inventory_batches need. Same
       // embed FarmerMarketRatesRepository.fetchMarketRates() already uses
       // for Market Rates' own crop thumbnails.
-      final rows = await _client
-          .from('price_records')
-          .select(
-            'crop_name, price_type, price, previous_price, recorded_at, crop_master(image_url)',
-          )
-          .order('recorded_at', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'analytics_price_cards',
+        fetch: () => _client
+            .from('price_records')
+            .select(
+              'crop_name, price_type, price, previous_price, recorded_at, crop_master(image_url)',
+            )
+            .order('recorded_at', ascending: false),
+      );
 
       // Keyed on (crop_name, price_type), not crop_name alone — matching
       // PriceManagementRepository/FarmerMarketRatesRepository's existing
@@ -467,6 +498,14 @@ class AnalyticsRepository {
   // bound (All Time), matching the same nullable-startDate convention
   // fetchFarmPerformance already uses.
 
+  /// OfflineCache key for one crop's price history (matches fetchPriceHistory's key).
+  static String priceHistoryCacheScreen(
+    String cropName, {
+    required String priceType,
+    DateTime? startDate,
+  }) =>
+      'analytics_price_history_${cropName}_${priceType}_${startDate?.toIso8601String() ?? 'any'}';
+
   Future<List<PriceHistoryPoint>> fetchPriceHistory(
     String cropName, {
     required String priceType,
@@ -483,13 +522,17 @@ class AnalyticsRepository {
         query = query.gte('recorded_at', startDate.toIso8601String());
       }
 
-      final rows = await query.order('recorded_at', ascending: true);
+      final rows = await OfflineCache.load(
+        screen:
+            'analytics_price_history_${cropName}_${priceType}_${startDate?.toIso8601String() ?? 'any'}',
+        fetch: () => query.order('recorded_at', ascending: true),
+      );
 
       return rows
           .map(
             (row) => PriceHistoryPoint(
-                date: DateTime.parse(row['recorded_at'] as String),
-                price: (row['price'] as num).toDouble(),
+              date: DateTime.parse(row['recorded_at'] as String),
+              price: (row['price'] as num).toDouble(),
             ),
           )
           .toList();
@@ -500,10 +543,13 @@ class AnalyticsRepository {
 
   Future<List<PlantingForecast>> fetchPlantingForecasts() async {
     return _safeFetch('fetchPlantingForecasts', () async {
-      final rows = await _client
-          .from('crop_planting_forecast')
-          .select()
-          .order('most_recent_cycle_kg', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'analytics_planting_forecast',
+        fetch: () => _client
+            .from('crop_planting_forecast')
+            .select()
+            .order('most_recent_cycle_kg', ascending: false),
+      );
 
       // Join category from crop_master — the coop-wide canonical catalog,
       // readable by any authenticated user. farmer_crops was the previous
@@ -518,9 +564,11 @@ class AnalyticsRepository {
       // whole forecast list.
       final categoryMap = <String, String>{};
       try {
-        final cropRows = await _client
-            .from('crop_master')
-            .select('crop_name, category');
+        final cropRows = await OfflineCache.load(
+          screen: 'analytics_crop_categories',
+          fetch: () =>
+              _client.from('crop_master').select('crop_name, category'),
+        );
         for (final row in cropRows) {
           categoryMap.putIfAbsent(
             row['crop_name'] as String,
@@ -553,9 +601,11 @@ class AnalyticsRepository {
       // supabase_schema_top_harvested_crops.sql for why. The view already
       // does the SUM/GROUP BY, so this no longer re-aggregates client-side,
       // just sorts and takes the top N.
-      final rows = await _client
-          .from('top_harvested_crops')
-          .select('crop_name, total_kg');
+      final rows = await OfflineCache.load(
+        screen: 'analytics_top_crops',
+        fetch: () =>
+            _client.from('top_harvested_crops').select('crop_name, total_kg'),
+      );
 
       final sorted = rows.toList()
         ..sort(
@@ -569,14 +619,14 @@ class AnalyticsRepository {
       return top
           .map(
             (row) => TopSellingCrop(
-                cropName: row['crop_name'] as String,
-                volumeKg: (row['total_kg'] as num).toDouble(),
-                percentOfMax: maxVal > 0
+              cropName: row['crop_name'] as String,
+              volumeKg: (row['total_kg'] as num).toDouble(),
+              percentOfMax: maxVal > 0
                   ? ((row['total_kg'] as num).toDouble() / maxVal).clamp(
                       0.0,
                       1.0,
                     )
-                    : 0,
+                  : 0,
             ),
           )
           .toList();

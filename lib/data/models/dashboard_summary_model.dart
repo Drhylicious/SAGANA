@@ -103,6 +103,29 @@ class ActivityItem {
     this.isAlert = false,
     required this.timestamp,
   });
+
+  /// Plain-map form, so a feed can be cached offline (OfflineCache keeps rows).
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'type': type.name,
+        'title': title,
+        'subtitle': subtitle,
+        'valueLabel': valueLabel,
+        'statusLabel': statusLabel,
+        'isAlert': isAlert,
+        'timestamp': timestamp.toIso8601String(),
+      };
+
+  factory ActivityItem.fromMap(Map<String, dynamic> map) => ActivityItem(
+        id: map['id'] as String,
+        type: ActivityType.values.byName(map['type'] as String),
+        title: map['title'] as String,
+        subtitle: map['subtitle'] as String,
+        valueLabel: map['valueLabel'] as String?,
+        statusLabel: map['statusLabel'] as String?,
+        isAlert: map['isAlert'] as bool? ?? false,
+        timestamp: DateTime.parse(map['timestamp'] as String),
+      );
 }
 
 // ─── Activity Filter ──────────────────────────────────────────────────────────
@@ -114,21 +137,6 @@ class ActivityItem {
 enum ActivityFilter { all, home, harvest, listing, profile }
 
 extension ActivityFilterExt on ActivityFilter {
-  String get label {
-    switch (this) {
-      case ActivityFilter.all:
-        return 'All';
-      case ActivityFilter.home:
-        return 'Home';
-      case ActivityFilter.harvest:
-        return 'Harvest';
-      case ActivityFilter.listing:
-        return 'Listing';
-      case ActivityFilter.profile:
-        return 'Profile';
-    }
-  }
-
   bool matches(ActivityItem item) {
     switch (this) {
       case ActivityFilter.all:

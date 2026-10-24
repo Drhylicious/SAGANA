@@ -7,8 +7,11 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/farmer_transaction_model.dart';
 import '../../../data/repositories/farmer_transaction_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// Farmer's own transaction history, across all 4 selling channels —
 /// distinct from Admin's Sales Report, which aggregates every farmer-
@@ -105,16 +108,19 @@ class _FarmerTransactionHistoryScreenState
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message: "You're offline — your transaction history may not be up to date.",
-            ),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    // The crop image lookup runs first on every load, so it
+                    // stands in for the whole history's cache state.
+                    CachedDataNotice(
+                      screen: 'transactions_crop_images',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(context).offlineTransactions,
+                    ),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
@@ -135,7 +141,7 @@ class _FarmerTransactionHistoryScreenState
                                 4,
                                 (_) => Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
-                                  child: _TransactionShimmer(),
+                                  child: SkeletonList(count: 4, rowHeight: 80),
                                 ),
                               )
                             else if (_filtered.isEmpty)
@@ -534,75 +540,4 @@ class _EmptyState extends StatelessWidget {
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TransactionShimmer extends StatefulWidget {
-  @override
-  State<_TransactionShimmer> createState() => _TransactionShimmerState();
-}
 
-class _TransactionShimmerState extends State<_TransactionShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
-    _anim = Tween<double>(begin: -1, end: 2)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Widget _block(double w, double h) => AnimatedBuilder(
-        animation: _anim,
-        builder: (_, __) => Container(
-          width: w,
-          height: h,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            gradient: LinearGradient(
-              stops: [
-                (_anim.value - 1).clamp(0.0, 1.0),
-                _anim.value.clamp(0.0, 1.0),
-                (_anim.value + 1).clamp(0.0, 1.0),
-              ],
-              colors: const [Color(0xFFE8E8E8), Color(0xFFF5F5F5), Color(0xFFE8E8E8)],
-            ),
-          ),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-      ),
-      child: Row(
-        children: [
-          _block(48, 48),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _block(110, 14),
-                const SizedBox(height: 8),
-                _block(140, 11),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

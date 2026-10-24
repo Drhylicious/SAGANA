@@ -11,11 +11,9 @@ import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../widgets/admin_top_bar.dart';
-import '../../widgets/app_dialog.dart';
 import '../../widgets/app_navigation_drawer.dart';
 
 /// Loan Management — Admin Dashboard.
@@ -37,7 +35,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   List<AdminLoanSummary> _overdueLoans = [];
   List<AdminLoanSummary> _activeLoans = [];
   (int, int) _paidCountTrend = (0, 0);
-  List<Map<String, dynamic>> _syncIssues = [];
 
   /// Overdue first (most urgent), topped up with active loans to a max
   /// of 5 cards — replaces the old separate Overdue/Active sections.
@@ -73,7 +70,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       _overdueLoans = results[1] as List<AdminLoanSummary>;
       _activeLoans = results[2] as List<AdminLoanSummary>;
       _paidCountTrend = results[3] as (int, int);
-      _syncIssues = HiveService.getLoanSyncIssues();
       _isLoading = false;
     });
   }
@@ -92,7 +88,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
           final profile = AdminProfileStateService.instance.profile;
           return AppNavigationDrawer(
             photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Admin',
+            displayName: profile?.fullName ?? 'Manager',
             contactEmail: profile?.contactEmail ?? profile?.email,
             phoneNumber: profile?.phoneNumber,
             onEditProfile: () {
@@ -109,7 +105,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       ),
       body: Column(
         children: [
-          if (!_isOnline) const OfflineBanner(),
           AdminTopBar(
             title: l10n.loanDashTitle,
             onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
@@ -118,6 +113,11 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                 .then((_) => _loadAll()),
             onProfileTap: () => context.push(AppRoutes.adminProfile),
             enableMenu: true,
+          ),
+          CachedDataNotice(
+            screen: 'loans_active_5',
+            isOnline: _isOnline,
+            offlineMessage: AppLocalizations.of(context).offlineLoans,
           ),
           Expanded(
             child: RefreshIndicator(
@@ -132,18 +132,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
                         AppConstants.spacingSafeH,
                       ),
                       children: [
-                        if (_syncIssues.isNotEmpty) ...[
-                          _SyncIssuesCard(
-                            issues: _syncIssues,
-                            cs: cs,
-                            sagana: sagana,
-                            onTap: (issue) => AppDialog.show<void>(
-                              context: context,
-                              child: _SyncIssueDetailDialog(issue: issue),
-                            ),
-                          ),
-                          const SizedBox(height: AppConstants.spacingMd),
-                        ],
                         _buildBodBanner(context, l10n, cs, sagana),
                         const SizedBox(height: AppConstants.spacingMd),
                         _buildQuickActions(context, l10n),
@@ -964,202 +952,6 @@ class _AdminLoanCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SyncIssuesCard extends StatelessWidget {
-  final List<Map<String, dynamic>> issues;
-  final void Function(Map<String, dynamic>) onTap;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _SyncIssuesCard({
-    required this.issues,
-    required this.onTap,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppConstants.warningAmber,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.loanDashSyncIssues,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(
-                      AppConstants.radiusFull,
-                    ),
-                  ),
-                  child: Text(
-                    l10n.buyerCartItemCount(issues.length),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: cs.outline.withValues(alpha: 0.08)),
-          ...issues.asMap().entries.map((entry) {
-            final i = entry.key;
-            final issue = entry.value;
-            final isIssuance = issue['type'] == 'issue';
-            final isLast = i == issues.length - 1;
-            return Column(
-              children: [
-                GestureDetector(
-                  onTap: () => onTap(issue),
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.sync_problem_rounded,
-                          color: AppConstants.warningAmber,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isIssuance
-                                    ? l10n.loanDashIssuanceFailedSync
-                                    : l10n.loanDashPaymentFailedSync,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onSurface,
-                                ),
-                              ),
-                              Text(
-                                issue['error'] as String,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppConstants.warningAmber.withValues(
-                            alpha: 0.60,
-                          ),
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (!isLast)
-                  Divider(
-                    height: 1,
-                    indent: 16,
-                    color: cs.outline.withValues(alpha: 0.08),
-                  ),
-              ],
-            );
-          }),
-        ],
-      ),
-    );
-  }
-}
-
-class _SyncIssueDetailDialog extends StatelessWidget {
-  final Map<String, dynamic> issue;
-
-  const _SyncIssueDetailDialog({required this.issue});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final isIssuance = issue['type'] == 'issue';
-    final failedAt = DateTime.tryParse(issue['failedAt'] as String? ?? '');
-
-    return AlertDialog(
-      title: Text(
-        isIssuance
-            ? l10n.loanDashIssuanceFailedSync
-            : l10n.loanDashPaymentFailedSync,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(issue['error'] as String),
-          if (failedAt != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              l10n.loanDashLastAttempted(
-                DateFormat('MMM d, h:mm a').format(failedAt),
-              ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.close),
-        ),
-      ],
     );
   }
 }

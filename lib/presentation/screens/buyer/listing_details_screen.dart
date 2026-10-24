@@ -13,6 +13,10 @@ import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 // Same fix pattern as create_listing_screen.dart's _DecimalInputFormatter
 // (max variant) — the previous formatter here only validated decimal
@@ -26,7 +30,10 @@ class _MaxQuantityInputFormatter extends TextInputFormatter {
   const _MaxQuantityInputFormatter(this.max);
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.isEmpty) return newValue;
     if (!RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)) return oldValue;
     final parsed = double.tryParse(newValue.text);
@@ -73,6 +80,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   final _cartService = CartService();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   BuyerListingModel? _listing;
   List<BuyerListingModel> _related = [];
   // Default quantity for Add to Cart only (Buy Now rework — the on-page
@@ -87,8 +95,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       _listing?.farmerId != null &&
       _listing!.farmerId == Supabase.instance.client.auth.currentUser?.id;
 
-  String get _cartRoute =>
-      widget.isFarmerContext ? AppRoutes.farmerMarketplaceCart : AppRoutes.buyerCart;
+  String get _cartRoute => widget.isFarmerContext
+      ? AppRoutes.farmerMarketplaceCart
+      : AppRoutes.buyerCart;
 
   String get _checkoutRoute => widget.isFarmerContext
       ? AppRoutes.farmerMarketplaceCheckout
@@ -101,6 +110,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -109,7 +121,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
     final listing = await _repository.fetchListingById(widget.listingId);
     List<BuyerListingModel> related = [];
     if (listing != null) {
-      related = await _repository.fetchRelatedListings(excludeListingId: listing.id);
+      related = await _repository.fetchRelatedListings(
+        excludeListingId: listing.id,
+      );
       // Was: .floor().clamp(1, ...) — silently truncated a fractional
       // remainder (low-stock listings under 10kg were floored, making the
       // true fractional remainder unreachable).
@@ -134,14 +148,16 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetContext) => _BuyNowSheet(
-        listing: listing,
-        checkoutRoute: _checkoutRoute,
-      ),
+      builder: (sheetContext) =>
+          _BuyNowSheet(listing: listing, checkoutRoute: _checkoutRoute),
     );
   }
 
   Future<void> _addToCart() async {
+    if (!ConnectivityService.instance.isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     final listing = _listing!;
     setState(() => _isAddingToCart = true);
@@ -177,7 +193,29 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
     final sagana = context.saganaColors;
 
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      // Same layout as the loaded page: photo area on top, back button over it.
+      return Scaffold(
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                const SkeletonBlock(height: 260, radius: 0),
+                const Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 8,
+              child: SubPageBackButton(onPressed: () => context.pop()),
+            ),
+          ],
+        ),
+      );
     }
 
     if (_listing == null) {
@@ -205,6 +243,11 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              CachedDataNotice(
+                screen: 'buyer_listing_${widget.listingId}',
+                isOnline: _isOnline,
+                offlineMessage: l10n.offlineBuyerBody,
+              ),
               SizedBox(
                 height: 400,
                 width: double.infinity,
@@ -214,15 +257,16 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                     Opacity(
                       opacity: listing.isSoldOut ? 0.55 : 1.0,
                       child: listing.listingPhotoUrl != null
-                          ? Image.network(listing.listingPhotoUrl!, fit: BoxFit.cover)
+                          ? Image.network(
+                              listing.listingPhotoUrl!,
+                              fit: BoxFit.cover,
+                            )
                           : Container(color: AppConstants.limeGreen),
                     ),
                     Positioned(
-                      top: 8, left: 8,
-                      child: _CircleIconButton(
-                        icon: Icons.arrow_back_rounded,
-                        onTap: () => context.pop(),
-                      ),
+                      top: 8,
+                      left: 8,
+                      child: SubPageBackButton(onPressed: () => context.pop()),
                     ),
                     // Was a static "✓ SP3 Cooperative" verification badge
                     // sitting exactly where a buyer would expect to see
@@ -232,8 +276,12 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                     // already has its own dedicated card below, so
                     // nothing about the cooperative is lost here.
                     Positioned(
-                      bottom: 16, right: 16,
-                      child: _pill(listing.marketTypeLabel, AppConstants.primaryGreen),
+                      bottom: 16,
+                      right: 16,
+                      child: _pill(
+                        listing.marketTypeLabel,
+                        AppConstants.primaryGreen,
+                      ),
                     ),
                     // Sold Out indicator — this screen previously showed
                     // none at all, so it visually "disappeared" the moment
@@ -242,212 +290,319 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                     // top-left and the pill was covering it.
                     if (listing.isSoldOut)
                       Positioned(
-                        top: 16, right: 16,
-                        child: _pill(l10n.buyerBrowseSoldOut, AppConstants.errorRed),
+                        top: 16,
+                        right: 16,
+                        child: _pill(
+                          l10n.buyerBrowseSoldOut,
+                          AppConstants.errorRed,
+                        ),
                       ),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 24,
+                  AppConstants.spacingSafeH,
+                  16,
+                  AppConstants.spacingSafeH,
+                  24,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Price + units sold, directly under the image — moved
-                      // here (was its own boxed "Selling Price" card further
-                      // down) to match a standard marketplace product-page
-                      // hierarchy: price/sold is the first thing a buyer
-                      // reads, before the name.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                    // here (was its own boxed "Selling Price" card further
+                    // down) to match a standard marketplace product-page
+                    // hierarchy: price/sold is the first thing a buyer
+                    // reads, before the name.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₱${listing.pricePerKg.toStringAsFixed(0)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: listing.isSoldOut
+                                    ? AppConstants.outline
+                                    : AppConstants.primaryGreen,
+                              ),
+                            ),
+                            Text(
+                              '/kg',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AppConstants.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
                             children: [
-                              Text('₱${listing.pricePerKg.toStringAsFixed(0)}',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 26, fontWeight: FontWeight.w800,
-                                    color: listing.isSoldOut ? AppConstants.outline : AppConstants.primaryGreen,
-                                  )),
-                              Text('/kg', style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+                              const Icon(
+                                Icons.sell_outlined,
+                                size: 14,
+                                color: AppConstants.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.buyerBrowseUnitsSold(
+                                  listing.soldKg.toStringAsFixed(0),
+                                ),
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppConstants.onSurfaceVariant,
+                                ),
+                              ),
                             ],
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.sell_outlined, size: 14, color: AppConstants.onSurfaceVariant),
-                                const SizedBox(width: 4),
-                                Text(
-                                  l10n.buyerBrowseUnitsSold(listing.soldKg.toStringAsFixed(0)),
-                                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      listing.displayName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ),
+                    if (listing.category != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        listing.category!,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AppConstants.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    // Cooperative info + the farmer's own free-text
+                    // description, in one card (Buyer Browse-tab rework —
+                    // was two separate cards; the standalone "Product
+                    // Details" chip card is gone, per requirement 4).
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: _elevatedCardDecoration(context),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: const BoxDecoration(
+                                  color: AppConstants.primaryGreen,
+                                  shape: BoxShape.circle,
                                 ),
-                              ],
-                            ),
+                                child: const Icon(
+                                  Icons.agriculture_rounded,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      AppConstants.cooperativeName,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      AppConstants.cooperativeLocation,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: AppConstants.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
+                          if (listing.description != null &&
+                              listing.description!.isNotEmpty) ...[
+                            const SizedBox(height: 14),
+                            Text(
+                              listing.description!,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AppConstants.onSurfaceVariant,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 8),
+                    ),
+                    if (_isOwnListing || listing.isSoldOut) ...[
+                      const SizedBox(height: 16),
+                      if (_isOwnListing)
+                        _buildOwnListingNotice(l10n)
+                      else
+                        _buildSoldOutNotice(l10n),
+                    ],
+                    if (_related.isNotEmpty) ...[
+                      const SizedBox(height: 24),
                       Text(
-                        listing.displayName,
+                        l10n.buyerListingMoreFromSp3,
                         style: GoogleFonts.poppins(
-                          fontSize: 24, fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                           color: AppConstants.primaryGreen,
                         ),
                       ),
-                      if (listing.category != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          listing.category!,
-                          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      // Cooperative info + the farmer's own free-text
-                      // description, in one card (Buyer Browse-tab rework —
-                      // was two separate cards; the standalone "Product
-                      // Details" chip card is gone, per requirement 4).
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: _elevatedCardDecoration(context),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 48, height: 48,
-                                  decoration: const BoxDecoration(
-                                    color: AppConstants.primaryGreen, shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.agriculture_rounded, color: Colors.white),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 130,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _related.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 10),
+                          itemBuilder: (context, i) {
+                            final r = _related[i];
+                            return GestureDetector(
+                              onTap: () => context.pushReplacement(
+                                _listingDetailsRoute,
+                                extra: r.id,
+                              ),
+                              child: Container(
+                                width: 140,
+                                decoration: flatCardDecoration(context),
+                                clipBehavior: Clip.antiAlias,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      height: 80,
+                                      width: double.infinity,
+                                      child: r.listingPhotoUrl != null
+                                          ? Image.network(
+                                              r.listingPhotoUrl!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Container(
+                                              color: AppConstants.limeGreen,
+                                            ),
+                                    ),
+                                    Padding(
+                                      // Vertical 6 not 8 — at 8 this Column
+                                      // overflowed its 130px card by a
+                                      // single pixel once real font
+                                      // metrics (not the naive fontSize×1.2
+                                      // estimate) are accounted for.
+                                      padding: const EdgeInsets.fromLTRB(
+                                        8,
+                                        6,
+                                        8,
+                                        6,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            r.displayName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          Text(
+                                            '₱${r.pricePerKg.toStringAsFixed(0)}/kg',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppConstants.primaryGreen,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(AppConstants.cooperativeName,
-                                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
-                                      Text(AppConstants.cooperativeLocation,
-                                          style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (listing.description != null && listing.description!.isNotEmpty) ...[
-                              const SizedBox(height: 14),
-                              Text(listing.description!,
-                                  style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5)),
-                            ],
-                          ],
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      if (_isOwnListing || listing.isSoldOut) ...[
-                        const SizedBox(height: 16),
-                        if (_isOwnListing)
-                          _buildOwnListingNotice(l10n)
-                        else
-                          _buildSoldOutNotice(l10n),
-                      ],
-                      if (_related.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        Text(l10n.buyerListingMoreFromSp3,
-                            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 130,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _related.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 10),
-                            itemBuilder: (context, i) {
-                              final r = _related[i];
-                              return GestureDetector(
-                                onTap: () => context.pushReplacement(
-                                  _listingDetailsRoute,
-                                  extra: r.id,
-                                ),
-                                child: Container(
-                                  width: 140,
-                                  decoration: flatCardDecoration(context),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox(
-                                        height: 80, width: double.infinity,
-                                        child: r.listingPhotoUrl != null
-                                            ? Image.network(r.listingPhotoUrl!, fit: BoxFit.cover)
-                                            : Container(color: AppConstants.limeGreen),
-                                      ),
-                                      Padding(
-                                        // Vertical 6 not 8 — at 8 this Column
-                                        // overflowed its 130px card by a
-                                        // single pixel once real font
-                                        // metrics (not the naive fontSize×1.2
-                                        // estimate) are accounted for.
-                                        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(r.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                                style: GoogleFonts.inter(fontSize: 11)),
-                                            Text('₱${r.pricePerKg.toStringAsFixed(0)}/kg',
-                                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+      ),
       // Reverted back to bottomNavigationBar (per explicit instruction) —
       // the inline placement attempt is undone.
       bottomNavigationBar: (!listing.isSoldOut && !_isOwnListing)
           ? SafeArea(
               child: Container(
                 padding: const EdgeInsets.fromLTRB(
-                  AppConstants.spacingSafeH, 10, AppConstants.spacingSafeH, 10,
+                  AppConstants.spacingSafeH,
+                  10,
+                  AppConstants.spacingSafeH,
+                  10,
                 ),
                 decoration: BoxDecoration(
                   color: sagana.cardBackground,
-                  border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.10))),
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.10),
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
                     SizedBox(
-                      width: 52, height: 52,
+                      width: 52,
+                      height: 52,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppConstants.primaryGreen,
-                          side: const BorderSide(color: AppConstants.primaryGreen),
+                          side: const BorderSide(
+                            color: AppConstants.primaryGreen,
+                          ),
                           padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusMd,
+                            ),
+                          ),
                         ),
                         onPressed: _isAddingToCart ? null : _addToCart,
                         child: _isAddingToCart
                             ? const SizedBox(
-                                height: 18, width: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.primaryGreen),
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppConstants.primaryGreen,
+                                ),
                               )
-                            : const Icon(Icons.add_shopping_cart_rounded, size: 20),
+                            : const Icon(
+                                Icons.add_shopping_cart_rounded,
+                                size: 20,
+                              ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -474,16 +629,24 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       decoration: BoxDecoration(
         color: AppConstants.onPrimaryContainer.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppConstants.primaryGreen.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.storefront_rounded, color: AppConstants.primaryGreen),
+          const Icon(
+            Icons.storefront_rounded,
+            color: AppConstants.primaryGreen,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               l10n.buyerListingOwnListingNotice,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -500,7 +663,9 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       decoration: BoxDecoration(
         color: AppConstants.errorRed.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.20)),
+        border: Border.all(
+          color: AppConstants.errorRed.withValues(alpha: 0.20),
+        ),
       ),
       child: Row(
         children: [
@@ -510,11 +675,22 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.buyerBrowseSoldOut,
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: AppConstants.errorRed)),
+                Text(
+                  l10n.buyerBrowseSoldOut,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppConstants.errorRed,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text('Check back later, or browse similar listings below.',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                Text(
+                  'Check back later, or browse similar listings below.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -526,28 +702,16 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   Widget _pill(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppConstants.radiusFull)),
-      child: Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
-    );
-  }
-
-}
-
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(color: context.saganaColors.cardBackground, shape: BoxShape.circle),
-          child: Icon(icon, color: AppConstants.primaryGreen),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
         ),
       ),
     );
@@ -571,10 +735,7 @@ class _BuyNowSheet extends StatefulWidget {
   final BuyerListingModel listing;
   final String checkoutRoute;
 
-  const _BuyNowSheet({
-    required this.listing,
-    required this.checkoutRoute,
-  });
+  const _BuyNowSheet({required this.listing, required this.checkoutRoute});
 
   @override
   State<_BuyNowSheet> createState() => _BuyNowSheetState();
@@ -645,10 +806,13 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
       quantityKg: _quantity,
     );
     Navigator.of(context).pop();
-    router.push(widget.checkoutRoute, extra: {
-      'items': [item],
-      'isCartCheckout': false,
-    });
+    router.push(
+      widget.checkoutRoute,
+      extra: {
+        'items': [item],
+        'isCartCheckout': false,
+      },
+    );
   }
 
   // 40px — a proper touch target with a visible gap on either side of the
@@ -660,7 +824,8 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 32, height: 32,
+        width: 32,
+        height: 32,
         alignment: Alignment.center,
         child: Icon(icon, size: 16, color: AppConstants.primaryGreen),
       ),
@@ -676,7 +841,11 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
       ),
       child: Text(
         _listing.marketTypeLabel,
-        style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -708,10 +877,13 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   margin: const EdgeInsets.only(bottom: 24),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -722,9 +894,13 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                     child: SizedBox(
-                      width: 76, height: 76,
+                      width: 76,
+                      height: 76,
                       child: _listing.listingPhotoUrl != null
-                          ? Image.network(_listing.listingPhotoUrl!, fit: BoxFit.cover)
+                          ? Image.network(
+                              _listing.listingPhotoUrl!,
+                              fit: BoxFit.cover,
+                            )
                           : Container(color: AppConstants.limeGreen),
                     ),
                   ),
@@ -736,15 +912,32 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('₱${_listing.pricePerKg.toStringAsFixed(0)}',
-                                style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
-                            Text('/kg', style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+                            Text(
+                              '₱${_listing.pricePerKg.toStringAsFixed(0)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: AppConstants.primaryGreen,
+                              ),
+                            ),
+                            Text(
+                              '/kg',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppConstants.onSurfaceVariant,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          l10n.buyerListingMaxAvailable(_listing.displayAvailableKg.toStringAsFixed(0)),
-                          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant),
+                          l10n.buyerListingMaxAvailable(
+                            _listing.displayAvailableKg.toStringAsFixed(0),
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppConstants.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -769,7 +962,10 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                 children: [
                   Text(
                     l10n.buyerListingOrderQty,
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   // One shared bordered pill around all three elements —
                   // was three individually-boxed controls with gaps between
@@ -778,8 +974,14 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
-                      border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.35)),
-                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                      border: Border.all(
+                        color: AppConstants.primaryGreen.withValues(
+                          alpha: 0.35,
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusMd,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -791,10 +993,24 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                             controller: _qtyController,
                             focusNode: _qtyFocusNode,
                             textAlign: TextAlign.center,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [_MaxQuantityInputFormatter(_listing.displayAvailableKg)],
-                            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
-                            decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.zero, border: InputBorder.none),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              _MaxQuantityInputFormatter(
+                                _listing.displayAvailableKg,
+                              ),
+                            ],
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppConstants.primaryGreen,
+                            ),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                              border: InputBorder.none,
+                            ),
                             onSubmitted: (_) => _commitQuantityInput(),
                           ),
                         ),

@@ -18,19 +18,19 @@ import '../../../data/models/farmer_member_model.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/loan_model.dart';
 import '../../../data/models/contribution_model.dart';
+import '../../../data/models/expense_model.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/models/admin_reports_model.dart';
-import '../../../data/repositories/account_management_repository.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/app_toast.dart';
-import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
-import '../../widgets/suspend_reason_dialog.dart';
-import '../../widgets/temp_password_dialog.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 
 class FarmerDetailsScreen extends StatefulWidget {
   final String farmerId;
@@ -44,7 +44,6 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   final _repo = FarmerDetailsRepository();
   final _capitalRepo = CapitalContributionRepository();
   final _reportsRepo = AdminReportsRepository();
-  final _accountRepo = AccountManagementRepository();
 
   FarmerProfileModel? _profile;
   FarmPerformanceSummary _harvestSummary = FarmPerformanceSummary.empty;
@@ -71,11 +70,15 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
   BuyerAddressModel? _address;
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
 
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _loadAll();
   }
 
@@ -142,7 +145,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
             l10n.farmerDetailsContributionRecorded,
             style: GoogleFonts.inter(fontSize: 13),
           ),
-          backgroundColor: AppConstants.successGreen,
+          backgroundColor: AppConstants.midGreen,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -165,121 +168,6 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
       .where((l) => !l.isPaid)
       .fold(0.0, (sum, l) => sum + l.remainingBalance);
 
-  void _showActionsMenu() {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (_) => _ActionsMenu(
-        status: _profile?.memberStatus ?? MemberStatus.active,
-        onNotify: () {
-          Navigator.pop(context);
-          context.push(AppRoutes.announcementDashboard);
-        },
-        onRecordPayment: () {
-          Navigator.pop(context);
-          context.push(AppRoutes.recordPayment, extra: widget.farmerId);
-        },
-        onResetPassword: () async {
-          Navigator.pop(context);
-          try {
-            final tempPassword = await _accountRepo.resetUserPassword(
-              widget.farmerId,
-            );
-            if (!mounted) return;
-            await showTempPasswordDialog(
-              context: context,
-              name: _profile?.fullName ?? '',
-              tempPassword: tempPassword,
-            );
-          } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  AppLocalizations.of(context).farmerMgmtResetPasswordError,
-                ),
-                backgroundColor: AppConstants.errorRed,
-              ),
-            );
-          }
-        },
-        onToggleStatus: () async {
-          Navigator.pop(context);
-          final status = _profile?.memberStatus ?? MemberStatus.active;
-          // Bugfix (verification pass): the toggle only applies to
-          // Active/Inactive/Suspended. Pending/Rejected/Draft must not
-          // reach here — the menu itself hides the row for them — but
-          // stay defensive in case a stale menu instance calls through.
-          if (!status.supportsSuspendToggle) return;
-          if (!status.isEffectivelyActive) {
-            // Suspended — reactivate, single tap.
-            try {
-              await _repo.setFarmerStatus(
-                farmerId: widget.farmerId,
-                status: 'active',
-              );
-            } catch (_) {
-              if (mounted)
-                AppToast.show(context, l10n.suspendActionError, isError: true);
-              return;
-            }
-            _loadAll();
-            return;
-          }
-          // Active or Inactive — suspend, two-step (Decision D17).
-          final reason = await promptSuspendReason(
-            context: context,
-            title: l10n.farmerDetailsSuspendMemberTitle,
-            hint: l10n.farmerDetailsSuspendReasonHint,
-          );
-          if (reason == null || reason.trim().isEmpty || !mounted) return;
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (dc) => AlertDialog(
-              title: Text(
-                l10n.farmerMgmtConfirmSuspensionTitle,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
-              content: Text(
-                '${l10n.farmerMgmtSuspendMemberLine(_profile?.fullName ?? '')}\n'
-                '${l10n.farmerMgmtSuspendOutcomeLine}\n'
-                '${l10n.farmerMgmtReasonLine(reason.trim())}',
-                style: GoogleFonts.inter(fontSize: 13),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dc, false),
-                  child: Text(l10n.farmerMgmtBack),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(dc, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppConstants.errorRed,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: Text(l10n.farmerMgmtSuspendAccountAction),
-                ),
-              ],
-            ),
-          );
-          if (ok != true) return;
-          try {
-            await _repo.setFarmerStatus(
-              farmerId: widget.farmerId,
-              status: 'suspended',
-              reason: reason.trim(),
-            );
-          } catch (_) {
-            if (mounted)
-              AppToast.show(context, l10n.suspendActionError, isError: true);
-            return;
-          }
-          _loadAll();
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -289,8 +177,16 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+        body: Column(
+          children: [
+            SubPageTopBar(title: '', onBack: () => context.pop()),
+            const Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SkeletonList(),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -331,6 +227,16 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: FarmerDetailsRepository.cacheScreens(
+                  widget.farmerId,
+                ).first,
+                otherScreens: FarmerDetailsRepository.cacheScreens(
+                  widget.farmerId,
+                ).skip(1).toList(),
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineStaffBody,
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: cs.primary,
@@ -365,7 +271,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   20,
                                   12,
                                   20,
-                                  120,
+                                  24,
                                 ),
                                 children: [
                                   if (profile.memberStatus ==
@@ -400,7 +306,15 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                     cs: cs,
                                     sagana: sagana,
                                   ),
-                                  if (_statusHistory.isNotEmpty) ...[
+                                  // Status History is shown while an application is
+                                  // under review (Pending) or was Disapproved. Once
+                                  // approved it is hidden; the records themselves
+                                  // stay in the database untouched.
+                                  if (_statusHistory.isNotEmpty &&
+                                      (profile.memberStatus ==
+                                              MemberStatus.pending ||
+                                          profile.memberStatus ==
+                                              MemberStatus.rejected)) ...[
                                     const SizedBox(height: 16),
                                     _StatusHistoryCard(
                                       events: _statusHistory,
@@ -415,7 +329,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   20,
                                   12,
                                   20,
-                                  120,
+                                  24,
                                 ),
                                 children: [
                                   _HarvestActivityCard(
@@ -435,7 +349,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   20,
                                   12,
                                   20,
-                                  120,
+                                  24,
                                 ),
                                 children: [
                                   _LoanSummaryCard(
@@ -451,7 +365,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   20,
                                   12,
                                   20,
-                                  120,
+                                  24,
                                 ),
                                 children: [
                                   _ContributionCard(
@@ -461,6 +375,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                     capitalLedger: _capitalLedger,
                                     cs: cs,
                                     sagana: sagana,
+                                    canRecordContribution: !profile.memberStatus.isApplicant,
                                     onRecordContribution: _recordContribution,
                                     onViewFull: () => context.push(
                                       AppRoutes.memberContributionReport,
@@ -490,95 +405,20 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
           ),
 
           // ── Top App Bar ─────────────────────────────────────────────────
+          // View-only: no ⋮ menu and no action bar. Every action on a member
+          // (notify, reset password, issue loan, record a payment, suspend,
+          // approve / disapprove) is in the ⋯ menu on the member's card in the
+          // Members list.
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: _TopAppBar(
+            child: SubPageTopBar(
               title: profile.fullName,
               onBack: () => context.pop(),
-              onMenu: _showActionsMenu,
-              sagana: sagana,
-              cs: cs,
-            ),
-          ),
-
-          // ── Bottom action bar ───────────────────────────────────────────
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _BottomActionBar(
-              cs: cs,
-              sagana: sagana,
-              onNotify: () => context.push(AppRoutes.announcementDashboard),
-              onPay: () =>
-                  context.push(AppRoutes.recordPayment, extra: widget.farmerId),
-              onIssueLoan: () =>
-                  context.push(AppRoutes.issueNewLoan, extra: widget.farmerId),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Top App Bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TopAppBar extends StatelessWidget {
-  final String title;
-  final VoidCallback onBack;
-  final VoidCallback onMenu;
-  final SaganaColors sagana;
-  final ColorScheme cs;
-
-  const _TopAppBar({
-    required this.title,
-    required this.onBack,
-    required this.onMenu,
-    required this.sagana,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.more_vert_rounded, color: cs.primary),
-                onPressed: onMenu,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -807,13 +647,19 @@ class _IdentityCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
-                  profile.isVerified
+                  profile.memberStatus == MemberStatus.pending
+                      ? l10n.farmerDetailsPendingApplicantBadge
+                      : profile.memberStatus == MemberStatus.rejected
+                      ? l10n.farmerMgmtStatusRejectedLabel
+                      : profile.isVerified
                       ? l10n.farmerDetailsActiveMemberBadge
                       : l10n.farmerDetailsPendingVerificationBadge,
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: profile.isVerified
+                    color: profile.memberStatus == MemberStatus.rejected
+                        ? AppConstants.errorRed
+                        : profile.isVerified
                         ? AppConstants.successGreen
                         : AppConstants.warningAmber,
                   ),
@@ -1622,6 +1468,8 @@ class _ContributionCard extends StatelessWidget {
   final List<CapitalContributionEvent> capitalLedger;
   final ColorScheme cs;
   final SaganaColors sagana;
+  /// False for an applicant: capital is recorded for members only.
+  final bool canRecordContribution;
   final VoidCallback onRecordContribution;
   final VoidCallback onViewFull;
 
@@ -1632,6 +1480,7 @@ class _ContributionCard extends StatelessWidget {
     required this.capitalLedger,
     required this.cs,
     required this.sagana,
+    required this.canRecordContribution,
     required this.onRecordContribution,
     required this.onViewFull,
   });
@@ -1763,6 +1612,7 @@ class _ContributionCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (canRecordContribution) ...[
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
@@ -1778,6 +1628,7 @@ class _ContributionCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                ],
                 if (capitalLedger.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   ...capitalLedger
@@ -1894,7 +1745,432 @@ class _ContributionCard extends StatelessWidget {
   }
 }
 
-class _ExpensesTab extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Expenses and Programs tabs. The layout and card design follow the farmer's
+// own My Expenses and My Programs screens. The rows come from the same
+// fetchFarmerExpenses / fetchAssignedPrograms calls as before. The period and
+// purpose filters run on those loaded rows, so nothing is fetched again.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One expense row, read from the map fetchFarmerExpenses returns.
+class _ExpenseRecord {
+  final String category;
+  final String description;
+  final double amount;
+  final DateTime date;
+  final bool isSubsidy;
+
+  const _ExpenseRecord({
+    required this.category,
+    required this.description,
+    required this.amount,
+    required this.date,
+    required this.isSubsidy,
+  });
+
+  static _ExpenseRecord? fromMap(Map<String, dynamic> map) {
+    final date = DateTime.tryParse(map['expense_date'] as String? ?? '');
+    if (date == null) return null;
+    return _ExpenseRecord(
+      category: map['category'] as String? ?? 'Other',
+      description: map['description'] as String? ?? '',
+      amount: (map['amount'] as num? ?? 0).toDouble(),
+      date: date,
+      isSubsidy: map['is_subsidy'] as bool? ?? false,
+    );
+  }
+}
+
+/// Keeps the rows in the selected period, using the same start dates as
+/// ExpensePeriod.startDate and comparing calendar days.
+bool _inPeriod(_ExpenseRecord e, ExpensePeriod period) {
+  final start = period.startDate;
+  if (start == null) return true;
+  final day = DateTime(e.date.year, e.date.month, e.date.day);
+  return !day.isBefore(DateTime(start.year, start.month, start.day));
+}
+
+/// Same rules as ExpenseRepository.buildBreakdown: subsidised entries count
+/// as zero, subsidy-only categories still appear, and the result is sorted
+/// by total.
+List<CategoryBreakdown> _breakdownFor(List<_ExpenseRecord> rows) {
+  final totals = <String, double>{};
+  final hasSubsidy = <String, bool>{};
+  for (final e in rows) {
+    if (e.isSubsidy) {
+      hasSubsidy[e.category] = true;
+    } else {
+      totals[e.category] = (totals[e.category] ?? 0) + e.amount;
+    }
+  }
+  for (final cat in hasSubsidy.keys) {
+    totals.putIfAbsent(cat, () => 0);
+  }
+  if (totals.isEmpty) return [];
+  final maxVal = totals.values.reduce((a, b) => a > b ? a : b);
+  return totals.entries
+      .map(
+        (e) => CategoryBreakdown(
+          category: e.key,
+          total: e.value,
+          percentOfMax: maxVal > 0 ? (e.value / maxVal).clamp(0.0, 1.0) : 1.0,
+          hasSubsidy: hasSubsidy.containsKey(e.key),
+        ),
+      )
+      .toList()
+    ..sort((a, b) => b.total.compareTo(a.total));
+}
+
+String _periodLabel(AppLocalizations l10n, ExpensePeriod p) {
+  switch (p) {
+    case ExpensePeriod.allTime:
+      return l10n.farmerAnalyticsPeriodAllTime;
+    case ExpensePeriod.thisMonth:
+      return l10n.farmerAnalyticsPeriodThisMonth;
+    case ExpensePeriod.thisSeason:
+      return l10n.farmerAnalyticsPeriodThisSeason;
+    case ExpensePeriod.thisYear:
+      return l10n.farmerAnalyticsPeriodThisYear;
+  }
+}
+
+/// Pill filter chip, same look as the farmer's period filter.
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _FilterPill({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(
+            color: active
+                ? AppConstants.primaryContainer
+                : const Color(0xFFD5ECF8),
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: active
+                  ? AppConstants.onPrimaryContainer
+                  : AppConstants.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 112,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: AppConstants.onSurfaceVariant,
+              height: 1.2,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppConstants.onSurface,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BreakdownCard extends StatelessWidget {
+  final List<CategoryBreakdown> breakdown;
+  final String title;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _BreakdownCard({
+    required this.breakdown,
+    required this.title,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final money = NumberFormat('#,##0');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (final b in breakdown)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        b.category,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        b.total > 0 ? '₱${money.format(b.total)}' : '₱0.00',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: b.hasSubsidy && b.total == 0
+                          ? 1.0
+                          : b.percentOfMax,
+                      minHeight: 6,
+                      backgroundColor: const Color(0xFFCFE6F2),
+                      valueColor: AlwaysStoppedAnimation(
+                        b.hasSubsidy && b.total == 0
+                            ? AppConstants.successGreen
+                            : categoryColor(b.category),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionCard extends StatelessWidget {
+  final _ExpenseRecord record;
+  final String subsidyTag;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _TransactionCard({
+    required this.record,
+    required this.subsidyTag,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: record.isSubsidy
+            ? const BorderRadius.horizontal(
+                right: Radius.circular(AppConstants.radiusLg),
+              )
+            : BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: categoryBgColor(record.category).withValues(alpha: 0.40),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              categoryIcon(record.category),
+              color: categoryColor(record.category),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        record.category,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (record.isSubsidy) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppConstants.successGreen,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
+                        ),
+                        child: Text(
+                          subsidyTag,
+                          style: GoogleFonts.inter(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                Text(
+                  record.description.isEmpty ? '—' : record.description,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM d, yyyy').format(record.date),
+                  style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '₱${NumberFormat('#,##0.00').format(record.amount)}',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: record.isSubsidy
+                  ? AppConstants.successGreen
+                  : cs.onSurface,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded, size: 18, color: cs.outline),
+        ],
+      ),
+    );
+
+    if (!record.isSubsidy) {
+      return SizedBox(width: double.infinity, child: card);
+    }
+    // A subsidy row gets its own accent stripe. A single BoxDecoration can't
+    // combine a border radius with a one-sided colour, so the stripe is a
+    // separate widget beside the card.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 4,
+            decoration: const BoxDecoration(
+              color: AppConstants.successGreen,
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(AppConstants.radiusLg),
+              ),
+            ),
+          ),
+          Expanded(child: card),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpensesTab extends StatefulWidget {
   final List<Map<String, dynamic>> expenses;
   final ColorScheme cs;
   final SaganaColors sagana;
@@ -1906,9 +2182,24 @@ class _ExpensesTab extends StatelessWidget {
   });
 
   @override
+  State<_ExpensesTab> createState() => _ExpensesTabState();
+}
+
+class _ExpensesTabState extends State<_ExpensesTab> {
+  // Same default period as the farmer's My Expenses screen.
+  ExpensePeriod _period = ExpensePeriod.thisMonth;
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (expenses.isEmpty) {
+    final cs = widget.cs;
+    final sagana = widget.sagana;
+    final all = widget.expenses
+        .map(_ExpenseRecord.fromMap)
+        .whereType<_ExpenseRecord>()
+        .toList();
+
+    if (all.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -1920,70 +2211,258 @@ class _ExpensesTab extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-      itemCount: expenses.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final expense = expenses[index];
-        final amount = expense['amount'] as num? ?? 0;
-        final date = expense['expense_date'] as String?;
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: sagana.cardBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+    final rows = all.where((e) => _inPeriod(e, _period)).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final breakdown = _breakdownFor(rows);
+    // The period total leaves out subsidised entries, as on the farmer's
+    // screen: it is the sum of the breakdown bars.
+    final periodTotal = breakdown.fold(0.0, (sum, b) => sum + b.total);
+    CategoryBreakdown? top;
+    for (final b in breakdown) {
+      if (b.total > 0) {
+        top = b;
+        break;
+      }
+    }
+    final money = NumberFormat('#,##0');
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      children: [
+        SizedBox(
+          height: 98,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _MetricTile(
+                label: l10n.farmerDetailsExpPeriodTotal,
+                value: '₱${money.format(periodTotal)}',
+                color: AppConstants.primaryGreen,
+                icon: Icons.payments_rounded,
+              ),
+              const SizedBox(width: 10),
+              _MetricTile(
+                label: l10n.farmerDetailsExpTopCategory,
+                value: top?.category ?? l10n.farmerDetailsExpNoneYet,
+                color: top != null
+                    ? categoryColor(top.category)
+                    : AppConstants.outline,
+                icon: top != null
+                    ? categoryIcon(top.category)
+                    : Icons.category_outlined,
+              ),
+              const SizedBox(width: 10),
+              _MetricTile(
+                label: l10n.farmerDetailsExpEntries,
+                value: '${rows.length}',
+                color: AppConstants.buyerBlue,
+                icon: Icons.receipt_long_rounded,
+              ),
+            ],
           ),
+        ),
+        const SizedBox(height: 14),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: cs.primary.withValues(alpha: 0.10),
-                child: Icon(Icons.receipt_long_rounded, color: cs.primary),
+              for (final p in ExpensePeriod.values)
+                _FilterPill(
+                  label: _periodLabel(l10n, p),
+                  active: p == _period,
+                  onTap: () => setState(() => _period = p),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (breakdown.isNotEmpty) ...[
+          _BreakdownCard(
+            breakdown: breakdown,
+            title: l10n.farmerDetailsExpCategoryBreakdown,
+            cs: cs,
+            sagana: sagana,
+          ),
+          const SizedBox(height: 18),
+        ],
+        Text(
+          l10n.farmerAnalyticsRecentTransactionsTitle,
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (rows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              l10n.farmerDetailsExpNoTransactions,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      expense['description'] as String? ??
-                          l10n.farmerDetailsExpenseFallback,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
+            ),
+          )
+        else
+          for (final e in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _TransactionCard(
+                record: e,
+                subsidyTag: l10n.farmerDetailsExpSubsidyTag,
+                cs: cs,
+                sagana: sagana,
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+class _ProgramCard extends StatelessWidget {
+  final Map<String, dynamic> program;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+
+  const _ProgramCard({
+    required this.program,
+    required this.cs,
+    required this.sagana,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isSales = program['program_purpose'] == 'sales';
+    final accent = isSales
+        ? AppConstants.successGreen
+        : AppConstants.programPurple;
+    final description = program['description'] as String? ?? '';
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 4,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(AppConstants.radiusLg),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: sagana.cardBackground,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(AppConstants.radiusLg),
+                ),
+                border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusMd,
+                          ),
+                        ),
+                        child: Icon(
+                          isSales
+                              ? Icons.storefront_rounded
+                              : Icons.volunteer_activism_rounded,
+                          color: accent,
+                          size: 22,
+                        ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              program['name'] as String? ??
+                                  l10n.farmerDetailsProgramFallback,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              isSales
+                                  ? l10n.farmerDetailsProgSalesPurpose
+                                  : l10n.farmerDetailsProgDistributionPurpose,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
+                        ),
+                        child: Text(
+                          l10n.farmerDetailsProgStatusActive,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: accent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Divider(
+                      height: 1,
+                      color: cs.outline.withValues(alpha: 0.10),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 10),
                     Text(
-                      date != null ? date.split('T').first : '—',
+                      description,
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              Text(
-                '₱${amount.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: cs.primary,
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
-class _ProgramsTab extends StatelessWidget {
+class _ProgramsTab extends StatefulWidget {
   final List<Map<String, dynamic>> programs;
   final ColorScheme cs;
   final SaganaColors sagana;
@@ -1995,9 +2474,27 @@ class _ProgramsTab extends StatelessWidget {
   });
 
   @override
+  State<_ProgramsTab> createState() => _ProgramsTabState();
+}
+
+class _ProgramsTabState extends State<_ProgramsTab> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  // 'all' | 'distribution' | 'sales'
+  String _purpose = 'all';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (programs.isEmpty) {
+    final cs = widget.cs;
+
+    if (widget.programs.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -2009,336 +2506,67 @@ class _ProgramsTab extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-      itemCount: programs.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final program = programs[index];
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: sagana.cardBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.emoji_events_rounded,
-                    color: AppConstants.programPurple,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      program['name'] as String? ??
-                          l10n.farmerDetailsProgramFallback,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                program['description'] as String? ??
-                    l10n.farmerDetailsAssignedProgramFallback,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
+    final visible = widget.programs.where((p) {
+      final isSales = p['program_purpose'] == 'sales';
+      if (_purpose == 'sales' && !isSales) return false;
+      if (_purpose == 'distribution' && isSales) return false;
+      if (_query.isEmpty) return true;
+      return (p['name'] as String? ?? '').toLowerCase().contains(_query);
+    }).toList();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bottom Action Bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BottomActionBar extends StatelessWidget {
-  final ColorScheme cs;
-  final SaganaColors sagana;
-  final VoidCallback onNotify;
-  final VoidCallback onPay;
-  final VoidCallback onIssueLoan;
-
-  const _BottomActionBar({
-    required this.cs,
-    required this.sagana,
-    required this.onNotify,
-    required this.onPay,
-    required this.onIssueLoan,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.of(context).padding.bottom + 12,
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      children: [
+        TextField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+          decoration: InputDecoration(
+            hintText: l10n.farmerDetailsProgSearchHint,
+            prefixIcon: const Icon(Icons.search_rounded),
           ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(top: BorderSide(color: sagana.glassBorder)),
-          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              Expanded(
-                child: _OutlineActionButton(
-                  icon: Icons.sms_outlined,
-                  label: l10n.farmerDetailsNotifyAction,
-                  onTap: onNotify,
-                  cs: cs,
-                ),
+              _FilterPill(
+                label: l10n.farmerMgmtAllFilter,
+                active: _purpose == 'all',
+                onTap: () => setState(() => _purpose = 'all'),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _OutlineActionButton(
-                  icon: Icons.payments_outlined,
-                  label: l10n.farmerDetailsPayAction,
-                  onTap: onPay,
-                  cs: cs,
-                ),
+              _FilterPill(
+                label: l10n.programMgmtFilterDistribution,
+                active: _purpose == 'distribution',
+                onTap: () => setState(() => _purpose = 'distribution'),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: GestureDetector(
-                  onTap: onIssueLoan,
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          AppConstants.primaryGreen,
-                          AppConstants.primaryContainer,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.add_card_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            l10n.farmerDetailsIssueLoanAction,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              _FilterPill(
+                label: l10n.programMgmtFilterSales,
+                active: _purpose == 'sales',
+                onTap: () => setState(() => _purpose = 'sales'),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _OutlineActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-
-  const _OutlineActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          border: Border.all(color: cs.primary),
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: cs.primary),
-            const SizedBox(width: 4),
-            // Flexible + ellipsis: this button sits in a narrow Expanded
-            // slot alongside a sibling button and the "Issue Loan" gradient
-            // button (see _ActionBar above) — "Magbayad" (Pay) is much
-            // longer than "Pay" and this centered Row had no width guard.
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: cs.primary,
-                ),
+        const SizedBox(height: 14),
+        if (visible.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              l10n.farmerDetailsProgNoMatch,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Actions Menu (top-right ⋮)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ActionsMenu extends StatelessWidget {
-  final MemberStatus status;
-  final VoidCallback onNotify;
-  final VoidCallback onRecordPayment;
-  final VoidCallback onToggleStatus;
-  final VoidCallback onResetPassword;
-
-  const _ActionsMenu({
-    required this.status,
-    required this.onNotify,
-    required this.onRecordPayment,
-    required this.onToggleStatus,
-    required this.onResetPassword,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    final isActive = status.isEffectivelyActive;
-    // Same status set the Members-list three-dot menu (_FarmerActionsSheet)
-    // excludes Record Loan Payment for — a Pending applicant isn't a
-    // member yet, and a Rejected one never was (Issue 5 verification fix).
-    final canRecordPayment =
-        status != MemberStatus.pending && status != MemberStatus.rejected;
-
-    Widget row({
-      required IconData icon,
-      required String label,
-      required VoidCallback onTap,
-      bool destructive = false,
-    }) {
-      final color = destructive ? cs.error : cs.onSurface;
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(width: 14),
-              Text(label, style: GoogleFonts.inter(fontSize: 14, color: color)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ManagementModalShell(
-      title: l10n.farmerDetailsMemberActionsTitle,
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Consistent with the Members-list three-dot menu's naming and
-          // row order (Send Notification, Record Loan Payment, Set
-          // Suspend/Active, Reset Password) — View Profile is deliberately
-          // omitted, since the admin is already viewing this profile.
-          row(
-            icon: Icons.campaign_outlined,
-            label: l10n.farmerMgmtActionSendNotification,
-            onTap: onNotify,
-          ),
-          if (canRecordPayment)
-            row(
-              icon: Icons.payments_outlined,
-              label: l10n.farmerMgmtActionRecordLoanPayment,
-              onTap: onRecordPayment,
-            ),
-          // Bugfix (verification pass): Pending/Rejected/Draft have no
-          // Active⇄Suspended toggle — Pending is reviewed via
-          // Approve/Reject on the Members list; Rejected is reviewed only
-          // by the applicant resubmitting (up to 3 attempts), never by an
-          // admin "reactivating" it here.
-          if (status.supportsSuspendToggle)
-            row(
-              icon: isActive ? Icons.person_off_outlined : Icons.person_rounded,
-              label: isActive
-                  ? l10n.farmerMgmtActionSetSuspended
-                  : l10n.farmerMgmtActionSetActive,
-              onTap: onToggleStatus,
-              destructive: isActive,
-            )
-          else if (status == MemberStatus.rejected)
+          )
+        else
+          for (final p in visible)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    size: 20,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      l10n.farmerDetailsRejectedNoToggleNote,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ProgramCard(program: p, cs: cs, sagana: widget.sagana),
             ),
-          row(
-            icon: Icons.lock_reset_rounded,
-            label: l10n.farmerMgmtActionResetPassword,
-            onTap: onResetPassword,
-          ),
-        ],
-      ),
+      ],
     );
   }
 }

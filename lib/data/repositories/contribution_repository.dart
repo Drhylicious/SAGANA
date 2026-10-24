@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/contribution_model.dart';
 import '../models/admin_reports_model.dart';
 import '../models/program_model.dart';
@@ -14,14 +15,16 @@ class ContributionRepository {
   Future<MemberContribution?> fetchCurrentYearContribution() async {
     try {
       final year = DateTime.now().year;
-      final row = await _client
-          .from('member_contributions')
-          .select()
-          .eq('farmer_id', _userId)
-          .eq('year', year)
-          .maybeSingle();
-      if (row == null) return null;
-      return MemberContribution.fromMap(row);
+      final rows = await OfflineCache.load(
+        screen: 'member_contribution_$year',
+        fetch: () => _client
+            .from('member_contributions')
+            .select()
+            .eq('farmer_id', _userId)
+            .eq('year', year),
+      );
+      if (rows.isEmpty) return null;
+      return MemberContribution.fromMap(rows.first);
     } catch (_) {
       return null;
     }
@@ -32,14 +35,16 @@ class ContributionRepository {
   Future<MemberContribution?> fetchPreviousYearContribution() async {
     try {
       final year = DateTime.now().year - 1;
-      final row = await _client
-          .from('member_contributions')
-          .select()
-          .eq('farmer_id', _userId)
-          .eq('year', year)
-          .maybeSingle();
-      if (row == null) return null;
-      return MemberContribution.fromMap(row);
+      final rows = await OfflineCache.load(
+        screen: 'member_contribution_$year',
+        fetch: () => _client
+            .from('member_contributions')
+            .select()
+            .eq('farmer_id', _userId)
+            .eq('year', year),
+      );
+      if (rows.isEmpty) return null;
+      return MemberContribution.fromMap(rows.first);
     } catch (_) {
       return null;
     }
@@ -105,13 +110,15 @@ class ContributionRepository {
 
   Future<CapitalSharesModel?> fetchCapitalShares() async {
     try {
-      final row = await _client
-          .from('member_capital_shares')
-          .select()
-          .eq('farmer_id', _userId)
-          .maybeSingle();
-      if (row == null) return null;
-      return CapitalSharesModel.fromMap(row);
+      final rows = await OfflineCache.load(
+        screen: 'member_capital_shares',
+        fetch: () => _client
+            .from('member_capital_shares')
+            .select()
+            .eq('farmer_id', _userId),
+      );
+      if (rows.isEmpty) return null;
+      return CapitalSharesModel.fromMap(rows.first);
     } catch (_) {
       return null;
     }

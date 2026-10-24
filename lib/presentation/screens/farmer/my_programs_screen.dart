@@ -7,6 +7,9 @@ import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class MyProgramsScreen extends StatefulWidget {
   const MyProgramsScreen({super.key});
@@ -64,16 +67,18 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
-              if (!_isOnline)
-                const OfflineBanner(message: "You're offline — your program enrollment details may not be up to date."),
+              CachedDataNotice(
+                screen: 'my_programs',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlinePrograms,
+              ),
               const SizedBox(height: 4),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                       : _programs.isEmpty
                           ? ListView(children: const [
                               SizedBox(height: 80),

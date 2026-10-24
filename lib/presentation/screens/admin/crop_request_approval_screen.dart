@@ -7,6 +7,10 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../data/models/admin_log_message.dart';
+import '../../../data/services/market_types_service.dart';
 
 // ─── Model ─────────────────────────────────────────────────────────────────
 
@@ -78,7 +82,7 @@ class _CropRequestRepository {
           farmerName: namesByUserId[farmerId] ?? 'Unknown',
           requestedName: r['requested_name'] as String,
           category: r['category'] as String? ?? 'Other',
-          cropType: r['crop_type'] as String? ?? 'open_market',
+          cropType: r['crop_type'] as String? ?? '',
           status: r['status'] as String,
           adminNotes: r['admin_notes'] as String?,
           photoUrl: r['photo_url'] as String?,
@@ -183,7 +187,14 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
   void _showReviewModal(CropRequestItem item) {
     final l10n = AppLocalizations.of(context);
     final notesCtrl = TextEditingController();
-    String selectedCropType = item.cropType;
+    // The farmer's suggested market type if it is still a valid option,
+    // otherwise the default one; the Manager confirms or changes it.
+    final validCodes = MarketTypes.instance.activeTypes
+        .map((t) => t.code)
+        .toList();
+    String selectedCropType = validCodes.contains(item.cropType)
+        ? item.cropType
+        : (MarketTypes.instance.defaultCode ?? item.cropType);
     bool isSaving = false;
 
     showManagementModal(
@@ -216,9 +227,9 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
               AdminActivityRepository().log(
                 module: 'crops',
                 actionType: approve ? 'approved' : 'rejected',
-                description: approve
-                    ? 'Approved ${item.farmerName}\'s crop request for "${item.requestedName}".'
-                    : 'Rejected ${item.farmerName}\'s crop request for "${item.requestedName}".',
+                message: approve
+? AdminLogMessage('adminLogCropRequestApproved', {'farmer': item.farmerName, 'crop': item.requestedName})
+: AdminLogMessage('adminLogCropRequestRejected', {'farmer': item.farmerName, 'crop': item.requestedName}),
                 referenceId: item.id,
               );
             }
@@ -235,7 +246,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                         : l10n.cropRequestFailedTryAgain,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
               behavior: SnackBarBehavior.floating,
                 ),
@@ -287,13 +298,10 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                     helperText: l10n.cropRequestCropTypeHelper,
                   ),
                   items: [
+                    for (final t in MarketTypes.instance.activeTypes)
                       DropdownMenuItem(
-                        value: 'sp3_cooperative',
-                        child: Text(l10n.cropRequestCooperativeMarket),
-                      ),
-                      DropdownMenuItem(
-                        value: 'open_market',
-                        child: Text(l10n.cropRequestPublicMarket),
+                        value: t.code,
+                        child: Text(MarketTypes.instance.label(t.code)),
                       ),
                   ],
                   onChanged: (v) => setSheet(() => selectedCropType = v!),
@@ -358,27 +366,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                    onPressed: () => context.pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      l10n.cropRequestTitle,
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            SubPageTopBar(title: l10n.cropRequestTitle, onBack: () => context.pop()),
             TabBar(
               controller: _tabController,
               labelColor: AppConstants.primaryGreen,
@@ -391,11 +379,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      ),
-                    )
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : TabBarView(
                       controller: _tabController,
                       children: [

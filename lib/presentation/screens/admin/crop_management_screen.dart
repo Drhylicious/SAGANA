@@ -18,6 +18,10 @@ import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart'
     show ReportIconStatCard, ReportSectionCard;
 import '../../widgets/material_list_tile.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../data/models/admin_log_message.dart';
+import '../../../data/services/market_types_service.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +30,9 @@ class CropMasterItem {
   final String cropName;
   final String category;
   final String cropType;
+  // The one selling channel this crop is reserved for (crop_master
+  // .exclusive_channel), or null. Read-only here: set in the database only.
+  final String? exclusiveChannel;
   final String? description;
   final String? imageUrl;
   final bool isActive;
@@ -36,6 +43,7 @@ class CropMasterItem {
     required this.cropName,
     required this.category,
     required this.cropType,
+    this.exclusiveChannel,
     this.description,
     this.imageUrl,
     required this.isActive,
@@ -46,7 +54,8 @@ class CropMasterItem {
         id: m['id'] as String,
         cropName: m['crop_name'] as String,
         category: m['category'] as String? ?? 'Other',
-        cropType: m['crop_type'] as String? ?? 'open_market',
+        cropType: m['crop_type'] as String? ?? '',
+        exclusiveChannel: m['exclusive_channel'] as String?,
         description: m['description'] as String?,
         imageUrl: m['image_url'] as String?,
         isActive: m['is_active'] as bool? ?? true,
@@ -116,7 +125,7 @@ class _CropMasterRepository {
       AdminActivityRepository().log(
         module: 'crops',
         actionType: 'created',
-        description: 'Added "$trimmedName" to the crop catalog ($category).',
+        message: AdminLogMessage('adminLogCropCatalogAdded', {'name': trimmedName, 'category': category}),
       );
       return true;
     } on CropDuplicateException {
@@ -149,7 +158,7 @@ class _CropMasterRepository {
       AdminActivityRepository().log(
         module: 'crops',
         actionType: 'updated',
-        description: 'Updated "$trimmedName" in the crop catalog ($category).',
+        message: AdminLogMessage('adminLogCropCatalogUpdated', {'name': trimmedName, 'category': category}),
         referenceId: id,
       );
       return true;
@@ -190,9 +199,9 @@ class _CropMasterRepository {
       AdminActivityRepository().log(
         module: 'crops',
         actionType: newValue ? 'activated' : 'deactivated',
-        description: newValue
-            ? 'Reactivated a crop in the catalog.'
-            : 'Deactivated a crop in the catalog.',
+        message: newValue
+? const AdminLogMessage('adminLogCropReactivated')
+: const AdminLogMessage('adminLogCropDeactivated'),
         referenceId: id,
       );
       return true;
@@ -207,7 +216,7 @@ class _CropMasterRepository {
       AdminActivityRepository().log(
         module: 'crops',
         actionType: 'deleted',
-        description: 'Deleted a crop from the catalog.',
+        message: const AdminLogMessage('adminLogCropDeleted'),
         referenceId: id,
       );
       return true;
@@ -480,7 +489,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                         : l10n.cropMgmtFailedTryAgain,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
               behavior: SnackBarBehavior.floating,
                 ),
@@ -497,78 +506,75 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // DA-AMAD Market is exclusive to Ginger — it never
-                  // appears as a choosable option for any other crop, and
-                  // for Ginger itself the field locks to it rather than
-                  // leaving it pickable, since several server-side guards
-                  // (create_listing_with_reservation, is_cooperative_eligible)
-                  // now depend on Ginger's crop_type actually being
-                  // da_amad_market. See M-marketplace-7.
+                  // Market type: every crop, Ginger included, is either of the
+                  // market types in the database (Public / Cooperative). The
+                  // options come from market_types. A crop's exclusive selling
+                  // channel (Ginger → DA-AMAD Market Linking) is NOT a market
+                  // type and cannot be chosen here: it is set in the database
+                  // only, and is shown at the top of the form as information
+                  // when present.
+                  if (existing?.exclusiveChannel != null) ...[
                     Builder(
-                      builder: (fieldCtx) {
-                        final isGinger =
-                            nameCtrl.text.trim().toLowerCase() == 'ginger';
-                    if (isGinger) {
-                      final cs = Theme.of(fieldCtx).colorScheme;
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: cs.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusMd,
-                              ),
-                        ),
-                        child: Row(
-                          children: [
-                                Icon(
-                                  Icons.lock_outline_rounded,
-                                  size: 14,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l10n.cropMgmtMarketTypeGingerNote,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: cs.onSurface,
-                                    ),
-                              ),
+                      builder: (noteCtx) {
+                        final cs = Theme.of(noteCtx).colorScheme;
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusMd,
                             ),
-                          ],
-                        ),
-                      );
-                    }
-                    return AppDropdownField<String>(
-                          value: selectedCropType == 'da_amad_market'
-                              ? null
-                              : selectedCropType,
-                      hintText: l10n.cropMgmtMarketTypeHint,
-                      labelText: l10n.cropMgmtMarketTypeLabel,
-                      helperText: l10n.cropMgmtMarketTypeHelper,
-                      items: const ['sp3_cooperative', 'open_market'],
-                      itemLabel: (v) => MarketTypeDisplay.label(l10n, v),
-                          onChanged: (v) =>
-                              setSheet(() => selectedCropType = v),
-                          validator: (v) => v == null
-                              ? l10n.cropMgmtMarketTypeRequired
-                              : null,
-                    );
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                size: 14,
+                                color: cs.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  l10n.cropMgmtExclusiveChannelNote(
+                                    MarketTypes.instance.channelLabel(
+                                      existing!.exclusiveChannel,
+                                    ),
+                                  ),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: cs.onSurface,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
                       },
                     ),
+                    const SizedBox(height: 14),
+                  ],
+                  AppDropdownField<String>(
+                    value: selectedCropType,
+                    hintText: l10n.cropMgmtMarketTypeHint,
+                    labelText: l10n.cropMgmtMarketTypeLabel,
+                    helperText: l10n.cropMgmtMarketTypeHelper,
+                    items: MarketTypes.instance.activeTypes
+                        .map((t) => t.code)
+                        .toList(),
+                    itemLabel: (v) => MarketTypeDisplay.label(l10n, v),
+                    onChanged: (v) => setSheet(() => selectedCropType = v),
+                    validator: (v) =>
+                        v == null ? l10n.cropMgmtMarketTypeRequired : null,
+                  ),
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: nameCtrl,
                     decoration: InputDecoration(
                       labelText: l10n.cropMgmtCropNameLabel,
-                      hintText: 'e.g. Ginger, Banana',
+                      hintText: 'e.g. Banana, Tomato',
                     ),
                     textCapitalization: TextCapitalization.words,
-                    onChanged: (v) => setSheet(() {
-                        if (v.trim().toLowerCase() == 'ginger')
-                          selectedCropType = 'da_amad_market';
-                    }),
                     validator: (value) {
                       if ((value ?? '').trim().isEmpty) {
                         return l10n.cropMgmtCropNameRequired;
@@ -870,46 +876,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
       body: Column(
         children: [
           // Top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        l10n.cropMgmtTitle,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.archive_rounded, color: cs.onSurface),
-                      tooltip: l10n.cropMgmtViewArchivedCrops,
-                      onPressed: _showArchivedSheet,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          SubPageTopBar(title: l10n.cropMgmtTitle, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.archive_rounded, color: cs.onSurface), tooltip: l10n.cropMgmtViewArchivedCrops, onPressed: _showArchivedSheet, )),
 
           if (!_isOnline)
             Container(
@@ -938,12 +905,7 @@ class _CropManagementScreenState extends State<CropManagementScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,

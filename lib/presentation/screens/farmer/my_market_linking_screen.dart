@@ -10,6 +10,9 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// Farmer's own DA-AMAD Market Linking screen. Gated on Enrollment (see
 /// DaAmadEnrollmentModel in market_linking_repository.dart) — a farmer
@@ -141,18 +144,14 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
-              if (!_isOnline)
-                const OfflineBanner(
-                  message:
-                      "You're offline — your enrollment status may not be up to date.",
-                ),
+              CachedDataNotice(
+                screen: 'market_linking_all',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineEnrollment,
+              ),
               Expanded(
                 child: _isLoadingGate
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppConstants.primaryGreen,
-                        ),
-                      )
+                    ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                     : RefreshIndicator(
                         color: AppConstants.primaryGreen,
                         onRefresh: _loadGate,
@@ -237,9 +236,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
 
     // Approved.
     if (_isLoadingEntries) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppConstants.primaryGreen),
-      );
+      return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
     if (_entries.isEmpty) {
       return ListView(
@@ -984,7 +981,7 @@ class _ApprovalCelebrationScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                'Congratulations!',
+                AppLocalizations.of(context).marketLinkCelebrationTitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 24,
@@ -994,8 +991,7 @@ class _ApprovalCelebrationScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Your enrollment in the DA-AMAD Ginger Market Linking program has been approved. '
-                'You may now submit your Ginger harvest for sale through Market Linking.',
+                AppLocalizations.of(context).marketLinkCelebrationBody,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 14,
@@ -1019,7 +1015,7 @@ class _ApprovalCelebrationScreen extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'Continue',
+                    AppLocalizations.of(context).marketLinkCelebrationContinue,
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,

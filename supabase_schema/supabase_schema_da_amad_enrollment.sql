@@ -153,61 +153,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION respond_to_da_amad_enrollment(UUID, BOOLEAN, TEXT) TO authenticated;
 
--- ─── Farmer submits a Ginger harvest for sale (approved enrollees only) ────
--- The existing "Farmers request own market linking enrollment" RLS INSERT
--- policy (supabase_schema_market_linking_farmer_requests.sql) only ever
--- allows a farmer to insert at status='requested' — by design, a farmer
--- could never insert directly into 'submitted'. That's exactly right for
--- an un-enrolled farmer, but now that Enrollment is its own approval gate,
--- an already-approved farmer submitting a harvest shouldn't need a SECOND
--- per-harvest approval. This RPC is the one narrow exception: it inserts
--- directly at 'submitted', but only after verifying the caller currently
--- holds an approved enrollment and the batch is really theirs — the exact
--- checks the RLS policy would have done, just for a different outcome
--- status. The RLS policy itself is untouched, so the old 'requested' path
--- (now unused by the app) still can't be bypassed any other way.
-CREATE OR REPLACE FUNCTION submit_ginger_for_sale(
-  p_inventory_batch_id UUID,
-  p_volume_kg NUMERIC
-)
-RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_farmer_id UUID := auth.uid();
-  v_new_id UUID;
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM da_amad_enrollments
-    WHERE farmer_id = v_farmer_id AND status = 'approved'
-  ) THEN
-    RAISE EXCEPTION 'An approved Market Linking enrollment is required to submit a Ginger harvest';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM inventory_batches
-    WHERE id = p_inventory_batch_id AND farmer_id = v_farmer_id
-  ) THEN
-    RAISE EXCEPTION 'That batch does not belong to you';
-  END IF;
-
-  INSERT INTO market_linking_programs (
-    farmer_id, crop_name, season_year, status, created_by,
-    inventory_batch_id, volume_kg, submitted_at
-  )
-  VALUES (
-    v_farmer_id, 'Ginger', EXTRACT(YEAR FROM NOW())::INT, 'submitted', v_farmer_id,
-    p_inventory_batch_id, p_volume_kg, NOW()
-  )
-  RETURNING id INTO v_new_id;
-
-  RETURN v_new_id;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION submit_ginger_for_sale(UUID, NUMERIC) TO authenticated;
+-- submit_ginger_for_sale is defined once, in
+-- supabase_schema_market_linking_enrollment_link.sql (Batch 0 consolidation).
 
 COMMIT;
 

@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import '../models/buyer_address_model.dart';
 import '../models/farmer_profile_model.dart';
 import '../models/farmer_member_model.dart';
@@ -6,6 +8,7 @@ import '../models/loan_model.dart';
 import '../models/contribution_model.dart';
 import '../models/analytics_model.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 /// Admin-scoped repository for viewing a single farmer's complete profile.
 /// Read-only — admin does not edit farmer-owned data (farm details, photo).
@@ -17,14 +20,47 @@ class FarmerDetailsRepository {
   /// The farmer's default address, which for an outsider applicant is the
   /// address saved at registration. Null when none is saved. Staff can read
   /// it only after supabase_schema_buyer_addresses_staff_read.sql is applied.
+  /// Every OfflineCache key this repository writes for one farmer (profile, loans,
+  /// contribution, capital, expenses, programs). The screen notice covers them all.
+  static List<String> cacheScreens(String farmerId) {
+    final year = DateTime.now().year;
+    return [
+      'fd_profile_info_$farmerId',
+      'fd_profile_farmer_$farmerId',
+      'fd_profile_crops_$farmerId',
+      'fd_profile_role_$farmerId',
+      'fd_loans_$farmerId',
+      'fd_contribution_${year}_$farmerId',
+      'fd_capital_shares_$farmerId',
+      'fd_expenses_$farmerId',
+      'fd_programs_$farmerId',
+      'capital_ledger_$farmerId',
+      'fd_address_$farmerId',
+      'fd_email_$farmerId',
+      'fd_summary_harvests_$farmerId',
+      'fd_summary_orders_$farmerId',
+      'fd_summary_coop_$farmerId',
+      'fd_summary_informal_$farmerId',
+      'fd_summary_expenses_$farmerId',
+      'fd_harvest_stats_$farmerId',
+      'fd_status_history_$farmerId',
+      'capital_summary_share_$farmerId',
+      'capital_summary_policy',
+    ];
+  }
+
   Future<BuyerAddressModel?> fetchDefaultAddress(String farmerId) async {
     try {
-      final row = await _client
-          .from('buyer_addresses')
-          .select()
-          .eq('user_id', farmerId)
-          .eq('is_default', true)
-          .maybeSingle();
+      final rowRows = await OfflineCache.load(
+        screen: 'fd_address_$farmerId',
+        fetch: () => _client
+            .from('buyer_addresses')
+            .select()
+            .eq('user_id', farmerId)
+            .eq('is_default', true)
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
       return row != null ? BuyerAddressModel.fromMap(row) : null;
     } catch (_) {
       return null;
@@ -35,25 +71,35 @@ class FarmerDetailsRepository {
 
   Future<FarmerProfileModel?> fetchFarmerProfile(String farmerId) async {
     try {
-      final userInfo = await _client
-          .from('user_information')
-          .select()
-          .eq('user_id', farmerId)
-          .maybeSingle();
-
-      final farmerProfile = await _client
-          .from('farmer_profiles')
-          .select()
-          .eq('user_id', farmerId)
-          .maybeSingle();
-
+      final userInfoRows = await OfflineCache.load(
+        screen: 'fd_profile_info_$farmerId',
+        fetch: () => _client
+            .from('user_information')
+            .select()
+            .eq('user_id', farmerId)
+            .limit(1),
+      );
+      final userInfo = userInfoRows.isEmpty ? null : userInfoRows.first;
+      final farmerProfileRows = await OfflineCache.load(
+        screen: 'fd_profile_farmer_$farmerId',
+        fetch: () => _client
+            .from('farmer_profiles')
+            .select()
+            .eq('user_id', farmerId)
+            .limit(1),
+      );
+      final farmerProfile = farmerProfileRows.isEmpty
+          ? null
+          : farmerProfileRows.first;
       List<String> crops = [];
       try {
-        final cropRows = await _client
-            .from('farmer_crops')
-            .select('crop_name')
-            .eq('farmer_id', farmerId)
-            .order('created_at', ascending: false);
+        final cropRows = await OfflineCache.load(
+          screen: 'fd_profile_crops_$farmerId',
+          fetch: () => _client
+              .from('farmer_crops')
+              .select('crop_name')
+              .eq('farmer_id', farmerId),
+        );
         crops = cropRows.map((r) => r['crop_name'] as String).toList();
       } catch (_) {}
 
@@ -66,12 +112,16 @@ class FarmerDetailsRepository {
       String? rejectionReason;
       String? suspensionReason;
       try {
-        final roleRow = await _client
-            .from('user_roles')
-            .select('status, rejection_reason, suspension_reason')
-            .eq('user_id', farmerId)
-            .eq('role', 'farmer')
-            .maybeSingle();
+        final roleRowRows = await OfflineCache.load(
+          screen: 'fd_profile_role_$farmerId',
+          fetch: () => _client
+              .from('user_roles')
+              .select('status, rejection_reason, suspension_reason')
+              .eq('user_id', farmerId)
+              .eq('role', 'farmer')
+              .limit(1),
+        );
+        final roleRow = roleRowRows.isEmpty ? null : roleRowRows.first;
         accountStatus = roleRow?['status'] as String? ?? 'active';
         rejectionReason = roleRow?['rejection_reason'] as String?;
         suspensionReason = roleRow?['suspension_reason'] as String?;
@@ -98,11 +148,15 @@ class FarmerDetailsRepository {
     try {
       // Admin can read auth.users via a Postgres function if exposed;
       // otherwise fall back to user_information if email is stored there.
-      final row = await _client
-          .from('user_information')
-          .select('email')
-          .eq('user_id', farmerId)
-          .maybeSingle();
+      final rowRows = await OfflineCache.load(
+        screen: 'fd_email_$farmerId',
+        fetch: () => _client
+            .from('user_information')
+            .select('email')
+            .eq('user_id', farmerId)
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
       return row?['email'] as String?;
     } catch (_) {
       return null;
@@ -113,11 +167,12 @@ class FarmerDetailsRepository {
 
   Future<FarmPerformanceSummary> fetchHarvestSummary(String farmerId) async {
     try {
-      final rows = await _client
-          .from('harvest_records')
-          .select('crop_name, quantity_kg, harvest_date')
-          .eq('farmer_id', farmerId);
-
+      final rows = await OfflineCache.load(
+        screen: 'fd_summary_harvests_$farmerId',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('crop_name, quantity_kg, harvest_date'),
+      );
       double totalYield = 0;
       final Map<String, double> byCrop = {};
       for (final row in rows) {
@@ -135,31 +190,34 @@ class FarmerDetailsRepository {
       // above), so unlike the other two, there's no date lower bound here.
       double totalRevenue = 0;
       try {
-        final orderRows = await _client
-            .from('orders')
-            .select('total_price')
-            .eq('farmer_id', farmerId)
-            .eq('status', 'completed');
+        final orderRows = await OfflineCache.load(
+          screen: 'fd_summary_orders_$farmerId',
+          fetch: () => _client
+              .from('orders')
+              .select('total_price')
+              .eq('farmer_id', farmerId),
+        );
         for (final row in orderRows) {
           totalRevenue += (row['total_price'] as num).toDouble();
         }
       } catch (_) {}
 
       try {
-        final coopRows = await _client
-            .from('member_sales_transactions')
-            .select('amount')
-            .eq('farmer_id', farmerId);
+        final coopRows = await OfflineCache.load(
+          screen: 'fd_summary_coop_$farmerId',
+          fetch: () =>
+              _client.from('member_sales_transactions').select('amount'),
+        );
         for (final row in coopRows) {
           totalRevenue += (row['amount'] as num).toDouble();
         }
       } catch (_) {}
 
       try {
-        final informalRows = await _client
-            .from('informal_sales')
-            .select('amount')
-            .eq('farmer_id', farmerId);
+        final informalRows = await OfflineCache.load(
+          screen: 'fd_summary_informal_$farmerId',
+          fetch: () => _client.from('informal_sales').select('amount'),
+        );
         for (final row in informalRows) {
           totalRevenue += ((row['amount'] as num?)?.toDouble() ?? 0);
         }
@@ -167,10 +225,10 @@ class FarmerDetailsRepository {
 
       double totalExpenses = 0;
       try {
-        final expenseRows = await _client
-            .from('farmer_expenses')
-            .select('amount')
-            .eq('farmer_id', farmerId);
+        final expenseRows = await OfflineCache.load(
+          screen: 'fd_summary_expenses_$farmerId',
+          fetch: () => _client.from('farmer_expenses').select('amount'),
+        );
         for (final row in expenseRows) {
           totalExpenses += (row['amount'] as num).toDouble();
         }
@@ -183,15 +241,15 @@ class FarmerDetailsRepository {
           byCrop.entries
               .map(
                 (e) => CropYieldBreakdown(
-                cropName: e.key,
-                quantityKg: e.value,
+                  cropName: e.key,
+                  quantityKg: e.value,
                   percentOfMax: maxQty > 0
                       ? (e.value / maxQty).clamp(0.0, 1.0)
                       : 0,
                 ),
               )
-          .toList()
-        ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
+              .toList()
+            ..sort((a, b) => b.quantityKg.compareTo(a.quantityKg));
 
       return FarmPerformanceSummary(
         totalYieldKg: totalYield,
@@ -213,12 +271,13 @@ class FarmerDetailsRepository {
 
   Future<Map<String, dynamic>> fetchHarvestStats(String farmerId) async {
     try {
-      final rows = await _client
-          .from('harvest_records')
-          .select('quantity_kg, harvest_date, crop_name, is_synced')
-          .eq('farmer_id', farmerId)
-          .order('harvest_date', ascending: false);
-
+      final rows = await OfflineCache.load(
+        screen: 'fd_harvest_stats_$farmerId',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('quantity_kg, harvest_date, crop_name, is_synced')
+            .eq('farmer_id', farmerId),
+      );
       if (rows.isEmpty) {
         return {
           'count': 0,
@@ -243,12 +302,12 @@ class FarmerDetailsRepository {
       }
 
       return {
-        'count':       rows.length,
-        'total_kg':    totalKg,
+        'count': rows.length,
+        'total_kg': totalKg,
         'this_year_kg': thisYearKg,
         'unsynced_count': unsyncedCount,
-        'last_entry':  rows.first['harvest_date'],
-        'recent':      rows.take(3).toList(),
+        'last_entry': rows.first['harvest_date'],
+        'recent': rows.take(3).toList(),
       };
     } catch (_) {
       return {
@@ -266,11 +325,13 @@ class FarmerDetailsRepository {
 
   Future<List<LoanModel>> fetchFarmerLoans(String farmerId) async {
     try {
-      final rows = await _client
-          .from('farmer_loans')
-          .select('*, farmer_loan_items(*), farmer_loan_payments(*)')
-          .eq('farmer_id', farmerId)
-          .order('issued_date', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'fd_loans_$farmerId',
+        fetch: () => _client
+            .from('farmer_loans')
+            .select('*, farmer_loan_items(*), farmer_loan_payments(*)')
+            .eq('farmer_id', farmerId),
+      );
       return rows.map((r) => LoanModel.fromMap(r)).toList();
     } catch (_) {
       return [];
@@ -284,12 +345,16 @@ class FarmerDetailsRepository {
   ) async {
     try {
       final year = DateTime.now().year;
-      final row = await _client
-          .from('member_contributions')
-          .select()
-          .eq('farmer_id', farmerId)
-          .eq('year', year)
-          .maybeSingle();
+      final rowRows = await OfflineCache.load(
+        screen: 'fd_contribution_${year}_$farmerId',
+        fetch: () => _client
+            .from('member_contributions')
+            .select()
+            .eq('farmer_id', farmerId)
+            .eq('year', year)
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
       if (row == null) return null;
       return MemberContribution.fromMap(row);
     } catch (_) {
@@ -299,11 +364,15 @@ class FarmerDetailsRepository {
 
   Future<CapitalSharesModel?> fetchCapitalShares(String farmerId) async {
     try {
-      final row = await _client
-          .from('member_capital_shares')
-          .select()
-          .eq('farmer_id', farmerId)
-          .maybeSingle();
+      final rowRows = await OfflineCache.load(
+        screen: 'fd_capital_shares_$farmerId',
+        fetch: () => _client
+            .from('member_capital_shares')
+            .select()
+            .eq('farmer_id', farmerId)
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
       if (row == null) return null;
       return CapitalSharesModel.fromMap(row);
     } catch (_) {
@@ -315,11 +384,15 @@ class FarmerDetailsRepository {
     String farmerId,
   ) async {
     try {
-      final rows = await _client
-          .from('farmer_expenses')
-          .select('id, description, amount, expense_date, category')
-          .eq('farmer_id', farmerId)
-          .order('expense_date', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'fd_expenses_$farmerId',
+        fetch: () => _client
+            .from('farmer_expenses')
+            .select(
+              'id, description, amount, expense_date, category, is_subsidy',
+            )
+            .eq('farmer_id', farmerId),
+      );
       return rows.map((row) => Map<String, dynamic>.from(row)).toList();
     } catch (_) {
       return [];
@@ -339,22 +412,25 @@ class FarmerDetailsRepository {
     String farmerId,
   ) async {
     try {
-      final rows = await _client
-          .from('program_members')
-          .select(
-            'id, program_id, farmer_id, status, enrolled_at, '
-                  'cooperative_programs(program_name, program_type, '
-            'description, status, season_year)',
-          )
-          .eq('farmer_id', farmerId)
-          .eq('status', 'active');
-
+      final rows = await OfflineCache.load(
+        screen: 'fd_programs_$farmerId',
+        fetch: () => _client
+            .from('program_members')
+            .select(
+              'id, program_id, farmer_id, status, enrolled_at, '
+              'cooperative_programs(program_name, program_type, '
+              'program_purpose, description, status, season_year)',
+            )
+            .eq('farmer_id', farmerId),
+      );
       return rows.map((row) {
         final program = row['cooperative_programs'] as Map<String, dynamic>?;
         return {
           'name': program?['program_name'] as String? ?? 'Program',
           'description': program?['description'] as String? ?? '',
           'program_type': program?['program_type'] as String?,
+          'program_purpose':
+              program?['program_purpose'] as String? ?? 'distribution',
           'season_year': program?['season_year'],
           'enrolled_at': row['enrolled_at'],
         };
@@ -373,21 +449,24 @@ class FarmerDetailsRepository {
     required String farmerId,
     required String status, // 'active' | 'suspended'
     String? reason,
+    DateTime? suspendedUntil, // null = until an admin reactivates
   }) async {
+    await ServerOnly.ensureOnline();
     if (status == 'suspended') {
       await _client.rpc(
         'suspend_member',
         params: {
-        'p_user_id': farmerId,
-        'p_reason': (reason == null || reason.trim().isEmpty)
-            ? 'Suspended by administrator'
-            : reason.trim(),
+          'p_user_id': farmerId,
+          'p_reason': (reason == null || reason.trim().isEmpty)
+              ? 'Suspended by Manager'
+              : reason.trim(),
+          'p_suspended_until': suspendedUntil?.toUtc().toIso8601String(),
         },
       );
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'suspended',
-        description: 'Suspended a member.',
+        message: const AdminLogMessage('adminLogMemberSuspended'),
         referenceId: farmerId,
       );
     } else {
@@ -395,7 +474,7 @@ class FarmerDetailsRepository {
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'reactivated',
-        description: 'Reactivated a member.',
+        message: const AdminLogMessage('adminLogMemberReactivated'),
         referenceId: farmerId,
       );
     }
@@ -403,12 +482,14 @@ class FarmerDetailsRepository {
 
   Future<List<MemberStatusEvent>> fetchStatusHistory(String farmerId) async {
     try {
-      final rows = await _client
-          .from('member_status_events')
-          .select('from_status, to_status, reason, created_at')
-          .eq('member_id', farmerId)
-          .order('created_at', ascending: false)
-          .limit(20);
+      final rows = await OfflineCache.load(
+        screen: 'fd_status_history_$farmerId',
+        fetch: () => _client
+            .from('member_status_events')
+            .select('from_status, to_status, reason, created_at')
+            .eq('member_id', farmerId)
+            .order('created_at', ascending: false),
+      );
       return rows.map((r) => MemberStatusEvent.fromMap(r)).toList();
     } catch (_) {
       return [];

@@ -3,13 +3,16 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
 import '../../widgets/management_modal.dart' show adminOrderStatusLabel;
-import '../../widgets/web_safe_blur_container.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class OrderManagementScreen extends StatefulWidget {
   /// When set, the screen opens pre-filtered to one buyer's orders —
@@ -37,6 +40,7 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   List<AdminOrderModel> _allOrders = [];
   bool _isLoading = true;
   bool _hasLoadedOnce = false;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   String _searchQuery = '';
 
   @override
@@ -46,6 +50,9 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text),
     );
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -92,6 +99,8 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
         return l10n.buyerOrderHistoryNoCompleted;
       case 'cancelled':
         return l10n.buyerOrderHistoryNoCancelled;
+      case 'rejected':
+        return l10n.buyerOrdersEmptyRejected;
       default:
         return l10n.buyerOrderHistoryNoOrdersYet;
     }
@@ -112,6 +121,11 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
                 ? l10n.orderMgmtTitleFor(widget.buyerName!)
                 : l10n.orderMgmtTitleGeneric,
             onBack: () => context.pop(),
+          ),
+          CachedDataNotice(
+            screen: 'orders_all_all',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineOrders,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -173,13 +187,21 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
                   onTap: () => setState(() => _statusFilter = 'cancelled'),
                   cs: cs,
                 ),
+                const SizedBox(width: 8),
+                ListingStatusFilterChip(
+                  label: adminOrderStatusLabel(l10n, 'rejected'),
+                  active: _statusFilter == 'rejected',
+                  color: AppConstants.errorRed,
+                  onTap: () => setState(() => _statusFilter = 'rejected'),
+                  cs: cs,
+                ),
               ],
             ),
           ),
           const SizedBox(height: 8),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _buildList(visible, _emptyMessage(l10n)),
           ),
         ],
@@ -231,6 +253,7 @@ class _OrderRow extends StatelessWidget {
       case 'completed':
         return AppConstants.primaryGreen;
       case 'cancelled':
+      case 'rejected':
         return AppConstants.errorRed;
       default:
         return AppConstants.outline;
@@ -367,38 +390,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sagana = context.saganaColors;
-    final cs = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      height: 64,
-      child: WebSafeBlurContainer(
-        blurSigma: 20,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: sagana.glassBackground,
-          border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-              onPressed: onBack,
-            ),
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: cs.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return SubPageTopBar(title: title, onBack: onBack);
   }
 }

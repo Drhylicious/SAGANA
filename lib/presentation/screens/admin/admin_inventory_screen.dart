@@ -14,11 +14,16 @@ import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
+import '../../../data/repositories/unit_repository.dart';
+import '../../widgets/add_unit_dialog.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/report_summary_widgets.dart'
     show ReportIconStatCard, ReportSectionCard;
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../../data/models/admin_log_message.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -31,7 +36,10 @@ class InventoryItem {
   final double quantityReserved;
   final double reorderLevel;
   final double? unitCost;
-  final String? notes;
+  // Where the item came from (supplier, donation, resolution...). Required for
+  // every new or edited item; null only on items created before the field
+  // existed, which the card shows as "Source not recorded".
+  final String? source;
   final bool isActive;
   final DateTime? lastRestockedAt;
   final String? imageUrl;
@@ -45,7 +53,7 @@ class InventoryItem {
     required this.quantityReserved,
     required this.reorderLevel,
     this.unitCost,
-    this.notes,
+    this.source,
     required this.isActive,
     this.lastRestockedAt,
     this.imageUrl,
@@ -66,7 +74,9 @@ class InventoryItem {
     unitCost: m['unit_cost'] != null
         ? (m['unit_cost'] as num).toDouble()
         : null,
-    notes: m['notes'] as String?,
+    source: (m['source'] as String?)?.trim().isEmpty ?? true
+        ? null
+        : (m['source'] as String).trim(),
     isActive: m['is_active'] as bool? ?? true,
     lastRestockedAt: m['last_restocked_at'] != null
         ? DateTime.parse(m['last_restocked_at'] as String)
@@ -106,6 +116,19 @@ class InventoryTransaction {
 }
 
 enum _DeleteResult { success, blockedHasPurchaseHistory, failed }
+
+/// Source is required on every inventory item (rule: checkInventorySource).
+/// The database enforces the same limits and is the final authority.
+String? _validateInventorySource(String? value, AppLocalizations l10n) {
+  switch (checkInventorySource(value)) {
+    case InventorySourceIssue.empty:
+      return l10n.adminInvSourceRequired;
+    case InventorySourceIssue.tooLong:
+      return l10n.adminInvSourceTooLong;
+    case null:
+      return null;
+  }
+}
 
 // ── Repository ───────────────────────────────────────────────────────────────
 
@@ -217,7 +240,7 @@ class _CoopInventoryRepository {
     required String unit,
     double? unitCost,
     required double reorderLevel,
-    String? notes,
+    required String source,
     String? imageUrl,
   }) async {
     try {
@@ -229,14 +252,14 @@ class _CoopInventoryRepository {
         'unit': unit,
         'unit_cost': unitCost,
         'reorder_level': reorderLevel,
-        'notes': notes?.trim(),
+        'source': source.trim(),
         'image_url': imageUrl,
         'created_by': _client.auth.currentUser?.id,
       });
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'created',
-        description: 'Added inventory item "${name.trim()}" ($category).',
+        message: AdminLogMessage('adminLogInventoryItemAdded', {'name': name.trim(), 'category': category}),
       );
       return true;
     } catch (_) {
@@ -267,8 +290,9 @@ class _CoopInventoryRepository {
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: transactionType,
-        description:
-            '${quantity >= 0 ? 'Added' : 'Deducted'} ${quantity.abs()} units of stock ($transactionType).',
+        message: quantity >= 0
+? AdminLogMessage('adminLogStockAdded', {'qty': '${quantity.abs()}', 'type': transactionType})
+: AdminLogMessage('adminLogStockDeducted', {'qty': '${quantity.abs()}', 'type': transactionType}),
         referenceId: inventoryId,
       );
       return true;
@@ -286,7 +310,7 @@ class _CoopInventoryRepository {
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'reorder_level_updated',
-        description: 'Updated the reorder level for an inventory item.',
+        message: const AdminLogMessage('adminLogReorderLevelUpdated'),
         referenceId: id,
       );
       return true;
@@ -302,7 +326,7 @@ class _CoopInventoryRepository {
     required String unit,
     double? unitCost,
     required double reorderLevel,
-    String? notes,
+    required String source,
     String? imageUrl,
   }) async {
     try {
@@ -314,14 +338,14 @@ class _CoopInventoryRepository {
         'unit': unit,
         'unit_cost': unitCost,
         'reorder_level': reorderLevel,
-        'notes': notes?.trim(),
+        'source': source.trim(),
         'image_url': imageUrl,
           })
           .eq('id', id);
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'updated',
-        description: 'Updated inventory item "${name.trim()}".',
+        message: AdminLogMessage('adminLogInventoryItemUpdated', {'name': name.trim()}),
         referenceId: id,
       );
       return true;
@@ -342,7 +366,7 @@ class _CoopInventoryRepository {
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'deactivated',
-        description: 'Deactivated an inventory item.',
+        message: const AdminLogMessage('adminLogInventoryDeactivated'),
         referenceId: id,
       );
       return true;
@@ -365,7 +389,7 @@ class _CoopInventoryRepository {
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'deleted',
-        description: 'Deleted inventory item.',
+        message: const AdminLogMessage('adminLogInventoryDeleted'),
         referenceId: id,
       );
       return _DeleteResult.success;
@@ -396,6 +420,7 @@ class AdminInventoryScreen extends StatefulWidget {
 class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   final _repo = _CoopInventoryRepository();
   final _categoryRepo = CategoryRepository();
+  final _unitRepo = UnitRepository();
 
   List<InventoryItem> _items = [];
   List<String> _categories = [];
@@ -405,15 +430,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  static const _units = [
-    'bag',
-    'kg',
-    'sack',
-    'piece',
-    'liter',
-    'set',
-    'bottle',
-  ];
+  // Unit-of-measure options, read from the units table (shared with Price
+  // Management); the fallback list only stands in until the first read.
+  List<String> _units = UnitRepository.fallbackUnits;
 
   static const _transactionTypes = ['restock', 'adjustment', 'written_off'];
 
@@ -443,11 +462,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final results = await Future.wait([
       _repo.fetchAll(),
       _categoryRepo.fetchInventoryCategories(),
+      _unitRepo.fetchUnits(),
     ]);
     if (!mounted) return;
     setState(() {
       _items = results[0] as List<InventoryItem>;
       _categories = results[1] as List<String>;
+      _units = results[2] as List<String>;
       _isLoading = false;
     });
   }
@@ -483,7 +504,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final nameCtrl = TextEditingController();
     final costCtrl = TextEditingController();
     final reorderCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
+    final sourceCtrl = TextEditingController();
     String? selectedCategory;
     String? selectedUnit;
     bool isSaving = false;
@@ -493,6 +514,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     // category is added inline, without waiting for the screen behind it
     // to rebuild (it isn't listening to this already-open dialog route).
     var categoryOptions = List<String>.of(_categories);
+    var unitOptions = List<String>.of(_units);
 
     showManagementModal(
       context: context,
@@ -538,7 +560,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ? null
                     : double.tryParse(costCtrl.text.trim()),
                 reorderLevel: double.tryParse(reorderCtrl.text.trim()) ?? 0,
-                notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+                source: sourceCtrl.text,
                 imageUrl: imageUrl,
               );
               if (!ctx.mounted) return;
@@ -550,7 +572,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ok ? l10n.adminInvItemAdded : l10n.adminInvItemSaveError,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -614,7 +636,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Item Photo (optional)',
+                      l10n.adminInvItemPhotoLabel,
                         style: GoogleFonts.inter(
                             fontSize: 12,
                         color: Theme.of(ctx).colorScheme.onSurfaceVariant,
@@ -676,11 +698,36 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                             value: selectedUnit,
                             hintText: 'Unit',
                             labelText: l10n.adminInvUnitLabel,
-                            items: _units,
+                            // An item saved with a unit that is no longer in
+                            // the list (older data) still shows its own unit.
+                            items: [
+                              ...unitOptions,
+                              if (selectedUnit != null &&
+                                  !unitOptions.contains(selectedUnit))
+                                selectedUnit!,
+                            ],
                             itemLabel: (u) => u,
                             onChanged: (v) => setSheet(() => selectedUnit = v),
                             validator: (v) =>
                                 v == null ? l10n.adminInvUnitRequired : null,
+                            addNewLabel: l10n.unitAddNewOption,
+                            onAddNew: () async {
+                              final added = await promptAddUnit(
+                                ctx,
+                                repo: _unitRepo,
+                                existing: unitOptions,
+                              );
+                              if (added == null) return null;
+                              setSheet(() {
+                                if (!unitOptions.contains(added)) {
+                                  unitOptions = [...unitOptions, added];
+                                }
+                              });
+                              if (mounted && !_units.contains(added)) {
+                                setState(() => _units = [..._units, added]);
+                              }
+                              return added;
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -708,6 +755,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   hintText: '0.00',
                                   prefixText: '₱ ',
                                   isDense: true,
+                                  // Same height as the Unit dropdown beside it (its box is 50 tall).
+                                  constraints: const BoxConstraints(minHeight: 50),
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 14,
@@ -780,11 +829,15 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: notesCtrl,
+                      controller: sourceCtrl,
                       decoration: InputDecoration(
-                        labelText: l10n.issueLoanNotes,
+                        labelText: '${l10n.adminInvSourceLabel} *',
+                        hintText: l10n.adminInvSourceHint,
                       ),
+                      textCapitalization: TextCapitalization.sentences,
+                      maxLength: kInventorySourceMaxLength,
                       maxLines: 2,
+                      validator: (v) => _validateInventorySource(v, l10n),
                     ),
                   ],
                 ),
@@ -810,8 +863,11 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final priceCtrl = TextEditingController(
       text: existing?['unit_price']?.toString() ?? '',
     );
-    final notesCtrl = TextEditingController(
-      text: existing?['notes'] as String? ?? '',
+    // The catalog shows the inventory item's Source (read-only), not a loan
+    // note. Any note already saved on an existing catalog row is kept as is.
+    final existingLoanNotes = existing?['notes'] as String?;
+    final sourceDisplayCtrl = TextEditingController(
+      text: item.source ?? l10n.adminInvSourceNotRecorded,
     );
     bool isSaving = false;
 
@@ -831,9 +887,6 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   ? await repo.publishToLoanCatalog(
                       inventoryItemId: item.id,
                       loanPrice: loanPrice,
-                      notes: notesCtrl.text.trim().isEmpty
-                          ? null
-                          : notesCtrl.text.trim(),
                     )
                   // Delegates to AdminLoanRepository — the loan-domain
                   // repository — rather than duplicating this write here.
@@ -843,9 +896,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       loanItemId: existing['id'] as String,
                       unitPrice: loanPrice,
                       isLoanEligible: true,
-                      notes: notesCtrl.text.trim().isEmpty
-                          ? null
-                          : notesCtrl.text.trim(),
+                      notes: existingLoanNotes,
                     );
 
               if (!ctx.mounted) return;
@@ -860,7 +911,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         : l10n.adminInvLoanCatalogError,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -871,7 +922,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               title: existing == null
                   ? l10n.adminInvPublishToCatalogTitle
                   : l10n.adminInvUpdateCatalogTitle,
-              subtitle: item.itemName,
+              subtitle: item.source == null
+                  ? item.itemName
+                  : '${item.itemName} · ${l10n.adminInvSourceLabel}: ${item.source}',
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -891,10 +944,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: notesCtrl,
+                    controller: sourceDisplayCtrl,
+                    readOnly: true,
                     decoration: InputDecoration(
-                      labelText: l10n.issueLoanNotes,
-                      hintText: l10n.adminInvEligibilityHint,
+                      labelText: l10n.adminInvSourceLabel,
                     ),
                     maxLines: 2,
                   ),
@@ -944,7 +997,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         : l10n.adminInvFailedTryAgain,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -1035,7 +1088,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         : l10n.adminInvFailedTryAgain,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -1246,7 +1299,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     final reorderCtrl = TextEditingController(
       text: item.reorderLevel.toStringAsFixed(0),
     );
-    final notesCtrl = TextEditingController(text: item.notes ?? '');
+    final sourceCtrl = TextEditingController(text: item.source ?? '');
     String? selectedCategory = item.category;
     String? selectedUnit = item.unit;
     bool isSaving = false;
@@ -1254,6 +1307,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     String? pickedImageExt;
     String? existingImageUrl = item.imageUrl;
     var categoryOptions = List<String>.of(_categories);
+    var unitOptions = List<String>.of(_units);
 
     showManagementModal(
       context: context,
@@ -1300,7 +1354,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ? null
                     : double.tryParse(costCtrl.text.trim()),
                 reorderLevel: double.tryParse(reorderCtrl.text.trim()) ?? 0,
-                notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+                source: sourceCtrl.text,
                 imageUrl: imageUrl,
               );
               if (!ctx.mounted) return;
@@ -1309,10 +1363,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               ScaffoldMessenger.of(this.context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    ok ? 'Item updated' : l10n.adminInvItemSaveError,
+                    ok ? 'Item updated': l10n.adminInvItemSaveError,
                   ),
                   backgroundColor: ok
-                      ? AppConstants.successGreen
+                      ? AppConstants.midGreen
                       : AppConstants.errorRed,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -1376,7 +1430,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Item Photo (optional)',
+                      l10n.adminInvItemPhotoLabel,
                         style: GoogleFonts.inter(
                             fontSize: 12,
                         color: Theme.of(ctx).colorScheme.onSurfaceVariant,
@@ -1472,11 +1526,36 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                             value: selectedUnit,
                             hintText: 'Unit',
                             labelText: l10n.adminInvUnitLabel,
-                            items: _units,
+                            // An item saved with a unit that is no longer in
+                            // the list (older data) still shows its own unit.
+                            items: [
+                              ...unitOptions,
+                              if (selectedUnit != null &&
+                                  !unitOptions.contains(selectedUnit))
+                                selectedUnit!,
+                            ],
                             itemLabel: (u) => u,
                             onChanged: (v) => setSheet(() => selectedUnit = v),
                             validator: (v) =>
                                 v == null ? l10n.adminInvUnitRequired : null,
+                            addNewLabel: l10n.unitAddNewOption,
+                            onAddNew: () async {
+                              final added = await promptAddUnit(
+                                ctx,
+                                repo: _unitRepo,
+                                existing: unitOptions,
+                              );
+                              if (added == null) return null;
+                              setSheet(() {
+                                if (!unitOptions.contains(added)) {
+                                  unitOptions = [...unitOptions, added];
+                                }
+                              });
+                              if (mounted && !_units.contains(added)) {
+                                setState(() => _units = [..._units, added]);
+                              }
+                              return added;
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1504,6 +1583,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   hintText: '0.00',
                                   prefixText: '₱ ',
                                   isDense: true,
+                                  // Same height as the Unit dropdown beside it (its box is 50 tall).
+                                  constraints: const BoxConstraints(minHeight: 50),
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 14,
@@ -1559,11 +1640,15 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: notesCtrl,
+                      controller: sourceCtrl,
                       decoration: InputDecoration(
-                        labelText: l10n.issueLoanNotes,
+                        labelText: '${l10n.adminInvSourceLabel} *',
+                        hintText: l10n.adminInvSourceHint,
                       ),
+                      textCapitalization: TextCapitalization.sentences,
+                      maxLength: kInventorySourceMaxLength,
                       maxLines: 2,
+                      validator: (v) => _validateInventorySource(v, l10n),
                     ),
                   ],
                 ),
@@ -1683,7 +1768,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               ok ? 'Item deactivated.' : l10n.adminInvFailedTryAgain,
             ),
             backgroundColor: ok
-                ? AppConstants.successGreen
+                ? AppConstants.midGreen
                 : AppConstants.errorRed,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1697,7 +1782,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(ok ? 'Item deleted.' : l10n.adminInvFailedTryAgain),
-        backgroundColor: ok ? AppConstants.successGreen : AppConstants.errorRed,
+        backgroundColor: ok ? AppConstants.midGreen : AppConstants.errorRed,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -1765,41 +1850,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
       body: Column(
         children: [
           // Top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        l10n.adminInvManagementTitle,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          SubPageTopBar(title: l10n.adminInvManagementTitle, onBack: () => context.pop()),
 
           if (!_isOnline)
             Container(
@@ -1815,7 +1866,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Offline — changes will not be saved',
+                    AppLocalizations.of(context).offlineChangesNotSaved,
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1828,12 +1879,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
@@ -2118,6 +2164,26 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                           item.category,
                                                           style: GoogleFonts.inter(
                                                             fontSize: 11,
+                                                            color: cs
+                                                                .onSurfaceVariant,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          item.source == null
+                                                              ? l10n.adminInvSourceNotRecorded
+                                                              : '${l10n.adminInvSourceLabel}: ${item.source}',
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 11,
+                                                            fontStyle:
+                                                                item.source ==
+                                                                    null
+                                                                ? FontStyle
+                                                                      .italic
+                                                                : FontStyle
+                                                                      .normal,
                                                             color: cs
                                                                 .onSurfaceVariant,
                                                           ),

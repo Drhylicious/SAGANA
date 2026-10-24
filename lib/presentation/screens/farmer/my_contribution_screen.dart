@@ -9,8 +9,11 @@ import '../../../data/models/program_model.dart';
 import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/contribution_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 /// Rejects any edit that would leave more than 2 digits after the decimal
 /// point — checked against the WHOLE resulting string, not per-character
@@ -157,7 +160,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                 Text(
                   'Request to move part or all of your $year payout into your '
                   'capital share instead of receiving it as cash. This will be '
-                  'submitted for admin confirmation before it takes effect, '
+                  'submitted for Manager confirmation before it takes effect, '
                   'and locks out choosing "Keep as Cash" for this year.',
                   style: GoogleFonts.inter(fontSize: 13),
                 ),
@@ -215,7 +218,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       if (!mounted) return;
       AppToast.show(
         context,
-        'Request to add ₱${NumberFormat('#,##0.00').format(amount)} to your capital share was submitted for admin confirmation.',
+        'Request to add ₱${NumberFormat('#,##0.00').format(amount)} to your capital share was submitted for Manager confirmation.',
       );
       await _loadData();
     } catch (e) {
@@ -270,7 +273,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
         content: Text(
           'Request to receive your $year payout of '
           '₱${NumberFormat('#,##0.00').format(available)} as cash. This will '
-          'be submitted for admin confirmation and locks out "Add to '
+          'be submitted for Manager confirmation and locks out "Add to '
           'Capital" for this year.',
           style: GoogleFonts.inter(fontSize: 13),
         ),
@@ -293,7 +296,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       if (!mounted) return;
       AppToast.show(
         context,
-        'Your request to receive this payout as cash was submitted for admin confirmation.',
+        'Your request to receive this payout as cash was submitted for Manager confirmation.',
       );
       await _loadData();
     } catch (e) {
@@ -314,6 +317,11 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: 'member_capital_shares',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineContribution,
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -323,7 +331,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                     children: [
                       // Offline banner
                       if (!_isOnline) ...[
-                        const OfflineBanner(message: "You're offline — your contribution data may not be up to date."),
+                        OfflineStatusCard(message: AppLocalizations.of(context).offlineContribution),
                         const SizedBox(height: 16),
                       ],
 
@@ -331,7 +339,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                       // shown together so neither reads as the "main"
                       // source and the other as an afterthought.
                       if (_isLoading)
-                        const _SectionShimmer(height: 320)
+                        const SkeletonBlock(height: 320)
                       else
                         _MyActivityCard(
                           current: _current,
@@ -346,7 +354,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                       // progress, or finalized with the cash/capital
                       // choice once the co-op has actually paid it out.
                       if (_isLoading)
-                        const _SectionShimmer(height: 160)
+                        const SkeletonBlock(height: 160)
                       else
                         _ThisYearPayoutCard(
                           current: _current,
@@ -402,7 +410,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                       // Management — this card is read-only for the
                       // farmer, showing where their own progress stands.
                       if (_isLoading)
-                        const _SectionShimmer(height: 220)
+                        const SkeletonBlock(height: 220)
                       else
                         _CapitalSharesCard(
                           shares: _shares,
@@ -814,7 +822,7 @@ String _payoutDecisionMessage(MemberContribution c) {
   final amount = NumberFormat('#,##0.00').format(c.payoutDecisionAmount ?? 0);
   final action = isCash ? 'keep ₱$amount as cash' : 'add ₱$amount to your capital share';
   return c.hasPendingPayoutDecision
-      ? 'Your request to $action is awaiting admin confirmation.'
+      ? 'Your request to $action is awaiting Manager confirmation.'
       : 'Confirmed: you chose to $action.';
 }
 
@@ -2100,19 +2108,3 @@ class _PayoutRow extends StatelessWidget {
 // Section Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SectionShimmer extends StatelessWidget {
-  final double height;
-  const _SectionShimmer({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-    );
-  }
-}

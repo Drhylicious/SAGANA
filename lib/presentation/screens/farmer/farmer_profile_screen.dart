@@ -18,13 +18,16 @@ import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../data/services/sync_service.dart';
+import '../../widgets/app_toast.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../widgets/profile_avatar.dart';
+import '../../widgets/skeleton.dart';
 
 class FarmerProfileScreen extends StatefulWidget {
   const FarmerProfileScreen({super.key});
@@ -156,26 +159,33 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       ),
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message:
-                  "You're offline — some actions, like changing your photo, require an internet connection.",
-            ),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 64),
+                    CachedDataNotice(
+                      screen: 'profile_user_info',
+                      otherScreens: const [
+                        'profile_farmer',
+                        'profile_crops',
+                        'profile_capital_shares',
+                        'profile_account_status',
+                      ],
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineFarmerBody,
+                    ),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
                         onRefresh: _loadData,
                         child: _isLoading
-                            ? const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppConstants.primaryGreen,
-                                ),
+                            ? const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: SkeletonList(),
                               )
                             : _profile == null
                             ? _ProfileLoadError(
@@ -225,6 +235,16 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                       // redundant double-fetch (Final Verification,
                                       // item 2).
                                       await SyncService.syncPending();
+                                      final failed =
+                                          SyncService.failedRecordCount;
+                                      if (context.mounted && failed > 0) {
+                                        PostActionFeedback.error(
+                                          context,
+                                          AppLocalizations.of(
+                                            context,
+                                          ).syncRecordsFailed(failed),
+                                        );
+                                      }
                                     },
                                   ),
                                   const SizedBox(height: 14),
@@ -262,6 +282,9 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                         ),
                                     onMyOrdersTap: () => context.pushRoute(
                                       AppRoutes.farmerMyOrders,
+                                    ),
+                                    onCoopOffersTap: () => context.pushRoute(
+                                      AppRoutes.farmerCoopOffers,
                                     ),
                                   ),
                                   const SizedBox(height: 20),
@@ -669,7 +692,7 @@ class _FarmDetailsSection extends StatelessWidget {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          'Farm Details',
+                          AppLocalizations.of(context).editFarmDetails,
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -873,7 +896,7 @@ class _FarmDetailsSection extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            'Edit Farm Details',
+                            AppLocalizations.of(context).editFarmDetails,
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
@@ -1059,6 +1082,7 @@ class _FarmRecordsSection extends StatelessWidget {
   final VoidCallback onExpensesTap;
   final VoidCallback onTransactionHistoryTap;
   final VoidCallback onMyOrdersTap;
+  final VoidCallback onCoopOffersTap;
 
   const _FarmRecordsSection({
     required this.outstandingLoans,
@@ -1067,6 +1091,7 @@ class _FarmRecordsSection extends StatelessWidget {
     required this.onExpensesTap,
     required this.onTransactionHistoryTap,
     required this.onMyOrdersTap,
+    required this.onCoopOffersTap,
   });
 
   @override
@@ -1106,6 +1131,13 @@ class _FarmRecordsSection extends StatelessWidget {
           title: 'Transaction History',
           subtitle: 'Your sales across every selling channel',
           onTap: onTransactionHistoryTap,
+        ),
+        const SizedBox(height: 8),
+        _RecordRow(
+          icon: Icons.handshake_outlined,
+          title: AppLocalizations.of(context).coopMyOffersTitle,
+          subtitle: AppLocalizations.of(context).coopProfileRowSubtitle,
+          onTap: onCoopOffersTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(

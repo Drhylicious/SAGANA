@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import 'encrypted_box.dart';
 
 class HiveService {
   HiveService._();
@@ -11,24 +12,36 @@ class HiveService {
   static late Box _harvestQueueBox; // NEW — offline harvest submissions
   static late Box
   _expenseQueueBox; // NEW — offline expense submissions (Phase 2 / U2)
+  static late Box _actionQueueBox; // Phase 9 — queued user-owned writes
+  static late Box _cacheBox; // Phase 10 — viewing snapshots, cleared on logout
 
   // ─── Initialization ──────────────────────────────────────────────────────────
 
   static Future<void> init() async {
     await Hive.initFlutter();
-    _userBox = await Hive.openBox(AppConstants.hiveBoxUser);
-    _settingsBox = await Hive.openBox(AppConstants.hiveBoxSettings);
-    _loanQueueBox = await Hive.openBox(AppConstants.hiveBoxLoanQueue);
-    _exportHistoryBox = await Hive.openBox(
+    _userBox = await EncryptedBox.open(AppConstants.hiveBoxUser);
+    _settingsBox = await EncryptedBox.open(AppConstants.hiveBoxSettings);
+    _loanQueueBox = await EncryptedBox.open(AppConstants.hiveBoxLoanQueue);
+    _exportHistoryBox = await EncryptedBox.open(
       AppConstants.hiveBoxExportHistory,
     ); // NEW
-    _harvestQueueBox = await Hive.openBox(
+    _harvestQueueBox = await EncryptedBox.open(
       AppConstants.hiveBoxHarvestQueue,
     ); // NEW
-    _expenseQueueBox = await Hive.openBox(
+    _expenseQueueBox = await EncryptedBox.open(
       AppConstants.hiveBoxExpenseQueue,
     ); // NEW — Phase 2 / U2
+    _actionQueueBox = await EncryptedBox.open(
+      AppConstants.hiveBoxOfflineActions,
+    ); // Phase 9
+    _cacheBox = await EncryptedBox.open(
+      AppConstants.hiveBoxOfflineCache,
+    ); // Phase 10
   }
+
+  /// Snapshot store for OfflineCache. Not for queued records — those live in
+  /// their own boxes and survive logout.
+  static Box get cacheBox => _cacheBox;
 
   // ─── User Session ────────────────────────────────────────────────────────────
 
@@ -39,6 +52,9 @@ class HiveService {
     String? fullName,
   }) async {
     await _userBox.put(AppConstants.hiveKeyUserId, userId);
+    if (_userBox.get('last_user_id') == null) {
+      await _userBox.put('last_user_id', userId);
+    }
     await _userBox.put(AppConstants.hiveKeyUserEmail, email);
     await _userBox.put(AppConstants.hiveKeyUserRole, role);
     await _userBox.put(AppConstants.hiveKeyIsLoggedIn, true);
@@ -48,6 +64,10 @@ class HiveService {
   }
 
   static Future<void> clearUserSession() async {
+    final signingOut = getUserId();
+    if (signingOut != null) {
+      await _userBox.put('last_user_id', signingOut);
+    }
     await _userBox.delete(AppConstants.hiveKeyUserId);
     await _userBox.delete(AppConstants.hiveKeyUserEmail);
     await _userBox.delete(AppConstants.hiveKeyUserRole);
@@ -61,6 +81,21 @@ class HiveService {
       'staff_permissions',
     ); // legacy key — cleared for old sessions
     await _userBox.delete('pending_acknowledgement');
+    // Per-user caches: cleared on logout. Unsynced queues are not touched here.
+    // The cart belongs to this user only: remove just their items, so any
+    // other account's cart on this device is left alone.
+    if (signingOut != null) {
+      final cart = await EncryptedBox.open(AppConstants.hiveBoxCart);
+      await cart.deleteAll(
+        cart.keys
+            .where((k) => k is String && k.startsWith("$signingOut::"))
+            .toList(),
+      );
+    }
+    await (await EncryptedBox.open(AppConstants.hiveBoxExportHistory)).clear();
+    // Viewing snapshots belong to the signed-out user. Queued records are not
+    // touched: they stay on the device for that user's next sign-in.
+    await _cacheBox.clear();
   }
 
   static String? getUserRole() =>
@@ -130,16 +165,6 @@ class HiveService {
   // pass it. SettingsRepository is the only caller updated to pass it —
   // this makes Background Sync per-user like theme/locale, without
   // changing behavior for any other, unreviewed caller of this method.
-  static String _backgroundSyncKey(String? userId) => userId != null
-      ? '${userId}::${AppConstants.hiveKeyBackgroundSync}'
-      : AppConstants.hiveKeyBackgroundSync;
-
-  static Future<void> setBackgroundSync(bool enabled, {String? userId}) async {
-    await _settingsBox.put(_backgroundSyncKey(userId), enabled);
-  }
-
-  static bool getBackgroundSync({String? userId}) =>
-      _settingsBox.get(_backgroundSyncKey(userId), defaultValue: true) as bool;
 
   // ─── Sync Count ──────────────────────────────────────────────────────────────
 
@@ -152,7 +177,7 @@ class HiveService {
   // unsynced" on Profile despite having something waiting to sync
   // (Phase 2 / U2).
   static int getUnsyncedCount() =>
-      _harvestQueueBox.length + _expenseQueueBox.length;
+      getPendingHarvestCount() + getPendingExpenseCount();
 
   // ─── Last Sync Time ──────────────────────────────────────────────────────────
   //
@@ -257,34 +282,66 @@ class HiveService {
     Map<String, dynamic> payload,
   ) async {
     final localId = 'issue_${DateTime.now().millisecondsSinceEpoch}';
-    await _loanQueueBox.put(localId, payload);
+    await _loanQueueBox.put(localId, _owned(payload));
   }
 
+  // Microseconds, not milliseconds: two payments saved in the same
+  // millisecond would otherwise overwrite each other in the box.
   static Future<void> savePendingLoanPayment(
     Map<String, dynamic> payload,
   ) async {
-    final localId = 'payment_${DateTime.now().millisecondsSinceEpoch}';
-    await _loanQueueBox.put(localId, payload);
+    final localId = 'payment_${DateTime.now().microsecondsSinceEpoch}';
+    await _loanQueueBox.put(localId, _owned(payload));
   }
 
   static List<MapEntry<String, Map<dynamic, dynamic>>>
   getPendingLoanIssuances() => _getPendingByPrefix('issue_');
 
+  // Oldest first: the keys are time-ordered, so two payments on one loan
+  // are applied in the order they were made.
   static List<MapEntry<String, Map<dynamic, dynamic>>>
-  getPendingLoanPayments() => _getPendingByPrefix('payment_');
+  getPendingLoanPayments() =>
+      _getPendingByPrefix('payment_')..sort((a, b) => a.key.compareTo(b.key));
 
   static List<MapEntry<String, Map<dynamic, dynamic>>> _getPendingByPrefix(
     String prefix,
   ) {
-    return _loanQueueBox.keys
-        .where((k) => (k as String).startsWith(prefix))
-        .map(
-          (key) => MapEntry(
-              key as String,
-              Map<dynamic, dynamic>.from(_loanQueueBox.get(key) as Map),
-          ),
-        )
-        .toList();
+    return _ownedEntries(
+      _loanQueueBox,
+    ).where((entry) => entry.key.startsWith(prefix)).toList();
+  }
+
+  // ─── Record ownership ───────────────────────────────────────────────────────
+  // Every queued record is stamped with the user who created it. Reads, counts,
+  // and sync only return the signed-in user's records, so another user on the
+  // same device sees none of them. Records written before ownership existed
+  // belong to the last user who signed out, or to the first user to sign in
+  // when no earlier user is recorded.
+
+  static const String _ownerKey = '_owner_id';
+
+  static String? _legacyOwnerId() => _userBox.get('last_user_id') as String?;
+
+  static Map<String, dynamic> _owned(Map<String, dynamic> payload) {
+    final owner = getUserId();
+    if (owner == null) {
+      throw StateError('Sign in before saving offline records.');
+    }
+    return {...payload, _ownerKey: owner};
+  }
+
+  static List<MapEntry<String, Map<dynamic, dynamic>>> _ownedEntries(Box box) {
+    final me = getUserId();
+    if (me == null) return const [];
+    final result = <MapEntry<String, Map<dynamic, dynamic>>>[];
+    for (final key in box.keys) {
+      final value = Map<dynamic, dynamic>.from(box.get(key) as Map);
+      final owner = (value[_ownerKey] as String?) ?? _legacyOwnerId();
+      if (owner != me) continue;
+      value.remove(_ownerKey);
+      result.add(MapEntry(key as String, value));
+    }
+    return result;
   }
 
   static Future<void> removePendingQueueItem(String localId) async {
@@ -298,17 +355,8 @@ class HiveService {
   /// a PostgrestException (the RPC was reached and explicitly rejected the
   /// write) — network/timeout failures never call this and stay silent,
   /// exactly as before this change.
-  static Future<void> markLoanQueueItemError(
-    String localId,
-    String message,
-  ) async {
-    final existing = _loanQueueBox.get(localId);
-    if (existing == null) return;
-    final updated = Map<String, dynamic>.from(existing as Map);
-    updated['_syncError'] = message;
-    updated['_syncErrorAt'] = DateTime.now().toIso8601String();
-    await _loanQueueBox.put(localId, updated);
-  }
+  static Future<void> markLoanQueueItemError(String localId, String message) =>
+      _markOwnedError(_loanQueueBox, localId, message);
 
   /// Queued loan issuances/payments that have failed at least one sync
   /// attempt with a server-explained reason (see markLoanQueueItemError).
@@ -323,10 +371,11 @@ class HiveService {
         .where((entry) => entry.value.containsKey('_syncError'))
         .map(
           (entry) => {
-              'localId': entry.key,
-              'type': entry.key.startsWith('issue_') ? 'issue' : 'payment',
-              'error': entry.value['_syncError'] as String,
-              'failedAt': entry.value['_syncErrorAt'] as String?,
+            'localId': entry.key,
+            'type': entry.key.startsWith('issue_') ? 'issue' : 'payment',
+            'error': entry.value['_syncError'] as String,
+            'failedAt': entry.value['_syncErrorAt'] as String?,
+            'payload': entry.value,
           },
         )
         .toList();
@@ -339,15 +388,17 @@ class HiveService {
   // directory (see CsvExportService); this box just indexes them for
   // display and re-sharing.
 
+  // Owner-scoped like the other device records: an entry is only listed for
+  // the admin who generated it, even if another user signs in on this device.
   static Future<void> addExportHistoryEntry(Map<String, dynamic> entry) async {
     final id = entry['id'] as String;
-    await _exportHistoryBox.put(id, entry);
+    await _exportHistoryBox.put(id, _owned(entry));
   }
 
   static List<Map<String, dynamic>> getExportHistory() {
-    final entries = _exportHistoryBox.values
-        .map((v) => Map<String, dynamic>.from(v as Map))
-        .toList();
+    final entries = _ownedEntries(
+      _exportHistoryBox,
+    ).map((e) => Map<String, dynamic>.from(e.value)).toList();
     entries.sort(
       (a, b) =>
           (b['generatedAt'] as String).compareTo(a['generatedAt'] as String),
@@ -369,26 +420,31 @@ class HiveService {
 
   static Future<String> savePendingHarvest(Map<String, dynamic> payload) async {
     final localId = 'harvest_${DateTime.now().millisecondsSinceEpoch}';
-    await _harvestQueueBox.put(localId, payload);
+    await _harvestQueueBox.put(localId, _owned(payload));
     return localId;
   }
 
   static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingHarvests() {
-    return _harvestQueueBox.keys
-        .map(
-          (key) => MapEntry(
-              key as String,
-              Map<dynamic, dynamic>.from(_harvestQueueBox.get(key) as Map),
-          ),
-        )
-        .toList();
+    return _ownedEntries(_harvestQueueBox);
   }
 
   static Future<void> removePendingHarvest(String localId) async {
     await _harvestQueueBox.delete(localId);
   }
 
-  static int getPendingHarvestCount() => _harvestQueueBox.length;
+  static int getPendingHarvestCount() => getPendingHarvests().length;
+
+  /// Records a server rejection against a still-queued harvest. The record
+  /// stays queued and is retried on the next manual Sync. Only called for a
+  /// PostgrestException; network failures stay silent, as before.
+  static Future<void> markHarvestQueueItemError(
+    String localId,
+    String message,
+  ) => _markOwnedError(_harvestQueueBox, localId, message);
+
+  /// Queued harvests that failed their last sync with a server-explained reason.
+  static List<Map<String, dynamic>> getHarvestSyncIssues() =>
+      _syncIssues(_harvestQueueBox);
 
   // ─── Expense Queue (offline expense submission) ──────────────────────────────
   //
@@ -398,26 +454,98 @@ class HiveService {
 
   static Future<String> savePendingExpense(Map<String, dynamic> payload) async {
     final localId = 'expense_${DateTime.now().millisecondsSinceEpoch}';
-    await _expenseQueueBox.put(localId, payload);
+    await _expenseQueueBox.put(localId, _owned(payload));
     return localId;
   }
 
   static List<MapEntry<String, Map<dynamic, dynamic>>> getPendingExpenses() {
-    return _expenseQueueBox.keys
-        .map(
-          (key) => MapEntry(
-              key as String,
-              Map<dynamic, dynamic>.from(_expenseQueueBox.get(key) as Map),
-          ),
-        )
-        .toList();
+    return _ownedEntries(_expenseQueueBox);
   }
 
   static Future<void> removePendingExpense(String localId) async {
     await _expenseQueueBox.delete(localId);
   }
 
-  static int getPendingExpenseCount() => _expenseQueueBox.length;
+  static int getPendingExpenseCount() => getPendingExpenses().length;
+
+  // ─── Offline Action Queue (Phase 9) ──────────────────────────────────────────
+  //
+  // User-owned writes that could not reach the server: profile and photo
+  // edits, buyer addresses, crop photos, notification read/delete state, and
+  // capital records. Each entry is {kind, payload}. Keys start with the queue
+  // time, so replay keeps the order the actions were taken in.
+
+  static Future<String> saveOfflineAction(
+    String kind,
+    Map<String, dynamic> payload,
+  ) async {
+    final stamp = DateTime.now().microsecondsSinceEpoch.toString().padLeft(
+      20,
+      '0',
+    );
+    final key = 'act_$stamp';
+    await _actionQueueBox.put(key, _owned({'kind': kind, 'payload': payload}));
+    return key;
+  }
+
+  static List<MapEntry<String, Map<dynamic, dynamic>>> getOfflineActions() {
+    return _ownedEntries(_actionQueueBox)
+      ..sort((a, b) => a.key.compareTo(b.key));
+  }
+
+  static Future<void> removeOfflineAction(String key) async {
+    await _actionQueueBox.delete(key);
+  }
+
+  static Future<void> markOfflineActionError(String key, String message) =>
+      _markOwnedError(_actionQueueBox, key, message);
+
+  /// Queued actions the server or validation rejected on their last sync.
+  static List<Map<String, dynamic>> getOfflineActionIssues() =>
+      _syncIssues(_actionQueueBox);
+
+  /// Records a server rejection against a still-queued expense. The record
+  /// stays queued and is retried on the next manual Sync. Only called for a
+  /// PostgrestException; network failures stay silent, as before.
+  static Future<void> markExpenseQueueItemError(
+    String localId,
+    String message,
+  ) => _markOwnedError(_expenseQueueBox, localId, message);
+
+  /// Queued expenses that failed their last sync with a server-explained reason.
+  static List<Map<String, dynamic>> getExpenseSyncIssues() =>
+      _syncIssues(_expenseQueueBox);
+
+  /// Stores [message] on a queued record owned by the current user. Records
+  /// owned by anyone else are left untouched.
+  static Future<void> _markOwnedError(
+    Box box,
+    String localId,
+    String message,
+  ) async {
+    final existing = box.get(localId);
+    if (existing == null) return;
+    final updated = Map<dynamic, dynamic>.from(existing as Map);
+    final owner = (updated[_ownerKey] as String?) ?? _legacyOwnerId();
+    if (owner != getUserId()) return;
+    updated['_syncError'] = message;
+    updated['_syncErrorAt'] = DateTime.now().toIso8601String();
+    await box.put(localId, updated);
+  }
+
+  static List<Map<String, dynamic>> _syncIssues(Box box) {
+    return _ownedEntries(box)
+        .where((entry) => entry.value.containsKey('_syncError'))
+        .map(
+          (entry) => {
+            'localId': entry.key,
+            'error': entry.value['_syncError'] as String,
+            'failedAt': entry.value['_syncErrorAt'] as String?,
+            'payload': entry.value,
+          },
+        )
+        .toList();
+  }
 
   // ─── Cleanup ─────────────────────────────────────────────────────────────────
 

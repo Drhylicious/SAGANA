@@ -9,8 +9,12 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
+import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/member_access.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/recent_activity_widgets.dart';
 
 // Builds the localized activity description from an item's raw
 // descKind + name/cropName/quantityKg/amount fields — the repository that
@@ -374,6 +378,11 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     'profile',
   ];
 
+  // Officers do not have the Members tab, so the Members chip is hidden for them.
+  List<String?> get _visibleCategories => HiveService.isOfficer
+      ? _filterCategories.where((c) => c != 'members').toList()
+      : _filterCategories;
+
   String _categoryLabel(AppLocalizations l10n, String? category) {
     switch (category) {
       case null:
@@ -389,10 +398,39 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
       case 'reports':
         return l10n.adminNavReports;
       case 'profile':
-        return l10n.adminProfileTitle;
+        return l10n.recentActivityAccountChip;
       default:
         return category;
     }
+  }
+
+  // One Admin row: module-coloured icon and badge, navigable rows get a
+  // chevron and tap through. Shared card look, so it matches Farmer and Buyer.
+  RecentActivityCard _adminCard(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    AdminActivityItem item,
+  ) {
+    final isNavigable =
+        item.referenceId != null ||
+        item.type == AdminActivityType.order ||
+        item.type == AdminActivityType.price ||
+        (item.type == AdminActivityType.logged &&
+            item.sourceModule != 'members');
+    final tappable = isNavigable &&
+        (membersAccessAllowed ||
+            !(item.type == AdminActivityType.member ||
+                item.type == AdminActivityType.harvest));
+
+    return RecentActivityCard(
+      icon: moduleIcon(item.sourceModule),
+      accentColor: moduleColor(item.sourceModule, cs),
+      title: adminActivityDescription(l10n, item),
+      subtitle: item.adminName ?? '',
+      timestamp: item.timestamp,
+      statusLabel: moduleLabel(l10n, item.sourceModule),
+      onTap: tappable ? () => _onItemTap(item) : null,
+    );
   }
 
   @override
@@ -400,399 +438,125 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     final sagana = context.saganaColors;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    final filtered = _filteredItems;
+    final grouped = _groupByDate(filtered);
+    final dateKeys = grouped.keys.toList();
+    final hasSearch = _searchQuery.isNotEmpty || _filterCategory != null;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          // Glass top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 20,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    Text(
-                      l10n.adminActivityTitle,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          SubPageTopBar(
+            title: l10n.adminActivityTitle,
+            onBack: () => context.pop(),
           ),
-
-          // Search bar
-          Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: l10n.adminActivitySearchHint,
-                prefixIcon: const Icon(Icons.search_rounded),
-                filled: true,
-                fillColor: sagana.cardBackground,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-
-          // Filter chips
-          Container(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: _filterCategories.map((category) {
-                  final isSelected = _filterCategory == category;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () => _onFilterTap(category),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? cs.primary
-                              : sagana.cardBackground,
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                          border: Border.all(
-                            color: isSelected
-                                ? cs.primary
-                                : cs.outline.withValues(alpha: 0.20),
-                          ),
-                        ),
-                        child: Text(
-                          _categoryLabel(l10n, category),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected
-                                ? Colors.white
-                                : cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                      strokeWidth: 2,
-                    ),
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
                   )
-                : Builder(
-                    builder: (_) {
-                      final filtered = _filteredItems;
-                      final grouped = _groupByDate(filtered);
-                      // Flattened row list: a date-header marker (String)
-                      // followed by that date's items (AdminActivityItem),
-                      // repeated per group — lets the single ListView.builder
-                      // below render headers and cards without a nested
-                      // scrollable per group.
-                      final rows = <Object>[];
-                      for (final key in grouped.keys) {
-                        rows.add(key);
-                        rows.addAll(grouped[key]!);
-                      }
-                      return RefreshIndicator(
+                : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: () => _loadPage(reset: true),
-                        child: filtered.isEmpty
-                        ? ListView(
-                            children: [
-                              const SizedBox(height: 120),
-                              Center(
-                                child: Column(
-                                  children: [
-                                        Icon(
-                                          Icons.history_rounded,
-                                        size: 48,
-                                          color: cs.onSurfaceVariant,
-                                        ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      l10n.adminActivityNoActivityYet,
-                                      style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                            color: cs.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  8,
-                                  20,
-                                  40,
-                                ),
-                                itemCount: rows.length + (_hasMore ? 1 : 0),
-                            itemBuilder: (_, i) {
-                                  if (i == rows.length) {
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                  child: Center(
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        setState(() => _page++);
-                                        _loadPage();
-                                      },
-                                      child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 20,
-                                              vertical: 10,
-                                            ),
-                                        decoration: BoxDecoration(
-                                          color: sagana.cardBackground,
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                                    AppConstants.radiusFull,
-                                                  ),
-                                          border: Border.all(
-                                                color: cs.outline.withValues(
-                                                  alpha: 0.20,
-                                                ),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          l10n.adminActivityLoadMore,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: cs.primary,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                            child: RecentActivitySearchBar(
+                              controller: _searchCtrl,
+                              hint: l10n.adminActivitySearchHint,
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                            child: RecentActivityFilterChips<String?>(
+                              options: [
+                                for (final category in _visibleCategories)
+                                  RecentActivityFilterOption<String?>(
+                                    value: category,
+                                    label: _categoryLabel(l10n, category),
                                   ),
-                                );
-                              }
-
-                                  final row = rows[i];
-                                  if (row is String) {
-                                    return Padding(
-                                      padding: EdgeInsets.only(
-                                        top: i == 0 ? 0 : 16,
-                                        bottom: 10,
+                              ],
+                              active: _filterCategory,
+                              onSelected: _onFilterTap,
+                            ),
+                          ),
+                        ),
+                        if (filtered.isEmpty)
+                          SliverFillRemaining(
+                            child: RecentActivityEmptyState(
+                              hasSearch: hasSearch,
+                              emptyTitle: l10n.adminActivityNoActivityYet,
+                              emptyHint: l10n.activityEmptyHint,
+                              noMatchTitle: l10n.activityNoMatchTitle,
+                              noMatchHint: l10n.activityNoMatchHint,
+                            ),
+                          )
+                        else ...[
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final label = dateKeys[index];
+                                  return RecentActivityDateGroup(
+                                    label: label,
+                                    cards: [
+                                      for (final item in grouped[label]!)
+                                        _adminCard(l10n, cs, item),
+                                    ],
+                                  );
+                                },
+                                childCount: dateKeys.length,
+                              ),
+                            ),
+                          ),
+                          if (_hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() => _page++);
+                                      _loadPage();
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: sagana.cardBackground,
+                                        borderRadius: BorderRadius.circular(
+                                          AppConstants.radiusFull,
+                                        ),
+                                        border: Border.all(
+                                          color: cs.outline.withValues(alpha: 0.20),
+                                        ),
                                       ),
                                       child: Text(
-                                        row.toUpperCase(),
+                                        l10n.adminActivityLoadMore,
                                         style: GoogleFonts.poppins(
-                                          fontSize: 11,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.w600,
-                                          letterSpacing: 0.5,
-                                          color: cs.onSurfaceVariant,
+                                          color: cs.primary,
                                         ),
                                       ),
-                                    );
-                                  }
-
-                                  final item = row as AdminActivityItem;
-                                  final color = moduleColor(
-                                    item.sourceModule,
-                                    cs,
-                                  );
-                              final icon = moduleIcon(item.sourceModule);
-                              final isNavigable =
-                                  item.referenceId != null ||
-                                      item.type == AdminActivityType.order ||
-                                      item.type == AdminActivityType.price ||
-                                      (item.type == AdminActivityType.logged &&
-                                          item.sourceModule != 'members');
-
-                              return Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                child: GestureDetector(
-                                  onTap: (isNavigable && (membersAccessAllowed || !(item.type == AdminActivityType.member || item.type == AdminActivityType.harvest))) ? () => _onItemTap(item) : null,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: sagana.cardBackground,
-                                          borderRadius: BorderRadius.circular(
-                                            AppConstants.radiusLg,
-                                          ),
-                                      border: Border.all(
-                                            color: cs.outline.withValues(
-                                              alpha: 0.10,
-                                            ),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.03,
-                                              ),
-                                          blurRadius: 6,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 42,
-                                          height: 42,
-                                          decoration: BoxDecoration(
-                                            color: color.withValues(
-                                                  alpha: 0.12,
-                                                ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                              child: Icon(
-                                                icon,
-                                                color: color,
-                                                size: 20,
-                                              ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                    adminActivityDescription(
-                                                      l10n,
-                                                      item,
-                                                    ),
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 13,
-                                                  color: cs.onSurface,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 3),
-                                              Row(
-                                                children: [
-                                                  // Flexible + ellipsis: some
-                                                  // translated category
-                                                  // labels ("Mga Kahilingan
-                                                  // sa Pananim" for Crop
-                                                  // Requests) run far longer
-                                                  // than their English
-                                                  // source, and this badge
-                                                  // previously had no width
-                                                  // limit of its own next to
-                                                  // the time label sharing
-                                                  // this Row.
-                                                  Flexible(
-                                                    child: Container(
-                                                      padding:
-                                                              const EdgeInsets.symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 2,
-                                                      ),
-                                                          decoration: BoxDecoration(
-                                                        color: color
-                                                            .withValues(
-                                                                  alpha: 0.10,
-                                                                ),
-                                                        borderRadius:
-                                                                BorderRadius.circular(
-                                                          AppConstants
-                                                              .radiusFull,
-                                                        ),
-                                                      ),
-                                                      child: Text(
-                                                        moduleLabel(
-                                                              l10n,
-                                                              item.sourceModule,
-                                                            ),
-                                                        maxLines: 1,
-                                                            overflow:
-                                                                TextOverflow
-                                                            .ellipsis,
-                                                        style:
-                                                            GoogleFonts.inter(
-                                                          fontSize: 9,
-                                                          fontWeight:
-                                                                      FontWeight
-                                                                          .w700,
-                                                          color: color,
-                                                                  letterSpacing:
-                                                                      0.3,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                      const SizedBox(width: 6),
-                                                  Flexible(
-                                                    child: Text(
-                                                      item.adminName != null
-                                                          ? '${adminActivityTimeLabel(l10n, item.timestamp)} · ${item.adminName}'
-                                                              : adminActivityTimeLabel(
-                                                                  l10n,
-                                                                  item.timestamp,
-                                                                ),
-                                                      maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: GoogleFonts.inter(
-                                                        fontSize: 11,
-                                                        color: cs
-                                                            .onSurfaceVariant,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (isNavigable)
-                                          Icon(
-                                            Icons.chevron_right_rounded,
-                                            size: 18,
-                                            color: cs.onSurfaceVariant,
-                                          ),
-                                      ],
                                     ),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                      );
-                    },
+                              ),
+                            ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                        ],
+                      ],
+                    ),
                   ),
           ),
         ],

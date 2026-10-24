@@ -2,7 +2,11 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_crop_model.dart';
 import '../services/app_event_service.dart';
+import '../services/offline_actions.dart';
+import '../services/offline_cache.dart';
 import 'harvest_repository.dart';
+import '../models/activity_text.dart';
+import '../models/admin_log_message.dart';
 
 class CropAlreadyExistsException implements Exception {
   final String cropName;
@@ -26,7 +30,7 @@ class CropRepository {
       var query = _client
           .from('farmer_crops')
           .select(
-            '*, harvest_records(count), crop_requests(status, admin_notes), crop_master(image_url, crop_type)',
+            '*, harvest_records(count), crop_requests(status, admin_notes), crop_master(image_url, crop_type, exclusive_channel)',
           )
           .eq('farmer_id', _userId);
 
@@ -34,7 +38,10 @@ class CropRepository {
         query = query.not('crop_master_id', 'is', null);
       }
 
-      final response = await query.order('created_at', ascending: false);
+      final response = await OfflineCache.load(
+        screen: approvedOnly ? 'farmer_crops_approved' : 'farmer_crops',
+        fetch: () => query.order('created_at', ascending: false),
+      );
 
       return response.map((row) {
         final harvestList = row['harvest_records'] as List?;
@@ -55,6 +62,9 @@ class CropRepository {
         final catalogCropType = catalogMaster is Map
             ? catalogMaster['crop_type'] as String?
             : null;
+        final catalogExclusiveChannel = catalogMaster is Map
+            ? catalogMaster['exclusive_channel'] as String?
+            : null;
         return FarmerCropModel.fromMap({
           ...row,
           'harvest_count': count,
@@ -62,6 +72,7 @@ class CropRepository {
           'request_notes': requestNotes,
           'catalog_image_url': catalogImageUrl,
           'crop_type': catalogCropType,
+          'exclusive_channel': catalogExclusiveChannel,
         });
       }).toList();
     } catch (_) {
@@ -75,7 +86,7 @@ class CropRepository {
     try {
       final response = await _client
           .from('crop_master')
-          .select('id, crop_name, category, crop_type, image_url')
+          .select('id, crop_name, category, crop_type, exclusive_channel, image_url')
           .eq('is_active', true)
           .order('sort_order');
       return List<Map<String, dynamic>>.from(response);
@@ -238,6 +249,51 @@ class CropRepository {
   // owner-folder upload idiom as uploadCropRequestPhoto() above, against
   // the same 'crop_images' bucket.
 
+  /// Uploads a new crop photo and saves it on the crop. Offline, the photo is
+  /// kept on this device and uploaded by the next manual Sync.
+  Future<PhotoSaveResult> setCropPhoto({
+    required Uint8List bytes,
+    required String fileExtension,
+    required String cropId,
+    required String cropName,
+  }) async {
+    try {
+      final outcome = await OfflineActions.run(
+        kind: 'crop_photo',
+        payload: {
+          'bytes': bytes,
+          'fileExtension': fileExtension,
+          'cropId': cropId,
+          'cropName': cropName,
+        },
+        online: () => setCropPhotoOnline(
+          bytes: bytes,
+          fileExtension: fileExtension,
+          cropId: cropId,
+          cropName: cropName,
+        ),
+      );
+      return PhotoSaveResult(outcome: outcome);
+    } catch (_) {
+      return const PhotoSaveResult.failed();
+    }
+  }
+
+  /// Uploads the photo, then saves its URL on the crop. Throws on failure, so
+  /// a queued photo that is rejected keeps its reason. Also run by offline
+  /// replay.
+  Future<void> setCropPhotoOnline({
+    required Uint8List bytes,
+    required String fileExtension,
+    required String cropId,
+    required String cropName,
+  }) async {
+    final url = await uploadCropPhoto(bytes, fileExtension);
+    if (url == null) throw Exception('Photo upload failed.');
+    final saved = await updateCropPhoto(cropId, cropName, url);
+    if (!saved) throw Exception('Could not save the crop photo.');
+  }
+
   Future<String?> uploadCropPhoto(Uint8List bytes, String fileExtension) async {
     try {
       final path =
@@ -273,7 +329,7 @@ class CropRepository {
         await _client.from('farmer_crop_activity').insert({
           'farmer_id': _userId,
           'crop_id': cropId,
-          'description': 'Updated photo for $cropName',
+          ...activityRowFields(AdminLogMessage('activityCropPhotoUpdated', {'crop': cropName})),
           'created_at': DateTime.now().toIso8601String(),
         });
       } catch (_) {}
@@ -326,7 +382,7 @@ extension CropsForFarmer on CropRepository {
       final client = Supabase.instance.client;
       final response = await client
           .from('farmer_crops')
-          .select('*, crop_master(image_url, crop_type)')
+          .select('*, crop_master(image_url, crop_type, exclusive_channel)')
           .eq('farmer_id', farmerId);
       final map = <String, FarmerCropModel>{};
       for (final row in response) {
@@ -337,11 +393,15 @@ extension CropsForFarmer on CropRepository {
         final catalogCropType = catalogMaster is Map
             ? catalogMaster['crop_type'] as String?
             : null;
+        final catalogExclusiveChannel = catalogMaster is Map
+            ? catalogMaster['exclusive_channel'] as String?
+            : null;
         final crop = FarmerCropModel.fromMap({
           ...row,
           'harvest_count': 0,
           'catalog_image_url': catalogImageUrl,
           'crop_type': catalogCropType,
+          'exclusive_channel': catalogExclusiveChannel,
         });
         map[crop.id] = crop;
       }

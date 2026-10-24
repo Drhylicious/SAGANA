@@ -8,11 +8,14 @@ import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/crop_category_chips.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../widgets/harvest_log_widgets.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class HarvestHistoryScreen extends StatefulWidget {
   final String? initialCropFilter;
@@ -136,14 +139,17 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — your full harvest history may not be up to date."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(
+            screen: 'harvests',
+            isOnline: _isOnline,
+            offlineMessage: AppLocalizations.of(context).offlineHarvestHistory,
+          ),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
@@ -181,7 +187,7 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
                               ...List.generate(4, (_) => Padding(
                                     padding:
                                         const EdgeInsets.only(bottom: 10),
-                                    child: _LogShimmer(),
+                                    child: SkeletonList(count: 4, rowHeight: 72),
                                   ))
                             else if (_filtered.isEmpty)
                               _EmptyState(
@@ -502,72 +508,4 @@ class _EmptyState extends StatelessWidget {
 // Shimmer
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LogShimmer extends StatefulWidget {
-  @override
-  State<_LogShimmer> createState() => _LogShimmerState();
-}
 
-class _LogShimmerState extends State<_LogShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
-    _anim = Tween<double>(begin: -1, end: 2).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Widget _block(double w, double h) => AnimatedBuilder(
-        animation: _anim,
-        builder: (_, __) => Container(
-          width: w, height: h,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            gradient: LinearGradient(
-              stops: [
-                (_anim.value - 1).clamp(0.0, 1.0),
-                _anim.value.clamp(0.0, 1.0),
-                (_anim.value + 1).clamp(0.0, 1.0),
-              ],
-              colors: const [Color(0xFFE8E8E8), Color(0xFFF5F5F5), Color(0xFFE8E8E8)],
-            ),
-          ),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.70),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-      ),
-      child: Row(
-        children: [
-          _block(48, 48),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _block(110, 14),
-                const SizedBox(height: 8),
-                _block(140, 11),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

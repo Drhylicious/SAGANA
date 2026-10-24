@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/admin_dashboard_model.dart';
 import '../repositories/admin_loan_repository.dart';
 import '../../core/utils/bod_schedule_utils.dart';
@@ -14,8 +15,6 @@ import 'farmer_lookup.dart';
 //   - cooperative_inventory: coop-owned agricultural inputs (fertilizer,
 //     feeds, etc.), used by fetchKpiSummary(), fetchDashboardPriorities(),
 //     and fetchManagementModuleBadges().
-//   - inventory_batches: farmer-owned harvest stock, used by
-//     fetchInventoryAlerts().
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AdminDashboardRepository {
@@ -52,6 +51,28 @@ class AdminDashboardRepository {
   Future<List<Map<String, dynamic>>>? _pendingListingRowsCache;
   Future<List<Map<String, dynamic>>>? _farmerRoleRowsCache;
 
+  /// Every OfflineCache key the dashboard writes, for the screen notice.
+  static List<String> cacheScreens() => [
+    'admin_dash_inventory',
+    'admin_dash_pending_listings',
+    'admin_dash_farmer_roles',
+    'admin_dash__kpiLoanDataAsOf_1',
+    'admin_dash__kpiRevenueThisMonth_1',
+    'admin_dash_fetchAdminFirstName_1',
+    'admin_dash_fetchCoopPerformance_1',
+    'admin_dash_fetchCoopPerformance_2',
+    'admin_dash_fetchCoopPerformance_3',
+    'admin_dash_fetchCoopPerformance_4',
+    'admin_dash_fetchCoopPerformance_5',
+    'admin_dash_fetchDashboardPriorities_1',
+    'admin_dash_fetchDashboardPriorities_2',
+    'admin_dash_fetchManagementModuleBadges_1',
+    'admin_dash_fetchManagementModuleBadges_2',
+    'admin_dash_fetchManagementModuleBadges_3',
+    'admin_dash_fetchManagementModuleBadges_4',
+    'admin_dash_fetchManagementModuleBadges_5',
+  ];
+
   void clearDashboardCache() {
     _inventoryRowsCache = null;
     _pendingListingRowsCache = null;
@@ -59,161 +80,183 @@ class AdminDashboardRepository {
   }
 
   Future<List<Map<String, dynamic>>> _fetchActiveInventoryRows() {
-    return _inventoryRowsCache ??= _client
-        .from('cooperative_inventory')
-        .select(
-          'id, item_name, category, unit, quantity_on_hand, reorder_level',
-        )
-        .eq('is_active', true);
+    return _inventoryRowsCache ??= OfflineCache.load(
+      screen: 'admin_dash_inventory',
+      fetch: () => _client
+          .from('cooperative_inventory')
+          .select(
+            'id, item_name, category, unit, quantity_on_hand, reorder_level',
+          )
+          .eq('is_active', true),
+    );
   }
 
   Future<List<Map<String, dynamic>>> _fetchPendingListingRows() {
-    return _pendingListingRowsCache ??= _client
-        .from('marketplace_listings')
-        .select('id')
-        .eq('status', 'pending_review');
+    return _pendingListingRowsCache ??= OfflineCache.load(
+      screen: 'admin_dash_pending_listings',
+      fetch: () => _client
+          .from('marketplace_listings')
+          .select('id')
+          .eq('status', 'pending_review'),
+    );
   }
 
   Future<List<Map<String, dynamic>>> _fetchFarmerRoleRows() {
-    return _farmerRoleRowsCache ??= _client
-        .from('user_roles')
-        .select('user_id, status')
-        .eq('role', 'farmer');
+    return _farmerRoleRowsCache ??= OfflineCache.load(
+      screen: 'admin_dash_farmer_roles',
+      fetch: () => _client
+          .from('user_roles')
+          .select('user_id, status')
+          .eq('role', 'farmer'),
+    );
   }
 
   // ─── KPI Summary ──────────────────────────────────────────────────────────
 
   Future<AdminKpiSummary> fetchKpiSummary() async {
-    int activeMembers = 0;
-    int pendingMembers = 0;
-    int totalMembers = 0;
-    bool membersQueryFailed = false;
-    double totalStockKg = 0;
-    int pendingListings = 0;
-    double totalRevenue = 0;
-    int overdueLoans = 0;
+    // Each block is independent (members, inventory, listings, revenue,
+    // overdue loans, loan-maintenance timestamp), so they run concurrently
+    // instead of one after another. Each helper keeps its own try/catch and
+    // falls back to the same defaults as before.
+    final membersF = _kpiMembers();
+    final inventoryF = _kpiInventory();
+    final listingsF = _kpiPendingListings();
+    final revenueF = _kpiRevenueThisMonth();
+    final overdueF = _kpiOverdueLoans();
+    final asOfF = _kpiLoanDataAsOf();
 
-    try {
-      // Consolidated per Phase 5, item 5.1 — all farmer user_roles rows
-      // fetched once via _fetchFarmerRoleRows() and shared with
-      // fetchDashboardPriorities()/fetchCoopPerformance(). Same derivation
-      // logic as before, just computed from the shared row set.
-      final allFarmerRows = await _fetchFarmerRoleRows();
-      totalMembers = allFarmerRows.length;
-      pendingMembers = allFarmerRows
-          .where((r) => r['status'] == 'pending')
-          .length;
-
-      final activeIds = allFarmerRows
-          .where((r) => r['status'] == 'active')
-          .map((r) => r['user_id'] as String)
-          .toList();
-      if (activeIds.isNotEmpty) {
-        final profileRows = await _client
-            .from('farmer_profiles')
-            .select('user_id')
-            .inFilter('user_id', activeIds)
-            .eq('is_verified', true);
-        activeMembers = profileRows.length;
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchKpiSummary/members: $e');
-      membersQueryFailed = true;
-    }
-
-    int activeInventoryItems = 0;
-    int lowStockAlertCount = 0;
-    try {
-      final rows = await _fetchActiveInventoryRows();
-      activeInventoryItems = rows.length;
-      totalStockKg = rows.fold<double>(
-        0,
-        (sum, r) => sum + (r['quantity_on_hand'] as num).toDouble(),
-      );
-      lowStockAlertCount = rows
-          .where(
-            (r) => _isLowStock(
-        r['quantity_on_hand'] as num,
-        r['reorder_level'] as num?,
-            ),
-          )
-          .length;
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchKpiSummary/inventory: $e');
-    }
-
-    try {
-      final rows = await _fetchPendingListingRows();
-      pendingListings = rows.length;
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchKpiSummary/listings: $e');
-    }
-
-    // (pendingOrders query removed — pendingOrders was never rendered
-    //  anywhere in admin_dashboard_screen.dart; confirmed via repo-wide
-    //  search, no other consumer found. See Phase 1, item 1.2.)
-
-    try {
-      final now = DateTime.now();
-      final monthStart = DateTime(now.year, now.month, 1);
-      final rows = await _client
-          .from('orders')
-          .select('total_price')
-          .eq('status', 'completed')
-          .gte('created_at', monthStart.toIso8601String());
-      totalRevenue = rows.fold<double>(
-        0,
-        (s, r) => s + (r['total_price'] as num).toDouble(),
-      );
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchKpiSummary/revenue: $e');
-    }
-
-    DateTime? loanDataAsOf;
-    try {
-      // Single source of truth for loan counts — see AdminLoanRepository's
-      // own fetchDashboardStats() for the Loan module's dashboard, which
-      // this delegates to instead of re-querying farmer_loans independently.
-      // Only overdueLoans is consumed by this Dashboard's KPI strip;
-      // activeLoansCount is intentionally not read here — see Phase 1, item 1.2.
-      final loanStats = await AdminLoanRepository().fetchDashboardStats();
-      overdueLoans = loanStats.overdueLoansCount;
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchKpiSummary/loans: $e');
-    }
-
-    try {
-      // Phase 2, item 2.1 — when the nightly run_daily_loan_maintenance()
-      // job last confirmed a run, so the UI can flag a stale Overdue figure
-      // instead of presenting it as always-current with no way to check.
-      // RLS-restricted to admins; an Officer session gets a caught exception
-      // here and loanDataAsOf stays null, which the UI treats as "no
-      // staleness warning" rather than a false positive.
-      final row = await _client
-          .from('loan_policy_settings')
-          .select('last_maintenance_run_at')
-          .eq('id', 1)
-          .maybeSingle();
-      final raw = row?['last_maintenance_run_at'] as String?;
-      loanDataAsOf = raw != null ? DateTime.parse(raw) : null;
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchKpiSummary/loanDataAsOf: $e');
-    }
+    final members = await membersF;
+    final inventory = await inventoryF;
+    final pendingListings = await listingsF;
+    final totalRevenue = await revenueF;
+    final overdueLoans = await overdueF;
+    final loanDataAsOf = await asOfF;
 
     return AdminKpiSummary(
-      activeMembers: activeMembers,
-      totalMembersTarget: membersQueryFailed
-          ? 52
-          : totalMembers, // fallback only when the query itself threw — a genuine zero-member result is reported as 0, not masked
-      pendingMembers: pendingMembers,
-      totalStockKg: totalStockKg,
-      activeInventoryItems: activeInventoryItems,
-      lowStockAlertCount: lowStockAlertCount,
+      activeMembers: members.active,
+      totalMembersTarget: members.failed ? 52 : members.total,
+      pendingMembers: members.pending,
+      totalStockKg: inventory.totalStockKg,
+      activeInventoryItems: inventory.activeItems,
+      lowStockAlertCount: inventory.lowStock,
       pendingListings: pendingListings,
       totalRevenueThisMonth: totalRevenue,
       overdueLoans: overdueLoans,
       loanDataAsOf: loanDataAsOf,
     );
+  }
+
+  Future<({int total, int pending, int active, bool failed})>
+  _kpiMembers() async {
+    int total = 0;
+    int pending = 0;
+    int active = 0;
+    try {
+      // Same rule as the Members tab: a draft is not a member yet, and an
+      // active member is a farmer role whose status is 'active' — the same
+      // status the Members badges, filter chips and Cooperative card use.
+      final allFarmerRows = await _fetchFarmerRoleRows();
+      total = allFarmerRows.where((r) => r['status'] != 'draft').length;
+      pending = allFarmerRows.where((r) => r['status'] == 'pending').length;
+      active = allFarmerRows.where((r) => r['status'] == 'active').length;
+      return (total: total, pending: pending, active: active, failed: false);
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchKpiSummary/members: $e');
+      return (total: total, pending: pending, active: active, failed: true);
+    }
+  }
+
+  Future<({double totalStockKg, int activeItems, int lowStock})>
+  _kpiInventory() async {
+    try {
+      final rows = await _fetchActiveInventoryRows();
+      final totalStockKg = rows.fold<double>(
+        0,
+        (sum, r) => sum + (r['quantity_on_hand'] as num).toDouble(),
+      );
+      final lowStock = rows
+          .where(
+            (r) => _isLowStock(
+              r['quantity_on_hand'] as num,
+              r['reorder_level'] as num?,
+            ),
+          )
+          .length;
+      return (
+        totalStockKg: totalStockKg,
+        activeItems: rows.length,
+        lowStock: lowStock,
+      );
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchKpiSummary/inventory: $e');
+      return (totalStockKg: 0.0, activeItems: 0, lowStock: 0);
+    }
+  }
+
+  Future<int> _kpiPendingListings() async {
+    try {
+      final rows = await _fetchPendingListingRows();
+      return rows.length;
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchKpiSummary/listings: $e');
+      return 0;
+    }
+  }
+
+  Future<double> _kpiRevenueThisMonth() async {
+    try {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash__kpiRevenueThisMonth_1',
+        fetch: () => _client
+            .from('orders')
+            .select('total_price')
+            .eq('status', 'completed')
+            .gte('created_at', monthStart.toIso8601String()),
+      );
+      return rows.fold<double>(
+        0,
+        (s, r) => s + (r['total_price'] as num).toDouble(),
+      );
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchKpiSummary/revenue: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _kpiOverdueLoans() async {
+    try {
+      // Single source of truth for loan counts — delegates to the Loan
+      // module's own dashboard stats rather than re-querying farmer_loans.
+      final loanStats = await AdminLoanRepository().fetchDashboardStats();
+      return loanStats.overdueLoansCount;
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchKpiSummary/loans: $e');
+      return 0;
+    }
+  }
+
+  Future<DateTime?> _kpiLoanDataAsOf() async {
+    try {
+      // When run_daily_loan_maintenance() last confirmed a run, so the UI can
+      // flag a stale Overdue figure. RLS-restricted to admins; an Officer
+      // session gets a caught exception here, treated as "no warning".
+      final rowRows = await OfflineCache.load(
+        screen: 'admin_dash__kpiLoanDataAsOf_1',
+        fetch: () => _client
+            .from('loan_policy_settings')
+            .select('last_maintenance_run_at')
+            .eq('id', 1)
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
+      final raw = row?['last_maintenance_run_at'] as String?;
+      return raw != null ? DateTime.parse(raw) : null;
+    } catch (e) {
+      debugPrint('[AdminDashboardRepository] fetchKpiSummary/loanDataAsOf: $e');
+      return null;
+    }
   }
 
   // ─── Dashboard Priorities (Dynamic Hero Card) ──────────────────────────────
@@ -266,10 +309,11 @@ class AdminDashboardRepository {
 
     // Overdue loans — always critical
     try {
-      final rows = await _client
-          .from('farmer_loans')
-          .select('id')
-          .eq('status', 'overdue');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchDashboardPriorities_2',
+        fetch: () =>
+            _client.from('farmer_loans').select('id').eq('status', 'overdue'),
+      );
       if (rows.isNotEmpty) {
         priorities.add(
           DashboardPriority(
@@ -324,8 +368,8 @@ class AdminDashboardRepository {
       final lowItems = rows
           .where(
             (r) => _isLowStock(
-        r['quantity_on_hand'] as num,
-        r['reorder_level'] as num?,
+              r['quantity_on_hand'] as num,
+              r['reorder_level'] as num?,
             ),
           )
           .toList();
@@ -354,10 +398,11 @@ class AdminDashboardRepository {
 
     // Crop requests awaiting review
     try {
-      final rows = await _client
-          .from('crop_requests')
-          .select('id')
-          .eq('status', 'pending');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchDashboardPriorities_1',
+        fetch: () =>
+            _client.from('crop_requests').select('id').eq('status', 'pending'),
+      );
       if (rows.isNotEmpty) {
         priorities.add(
           DashboardPriority(
@@ -405,50 +450,6 @@ class AdminDashboardRepository {
     // Sort: critical → warning → info
     priorities.sort((a, b) => a.level.index.compareTo(b.level.index));
     return priorities;
-  }
-
-  // ─── Inventory Alerts ──────────────────────────────────────────────────────
-  // Farmer-owned harvest stock (inventory_batches) — intentionally distinct
-  // from cooperative_inventory. See file header.
-
-  // Phase 2: reworked to source from cooperative_inventory — the table
-  // Inventory Management actually manages — instead of inventory_batches
-  // (farmer harvest stock, a different table entirely). Shares the same
-  // cached row set as fetchKpiSummary()/fetchManagementModuleBadges() via
-  // _fetchActiveInventoryRows(), so this adds no extra round-trip, and the
-  // low-stock definition stays identical to the KPI/badge low-stock counts
-  // via the shared _isLowStock() helper.
-  Future<List<InventoryAlertItem>> fetchInventoryAlerts() async {
-    try {
-      final rows = await _fetchActiveInventoryRows();
-      final alerts = rows
-          .where(
-            (r) => _isLowStock(
-        r['quantity_on_hand'] as num,
-        r['reorder_level'] as num?,
-            ),
-          )
-          .map((r) {
-        final onHand = (r['quantity_on_hand'] as num).toDouble();
-        return InventoryAlertItem(
-          id: r['id'] as String,
-          itemName: r['item_name'] as String,
-          category: r['category'] as String? ?? 'Agricultural Supplies',
-          quantityOnHand: onHand,
-          unit: r['unit'] as String? ?? 'kg',
-          reorderLevel: (r['reorder_level'] as num?)?.toDouble() ?? 0,
-          alertLevel: onHand <= 0
-              ? InventoryAlertLevel.depleted
-              : InventoryAlertLevel.low,
-        );
-          })
-          .toList();
-      alerts.sort((a, b) => a.quantityOnHand.compareTo(b.quantityOnHand));
-      return alerts.take(5).toList();
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchInventoryAlerts: $e');
-      return [];
-    }
   }
 
   // ─── Calendar Events ───────────────────────────────────────────────────────
@@ -639,45 +640,18 @@ class AdminDashboardRepository {
   // ─── Management Module Badges ──────────────────────────────────────────────
 
   Future<List<ManagementModuleCard>> fetchManagementModuleBadges() async {
-    String inventoryBadge = '—';
-    bool inventoryAlert = false;
     String cropsBadge = '—';
     String loanItemsBadge = '—';
     String supplyChainBadge = '—';
     String pricesBadge = '—';
     String programsBadge = '—';
 
-    // Reads from cooperative_inventory (admin-managed) — NOT inventory_batches
     try {
-      final rows = await _fetchActiveInventoryRows();
-      final total = rows.length;
-      final lowOrDepleted = rows
-          .where(
-            (r) => _isLowStock(
-        r['quantity_on_hand'] as num,
-        r['reorder_level'] as num?,
-            ),
-          )
-          .length;
-
-      inventoryBadge = total == 0
-          ? 'No items'
-          : lowOrDepleted > 0
-          ? '$lowOrDepleted low / $total items'
-          : '$total items';
-      inventoryAlert = lowOrDepleted > 0;
-    } catch (e) {
-      debugPrint(
-        '[AdminDashboardRepository] fetchManagementModuleBadges/inventory: $e',
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchManagementModuleBadges_5',
+        fetch: () =>
+            _client.from('crop_master').select('id').eq('is_active', true),
       );
-      inventoryBadge = 'No items';
-    }
-
-    try {
-      final rows = await _client
-          .from('crop_master')
-          .select('id')
-          .eq('is_active', true);
       cropsBadge = rows.isEmpty ? 'No crops' : '${rows.length} crops';
     } catch (e) {
       debugPrint(
@@ -686,10 +660,13 @@ class AdminDashboardRepository {
     }
 
     try {
-      final rows = await _client
-          .from('loan_items_master')
-          .select('id')
-          .eq('is_active', true);
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchManagementModuleBadges_4',
+        fetch: () => _client
+            .from('loan_items_master')
+            .select('id')
+            .eq('is_active', true),
+      );
       loanItemsBadge = rows.isEmpty ? 'No items' : '${rows.length} items';
     } catch (e) {
       debugPrint(
@@ -698,10 +675,13 @@ class AdminDashboardRepository {
     }
 
     try {
-      final mapped = await _client
-          .from('farmer_profiles')
-          .select('user_id')
-          .not('farm_latitude', 'is', null);
+      final mapped = await OfflineCache.load(
+        screen: 'admin_dash_fetchManagementModuleBadges_3',
+        fetch: () => _client
+            .from('farmer_profiles')
+            .select('user_id')
+            .not('farm_latitude', 'is', null),
+      );
       supplyChainBadge = mapped.isEmpty
           ? '0 mapped'
           : '${mapped.length} mapped';
@@ -712,11 +692,14 @@ class AdminDashboardRepository {
     }
 
     try {
-      final rows = await _client
-          .from('price_records')
-          .select('crop_name, recorded_at')
-          .order('recorded_at', ascending: false)
-          .limit(1);
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchManagementModuleBadges_2',
+        fetch: () => _client
+            .from('price_records')
+            .select('crop_name, recorded_at')
+            .order('recorded_at', ascending: false)
+            .limit(1),
+      );
       if (rows.isNotEmpty) {
         final crop = rows.first['crop_name'] as String;
         final ts = DateTime.parse(rows.first['recorded_at'] as String);
@@ -731,10 +714,13 @@ class AdminDashboardRepository {
     }
 
     try {
-      final rows = await _client
-          .from('cooperative_programs')
-          .select('id')
-          .eq('status', 'active');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchManagementModuleBadges_1',
+        fetch: () => _client
+            .from('cooperative_programs')
+            .select('id')
+            .eq('status', 'active'),
+      );
       programsBadge = rows.isEmpty ? 'No programs' : '${rows.length} active';
     } catch (e) {
       debugPrint(
@@ -747,8 +733,7 @@ class AdminDashboardRepository {
         id: 'inventory',
         title: 'Inventory Management',
         subtitle: 'Cooperative stock levels',
-        badgeLabel: inventoryBadge,
-        hasBadgeAlert: inventoryAlert,
+        badgeLabel: '',
         route: AppRoutes.adminInventory,
         useGo: false,
       ),
@@ -757,7 +742,6 @@ class AdminDashboardRepository {
         title: 'Crop Management',
         subtitle: 'Available crops & categories',
         badgeLabel: cropsBadge,
-        hasBadgeAlert: false,
         route: AppRoutes.cropManagement,
         useGo: false,
       ),
@@ -766,7 +750,6 @@ class AdminDashboardRepository {
         title: 'Program Management',
         subtitle: 'Cooperative programs',
         badgeLabel: programsBadge,
-        hasBadgeAlert: false,
         route: AppRoutes.programManagement,
         useGo: false,
       ),
@@ -775,7 +758,6 @@ class AdminDashboardRepository {
         title: 'Loan Item Catalog',
         subtitle: 'Seeds, fertilizers & supplies',
         badgeLabel: loanItemsBadge,
-        hasBadgeAlert: false,
         route: AppRoutes.loanItemManagement,
         useGo: false,
       ),
@@ -784,7 +766,6 @@ class AdminDashboardRepository {
         title: 'Supply Chain Management',
         subtitle: 'Cooperative workflow & flow',
         badgeLabel: supplyChainBadge,
-        hasBadgeAlert: false,
         route: AppRoutes.supplyChainMap,
         useGo: false,
       ),
@@ -793,7 +774,6 @@ class AdminDashboardRepository {
         title: 'Price Management',
         subtitle: 'Cooperative & public market prices',
         badgeLabel: pricesBadge,
-        hasBadgeAlert: false,
         route: AppRoutes.priceManagement,
         useGo: false,
       ),
@@ -801,284 +781,6 @@ class AdminDashboardRepository {
   }
 
   // ─── Recent Activity ───────────────────────────────────────────────────────
-
-  Future<List<AdminActivityItem>> fetchRecentActivity({
-    int limit = 10,
-    int offset = 0,
-    // A list rather than a single module: Activity Log's chips filter by
-    // nav-section category (e.g. "Marketplace"), each of which maps to
-    // several underlying sourceModule values.
-    List<String>? moduleFilters,
-  }) async {
-    final List<AdminActivityItem> items = [];
-
-    // Local fetchNames() closure removed per Phase 5, item 5.1 — replaced by
-    // the shared fetchFarmerInfoMap() utility at each call site below.
-
-    try {
-      final rows = await _client
-          .from('harvest_records')
-          .select('id, crop_name, quantity_kg, created_at, farmer_id')
-          .order('created_at', ascending: false)
-          .limit(15); // raised from 3 per Phase 1, item 1.5
-      if (rows.isNotEmpty) {
-        final infoMap = await fetchFarmerInfoMap(
-          _client,
-          rows.map((r) => r['farmer_id'] as String).toList(),
-        );
-        for (final r in rows) {
-          // Left null, not defaulted to English 'Farmer' — see the member
-          // block below; adminActivityDescription() resolves the fallback
-          // via l10n.defaultFarmerName.
-          final name = infoMap[r['farmer_id'] as String]?.fullName;
-          final qty = r['quantity_kg'];
-          final crop = r['crop_name'] as String;
-          final ts = DateTime.parse(r['created_at'] as String);
-          items.add(
-            AdminActivityItem(
-              id: r['id'] as String,
-              type: AdminActivityType.harvest,
-              descKind: AdminActivityDescKind.harvest,
-              name: name,
-              cropName: crop,
-              quantityKg: '$qty',
-              highlightedName: name,
-              timestamp: ts,
-              isPrimary: true,
-              sourceModule: 'harvest',
-              referenceId: r['farmer_id'] as String,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/harvest: $e');
-    }
-
-    try {
-      final rows = await _client
-          .from('marketplace_listings')
-          .select('id, crop_name, status, submitted_at, farmer_id')
-          .order('submitted_at', ascending: false)
-          .limit(15); // raised from 3 per Phase 1, item 1.5
-      if (rows.isNotEmpty) {
-        final infoMap = await fetchFarmerInfoMap(
-          _client,
-          rows.map((r) => r['farmer_id'] as String).toList(),
-        );
-        for (final r in rows) {
-          // Left null, not defaulted to English 'Farmer' — see the member
-          // block below; adminActivityDescription() resolves the fallback
-          // via l10n.defaultFarmerName.
-          final name = infoMap[r['farmer_id'] as String]?.fullName;
-          final crop = r['crop_name'] as String;
-          final status = r['status'] as String;
-          final ts = DateTime.parse(r['submitted_at'] as String);
-          final isApproved = status == 'approved';
-          items.add(
-            AdminActivityItem(
-              id: r['id'] as String,
-              type: AdminActivityType.listing,
-              descKind: isApproved
-                  ? AdminActivityDescKind.listingApproved
-                  : AdminActivityDescKind.listingSubmitted,
-              name: name,
-              cropName: crop,
-              highlightedName: isApproved ? crop : name,
-              timestamp: ts,
-              isPrimary: isApproved,
-              sourceModule: 'listings',
-              referenceId: r['id'] as String,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/listing: $e');
-    }
-
-    try {
-      final rows = await _client
-          .from('orders')
-          .select('id, total_price, created_at')
-          .order('created_at', ascending: false)
-          .limit(10); // raised from 2 per Phase 1, item 1.5
-      for (final r in rows) {
-        final price = (r['total_price'] as num).toStringAsFixed(2);
-        final ts = DateTime.parse(r['created_at'] as String);
-        items.add(
-          AdminActivityItem(
-            id: r['id'] as String,
-            type: AdminActivityType.order,
-            descKind: AdminActivityDescKind.orderPlaced,
-            amount: price,
-            timestamp: ts,
-            isPrimary: false,
-            sourceModule: 'orders',
-            referenceId: r['id'] as String,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/order: $e');
-    }
-
-    try {
-      final rows = await _client
-          .from('price_records')
-          .select('id, crop_name, price, recorded_at')
-          .order('recorded_at', ascending: false)
-          .limit(10); // raised from 2 per Phase 1, item 1.5
-      for (final r in rows) {
-        final crop = r['crop_name'] as String;
-        final price = (r['price'] as num).toStringAsFixed(2);
-        final ts = DateTime.parse(r['recorded_at'] as String);
-        items.add(
-          AdminActivityItem(
-            id: r['id'] as String,
-            type: AdminActivityType.price,
-            descKind: AdminActivityDescKind.priceUpdated,
-            cropName: crop,
-            amount: price,
-            highlightedName: crop,
-            timestamp: ts,
-            isPrimary: false,
-            sourceModule: 'prices',
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/price: $e');
-    }
-
-    try {
-      final rows = await _client
-          .from('user_roles')
-          .select('user_id, created_at')
-          .eq('role', 'farmer')
-          .order('created_at', ascending: false)
-          .limit(10); // raised from 2 per Phase 1, item 1.5
-      if (rows.isNotEmpty) {
-        final infoMap = await fetchFarmerInfoMap(
-          _client,
-          rows.map((r) => r['user_id'] as String).toList(),
-        );
-        for (final r in rows) {
-          // Left null rather than defaulting to English 'New Member' here —
-          // the repository has no AppLocalizations access, so the fallback
-          // text is resolved from item.name == null in
-          // adminActivityDescription() instead.
-          final name = infoMap[r['user_id'] as String]?.fullName;
-          final ts = DateTime.parse(r['created_at'] as String);
-          items.add(
-            AdminActivityItem(
-              id: r['user_id'] as String,
-              type: AdminActivityType.member,
-              descKind: AdminActivityDescKind.newMember,
-              name: name,
-              highlightedName: name,
-              timestamp: ts,
-              isPrimary: true,
-              sourceModule: 'members',
-              referenceId: r['user_id'] as String,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/member: $e');
-    }
-
-    try {
-      final rows = await _client
-          .from('crop_requests')
-          .select('id, requested_name, farmer_id, created_at')
-          .order('created_at', ascending: false)
-          .limit(10); // raised from 2 per Phase 1, item 1.5
-      if (rows.isNotEmpty) {
-        final infoMap = await fetchFarmerInfoMap(
-          _client,
-          rows.map((r) => r['farmer_id'] as String).toList(),
-        );
-        for (final r in rows) {
-          // Left null, not defaulted to English 'Farmer' — see the member
-          // block above; adminActivityDescription() resolves the fallback
-          // via l10n.defaultFarmerName.
-          final name = infoMap[r['farmer_id'] as String]?.fullName;
-          final crop = r['requested_name'] as String;
-          final ts = DateTime.parse(r['created_at'] as String);
-          items.add(
-            AdminActivityItem(
-              id: r['id'] as String,
-              type: AdminActivityType.cropRequest,
-              descKind: AdminActivityDescKind.cropRequested,
-              name: name,
-              cropName: crop,
-              highlightedName: crop,
-              timestamp: ts,
-              isPrimary: false,
-              sourceModule: 'crops',
-              referenceId: r['id'] as String,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint(
-        '[AdminDashboardRepository] fetchRecentActivity/cropRequest: $e',
-      );
-    }
-
-    // Generic log-backed activity — see admin_activity_log
-    // (supabase_schema_admin_activity_log.sql) and AdminActivityRepository.
-    // Covers every module an action was explicitly logged from, unlike the
-    // 6 sources above which only ever infer activity from a table's
-    // created_at and can't capture updates or which admin acted.
-    try {
-      final rows = await _client
-          .from('admin_activity_log')
-          .select('id, admin_id, module, description, reference_id, created_at')
-          .order('created_at', ascending: false)
-          .limit(30);
-      if (rows.isNotEmpty) {
-        final adminIds = rows
-            .map((r) => r['admin_id'] as String?)
-            .whereType<String>()
-            .toList();
-        final infoMap = await fetchFarmerInfoMap(_client, adminIds);
-        for (final r in rows) {
-          final adminId = r['admin_id'] as String?;
-          items.add(
-            AdminActivityItem(
-              id: r['id'] as String,
-              type: AdminActivityType.logged,
-              plainDescription: r['description'] as String,
-              adminName: adminId != null ? infoMap[adminId]?.fullName : null,
-              timestamp: DateTime.parse(r['created_at'] as String),
-              isPrimary: false,
-              sourceModule: r['module'] as String,
-              referenceId: r['reference_id'] as String?,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[AdminDashboardRepository] fetchRecentActivity/log: $e');
-    }
-
-    items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-    final filtered = moduleFilters == null
-        ? items
-        : items
-              .where((item) => moduleFilters.contains(item.sourceModule))
-              .toList();
-
-    return filtered.skip(offset).take(limit).toList();
-  }
-
-  // ─── Cooperative Performance ───────────────────────────────────────────────
-
   Future<CoopPerformanceSummary> fetchCoopPerformance() async {
     int totalHarvests = 0;
     int activeListings = 0;
@@ -1086,7 +788,10 @@ class AdminDashboardRepository {
     int activeMembersThisSeason = 0;
 
     try {
-      final rows = await _client.from('harvest_records').select('id');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchCoopPerformance_5',
+        fetch: () => _client.from('harvest_records').select('id'),
+      );
       totalHarvests = rows.length;
     } catch (e) {
       debugPrint(
@@ -1096,9 +801,10 @@ class AdminDashboardRepository {
 
     double farmerAvailableStockKg = 0;
     try {
-      final rows = await _client
-          .from('inventory_batches')
-          .select('available_kg');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchCoopPerformance_4',
+        fetch: () => _client.from('inventory_batches').select('available_kg'),
+      );
       farmerAvailableStockKg = rows.fold<double>(
         0,
         (s, r) => s + (r['available_kg'] as num).toDouble(),
@@ -1110,10 +816,13 @@ class AdminDashboardRepository {
     }
 
     try {
-      final rows = await _client
-          .from('marketplace_listings')
-          .select('id')
-          .eq('status', 'approved');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchCoopPerformance_3',
+        fetch: () => _client
+            .from('marketplace_listings')
+            .select('id')
+            .eq('status', 'approved'),
+      );
       activeListings = rows.length;
     } catch (e) {
       debugPrint(
@@ -1122,10 +831,11 @@ class AdminDashboardRepository {
     }
 
     try {
-      final rows = await _client
-          .from('orders')
-          .select('id')
-          .eq('status', 'completed');
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchCoopPerformance_2',
+        fetch: () =>
+            _client.from('orders').select('id').eq('status', 'completed'),
+      );
       completedSales = rows.length;
     } catch (e) {
       debugPrint('[AdminDashboardRepository] fetchCoopPerformance/sales: $e');
@@ -1163,10 +873,13 @@ class AdminDashboardRepository {
 
     try {
       final seasonStart = DateTime(DateTime.now().year, 1, 1).toIso8601String();
-      final rows = await _client
-          .from('harvest_records')
-          .select('farmer_id')
-          .gte('harvest_date', seasonStart);
+      final rows = await OfflineCache.load(
+        screen: 'admin_dash_fetchCoopPerformance_1',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('farmer_id')
+            .gte('harvest_date', seasonStart),
+      );
       activeMembersThisSeason = rows
           .map((r) => r['farmer_id'] as String)
           .toSet()
@@ -1196,11 +909,15 @@ class AdminDashboardRepository {
     try {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return null;
-      final row = await _client
-          .from('user_information')
-          .select('full_name')
-          .eq('user_id', userId)
-          .maybeSingle();
+      final rowRows = await OfflineCache.load(
+        screen: 'admin_dash_fetchAdminFirstName_1',
+        fetch: () => _client
+            .from('user_information')
+            .select('full_name')
+            .eq('user_id', userId)
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
       final name = row?['full_name'] as String?;
       if (name == null || name.isEmpty) return null;
       return name.split(' ').first; // first name only, matches prior behavior

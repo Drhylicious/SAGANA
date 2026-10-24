@@ -14,6 +14,10 @@ import '../../widgets/crop_catalog_sheet.dart';
 import '../../widgets/edit_crop_sheet.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../core/l10n/app_localizations.dart';
+import '../../../data/services/market_types_service.dart';
+import '../../widgets/channel_only_badge.dart';
 
 class CropListingScreen extends StatefulWidget {
   const CropListingScreen({super.key});
@@ -125,7 +129,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
           content: Text(
             'This action requires an internet connection. Please try again once you\'re back online.',
           ),
-          backgroundColor: AppConstants.warningAmber,
+          backgroundColor: AppConstants.snackbarWarning,
         ),
       );
       return;
@@ -140,11 +144,6 @@ class _CropListingScreenState extends State<CropListingScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message:
-                  "You're offline — adding or removing crops requires an internet connection.",
-            ),
           Expanded(
             child: Stack(
               children: [
@@ -152,6 +151,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(screen: 'farmer_crops', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineCropsNeedInternet),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
@@ -451,6 +451,7 @@ class _CropCard extends StatelessWidget {
                       _CategoryBadge(category: crop.category),
                       if (crop.cropMasterId != null)
                         _MarketTypeBadge(cropType: crop.cropType),
+                      ChannelOnlyBadge(channel: crop.exclusiveChannel),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -599,20 +600,14 @@ class _MarketTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color;
-    switch (cropType) {
-      case 'sp3_cooperative':
-        color = AppConstants.primaryGreen;
-        break;
-      case 'da_amad_market':
-        color = AppConstants.amber;
-        break;
-      case 'open_market':
-        color = AppConstants.buyerBlue;
-        break;
-      default:
-        color = AppConstants.outline;
-    }
+    // Colour follows the market type's own setting (can Buyers see it?), not
+    // its code: Buyer-visible markets blue, farmer-only markets green, and a
+    // market not yet assigned neutral.
+    final Color color = cropType == null
+        ? AppConstants.outline
+        : MarketTypes.instance.isBuyerVisible(cropType)
+        ? AppConstants.buyerBlue
+        : AppConstants.primaryGreen;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(

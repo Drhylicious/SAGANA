@@ -12,7 +12,8 @@ import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/profile_avatar.dart';
-import '../../widgets/web_safe_blur_container.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin Profile — identity in a plain-card hero (no gradient — matches
 /// the Reports module's own "Phase 16" fix for the identical "oversized
@@ -101,7 +102,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           _buildHeader(context, l10n, cs, sagana),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _profile == null
                     ? Center(
                         child: Text(l10n.adminProfileLoadError,
@@ -129,36 +130,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Widget _buildHeader(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
-    return WebSafeBlurContainer(
-      decoration: BoxDecoration(
-        color: sagana.glassBackground,
-        border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-      ),
-      child: SizedBox(
-        height: 64,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.adminProfileTitle,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
-                ),
-              ),
-              // Settings gear removed (Admin Profile & Settings review) —
-              // Account/Preferences/Support/Sign-Out now live in the
-              // Navigation Drawer, reachable from every primary screen's
-              // SAGANA icon, not just from this one profile screen.
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.adminProfileTitle, onBack: () => context.pop());
   }
 
   /// Identity + Email / Administrator Since. Redesigned per review

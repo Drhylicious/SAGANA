@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 /// Admin "Add New Member" repository.
 ///
@@ -38,7 +39,6 @@ class AddMemberRepository {
     double shareValuePerUnit = 2000,
     double initialContribution = 0,
     List<String> initialCrops = const [],
-    String? registryId,
   }) async {
     try {
       final response = await _client.rpc(
@@ -56,7 +56,6 @@ class AddMemberRepository {
         'p_share_value_per_unit': shareValuePerUnit,
         'p_initial_contribution': initialContribution,
         'p_initial_crops': initialCrops,
-        'p_registry_id': registryId,
           'p_contact_email':
               (contactEmail != null && contactEmail.trim().isNotEmpty)
               ? contactEmail.trim()
@@ -70,7 +69,7 @@ class AddMemberRepository {
         AdminActivityRepository().log(
           module: 'members',
           actionType: 'added',
-          description: 'Added "${fullName.trim()}" as a new member.',
+          message: AdminLogMessage('adminLogMemberAdded', {'fullName': fullName.trim()}),
           referenceId: newUserId,
         );
         return AddMemberResult.success(userId: newUserId);
@@ -89,27 +88,18 @@ class AddMemberRepository {
     }
   }
 
-  /// Suggests the next username for new members.
-  Future<String> suggestNextUsername() async {
-    try {
-      final result = await _client.rpc(
-        'suggest_next_username',
-        params: {'p_prefix': 'SP3'},
-      );
-      return result as String? ?? 'SP3-0001';
-    } catch (_) {
-      return 'SP3-0001';
-    }
-  }
-
   String _parseError(Object e) {
     final msg = e.toString().toLowerCase();
-    if (msg.contains('member named') || msg.contains('full name')) {
-      return 'A member with this full name already exists.';
-    }
     if (msg.contains('already used by another account')) {
-      return 'This email address is already used by another account. '
-          'Please contact the SP3 Cooperative admin for assistance.';
+      return msg.contains('phone')
+          ? 'This phone number is already used by another account.'
+          : 'This email address is already used by another account.';
+    }
+    if (msg.contains('valid philippine mobile')) {
+      return 'Please enter a valid Philippine mobile number.';
+    }
+    if (msg.contains('valid email')) {
+      return 'Please enter a valid email address.';
     }
     if (msg.contains('at least 18 years')) {
       return 'The member must be at least 18 years old.';
@@ -119,10 +109,14 @@ class AddMemberRepository {
         msg.contains('already exists')) {
       return 'This username is already taken.';
     }
+    if (msg.contains('username must be')) {
+      return 'Username must be 3 to 30 characters: letters, numbers, dots, '
+          'underscores or hyphens.';
+    }
     if (msg.contains('function') && msg.contains('does not exist')) {
-      return 'The admin account creation function is not yet deployed. '
-          'Please run supabase_schema_admin_create_member.sql first, '
-          'or create the account manually in the Supabase dashboard.';
+      return 'The account creation function is not yet deployed. '
+          'Please run supabase_schema_registration_02_accounts_and_approval.sql '
+          'first.';
     }
     if (msg.contains('password')) {
       return 'Password must be at least 8 characters.';

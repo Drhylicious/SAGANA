@@ -1,21 +1,22 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../../widgets/shared_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/farmer_registration_address.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
-import '../../../data/models/buyer_address_model.dart';
-import '../../../data/models/psgc_models.dart';
-import '../../../data/repositories/psgc_repository.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/auth_visuals.dart';
+import '../../widgets/fixed_farmer_address_fields.dart';
 import '../../widgets/password_requirements.dart';
+import '../../widgets/username_availability_field.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -39,16 +40,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   _dobError; // shown under the DOB field (InputDecorator is not a FormField)
   String? _gender; // male | female | prefer_not_to_say
 
-  // Farmer registration wizard (Batch 4). 0 = Personal Information,
-  // 1 = Address Information (outsiders only), 2 = Review and Confirm.
+  // Farmer registration wizard. 0 = Personal Information, 1 = Address
+  // Information (fixed area + street / building / house no.), 2 = Review and
+  // Confirm. A Buyer registers on a single form.
   int _farmerStep = 0;
-  PsgcHierarchy? _psgc;
-  bool _isLoadingPsgc = false;
-  PsgcRegion? _region;
-  PsgcProvince? _province;
-  PsgcCity? _city;
-  PsgcBarangay? _barangay;
-  final _postalCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
   final _buildingCtrl = TextEditingController();
   final _houseNoCtrl = TextEditingController();
@@ -59,34 +54,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     'prefer_not_to_say': l10n.registerGenderPreferNotToSay,
   };
 
-  // Registry check state
-  Timer? _debounce;
-  bool _isCheckingRegistry = false;
-  bool _registryChecked = false;
-  bool _isOfficialMember = false;
-  // Registry email/phone already belong to another account (Batch 4).
-  bool _registryContactInUse = false;
-  Sp3RegistryResult? _registryResult;
-  String? _assignedUsername;
+  // Username availability, reported by UsernameAvailabilityField.
+  UsernameStatus? _usernameStatus;
+  bool _usernameChecking = false;
 
-  // Full-name duplicate check (Issue 3) — runs for BOTH roles.
-  // One of: null (unchecked), 'available', 'taken_account', 'taken_registry'.
-  String? _fullNameStatus;
-  bool _isCheckingFullName = false;
-
-  // Username availability state (for non-members)
-  Timer? _usernameDebounce;
-  bool _isCheckingUsername = false;
-  bool? _usernameAvailable;
-
-  // Email availability state (optional field — Issue 1 / D10)
+  // Email availability state (optional field)
   Timer? _emailDebounce;
   bool _isCheckingEmail = false;
   bool? _emailAvailable;
-
-  static final RegExp _emailRegex = RegExp(
-    r'^[a-zA-Z0-9.!#$%&*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$',
-  );
+  // Whether the email's domain can receive mail (format-valid addresses only).
+  // This is not proof that the mailbox exists or belongs to the person.
+  EmailDomainStatus? _emailDomain;
 
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
@@ -95,201 +73,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool get _isFarmer => _selectedRole == AppConstants.roleFarmer;
 
-  // Registry-matched Farmer: skips Address and Review, and their email and
-  // phone come from the registry (locked).
-  bool get _isMatchedMember =>
-      _isFarmer && _isOfficialMember && _registryChecked;
-  bool get _phoneLocked => _isMatchedMember && (_registryResult?.phone != null);
-  bool get _emailLocked => _isMatchedMember && (_registryResult?.email != null);
-
-  // Whether to show the username field — only for non-members
-  // and only after the registry check has completed
-  bool get _showUsernameField =>
-      !_isFarmer || (_registryChecked && !_isOfficialMember);
-
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
-    // Listen to full name changes with debounce
-    _fullNameCtrl.addListener(_onFullNameChanged);
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
-    _usernameDebounce?.cancel();
     _emailDebounce?.cancel();
-    _fullNameCtrl.removeListener(_onFullNameChanged);
     _fullNameCtrl.dispose();
     _usernameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
-    _postalCtrl.dispose();
     _streetCtrl.dispose();
     _buildingCtrl.dispose();
     _houseNoCtrl.dispose();
     super.dispose();
   }
 
-  // ── Registry check — debounced, fires 600ms after typing stops ───────────────
-
-  void _onFullNameChanged() {
-    final name = _fullNameCtrl.text.trim();
-
-    // Reset any previous result whenever the name changes.
-    if (_registryChecked || _isOfficialMember || _fullNameStatus != null) {
-      final wasOfficial = _isOfficialMember;
-      setState(() {
-        _registryChecked = false;
-        _isOfficialMember = false;
-        _registryResult = null;
-        _assignedUsername = null;
-        _fullNameStatus = null;
-        // Only clear the username field when it held an auto-assigned
-        // SP3-XXXX — never discard what an outsider typed themselves.
-        if (wasOfficial) _usernameCtrl.clear();
-        _usernameAvailable = null;
-      });
-      // Email and phone were filled from the previous registry match and
-      // are locked while it lasts; clear them so they unlock with it.
-      if (wasOfficial) {
-        _phoneCtrl.clear();
-        _emailCtrl.clear();
-        _emailAvailable = null;
-      }
-    }
-
-    // Need at least 3 characters to check.
-    if (name.length < 3) return;
-
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () {
-      _runNameChecks(name);
-    });
-  }
-
-  /// Runs the duplicate-name guard first (both roles), then — for farmers
-  /// whose name is free — the SP3 registry lookup.
-  Future<void> _runNameChecks(String name) async {
-    if (!mounted) return;
-    final roleAtStart = _selectedRole;
-    setState(() => _isCheckingFullName = true);
-
-    final status = await AuthService.checkFullNameAvailability(name);
-    // Discard the result if the role was switched while the check ran.
-    if (!mounted || _selectedRole != roleAtStart) return;
-
-    if (status == 'taken_account' || status == 'taken_registry') {
-      setState(() {
-        _fullNameStatus = status;
-        _isCheckingFullName = false;
-        _registryChecked = false;
-        _isOfficialMember = false;
-        _registryResult = null;
-        _assignedUsername = null;
-      });
-      return;
-    }
-
-    // 'available' or 'error' — allow the flow to continue. On 'error' the
-    // server-side insert still enforces uniqueness.
-    setState(() {
-      _fullNameStatus = 'available';
-      _isCheckingFullName = false;
-    });
-
-    if (_isFarmer) {
-      await _checkRegistry(name);
-    }
-  }
-
-  Future<void> _checkRegistry(String name) async {
-    if (!mounted) return;
-    final roleAtStart = _selectedRole;
-    setState(() => _isCheckingRegistry = true);
-
-    final result = await AuthService.checkSp3Registry(name);
-
-    // Discard the result if the role was switched while the check ran.
-    if (!mounted || _selectedRole != roleAtStart) return;
-
-    if (result != null && result.alreadyRegistered) {
-      // Matched a registry row that is already registered — treat as a
-      // duplicate, not an outsider.
-      setState(() {
-        _fullNameStatus = 'taken_registry';
-        _isOfficialMember = false;
-        _registryResult = null;
-        _assignedUsername = null;
-        _registryChecked = false;
-        _isCheckingRegistry = false;
-      });
-      return;
-    }
-
-    if (result != null) {
-      // Matched and available — generate username, auto-fill contact fields.
-      final username = await AuthService.suggestNextUsername('SP3');
-      if (!mounted || _selectedRole != roleAtStart) return;
-      setState(() {
-        _isOfficialMember = true;
-        _registryResult = result;
-        _assignedUsername = username;
-        // Fill phone + email from the registry and lock them (Batch 4).
-        // Only fields the registry actually supplies are filled and locked;
-        // a blank registry value stays editable.
-        if (result.phone != null) {
-          _phoneCtrl.text = result.phone!;
-        }
-        if (result.email != null) {
-          _emailCtrl.text = result.email!;
-          _emailAvailable = null;
-        }
-        _registryContactInUse = false;
-        _registryChecked = true;
-        _isCheckingRegistry = false;
-      });
-      // The registry email/phone are locked, so if either already belongs
-      // to another account this match cannot be completed. Flag it now so
-      // the user sees why before pressing Create Account.
-      final contactTaken = await _registryContactTaken(result);
-      if (!mounted || _selectedRole != roleAtStart) return;
-      setState(() => _registryContactInUse = contactTaken);
-    } else {
-      setState(() {
-        _isOfficialMember = false;
-        _registryResult = null;
-        _assignedUsername = null;
-        _registryChecked = true;
-        _isCheckingRegistry = false;
-      });
-    }
-  }
-
-  /// True when the registry email or phone already belongs to another
-  /// account. Fails open (false) if the check cannot run, since the server
-  /// still enforces uniqueness on the email.
-  Future<bool> _registryContactTaken(Sp3RegistryResult result) async {
-    final email = result.email;
-    if (email != null && !await AuthService.isEmailAvailable(email)) {
-      return true;
-    }
-    final phone = result.phone;
-    if (phone != null && !await AuthService.isPhoneAvailable(phone)) {
-      return true;
-    }
-    return false;
-  }
-
   // ── Email availability — debounced, optional field ───────────────────────────
 
   void _onEmailChanged(String value) {
-    setState(() => _emailAvailable = null);
+    setState(() {
+      _emailAvailable = null;
+      _emailDomain = null;
+    });
     final trimmed = value.trim();
-    if (trimmed.isEmpty || !_emailRegex.hasMatch(trimmed)) return;
+    if (trimmed.isEmpty || !isValidEmailFormat(trimmed)) return;
 
     _emailDebounce?.cancel();
     _emailDebounce = Timer(const Duration(milliseconds: 700), () {
@@ -300,34 +113,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _checkEmail(String email) async {
     if (!mounted) return;
     setState(() => _isCheckingEmail = true);
-    final available = await AuthService.isEmailAvailable(email);
-    if (!mounted) return;
+    final results = await Future.wait<Object>([
+      AuthService.isEmailAvailable(email),
+      AuthService.checkEmailDomain(email),
+    ]);
+    // Ignore the answer if the field changed while the checks ran.
+    if (!mounted || _emailCtrl.text.trim() != email) return;
     setState(() {
-      _emailAvailable = available;
+      _emailAvailable = results[0] as bool;
+      _emailDomain = results[1] as EmailDomainStatus;
       _isCheckingEmail = false;
-    });
-  }
-
-  // ── Username availability — debounced ─────────────────────────────────────────
-
-  void _onUsernameChanged(String value) {
-    setState(() => _usernameAvailable = null);
-    if (value.trim().length < 3) return;
-
-    _usernameDebounce?.cancel();
-    _usernameDebounce = Timer(const Duration(milliseconds: 700), () {
-      _checkUsername(value.trim());
-    });
-  }
-
-  Future<void> _checkUsername(String username) async {
-    if (!mounted) return;
-    setState(() => _isCheckingUsername = true);
-    final available = await AuthService.isUsernameAvailable(username);
-    if (!mounted) return;
-    setState(() {
-      _usernameAvailable = available;
-      _isCheckingUsername = false;
     });
   }
 
@@ -337,18 +132,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (role == _selectedRole) return;
 
     // Cancel pending checks first so a late result cannot fill the new form.
-    _debounce?.cancel();
-    _usernameDebounce?.cancel();
     _emailDebounce?.cancel();
 
-    // Controllers are cleared outside setState: clearing the name field
-    // fires _onFullNameChanged, which calls setState itself.
     _fullNameCtrl.clear();
     _usernameCtrl.clear();
     _phoneCtrl.clear();
     _emailCtrl.clear();
     _passwordCtrl.clear();
     _confirmPasswordCtrl.clear();
+    _streetCtrl.clear();
+    _buildingCtrl.clear();
+    _houseNoCtrl.clear();
 
     setState(() {
       _selectedRole = role;
@@ -357,47 +151,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _obscurePassword = true;
       _obscureConfirm = true;
       _error = null;
-      _fullNameStatus = null;
-      _isCheckingFullName = false;
-      _registryChecked = false;
-      _isOfficialMember = false;
-      _isCheckingRegistry = false;
-      _registryResult = null;
-      _assignedUsername = null;
-      _usernameAvailable = null;
-      _isCheckingUsername = false;
+      _usernameStatus = null;
+      _usernameChecking = false;
       _emailAvailable = null;
+      _emailDomain = null;
       _isCheckingEmail = false;
       _dobError = null;
       _farmerStep = 0;
-      _region = null;
-      _province = null;
-      _city = null;
-      _barangay = null;
     });
-    _postalCtrl.clear();
-    _streetCtrl.clear();
-    _buildingCtrl.clear();
-    _houseNoCtrl.clear();
   }
 
-  /// Email and Phone fields, both optional, plain labels, Email first.
+  /// Email and Phone fields, both optional, Email first.
   List<Widget> _buildContactFields(AppLocalizations l10n, ColorScheme cs) {
     final phoneField = TextFormField(
       controller: _phoneCtrl,
-      readOnly: _phoneLocked,
       keyboardType: TextInputType.phone,
       textInputAction: TextInputAction.next,
       decoration: authFieldDecoration(
         label: l10n.registerPhoneLabel,
         hint: '09XXXXXXXXX',
         icon: Icons.phone_outlined,
-        suffix: _phoneLocked ? _lockSuffix(cs) : null,
       ),
       validator: (v) {
         final t = v?.trim() ?? '';
         if (t.isEmpty) return null; // optional
-        if (!RegExp(r'^09\d{9}$').hasMatch(t)) {
+        if (normalizePhilippineMobile(t) == null) {
           return l10n.registerInvalidPhone;
         }
         return null;
@@ -406,7 +184,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final emailField = TextFormField(
       controller: _emailCtrl,
-      readOnly: _emailLocked,
       keyboardType: TextInputType.emailAddress,
       autocorrect: false,
       textInputAction: TextInputAction.next,
@@ -415,9 +192,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         label: l10n.registerEmailLabel,
         hint: 'name@example.com',
         icon: Icons.email_outlined,
-        suffix: _emailLocked
-            ? _lockSuffix(cs)
-            : _isCheckingEmail
+        suffix: _isCheckingEmail
             ? Padding(
                 padding: const EdgeInsets.all(14),
                 child: SizedBox(
@@ -443,11 +218,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       validator: (v) {
         final t = v?.trim() ?? '';
         if (t.isEmpty) return null; // optional
-        if (!_emailRegex.hasMatch(t)) {
+        if (!isValidEmailFormat(t)) {
           return l10n.registerInvalidEmail;
         }
         if (_emailAvailable == false) {
           return l10n.registerEmailTaken;
+        }
+        if (_emailDomain == EmailDomainStatus.noMailServer) {
+          return l10n.registerEmailDomainInvalid;
         }
         return null;
       },
@@ -478,14 +256,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _dobError = _dateOfBirth == null && _isFarmer
             ? l10n.registerFieldRequired
             : null;
+        if (_isFarmer) _farmerStep = 0;
       });
       return;
     }
 
-    // Outsider Farmers: the address is saved with the account, so it must
-    // be complete before anything is created.
-    final isOutsiderFarmer = _isFarmer && !_isOfficialMember;
-    if (isOutsiderFarmer && !_isAddressComplete) {
+    if (_isFarmer && !_isAddressComplete) {
       setState(() {
         _farmerStep = 1;
         _error = l10n.registerFieldRequired;
@@ -493,17 +269,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final username = _isOfficialMember
-        ? _assignedUsername!
-        : _usernameCtrl.text.trim();
+    final username = normalizeUsername(_usernameCtrl.text);
     final emailInput = _emailCtrl.text.trim();
+    final phoneInput = _phoneCtrl.text.trim();
 
     setState(() {
       _isLoading = true;
       _error = null;
     });
-
-    final phoneInput = _phoneCtrl.text.trim();
 
     try {
       await AuthService.register(
@@ -515,27 +288,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: _selectedRole,
         dateOfBirth: _isFarmer ? _dateOfBirth : null,
         gender: _isFarmer ? _gender : null,
-        registryId: _registryResult?.registryId,
-        structuredAddress: isOutsiderFarmer ? _buildAddressStructure() : null,
-        addressLine: isOutsiderFarmer ? _composeAddressLine() : null,
+        street: _isFarmer ? _streetCtrl.text.trim() : null,
+        building: _isFarmer ? _buildingCtrl.text.trim() : null,
+        houseNo: _isFarmer ? _houseNoCtrl.text.trim() : null,
       );
 
       if (!mounted) return;
 
-      final msg = _isOfficialMember
-          ? l10n.registerWelcomeOfficialMessage(_assignedUsername ?? '')
-          : _isFarmer
-          ? l10n.registerFarmerCreatedMessage(_usernameCtrl.text.trim())
-          : l10n.registerBuyerCreatedMessage(_usernameCtrl.text.trim());
+      final msg = _isFarmer
+          ? l10n.registerFarmerCreatedMessage(username)
+          : l10n.registerBuyerCreatedMessage(username);
 
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
           title: Text(
-            _isOfficialMember
-                ? l10n.registerWelcomeOfficialTitle
-                : l10n.registerAccountCreatedTitle,
+            l10n.registerAccountCreatedTitle,
             style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
           ),
           content: Text(
@@ -563,37 +332,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // ── Farmer wizard (Batch 4) ─────────────────────────────────────────────────
+  // ── Farmer wizard ───────────────────────────────────────────────────────────
 
   /// First error on the Personal Information step, or null when it passes.
   String? _personalStepError(AppLocalizations l10n) {
-    // Duplicate full name — hard block for both roles (Issue 3).
-    if (_fullNameStatus == 'taken_account' ||
-        _fullNameStatus == 'taken_registry') {
-      return l10n.registerNameAlreadyRegistered;
+    // The username is required for every account, and must be free. A check
+    // that could not run (UsernameStatus.error) is not a verdict: the database
+    // decides when the account is created.
+    if (_usernameChecking || _usernameStatus == null) {
+      return l10n.registerCheckingUsername;
     }
-    if (_isCheckingFullName) return l10n.registerCheckingName;
-    // The registry lookup starts only after 3 characters, so a shorter name
-    // will never be checked and must be lengthened first.
-    if (_isFarmer && _fullNameCtrl.text.trim().length < 3) {
-      return l10n.registerNameMinChars;
+    if (_usernameStatus == UsernameStatus.taken) {
+      return l10n.registerUsernameTaken;
     }
-    // Farmers must have completed the registry check.
-    if (_isFarmer && (!_registryChecked || _isCheckingRegistry)) {
-      return l10n.registerCheckingRegistry;
-    }
-    // Registry contact already in use: the locked values cannot be used.
-    if (_isMatchedMember && _registryContactInUse) {
-      return l10n.registerRegistryContactInUse;
-    }
-    if (!_isOfficialMember && _usernameAvailable != true) {
-      return l10n.registerChooseAvailableUsername;
+    if (_usernameStatus == UsernameStatus.invalid) {
+      return l10n.registerUsernameInvalid;
     }
     // Email is optional, but if provided it must be well-formed and free.
     final emailInput = _emailCtrl.text.trim();
     if (emailInput.isNotEmpty) {
-      if (!_emailRegex.hasMatch(emailInput)) return l10n.registerInvalidEmail;
+      if (!isValidEmailFormat(emailInput)) return l10n.registerInvalidEmail;
       if (_emailAvailable == false) return l10n.registerEmailTaken;
+      if (_emailDomain == EmailDomainStatus.noMailServer) {
+        return l10n.registerEmailDomainInvalid;
+      }
     }
     if (_isFarmer && (_dateOfBirth == null || _gender == null)) {
       return l10n.registerFieldRequired;
@@ -601,68 +363,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
-  bool get _isAddressComplete {
-    final region = _region;
-    if (region == null || _city == null || _barangay == null) return false;
-    if (region.hasProvinces && _province == null) return false;
-    return isValidPhilippinePostalCode(_postalCtrl.text) &&
-        _streetCtrl.text.trim().isNotEmpty &&
-        _houseNoCtrl.text.trim().isNotEmpty;
-  }
+  bool get _isAddressComplete =>
+      _streetCtrl.text.trim().isNotEmpty && _houseNoCtrl.text.trim().isNotEmpty;
 
-  /// Structured fields for buyer_addresses. PSGC names and codes are both
-  /// stored (confirmed in Batch 3).
-  BuyerAddressStructure _buildAddressStructure() {
-    final building = _buildingCtrl.text.trim();
-    return BuyerAddressStructure(
-      regionCode: _region?.code,
-      regionName: _region?.name,
-      provinceCode: _province?.code,
-      provinceName: _province?.name,
-      cityMunicipalityCode: _city?.code,
-      cityMunicipalityName: _city?.name,
-      barangayCode: _barangay?.code,
-      barangayName: _barangay?.name,
-      postalCode: _postalCtrl.text.trim(),
-      street: _streetCtrl.text.trim(),
-      building: building.isEmpty ? null : building,
-      houseNo: _houseNoCtrl.text.trim(),
-    );
-  }
-
-  /// Single-line address for buyer_addresses.address_line (NOT NULL).
-  String _composeAddressLine() {
-    return [
-      _houseNoCtrl.text.trim(),
-      _buildingCtrl.text.trim(),
-      _streetCtrl.text.trim(),
-      _barangay?.name,
-      _city?.name,
-      _province?.name,
-      _region?.name,
-      _postalCtrl.text.trim(),
-    ].whereType<String>().where((p) => p.isNotEmpty).join(', ');
-  }
-
-  Widget _lockSuffix(ColorScheme cs) => Padding(
-    padding: const EdgeInsets.all(14),
-    child: Icon(
-      Icons.lock_outline_rounded,
-      size: 18,
-      color: cs.onSurfaceVariant,
-    ),
+  /// Single-line address shown on the review step.
+  String _composeAddressLine() => FarmerRegistrationAddress.composeLine(
+    houseNo: _houseNoCtrl.text,
+    building: _buildingCtrl.text,
+    street: _streetCtrl.text,
   );
 
-  /// Step 1 "Next" for a Farmer. A registry match skips the address steps
-  /// and creates the account directly.
-  Future<void> _onFarmerNext() async {
+  /// Step 1 "Next" for a Farmer.
+  void _onFarmerNext() {
     final l10n = AppLocalizations.of(context);
     final formOk = _formKey.currentState?.validate() ?? false;
     setState(() {
       _dobError = _dateOfBirth == null ? l10n.registerFieldRequired : null;
     });
-    // Empty or invalid fields: say so, rather than describing a registry
-    // check that has not started.
+    // Empty or invalid fields: say so.
     if (!formOk || _dateOfBirth == null) {
       setState(() => _error = l10n.registerFixHighlightedFields);
       return;
@@ -670,27 +388,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final personalError = _personalStepError(l10n);
     setState(() => _error = personalError);
     if (personalError != null) return;
-    if (_isMatchedMember) {
-      await _submit();
-      return;
-    }
-    await _goToAddressStep();
-  }
-
-  Future<void> _goToAddressStep() async {
     setState(() {
       _farmerStep = 1;
       _error = null;
-    });
-    if (_psgc != null) return;
-    setState(() => _isLoadingPsgc = true);
-    final hierarchy = await PsgcRepository.load();
-    if (!mounted) return;
-    setState(() {
-      // An empty hierarchy means the asset failed to load; leave _psgc null
-      // so the next visit retries.
-      if (hierarchy.regions.isNotEmpty) _psgc = hierarchy;
-      _isLoadingPsgc = false;
     });
   }
 
@@ -708,7 +408,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   /// Whatever the primary button does at the current step.
   void _onPrimaryPressed() {
-    if (_isFarmer && _farmerStep == 0 && !_isMatchedMember) {
+    if (_isFarmer && _farmerStep == 0) {
       _onFarmerNext();
     } else if (_isFarmer && _farmerStep == 1) {
       _onAddressNext();
@@ -847,147 +547,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  List<Widget> _buildAddressStep(AppLocalizations l10n, ColorScheme cs) {
-    final psgc = _psgc;
-    final region = _region;
-    // Regions without provinces (NCR, HUCs, independent cities) list their
-    // cities directly.
-    final cityOptions = region == null
-        ? const <PsgcCity>[]
-        : (region.hasProvinces
-              ? (_province?.cities ?? const <PsgcCity>[])
-              : region.cities);
-    String required(String label) => '$label *';
-    String? requiredValidator(Object? v) =>
-        v == null ? l10n.registerFieldRequired : null;
-
-    return [
-      if (_isLoadingPsgc)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      if (!_isLoadingPsgc && psgc == null) ...[
-        Text(
-          l10n.registerAddressLoadFailed,
-          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
-        ),
-        const SizedBox(height: 12),
-      ],
-      if (psgc != null) ...[
-        AppDropdownField<PsgcRegion>(
-          value: _region,
-          hintText: l10n.addMemberSelectHint,
-          labelText: required(l10n.registerRegionLabel),
-          items: psgc.regions,
-          itemLabel: (r) => r.name,
-          validator: requiredValidator,
-          onChanged: (v) => setState(() {
-            _region = v;
-            _province = null;
-            _city = null;
-            _barangay = null;
-          }),
-        ),
-        const SizedBox(height: 12),
-        if (region != null && region.hasProvinces) ...[
-          AppDropdownField<PsgcProvince>(
-            value: _province,
-            hintText: l10n.addMemberSelectHint,
-            labelText: required(l10n.registerProvinceLabel),
-            items: region.provinces,
-            itemLabel: (p) => p.name,
-            validator: requiredValidator,
-            onChanged: (v) => setState(() {
-              _province = v;
-              _city = null;
-              _barangay = null;
-            }),
-          ),
-          const SizedBox(height: 12),
-        ],
-        AppDropdownField<PsgcCity>(
-          value: _city,
-          hintText: l10n.addMemberSelectHint,
-          labelText: required(l10n.registerCityLabel),
-          items: cityOptions,
-          itemLabel: (c) => c.name,
-          validator: requiredValidator,
-          onChanged: (v) => setState(() {
-            _city = v;
-            _barangay = null;
-          }),
-        ),
-        const SizedBox(height: 12),
-        AppDropdownField<PsgcBarangay>(
-          value: _barangay,
-          hintText: l10n.addMemberSelectHint,
-          labelText: required(l10n.registerBarangayLabel),
-          items: _city?.barangays ?? const <PsgcBarangay>[],
-          itemLabel: (b) => b.name,
-          validator: requiredValidator,
-          onChanged: (v) => setState(() => _barangay = v),
-        ),
-        const SizedBox(height: 12),
-      ],
-      TextFormField(
-        controller: _postalCtrl,
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(4),
-        ],
-        decoration: authFieldDecoration(
-          label: required(l10n.registerPostalLabel),
-          icon: Icons.markunread_mailbox_outlined,
-        ),
-        validator: (v) => isValidPhilippinePostalCode(v ?? '')
-            ? null
-            : l10n.registerPostalInvalid,
-      ),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _streetCtrl,
-        textCapitalization: TextCapitalization.words,
-        decoration: authFieldDecoration(
-          label: required(l10n.registerStreetLabel),
-          icon: Icons.signpost_outlined,
-        ),
-        validator: (v) =>
-            (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null,
-      ),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _buildingCtrl,
-        textCapitalization: TextCapitalization.words,
-        decoration: authFieldDecoration(
-          label: l10n.registerBuildingLabel,
-          icon: Icons.apartment_outlined,
-        ),
-      ),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _houseNoCtrl,
-        decoration: authFieldDecoration(
-          label: required(l10n.registerHouseNoLabel),
-          icon: Icons.home_outlined,
-        ),
-        validator: (v) =>
-            (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null,
-      ),
-      const SizedBox(height: 12),
-    ];
-  }
-
   List<Widget> _buildReviewStep(AppLocalizations l10n, ColorScheme cs) {
     final notProvided = l10n.registerReviewNotProvided;
     final email = _emailCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
     final dob = _dateOfBirth;
     final gender = _gender == null ? null : _genderOptions(l10n)[_gender];
-    final username = _isOfficialMember
-        ? (_assignedUsername ?? '')
-        : _usernameCtrl.text.trim();
+    final username = normalizeUsername(_usernameCtrl.text);
 
     Widget header(String title, int stepTarget) => Row(
       children: [
@@ -1032,7 +598,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return [
       header(l10n.registerStepPersonal, 0),
       row(l10n.fullName, _fullNameCtrl.text.trim()),
-      row(l10n.registerUsernameLabel, username),
+      row(l10n.registerUsernameLabel.replaceAll(' *', ''), username),
       row(l10n.emailAddress, email.isEmpty ? notProvided : email),
       row(l10n.phoneNumber, phone.isEmpty ? notProvided : phone),
       row(l10n.addMemberDobLabel, dob == null ? notProvided : _formatDate(dob)),
@@ -1045,7 +611,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildFooter(AppLocalizations l10n) {
-    final isNext = _isFarmer && _farmerStep < 2 && !_isMatchedMember;
+    final isNext = _isFarmer && _farmerStep < 2;
     final label = isNext
         ? l10n.registerNext
         : (_isFarmer ? l10n.registerCreateAccount : l10n.registerTitle);
@@ -1081,6 +647,166 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  /// Step 1 (Personal Information) fields. Kept mounted but hidden on the
+  /// address and review steps, so the username keeps its availability result.
+  Widget _buildPersonalFields(AppLocalizations l10n, ColorScheme cs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Full Name — an ordinary text field. It is not searched anywhere and
+        // does not have to be unique.
+        TextFormField(
+          controller: _fullNameCtrl,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: authFieldDecoration(
+            label: '${l10n.fullName} *',
+            hint: _isFarmer
+                ? l10n.registerFullNameHintFarmer
+                : l10n.registerFullNameHintBuyer,
+            icon: Icons.person_outlined,
+          ),
+          validator: (v) =>
+              (v == null || v.trim().length < 2)
+              ? l10n.registerEnterFullName
+              : null,
+        ),
+        const SizedBox(height: 12),
+
+        // Username — always shown, always required, unique across all accounts.
+        UsernameAvailabilityField(
+          key: ValueKey('username-$_selectedRole'),
+          controller: _usernameCtrl,
+          decorationBuilder: (suffix) => authFieldDecoration(
+            label: l10n.registerUsernameLabel,
+            hint: l10n.registerUsernameHint,
+            icon: Icons.badge_outlined,
+            suffix: suffix,
+          ),
+          onStatusChanged: (status, checking) {
+            if (!mounted) return;
+            setState(() {
+              _usernameStatus = status;
+              _usernameChecking = checking;
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Email and Phone — both optional.
+        ..._buildContactFields(l10n, cs),
+
+        // Date of Birth and Gender — farmers only, both required.
+        if (_isFarmer) ...[
+          // The picker allows any real date; the 18+ cooperative-membership
+          // rule is enforced afterward via a warning dialog (and again by the
+          // database when the account is created).
+          InkWell(
+            onTap: () async {
+              final picked = await AppUtils.pickDateOfBirth(
+                context,
+                initialDate: _dateOfBirth,
+                helpText: l10n.registerDobHelp,
+              );
+              if (picked == null) return;
+              if (!AppUtils.isAtLeast18(picked)) {
+                if (!mounted) return;
+                await _showAgeRequirementDialog();
+                return;
+              }
+              setState(() {
+                _dateOfBirth = picked;
+                _dobError = null;
+              });
+            },
+            child: InputDecorator(
+              // errorText gives the same red border and message as the other
+              // required fields.
+              decoration: authFieldDecoration(
+                label: l10n.registerDob,
+                icon: Icons.cake_outlined,
+              ).copyWith(errorText: _dobError),
+              child: Text(
+                _dateOfBirth == null
+                    ? l10n.registerDobSelect
+                    : _formatDate(_dateOfBirth!),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: _dateOfBirth == null
+                      ? cs.onSurfaceVariant
+                      : cs.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Gender — farmers only, required
+          AppDropdownField<String>(
+            value: _gender,
+            hintText: l10n.addMemberSelectHint,
+            labelText: '${l10n.registerGenderLabel} *',
+            items: _genderOptions(l10n).keys.toList(),
+            itemLabel: (key) => _genderOptions(l10n)[key]!,
+            validator: (v) => v == null ? l10n.registerFieldRequired : null,
+            onChanged: (v) => setState(() => _gender = v),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Password
+        TextFormField(
+          controller: _passwordCtrl,
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.next,
+          decoration: authFieldDecoration(
+            label: l10n.registerPasswordLabel,
+            icon: Icons.lock_outline_rounded,
+            suffix: IconButton(
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+            ),
+          ),
+          validator: (v) => validatePasswordMinLength(v, l10n),
+        ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _passwordCtrl,
+          builder: (_, value, __) =>
+              PasswordLengthHint(password: value.text),
+        ),
+        const SizedBox(height: 12),
+
+        // Confirm password
+        TextFormField(
+          controller: _confirmPasswordCtrl,
+          obscureText: _obscureConfirm,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _onPrimaryPressed(),
+          decoration: authFieldDecoration(
+            label: l10n.registerConfirmPasswordLabel,
+            icon: Icons.lock_outline_rounded,
+            suffix: IconButton(
+              icon: Icon(
+                _obscureConfirm
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureConfirm = !_obscureConfirm),
+            ),
+          ),
+          validator: (v) =>
+              v != _passwordCtrl.text ? l10n.registerPasswordMismatch : null,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -1096,6 +822,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const OfflineStatusCard(),
                   // Back
                   Align(
                     alignment: Alignment.centerLeft,
@@ -1179,287 +906,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          if (_isFarmer && !_isMatchedMember) ...[
+                          if (_isFarmer) ...[
                             _buildStepper(l10n, cs),
                             const SizedBox(height: 20),
                           ],
 
-                          // Step 1 (Personal Information). Hidden on the
-                          // address and review steps; its values stay in
-                          // the controllers.
-                          if (!_isFarmer || _farmerStep == 0) ...[
-                            // Full Name — triggers registry check on change
-                            TextFormField(
-                              controller: _fullNameCtrl,
-                              textCapitalization: TextCapitalization.words,
-                              textInputAction: TextInputAction.next,
-                              decoration: authFieldDecoration(
-                                label: '${l10n.fullName} *',
-                                hint: _isFarmer
-                                    ? l10n.registerFullNameHintFarmer
-                                    : l10n.registerFullNameHintBuyer,
-                                icon: Icons.person_outlined,
-                                suffix:
-                                    (_isCheckingRegistry || _isCheckingFullName)
-                                    ? Padding(
-                                        padding: const EdgeInsets.all(14),
-                                        child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: cs.primary,
-                                          ),
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              validator: (v) =>
-                                  (v == null || v.trim().length < 2)
-                                  ? l10n.registerEnterFullName
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-
-                            // ── Duplicate full name (both roles — Issue 3) ───────────────
-                            if (_fullNameStatus == 'taken_account' ||
-                                _fullNameStatus == 'taken_registry') ...[
-                              _InlineBanner(
-                                color: AppConstants.errorRed,
-                                icon: Icons.block_rounded,
-                                title: l10n.registerNameTakenTitle,
-                                message: l10n.registerNameAlreadyRegistered,
-                                cs: cs,
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-
-                            // ── Registry result banner (farmers only) ────────────────────
-                            if (_isFarmer &&
-                                _fullNameStatus != 'taken_account' &&
-                                _fullNameStatus != 'taken_registry') ...[
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: _registryChecked
-                                    ? _RegistryResultBanner(
-                                        key: ValueKey(_isOfficialMember),
-                                        isMatch: _isOfficialMember,
-                                        username: _assignedUsername,
-                                        message: _isOfficialMember
-                                            ? l10n.registerRegistryMatchMessage
-                                            : l10n.registerRegistryNoMatchMessage,
-                                        cs: cs,
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
-                              if (_registryChecked) const SizedBox(height: 12),
-                              if (_registryContactInUse) ...[
-                                Text(
-                                  l10n.registerRegistryContactInUse,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppConstants.errorRed,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                            ],
-
-                            // ── Username field — only shown when needed ───────────────────
-                            if (_showUsernameField) ...[
-                              TextFormField(
-                                controller: _usernameCtrl,
-                                autocorrect: false,
-                                textInputAction: TextInputAction.next,
-                                onChanged: _onUsernameChanged,
-                                decoration: authFieldDecoration(
-                                  label: l10n.registerUsernameLabel,
-                                  hint: l10n.registerUsernameHint,
-                                  icon: Icons.badge_outlined,
-                                  suffix: _isCheckingUsername
-                                      ? Padding(
-                                          padding: const EdgeInsets.all(14),
-                                          child: SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: cs.primary,
-                                            ),
-                                          ),
-                                        )
-                                      : _usernameAvailable == null
-                                      ? null
-                                      : Icon(
-                                          _usernameAvailable!
-                                              ? Icons.check_circle_rounded
-                                              : Icons.cancel_rounded,
-                                          color: _usernameAvailable!
-                                              ? AppConstants.successGreen
-                                              : AppConstants.errorRed,
-                                        ),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return l10n.registerUsernameRequired;
-                                  }
-                                  if (v.trim().length < 3) {
-                                    return l10n.registerUsernameTooShort;
-                                  }
-                                  if (_usernameAvailable == false) {
-                                    return l10n.registerUsernameTaken;
-                                  }
-                                  return null;
-                                },
-                              ),
-                              if (_usernameAvailable == true)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    l10n.registerUsernameAvailable,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: AppConstants.successGreen,
-                                    ),
-                                  ),
-                                ),
-                              if (_usernameAvailable == false)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    l10n.registerUsernameNotAvailable,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: AppConstants.errorRed,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 12),
-                            ],
-
-                            // Phone and Email — optional (Issue 1 / D10); order and
-                            // labels depend on role (see _buildContactFields).
-                            ..._buildContactFields(l10n, cs),
-
-                            // Date of Birth and Gender — farmers only, both required.
-                            if (_isFarmer) ...[
-                              // Date of Birth — farmers only. The picker itself allows
-                              // any real date (dynamically relative to today, not a
-                              // fixed year); the 18+ cooperative-membership rule is
-                              // enforced afterward via a warning dialog (Phase B, and
-                              // the later "fully dynamic picker" revision).
-                              InkWell(
-                                onTap: () async {
-                                  final picked = await AppUtils.pickDateOfBirth(
-                                    context,
-                                    initialDate: _dateOfBirth,
-                                    helpText: l10n.registerDobHelp,
-                                  );
-                                  if (picked == null) return;
-                                  if (!AppUtils.isAtLeast18(picked)) {
-                                    if (!context.mounted) return;
-                                    await _showAgeRequirementDialog();
-                                    return;
-                                  }
-                                  setState(() {
-                                    _dateOfBirth = picked;
-                                    _dobError = null;
-                                  });
-                                },
-                                child: InputDecorator(
-                                  // errorText gives the same red border and
-                                  // message as the other required fields.
-                                  decoration: authFieldDecoration(
-                                    label: l10n.registerDob,
-                                    icon: Icons.cake_outlined,
-                                  ).copyWith(errorText: _dobError),
-                                  child: Text(
-                                    _dateOfBirth == null
-                                        ? l10n.registerDobSelect
-                                        : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      color: _dateOfBirth == null
-                                          ? cs.onSurfaceVariant
-                                          : cs.onSurface,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Gender — farmers only, required
-                              AppDropdownField<String>(
-                                value: _gender,
-                                hintText: l10n.addMemberSelectHint,
-                                labelText: '${l10n.registerGenderLabel} *',
-                                items: _genderOptions(l10n).keys.toList(),
-                                itemLabel: (key) => _genderOptions(l10n)[key]!,
-                                validator: (v) => v == null
-                                    ? l10n.registerFieldRequired
-                                    : null,
-                                onChanged: (v) => setState(() => _gender = v),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-
-                            // Password
-                            TextFormField(
-                              controller: _passwordCtrl,
-                              obscureText: _obscurePassword,
-                              textInputAction: TextInputAction.next,
-                              decoration: authFieldDecoration(
-                                label: l10n.registerPasswordLabel,
-                                icon: Icons.lock_outline_rounded,
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
-                                  ),
-                                ),
-                              ),
-                              validator: (v) =>
-                                  validatePasswordMinLength(v, l10n),
-                            ),
-                            ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: _passwordCtrl,
-                              builder: (_, value, __) =>
-                                  PasswordLengthHint(password: value.text),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Confirm password
-                            TextFormField(
-                              controller: _confirmPasswordCtrl,
-                              obscureText: _obscureConfirm,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => _onPrimaryPressed(),
-                              decoration: authFieldDecoration(
-                                label: l10n.registerConfirmPasswordLabel,
-                                icon: Icons.lock_outline_rounded,
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _obscureConfirm
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _obscureConfirm = !_obscureConfirm,
-                                  ),
-                                ),
-                              ),
-                              validator: (v) => v != _passwordCtrl.text
-                                  ? l10n.registerPasswordMismatch
-                                  : null,
-                            ),
-                          ],
+                          // Step 1 (Personal Information). Hidden — not
+                          // removed — on the address and review steps.
+                          Visibility(
+                            visible: !_isFarmer || _farmerStep == 0,
+                            maintainState: true,
+                            child: _buildPersonalFields(l10n, cs),
+                          ),
 
                           if (_isFarmer && _farmerStep == 1)
-                            ..._buildAddressStep(l10n, cs),
+                            FixedFarmerAddressFields(
+                              streetController: _streetCtrl,
+                              buildingController: _buildingCtrl,
+                              houseNoController: _houseNoCtrl,
+                            ),
                           if (_isFarmer && _farmerStep == 2)
                             ..._buildReviewStep(l10n, cs),
 
@@ -1624,182 +1089,6 @@ class _RoleChip extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Registry Result Banner
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RegistryResultBanner extends StatelessWidget {
-  final bool isMatch;
-  final String message;
-  final String? username;
-  final ColorScheme cs;
-
-  const _RegistryResultBanner({
-    super.key,
-    required this.isMatch,
-    required this.message,
-    this.username,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final color = isMatch
-        ? AppConstants.successGreen
-        : AppConstants.warningAmber;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: color.withValues(alpha: 0.30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                isMatch ? Icons.verified_rounded : Icons.info_outline_rounded,
-                color: color,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isMatch
-                    ? l10n.registerOfficialMemberFound
-                    : l10n.registerNotInRegistry,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: cs.onSurface,
-              height: 1.5,
-            ),
-          ),
-
-          // Show assigned username prominently for official members
-          if (isMatch && username != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.registerYourUsernameLabel,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    username!.toUpperCase(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: color,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  Text(
-                    l10n.registerUsernameAutoGenerated,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline banner (generic — used for the duplicate-name error)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _InlineBanner extends StatelessWidget {
-  final Color color;
-  final IconData icon;
-  final String title;
-  final String message;
-  final ColorScheme cs;
-
-  const _InlineBanner({
-    required this.color,
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: color.withValues(alpha: 0.30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: cs.onSurface,
-              height: 1.5,
-            ),
-          ),
-        ],
       ),
     );
   }

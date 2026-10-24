@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_constants.dart';
+import '../../data/services/market_types_service.dart';
 import '../l10n/app_localizations.dart';
 
 /// Brand-specific tokens beyond Material [ColorScheme].
@@ -116,35 +117,28 @@ extension SaganaColorsContext on BuildContext {
       Theme.of(this).extension<SaganaColors>() ?? SaganaColors.light;
 }
 
-/// Shared label + lookup for the two market-type classifications
-/// (crop_master.crop_type / price_records.price_type). One place both
-/// the color and the display text live, so Home, Market Rate Details,
-/// and View Market can never drift apart on either.
+/// Shared label + colour for the market types (crop_master.crop_type /
+/// price_records.price_type). SAGANA has two market types, Public and
+/// Cooperative; DA-AMAD is a selling channel, not a market type.
+///
+/// Both come from the market_types table through [MarketTypes], never from a
+/// comparison with a code: the name is the row's name (in the app's language),
+/// and the colour follows whether Buyers can see that market (buyer_visible),
+/// so a type added to the table later is shown correctly with no code change.
+/// [l10n] is kept so existing call sites are unchanged; the language comes
+/// from the app setting.
 class MarketTypeDisplay {
   MarketTypeDisplay._();
 
-  // 'da_amad_market' was a third classification, retired by
-  // supabase_schema_remove_da_amad.sql — the price_type/crop_type CHECK
-  // constraints only allow 'sp3_cooperative'/'open_market' now, so that
-  // case can never be reached. Removed rather than left dead.
-  static Color color(BuildContext context, String priceType) {
+  static Color color(BuildContext context, String? marketType) {
     final colors = context.saganaColors;
-    switch (priceType) {
-      case 'sp3_cooperative':
-        return colors.marketCooperative;
-      default:
-        return colors.marketOpenMarket;
-    }
+    return MarketTypes.instance.isBuyerVisible(marketType)
+        ? colors.marketOpenMarket
+        : colors.marketCooperative;
   }
 
-  static String label(AppLocalizations l10n, String priceType) {
-    switch (priceType) {
-      case 'sp3_cooperative':
-        return l10n.priceCooperativeMarket;
-      default:
-        return l10n.pricePublicMarket;
-    }
-  }
+  static String label(AppLocalizations l10n, String? marketType) =>
+      MarketTypes.instance.label(marketType);
 }
 
 /// Shared color lookup for marketplace_listings.status, mirroring
@@ -167,7 +161,8 @@ class ListingStatusDisplay {
       case 'approved':
         return AppConstants.successGreen;
       case 'sold':
-        return AppConstants.mutedBrown;
+        // Same grey as the Sold Out badge (listing_status_badge.dart).
+        return cs.onSurfaceVariant;
       case 'rejected':
         return cs.error;
       case 'withdrawn':

@@ -1,3 +1,4 @@
+import '../../core/l10n/app_localizations.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -15,12 +16,14 @@ import 'shared_widgets.dart';
 /// file, so this reproduces it via the shared ConfirmDialog rather than
 /// exporting it) so the Drawer's Sign Out row behaves identically.
 Future<void> confirmBuyerSignOut(BuildContext context) async {
+  final l10n = AppLocalizations.of(context);
   final confirmed = await AppDialog.show<bool>(
     context: context,
-    child: const ConfirmDialog(
-      title: 'Log Out?',
-      message: "You'll need to sign in again to place new orders.",
-      confirmLabel: 'Log Out',
+    child: ConfirmDialog(
+      title: l10n.signOutTitle,
+      message: l10n.signOutBuyerMessage,
+      confirmLabel: l10n.adminProfileSignOut,
+      cancelLabel: l10n.issueLoanCancel,
     ),
   );
   if (confirmed == true) {
@@ -73,7 +76,7 @@ class BuyerTopBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+            border: Border(bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20))),
           ),
           child: Row(
             children: [

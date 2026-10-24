@@ -7,6 +7,8 @@ import '../../../data/models/program_model.dart';
 import '../../../data/repositories/program_repository.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin review for Cooperative Product Sales Program purchase requests —
 /// see supabase_schema_program_product_sales.sql. Spans every 'sales'
@@ -370,22 +372,7 @@ class _ProgramPurchaseReviewScreenState
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                    onPressed: () => context.pop(),
-                  ),
-                  Expanded(
-                    child: Text('Purchase Requests',
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700, fontSize: 18, color: cs.onSurface)),
-                  ),
-                ],
-              ),
-            ),
+            SubPageTopBar(title: 'Purchase Requests', onBack: () => context.pop()),
             TabBar(
               controller: _tabController,
               labelColor: AppConstants.primaryGreen,
@@ -398,7 +385,7 @@ class _ProgramPurchaseReviewScreenState
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : TabBarView(
                       controller: _tabController,
                       children: [

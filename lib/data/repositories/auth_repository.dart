@@ -12,24 +12,6 @@ class AuthRepository {
     return AuthService.login(identifier: identifier, password: password);
   }
 
-  // ─── Register ────────────────────────────────────────────────────────────────
-
-  Future<UserModel> register({
-    required String email,
-    required String password,
-    required String fullName,
-    required String phoneNumber,
-    required String role,
-  }) async {
-    return AuthService.register(
-      username: email,
-      password: password,
-      fullName: fullName,
-      phoneNumber: phoneNumber,
-      role: role,
-    );
-  }
-
   // ─── Logout ──────────────────────────────────────────────────────────────────
 
   Future<void> logout() async {

@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/suspension_dialogs.dart';
 import '../../widgets/app_navigation_drawer.dart';
-import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../widgets/management_modal.dart';
 import '../../../data/models/farmer_member_model.dart';
 import '../../../data/repositories/account_management_repository.dart';
@@ -15,7 +18,9 @@ import '../../../data/repositories/farmer_management_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/app_toast.dart';
 import '../../widgets/temp_password_dialog.dart';
+import '../../widgets/skeleton.dart';
 
 void _safePop(BuildContext context, [Object? result]) {
   if (Navigator.canPop(context)) {
@@ -363,6 +368,11 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   static const int _pageSize = 20;
   int _visibleCount = _pageSize;
 
+  // Live updates: a Farmer who registers (or whose status changes) appears
+  // here without the Manager having to refresh or add them by hand.
+  RealtimeChannel? _membersChannel;
+  Timer? _reloadDebounce;
+
   @override
   void initState() {
     super.initState();
@@ -378,16 +388,43 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       });
     });
     _loadAll();
+    _subscribeToMemberChanges();
   }
 
   @override
   void dispose() {
+    _reloadDebounce?.cancel();
+    _membersChannel?.unsubscribe();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
+  /// Reloads the list when any Farmer's user_roles row is inserted, updated
+  /// or deleted. Several events in a burst (a registration writes a few rows)
+  /// collapse into one reload. The list is read under the Manager's own
+  /// permissions, so a Buyer is never part of it: only role = 'farmer' rows
+  /// are fetched.
+  void _subscribeToMemberChanges() {
+    _membersChannel = Supabase.instance.client
+        .channel('members_user_roles_${identityHashCode(this)}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'user_roles',
+          callback: (payload) {
+            final role = payload.newRecord['role'] ?? payload.oldRecord['role'];
+            if (role != null && role != 'farmer') return;
+            _reloadDebounce?.cancel();
+            _reloadDebounce = Timer(const Duration(milliseconds: 700), () {
+              if (mounted) _loadAll(silent: true);
+            });
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadAll({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchFarmers(),
       _repo.fetchSummaryStats(),
@@ -466,73 +503,104 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     );
   }
 
-  void _showFarmerActions(FarmerMemberModel farmer) {
-    showManagementModal(
+  /// Every ⋯ menu action, for every status. The card only builds the
+  /// entries; what each one does lives here.
+  Future<void> _onMenuSelected(FarmerMemberModel farmer, String value) async {
+    switch (value) {
+      case 'view':
+        context.push(AppRoutes.farmerDetails, extra: farmer.userId);
+      case 'notice':
+        context.push(AppRoutes.announcementDashboard);
+      case 'payment':
+        context.push(AppRoutes.recordPayment, extra: farmer.userId);
+      case 'toggle':
+        // Suspend is a two-step flow (Decision D17); reactivate is one tap.
+        if (!farmer.memberStatus.supportsSuspendToggle) return;
+        if (farmer.memberStatus.isEffectivelyActive) {
+          await _suspendMemberFlow(farmer);
+        } else {
+          await _repo.reactivateMember(userId: farmer.userId);
+          _loadAll();
+        }
+      case 'reset':
+        await _resetPassword(farmer);
+      case 'issueLoan':
+        context.push(AppRoutes.issueNewLoan, extra: farmer.userId);
+      case 'approve':
+        await _approveMember(farmer);
+      case 'reject':
+        await _rejectMember(farmer);
+      case 'delete':
+        await _confirmDeleteRejected(farmer);
+    }
+  }
+
+  Future<void> _resetPassword(FarmerMemberModel farmer) async {
+    try {
+      final tempPassword = await _accountRepo.resetUserPassword(farmer.userId);
+      if (!mounted) return;
+      await showTempPasswordDialog(
+        context: context,
+        name: farmer.fullName,
+        tempPassword: tempPassword,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).farmerMgmtResetPasswordError,
+          ),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+    }
+  }
+
+  /// Rejected applicants only. The RPC enforces the same rule, so this
+  /// confirmation is the UI step, not the only guard.
+  Future<void> _confirmDeleteRejected(FarmerMemberModel farmer) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => _FarmerActionsSheet(
-        farmer: farmer,
-        onViewProfile: () {
-          _safePop(dialogContext);
-          context.push(AppRoutes.farmerDetails, extra: farmer.userId);
-        },
-        onSendNotice: () {
-          _safePop(dialogContext);
-          context.push(AppRoutes.announcementDashboard);
-        },
-        onRecordPayment: () {
-          _safePop(dialogContext);
-          context.push(AppRoutes.recordPayment, extra: farmer.userId);
-        },
-        onToggleStatus: () async {
-          _safePop(dialogContext);
-          // Bugfix (verification pass): only Active/Inactive/Suspended
-          // support this toggle. Pending has its own Approve/Reject;
-          // Rejected/Draft have no status toggle at all — this sheet
-          // hides the row for those, but stay defensive here too.
-          if (!farmer.memberStatus.supportsSuspendToggle) return;
-          if (farmer.memberStatus.isEffectivelyActive) {
-            // Active or Inactive — suspend, two-step (Decision D17).
-            await _suspendMemberFlow(farmer);
-          } else {
-            // Suspended — reactivate, single tap.
-            await _repo.reactivateMember(userId: farmer.userId);
-            _loadAll();
-          }
-        },
-        onResetPassword: () async {
-          _safePop(dialogContext);
-          try {
-            final tempPassword = await _accountRepo.resetUserPassword(
-              farmer.userId,
-            );
-            if (!mounted) return;
-            await showTempPasswordDialog(
-              context: context,
-              name: farmer.fullName,
-              tempPassword: tempPassword,
-            );
-          } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  AppLocalizations.of(context).farmerMgmtResetPasswordError,
-                ),
+      builder: (dialogContext) {
+        final cs = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Text(
+            l10n.farmerMgmtDeleteRejectedTitle,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            l10n.farmerMgmtDeleteRejectedBody(farmer.fullName),
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.farmerMgmtCancel),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.errorRed,
               ),
-            );
-          }
-        },
-        onApprove: () async {
-          _safePop(dialogContext);
-          await _approveMember(farmer);
-        },
-        onReject: () async {
-          _safePop(dialogContext);
-          await _rejectMember(farmer);
-        },
-      ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.farmerMgmtDeleteRejectedAction),
+            ),
+          ],
+        );
+      },
     );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _repo.deleteRejectedApplicant(userId: farmer.userId);
+      if (!mounted) return;
+      PostActionFeedback.success(context, l10n.farmerMgmtDeleteRejectedSuccess);
+      _loadAll();
+    } catch (_) {
+      if (!mounted) return;
+      PostActionFeedback.error(context, l10n.farmerMgmtDeleteRejectedError);
+    }
   }
 
   Future<void> _approveMember(FarmerMemberModel farmer) async {
@@ -586,7 +654,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.farmerMgmtApprovedToast(farmer.fullName)),
-        backgroundColor: AppConstants.successGreen,
+        backgroundColor: AppConstants.midGreen,
         behavior: SnackBarBehavior.floating,
         ),
       );
@@ -651,28 +719,19 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
 
   Future<void> _suspendMemberFlow(FarmerMemberModel farmer) async {
     final l10n = AppLocalizations.of(context);
-    final reason = await _promptReason(
-      title: l10n.farmerMgmtSuspendDialogTitle(farmer.fullName),
-      hint: l10n.farmerMgmtSuspendHint,
-      actionLabel: l10n.farmerMgmtNext,
+    final request = await promptSuspension(
+      context: context,
+      role: 'farmer',
+      displayName: farmer.fullName,
     );
-    if (reason == null || reason.trim().isEmpty) return;
-
-    final confirmed = await _confirmSummary(
-      title: l10n.farmerMgmtConfirmSuspensionTitle,
-      lines: [
-        l10n.farmerMgmtSuspendMemberLine(farmer.fullName),
-        l10n.farmerMgmtSuspendOutcomeLine,
-        l10n.farmerMgmtReasonLine(reason.trim()),
-        l10n.farmerMgmtSuspendReactivateLine,
-      ],
-      actionLabel: l10n.farmerMgmtSuspendAccountAction,
-      danger: true,
-    );
-    if (confirmed != true) return;
+    if (request == null) return;
 
     try {
-      await _repo.suspendMember(userId: farmer.userId, reason: reason.trim());
+      await _repo.suspendMember(
+        userId: farmer.userId,
+        reason: request.reason,
+        suspendedUntil: request.suspendedUntil,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -804,7 +863,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
           final profile = AdminProfileStateService.instance.profile;
           return AppNavigationDrawer(
             photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Admin',
+            displayName: profile?.fullName ?? 'Manager',
             contactEmail: profile?.contactEmail ?? profile?.email,
             phoneNumber: profile?.phoneNumber,
             onEditProfile: () {
@@ -821,7 +880,6 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       ),
       body: Column(
         children: [
-          if (!_isOnline) const OfflineBanner(),
           // ── Top App Bar ─────────────────────────────────────────────────
           AdminTopBar(
             title: l10n.adminNavMembers,
@@ -832,14 +890,15 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
             onProfileTap: () => context.push(AppRoutes.adminProfile),
             enableMenu: true,
           ),
+          CachedDataNotice(
+            screen: 'members_farmers',
+            isOnline: _isOnline,
+            offlineMessage: AppLocalizations.of(context).offlineStaffBody,
+          ),
 
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _loadAll,
@@ -953,7 +1012,8 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                                       AppRoutes.farmerDetails,
                                   extra: f.userId,
                                 ),
-                                onMoreTap: () => _showFarmerActions(f),
+                                onMenuSelected: (value) =>
+                                    _onMenuSelected(f, value),
                               ),
                             ),
                                 ),
@@ -1157,15 +1217,80 @@ class _FarmerCard extends StatelessWidget {
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onTap;
-  final VoidCallback onMoreTap;
+  final ValueChanged<String> onMenuSelected;
 
   const _FarmerCard({
     required this.farmer,
     required this.cs,
     required this.sagana,
     required this.onTap,
-    required this.onMoreTap,
+    required this.onMenuSelected,
   });
+
+  /// The ⋯ menu for every status. Only the actions change by status; the
+  /// design is the same for all: a popup with a divider before any
+  /// destructive action.
+  List<PopupMenuEntry<String>> _menuEntries(BuildContext ctx) {
+    final l10n = AppLocalizations.of(ctx);
+    final status = farmer.memberStatus;
+    final entries = <PopupMenuEntry<String>>[];
+
+    // What each status gets is decided in one place: MemberStatus.listActions.
+    for (final action in status.listActions) {
+      switch (action) {
+        case MemberListAction.viewProfile:
+          entries.add(_menuItem('view', Icons.person_outline_rounded,
+              l10n.farmerMgmtActionViewProfile, cs.onSurface));
+        case MemberListAction.approve:
+          entries.add(_menuItem('approve', Icons.check_circle_rounded,
+              l10n.farmerMgmtActionApproveMembership, AppConstants.successGreen));
+        case MemberListAction.disapprove:
+          entries.add(const PopupMenuDivider());
+          entries.add(_menuItem('reject', Icons.cancel_rounded,
+              l10n.farmerMgmtRejectApplicationAction, AppConstants.errorRed));
+        case MemberListAction.sendNotification:
+          entries.add(_menuItem('notice', Icons.campaign_outlined,
+              l10n.farmerMgmtActionSendNotification, cs.onSurface));
+        case MemberListAction.resetPassword:
+          entries.add(_menuItem('reset', Icons.lock_reset_rounded,
+              l10n.farmerMgmtActionResetPassword, cs.onSurface));
+        case MemberListAction.issueLoan:
+          entries.add(_menuItem('issueLoan', Icons.add_card_rounded,
+              l10n.farmerDetailsIssueLoanAction, cs.onSurface));
+        case MemberListAction.recordLoanPayment:
+          entries.add(_menuItem('payment', Icons.payments_outlined,
+              l10n.farmerMgmtActionRecordLoanPayment, cs.onSurface));
+        case MemberListAction.toggleSuspend:
+          final suspend = status.isEffectivelyActive;
+          if (suspend) entries.add(const PopupMenuDivider());
+          entries.add(_menuItem(
+            'toggle',
+            suspend ? Icons.person_off_outlined : Icons.person_rounded,
+            suspend
+                ? l10n.farmerMgmtActionSetSuspended
+                : l10n.farmerMgmtActionSetActive,
+            suspend ? AppConstants.errorRed : cs.onSurface,
+          ));
+        case MemberListAction.deleteApplicant:
+          entries.add(const PopupMenuDivider());
+          entries.add(_menuItem('delete', Icons.delete_outline_rounded,
+              l10n.farmerMgmtDeleteRejectedAction, AppConstants.errorRed));
+      }
+    }
+    return entries;
+  }
+
+  PopupMenuItem<String> _menuItem(
+    String value,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
+    return PopupMenuItem(
+      value: value,
+      child: _menuRow(icon, label, color),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1259,17 +1384,22 @@ class _FarmerCard extends StatelessWidget {
                           height: 1.25,
                         ),
                       ),
-                      if (farmer.contactLine != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                          farmer.contactLine!,
+                      // Email and phone number on their own lines. A long
+                      // address may wrap onto a second line instead of being
+                      // cut off.
+                      for (final line in farmer.contactLines) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          line,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                          style: GoogleFonts.inter(
                             fontSize: 11.5,
+                            height: 1.3,
                             color: cs.outline,
                           ),
-                      ),
-                    ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1279,17 +1409,17 @@ class _FarmerCard extends StatelessWidget {
                   children: [
                     _StatusBadge(status: farmer.memberStatus, cs: cs),
                     const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: onMoreTap,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.all(2),
-                        child: Icon(
-                          Icons.more_vert_rounded,
-                          color: cs.onSurfaceVariant,
-                          size: 20,
-                        ),
+                    // One popup-menu style for every status (same as
+                    // Inventory's ⋯ menu). Only the actions change by status.
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        Icons.more_vert_rounded,
+                        color: cs.onSurfaceVariant,
+                        size: 20,
                       ),
+                      onSelected: onMenuSelected,
+                      itemBuilder: (ctx) => _menuEntries(ctx),
                     ),
                   ],
                 ),
@@ -1448,6 +1578,25 @@ class _FarmerCard extends StatelessWidget {
 
     return isRejected ? Opacity(opacity: 0.55, child: card) : card;
   }
+}
+
+/// One row in the rejected applicant's popup menu, styled like Inventory's
+/// ⋯ menu rows.
+Widget _menuRow(IconData icon, String label, Color color) {
+  return Row(
+    children: [
+      Icon(icon, size: 18, color: color),
+      const SizedBox(width: 12),
+      Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    ],
+  );
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -1905,182 +2054,6 @@ class _Chip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Farmer Actions Sheet (three-dot menu)
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _FarmerActionsSheet extends StatelessWidget {
-  final FarmerMemberModel farmer;
-  final VoidCallback onViewProfile;
-  final VoidCallback onSendNotice;
-  final VoidCallback onRecordPayment;
-  final VoidCallback onToggleStatus;
-  final VoidCallback onResetPassword;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
-
-  const _FarmerActionsSheet({
-    required this.farmer,
-    required this.onViewProfile,
-    required this.onSendNotice,
-    required this.onRecordPayment,
-    required this.onToggleStatus,
-    required this.onResetPassword,
-    required this.onApprove,
-    required this.onReject,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
-    final cs     = Theme.of(context).colorScheme;
-    final status = farmer.memberStatus;
-    final isPending  = status == MemberStatus.pending;
-    final isRejected = status == MemberStatus.rejected;
-
-    return ManagementModalShell(
-      title: farmer.fullName,
-      subtitle: isPending
-          ? l10n.farmerMgmtSubtitlePendingApp
-          : isRejected
-              ? l10n.farmerMgmtSubtitleRejectedApp
-              : l10n.farmerMgmtSubtitleManageMember,
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ActionRow(
-            icon: Icons.person_outline_rounded,
-            label: l10n.farmerMgmtActionViewProfile,
-            onTap: onViewProfile,
-            cs: cs,
-          ),
-          if (isPending) ...[
-            _ActionRow(
-              icon: Icons.check_circle_rounded,
-              label: l10n.farmerMgmtActionApproveMembership,
-              onTap: onApprove,
-              cs: cs,
-              iconColor: AppConstants.successGreen,
-            ),
-            _ActionRow(
-              icon: Icons.cancel_rounded,
-              label: l10n.farmerMgmtRejectApplicationAction,
-              onTap: onReject,
-              cs: cs,
-              isDestructive: true,
-            ),
-          ] else if (isRejected) ...[
-            // Rejected is not treated as an active/inactive member (Issue
-            // 5 verification fix): no Record Loan Payment (they were never
-            // a farmer member), no status toggle — they can only be
-            // re-reviewed by resubmitting their own application, up to 3
-            // total attempts. View Profile / Send Notification / Reset
-            // Password remain available for reference and assistance.
-            if (farmer.rejectionReason != null &&
-                farmer.rejectionReason!.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppConstants.errorRed.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  child: Text(
-                    l10n.farmerMgmtReasonLine(farmer.rejectionReason!.trim()),
-                      style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: cs.onSurface,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ),
-            _ActionRow(
-              icon: Icons.campaign_outlined,
-              label: l10n.farmerMgmtActionSendNotification,
-              onTap: onSendNotice,
-              cs: cs,
-            ),
-            _ActionRow(
-              icon: Icons.lock_reset_rounded,
-              label: l10n.farmerMgmtActionResetPassword,
-              onTap: onResetPassword,
-              cs: cs,
-            ),
-          ] else ...[
-            _ActionRow(
-              icon: Icons.campaign_outlined,
-              label: l10n.farmerMgmtActionSendNotification,
-              onTap: onSendNotice,
-              cs: cs,
-            ),
-            _ActionRow(
-              icon: Icons.payments_outlined,
-              label: l10n.farmerMgmtActionRecordLoanPayment,
-              onTap: onRecordPayment,
-              cs: cs,
-            ),
-            if (status.supportsSuspendToggle)
-              _ActionRow(
-                icon: status.isEffectivelyActive
-                    ? Icons.person_off_outlined
-                    : Icons.person_rounded,
-                label: status.isEffectivelyActive
-                    ? l10n.farmerMgmtActionSetSuspended
-                    : l10n.farmerMgmtActionSetActive,
-                onTap: onToggleStatus,
-                cs: cs,
-                isDestructive: status.isEffectivelyActive,
-              ),
-            _ActionRow(
-              icon: Icons.lock_reset_rounded,
-              label: l10n.farmerMgmtActionResetPassword,
-              onTap: onResetPassword,
-              cs: cs,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-  final bool isDestructive;
-  final Color? iconColor;
-
-  const _ActionRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    required this.cs,
-    this.isDestructive = false,
-    this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isDestructive ? cs.error : cs.onSurface;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: iconColor ?? color),
-            const SizedBox(width: 14),
-            Text(label, style: GoogleFonts.inter(fontSize: 14, color: color)),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Add Type Card (for creating new account type)

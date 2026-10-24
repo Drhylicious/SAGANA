@@ -9,6 +9,10 @@ import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../core/l10n/app_localizations.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/skeleton.dart';
 
 /// Programs — the primary Farmer-side entry point (reached from Profile),
 /// mirroring the Marketplace tab's own browse pattern (search + purpose
@@ -35,10 +39,14 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
   String _searchQuery = '';
   String _purposeFilter = 'All'; // 'All' | 'Distribution' | 'Sales'
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     _load();
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
@@ -121,6 +129,11 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: 'programs_available',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlinePrograms,
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: TextField(
@@ -183,8 +196,7 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
                   color: AppConstants.primaryGreen,
                   onRefresh: _load,
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: AppConstants.primaryGreen))
+                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                       : filtered.isEmpty
                           ? ListView(children: [
                               const SizedBox(height: 120),

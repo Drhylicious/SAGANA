@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class AdminRoutePlaceholderScreen extends StatelessWidget {
   const AdminRoutePlaceholderScreen({
@@ -22,10 +23,11 @@ class AdminRoutePlaceholderScreen extends StatelessWidget {
         description ?? 'This route is not implemented yet.';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(resolvedTitle),
-      ),
-      body: Center(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: resolvedTitle, onBack: () => Navigator.of(context).pop()),
+          Expanded(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -51,6 +53,8 @@ class AdminRoutePlaceholderScreen extends StatelessWidget {
             ],
           ),
         ),
+      )),
+        ],
       ),
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/inventory_batch_model.dart';
@@ -9,7 +8,10 @@ import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/listing_status_badge.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/cached_data_notice.dart';
 
 // Phase 12 — replaces the old single-purpose (Live-only) preview with a
 // single, parameterized, status-aware screen: "View Live" and every listing
@@ -24,7 +26,8 @@ class FarmerListingDetailScreen extends StatefulWidget {
   const FarmerListingDetailScreen({super.key, required this.listing});
 
   @override
-  State<FarmerListingDetailScreen> createState() => _FarmerListingDetailScreenState();
+  State<FarmerListingDetailScreen> createState() =>
+      _FarmerListingDetailScreenState();
 }
 
 class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
@@ -33,6 +36,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
 
   InventoryBatchModel? _batch;
   bool _isLoadingBatch = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   bool _isSubmitting = false;
 
   MarketplaceListingModel get _listing => widget.listing;
@@ -40,6 +44,9 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _loadBatch();
   }
 
@@ -63,8 +70,10 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     if (ConnectivityService.instance.isOnline) return true;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("This action requires an internet connection. Please try again once you're back online."),
-        backgroundColor: AppConstants.warningAmber,
+        content: Text(
+          "This action requires an internet connection. Please try again once you're back online.",
+        ),
+        backgroundColor: AppConstants.snackbarWarning,
       ),
     );
     return false;
@@ -75,23 +84,36 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-        title: Text('Withdraw Listing?', style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        ),
+        title: Text(
+          'Withdraw Listing?',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Text(
           '${_listing.displayName} will be removed from the marketplace. You can create a new listing for this batch later.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.errorRed,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
             ),
             child: Text('Withdraw', style: GoogleFonts.poppins(fontSize: 14)),
           ),
@@ -119,23 +141,36 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
-        title: Text('Delete Listing?', style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        ),
+        title: Text(
+          'Delete Listing?',
+          style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Text(
           'This will permanently delete the listing for ${_listing.displayName}. This action cannot be undone.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppConstants.outline)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: AppConstants.outline),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.errorRed,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              ),
             ),
             child: Text('Delete', style: GoogleFonts.poppins(fontSize: 14)),
           ),
@@ -169,6 +204,13 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           Column(
             children: [
               const SizedBox(height: 72),
+              CachedDataNotice(
+                screen: 'batch_${_listing.inventoryBatchId}',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(
+                  context,
+                ).offlineListingActions,
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -180,7 +222,8 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                       _buildHeader(context, listing),
                       const SizedBox(height: 10),
                       _buildPrice(listing),
-                      if (listing.description != null && listing.description!.isNotEmpty) ...[
+                      if (listing.description != null &&
+                          listing.description!.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         _buildDescription(listing),
                       ],
@@ -195,7 +238,9 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             ],
           ),
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: FarmerTopBar(
               // Crop name resolved from the Crop Roster (marketplace_listings'
               // canonical_crop_name, via crop_id → crop_master), same source
@@ -221,58 +266,60 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
         width: double.infinity,
         height: 220,
         child: _listing.photoUrl != null && _listing.photoUrl!.isNotEmpty
-            ? Image.network(_listing.photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
+            ? Image.network(
+                _listing.photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholder(),
+              )
             : _placeholder(),
       ),
     );
   }
 
   Widget _placeholder() => Container(
-        color: AppConstants.infoBlueBg,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.eco_rounded, color: AppConstants.primaryGreen, size: 40),
-            const SizedBox(height: 8),
-            Text('No photo available', style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-          ],
+    color: AppConstants.infoBlueBg,
+    alignment: Alignment.center,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.eco_rounded,
+          color: AppConstants.primaryGreen,
+          size: 40,
         ),
-      );
+        const SizedBox(height: 8),
+        Text(
+          'No photo available',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: AppConstants.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildHeader(BuildContext context, MarketplaceListingModel listing) {
-    final color = ListingStatusDisplay.color(context, listing.status);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: Text(
             listing.displayName,
-            style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w700, color: AppConstants.charcoal),
+            style: GoogleFonts.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+            ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-          ),
-          child: Text(_statusLabel(listing.status),
-              style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: color, letterSpacing: 0.5)),
+        ListingStatusBadge.forListing(
+          context,
+          status: listing.status,
+          remainingKg: listing.remainingKg,
         ),
       ],
     );
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'pending_review': return 'PENDING REVIEW';
-      case 'approved': return 'LIVE ON MARKET';
-      case 'withdrawn': return 'WITHDRAWN';
-      case 'rejected': return 'REJECTED';
-      case 'sold': return 'SOLD';
-      default: return status.toUpperCase();
-    }
   }
 
   Widget _buildPrice(MarketplaceListingModel listing) {
@@ -280,9 +327,18 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: [
-        Text('₱${listing.pricePerKg.toStringAsFixed(2)}',
-            style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-        Text('/kg', style: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline)),
+        Text(
+          '₱${listing.pricePerKg.toStringAsFixed(2)}',
+          style: GoogleFonts.poppins(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.primaryGreen,
+          ),
+        ),
+        Text(
+          '/kg',
+          style: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline),
+        ),
       ],
     );
   }
@@ -295,11 +351,23 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Product Details',
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.charcoal)),
+          Text(
+            'Product Details',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(listing.description!,
-              style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.5)),
+          Text(
+            listing.description!,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppConstants.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );
@@ -315,16 +383,31 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       child: _isLoadingBatch
           ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Center(child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+              child: Center(
+                child: SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             )
           : Column(
               children: [
-                _DetailRow(label: 'Available Volume', value: '${listing.remainingKg.toStringAsFixed(0)} kg'),
+                _DetailRow(
+                  label: 'Available Volume',
+                  value: '${listing.remainingKg.toStringAsFixed(0)} kg',
+                ),
                 const SizedBox(height: 12),
-                _DetailRow(label: 'Original Volume', value: '${listing.volumeKg.toStringAsFixed(0)} kg'),
+                _DetailRow(
+                  label: 'Original Volume',
+                  value: '${listing.volumeKg.toStringAsFixed(0)} kg',
+                ),
                 if (_batch != null) ...[
                   const SizedBox(height: 12),
-                  _DetailRow(label: 'Market Type', value: marketTypeLabelFor(_batch!.cropType)),
+                  _DetailRow(
+                    label: 'Market Type',
+                    value: marketTypeLabelFor(_batch!.cropType),
+                  ),
                   if (_batch!.category != null) ...[
                     const SizedBox(height: 12),
                     _DetailRow(label: 'Category', value: _batch!.category!),
@@ -336,7 +419,8 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                   const SizedBox(height: 12),
                   _DetailRow(
                     label: 'Submitted',
-                    value: '${listing.submittedAt!.month}/${listing.submittedAt!.day}/${listing.submittedAt!.year}',
+                    value:
+                        '${listing.submittedAt!.month}/${listing.submittedAt!.day}/${listing.submittedAt!.year}',
                   ),
                 ],
               ],
@@ -348,19 +432,29 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
   // the scrollable content rather than a floating bar — consistent with the
   // Buyer Listing Details cart-bar fix (Phase 2), so this isn't
   // reintroducing the same problem in a new screen.
-  Widget _buildStatusSection(BuildContext context, MarketplaceListingModel listing) {
+  Widget _buildStatusSection(
+    BuildContext context,
+    MarketplaceListingModel listing,
+  ) {
     if (listing.isPending) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           StatusStepper.forListingStatus(listing.status),
           const SizedBox(height: 20),
-          _actionButton('Withdraw Listing', AppConstants.errorRed, outlined: true, onTap: _confirmWithdraw),
+          _actionButton(
+            'Withdraw Listing',
+            AppConstants.errorRed,
+            outlined: true,
+            onTap: ConnectivityService.instance.isOnline
+                ? _confirmWithdraw
+                : null,
+          ),
         ],
       );
     }
 
-    if (listing.isLive) {
+    if (listing.isAvailable) {
       // No Withdraw action here, by explicit product direction — once a
       // listing is approved and visible to buyers, it may already have
       // an in-progress order against it (or a buyer viewing/cart-ing
@@ -377,12 +471,19 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: AppConstants.successGreen, size: 18),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: AppConstants.successGreen,
+              size: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'This listing is live and visible to buyers on the marketplace.',
-                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.successGreen),
+                'This listing is approved and available for purchase on the marketplace.',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppConstants.successGreen,
+                ),
               ),
             ),
           ],
@@ -395,12 +496,31 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (listing.adminNotes != null && listing.adminNotes!.isNotEmpty) ...[
-            Text('Rejection Reason', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.errorRed)),
+            Text(
+              'Rejection Reason',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.errorRed,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(listing.adminNotes!, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant, height: 1.4)),
+            Text(
+              listing.adminNotes!,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppConstants.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 20),
           ],
-          _actionButton('Delete Listing', AppConstants.errorRed, outlined: true, onTap: _confirmDelete),
+          _actionButton(
+            'Delete Listing',
+            AppConstants.errorRed,
+            outlined: true,
+            onTap: _confirmDelete,
+          ),
         ],
       );
     }
@@ -412,39 +532,65 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           if (listing.updatedAt != null) ...[
             Row(
               children: [
-                const Icon(Icons.history_rounded, size: 15, color: AppConstants.outline),
+                const Icon(
+                  Icons.history_rounded,
+                  size: 15,
+                  color: AppConstants.outline,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Removed on ${listing.updatedAt!.month}/${listing.updatedAt!.day}/${listing.updatedAt!.year}',
-                  style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppConstants.outline,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
           ],
-          _actionButton('Delete Listing', AppConstants.errorRed, outlined: true, onTap: _confirmDelete),
+          _actionButton(
+            'Delete Listing',
+            AppConstants.errorRed,
+            outlined: true,
+            onTap: _confirmDelete,
+          ),
         ],
       );
     }
 
-    if (listing.isSold) {
-      // Terminal state — no actions, per the approved design.
-      final realized = (listing.volumeKg - listing.remainingKg) * listing.pricePerKg;
+    if (listing.isSoldOut) {
+      // Nothing left to buy — no actions, per the approved design. A listing
+      // stored as sold is final; an approved one with 0 kg left still has
+      // orders in progress, so its amount is not final yet.
+      final realized =
+          (listing.volumeKg - listing.remainingKg) * listing.pricePerKg;
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppConstants.mutedBrown.withValues(alpha: 0.08),
+          color: AppConstants.onSurfaceVariant.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Final Realized Amount',
-                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+            Text(
+              listing.isSold ? 'Final Realized Amount' : 'Total Ordered Amount',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text('₱${realized.toStringAsFixed(2)}',
-                style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: AppConstants.mutedBrown)),
+            Text(
+              '₱${realized.toStringAsFixed(2)}',
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: AppConstants.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       );
@@ -453,7 +599,12 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _actionButton(String label, Color color, {bool outlined = false, required VoidCallback onTap}) {
+  Widget _actionButton(
+    String label,
+    Color color, {
+    bool outlined = false,
+    VoidCallback? onTap,
+  }) {
     if (outlined) {
       return SizedBox(
         width: double.infinity,
@@ -463,11 +614,23 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
             foregroundColor: color,
             side: BorderSide(color: color.withValues(alpha: 0.50)),
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
           ),
           child: _isSubmitting
-              ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
         ),
       );
     }
@@ -479,12 +642,27 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           backgroundColor: color,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusMd)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+          ),
           elevation: 0,
         ),
         child: _isSubmitting
-            ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+            ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
@@ -500,13 +678,25 @@ class _DetailRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppConstants.onSurfaceVariant,
+          ),
+        ),
         Flexible(
-          child: Text(value,
-              textAlign: TextAlign.end,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppConstants.charcoal)),
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppConstants.charcoal,
+            ),
+          ),
         ),
       ],
     );

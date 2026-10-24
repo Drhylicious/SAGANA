@@ -16,6 +16,8 @@ import '../../widgets/animated_pressable.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Record Payment — BOD Meeting Mode.
 /// Pushed above the shell (has a back button). Route: /admin/loans/payment
@@ -309,29 +311,22 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         : _notesController.text.trim();
 
     try {
-      if (_isOnline) {
-        final result = await _repo.recordPayment(
-          loanId: loan.id,
-          amount: recordedAmount,
-          paymentDate: _paymentDate,
-          notes: notes,
-        );
-        _onPaymentRecorded(
-          farmer,
-          recordedAmount,
-          loan,
-          synced: true,
-          confirmedFullyPaid: result.isFullyPaid,
-        );
-      } else {
-        await HiveService.savePendingLoanPayment({
-          'loanId': loan.id,
-          'amount': recordedAmount,
-          'paymentDate': _paymentDate.toIso8601String(),
-          'notes': notes,
-        });
-        _onPaymentRecorded(farmer, recordedAmount, loan, synced: false);
-      }
+      // Offline, the repository keeps the payment on this device and Sync
+      // sends it later (Batch 6). Online, it goes straight to the server.
+      final result = await _repo.recordPayment(
+        loanId: loan.id,
+        amount: recordedAmount,
+        paymentDate: _paymentDate,
+        notes: notes,
+      );
+      _onPaymentRecorded(
+        farmer,
+        recordedAmount,
+        loan,
+        synced: result.sentToServer,
+        confirmedFullyPaid:
+            result.sentToServer ? result.isFullyPaid : null,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -386,7 +381,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
-            : AppConstants.successGreen,
+            : AppConstants.midGreen,
       behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -414,10 +409,10 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         body: Column(
           children: [
             _buildTopBar(context, l10n, cs),
-            if (!_isOnline) const OfflineBanner(),
+            if (!_isOnline) const OfflineStatusCard(),
             Expanded(
               child: _isLoadingData
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : _selectedFarmer == null
                       ? _buildSearchStep(context, l10n, cs, sagana)
                       : _buildPaymentStep(context, l10n, cs, sagana),
@@ -433,43 +428,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    final sagana = context.saganaColors;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: _handleBack,
-              ),
-              Expanded(
-                child: Text(
-                  _selectedFarmer != null
-                      ? l10n.paymentContextualTitle(_selectedFarmer!.fullName)
-                      : l10n.paymentTitle,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: _selectedFarmer != null ? l10n.paymentContextualTitle(_selectedFarmer!.fullName) : l10n.paymentTitle, onBack: _handleBack);
   }
 
   // ─── Search step ────────────────────────────────────────────────────────

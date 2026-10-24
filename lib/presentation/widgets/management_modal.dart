@@ -20,6 +20,8 @@ String adminOrderStatusLabel(AppLocalizations l10n, String status) {
       return l10n.statCompleted;
     case 'cancelled':
       return l10n.buyerActivityStatusCancelled;
+    case 'rejected':
+      return l10n.orderStatusRejected;
     default:
       return status;
   }

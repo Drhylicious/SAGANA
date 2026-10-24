@@ -1,0 +1,24 @@
+activityFieldName||name|pangalan
+activityFieldPhone||phone number|numero ng telepono
+activityFieldPhoto||profile photo|larawan sa profile
+activityFieldEmail||email|email
+activityFieldDob||date of birth|petsa ng kapanganakan
+activityFieldGender||gender|kasarian
+activityFieldFarmName||farm name|pangalan ng bukid
+activityFieldFarmAddress||farm address|address ng bukid
+activityFieldFarmLocation||farm location|lokasyon ng bukid
+activityFieldFarmDetails||farm details|detalye ng bukid
+activityFieldLandArea||land area|sukat ng lupa
+activityFieldOwnership||ownership type|uri ng pagmamay-ari
+activityFieldSoil||soil type|uri ng lupa
+activityFieldWater||water source|pinagkukunan ng tubig
+activityFieldYears||years farming|taon sa pagsasaka
+activityProfileUpdated|fields|Updated {fields}|Na-update ang {fields}
+activityProfilePhotoUpdated||Updated profile photo|Na-update ang larawan sa profile
+activityPasswordChanged||Changed password|Binago ang password
+activityCropPhotoUpdated|crop|Updated photo for {crop}|Na-update ang larawan ng {crop}
+activityProgramPurchaseCancelled||Cancelled program purchase request|Kinansela ang request sa pagbili ng programa
+activityAddressAdded|label|Added address ({label})|Nagdagdag ng address ({label})
+activityAddressUpdated|label|Updated address ({label})|Na-update ang address ({label})
+activityAddressDeleted|label|Deleted address ({label})|Binura ang address ({label})
+activityAddressDefault|label|Set "{label}" as default address|Itinakda ang "{label}" bilang default na address

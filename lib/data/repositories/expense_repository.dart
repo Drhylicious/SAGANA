@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/client_id.dart';
 import '../models/expense_model.dart';
 import '../models/admin_reports_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/hive_service.dart';
+import '../services/offline_cache.dart';
 import 'farmer_lookup.dart';
 
 class ExpenseRepository {
@@ -52,7 +54,10 @@ class ExpenseRepository {
         );
       }
 
-      final rows = await query.order('expense_date', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'expenses_${period.name}',
+        fetch: () => query.order('expense_date', ascending: false),
+      );
       synced = rows.map((r) => ExpenseModel.fromMap(r)).toList();
     } catch (_) {
       synced = [];
@@ -127,10 +132,14 @@ class ExpenseRepository {
     required bool isSubsidy,
     String? notes,
   }) async {
+    // Database key for this expense. Kept with the queued record so a replay
+    // that finds the row already on the server is recognized, not duplicated.
+    final clientId = newClientId();
     final isOnline = await ConnectivityService.instance.checkConnectivity();
 
     if (!isOnline) {
       final localId = await HiveService.savePendingExpense({
+        'client_id': clientId,
         'name': name.trim(),
         'category': category,
         'description': description.trim(),
@@ -158,6 +167,7 @@ class ExpenseRepository {
     }
 
     return _addOnline(
+      clientId: clientId,
       name: name,
       category: category,
       description: description,
@@ -172,7 +182,11 @@ class ExpenseRepository {
   /// online path above and by SyncService's replay of queued offline
   /// submissions, so the two paths can never drift apart — mirrors
   /// HarvestEntryRepository._submitOnline().
+  ///
+  /// [clientId] is the row's primary key. If a row with that id already
+  /// exists, it is returned instead of inserting a second copy.
   Future<ExpenseModel> _addOnline({
+    required String clientId,
     required String name,
     required String category,
     required String description,
@@ -181,9 +195,19 @@ class ExpenseRepository {
     required bool isSubsidy,
     String? notes,
   }) async {
+    final existing = await _client
+        .from('farmer_expenses')
+        .select()
+        .eq('id', clientId)
+        .maybeSingle();
+    if (existing != null) {
+      return ExpenseModel.fromMap(existing);
+    }
+
     final row = await _client
         .from('farmer_expenses')
         .insert({
+          'id': clientId,
           'farmer_id': _userId,
           'name': name.trim(),
           'category': category,
@@ -202,6 +226,9 @@ class ExpenseRepository {
   /// once connectivity returns — mirrors submitQueuedHarvest().
   Future<ExpenseModel> submitQueuedExpense(Map<dynamic, dynamic> payload) {
     return _addOnline(
+      // Records queued before client ids existed have none. They get a fresh
+      // id, so the duplicate check cannot apply to them.
+      clientId: payload['client_id'] as String? ?? newClientId(),
       name: payload['name'] as String? ?? '',
       category: payload['category'] as String,
       description: payload['description'] as String,

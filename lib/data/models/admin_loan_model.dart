@@ -247,6 +247,11 @@ class LoanCatalogItem {
   final String? notes;
   final String? imageUrl;
 
+  /// The inventory item's Source (cooperative_inventory.source). Read-only
+  /// here: it is owned by Inventory Management, never copied into the loan
+  /// catalog. Null for items created before the field existed.
+  final String? source;
+
   const LoanCatalogItem({
     required this.loanItemId,
     required this.inventoryItemId,
@@ -258,6 +263,7 @@ class LoanCatalogItem {
     this.isLoanEligible = true,
     this.notes,
     this.imageUrl,
+    this.source,
   });
 
   factory LoanCatalogItem.fromMap(Map<String, dynamic> map) {
@@ -273,6 +279,9 @@ class LoanCatalogItem {
       isLoanEligible: map['is_loan_eligible'] as bool? ?? true,
       notes: map['notes'] as String?,
       imageUrl: inv['image_url'] as String?,
+      source: (inv['source'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (inv['source'] as String).trim(),
     );
   }
 }
@@ -288,8 +297,18 @@ class LoanPaymentResult {
   final bool isFullyPaid;
   final double runningBalance;
 
+  /// False for a payment kept on this device (see savedOnDevice): the
+  /// server has not seen it, so the balance is not known yet.
+  final bool sentToServer;
+
   const LoanPaymentResult({
     required this.isFullyPaid,
     required this.runningBalance,
+    this.sentToServer = true,
   });
+
+  const LoanPaymentResult.savedOnDevice()
+    : isFullyPaid = false,
+      runningBalance = 0,
+      sentToServer = false;
 }

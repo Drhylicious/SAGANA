@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -12,6 +11,8 @@ import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin Settings — Account, App Preference, Data & Storage, Support & Info,
 /// Sign Out. Route: /admin/profile/settings
@@ -74,7 +75,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(hadData ? l10n.adminProfileCacheCleared : 'No cached data to clear.'),
-            backgroundColor: hadData ? AppConstants.successGreen : AppConstants.onSurfaceVariant,
+            backgroundColor: hadData ? AppConstants.midGreen : AppConstants.onSurfaceVariant,
           ),
         );
       }
@@ -105,19 +106,26 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     final sagana = context.saganaColors;
 
     if (_isLoading) {
-      return Scaffold(backgroundColor: sagana.scaffoldBackground, body: const Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: sagana.scaffoldBackground,
+        body: Column(
+          children: [
+            SubPageTopBar(title: l10n.settingsTitle, onBack: () => Navigator.of(context).pop()),
+            const Expanded(
+              child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+            ),
+          ],
+        ),
+      );
     }
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(onPressed: () => context.pop(), color: AppConstants.primaryGreen),
-        title: Text(l10n.settingsTitle,
-            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-      ),
-      body: ListView(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.settingsTitle, onBack: () => Navigator.of(context).pop()),
+          Expanded(child: ListView(
         padding: const EdgeInsets.fromLTRB(AppConstants.spacingSafeH, 8, AppConstants.spacingSafeH, 40),
         children: [
           SectionLabel(label: l10n.sectionAccount),
@@ -162,15 +170,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
           SectionLabel(label: l10n.sectionStorage),
           SettingsCard(children: [
-            ToggleRow(
-              title: l10n.backgroundSync,
-              value: _prefs!.backgroundSync,
-              onChanged: (v) async {
-                await _settingsRepo.saveBackgroundSync(v, userId: AppSettingsService.instance.currentUserId);
-                setState(() => _prefs = _prefs!.copyWith(backgroundSync: v));
-              },
-            ),
-            const SettingsDivider(),
             SettingsRow(
               icon: Icons.cleaning_services_outlined,
               iconColor: AppConstants.buyerBlue,
@@ -216,6 +215,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           const SizedBox(height: 24),
 
           const AppBrandingBlock(),
+        ],
+      )),
         ],
       ),
     );

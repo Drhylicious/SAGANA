@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../data/services/connectivity_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -10,7 +11,9 @@ import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
-import '../../widgets/suspend_reason_dialog.dart';
+import '../../widgets/suspension_dialogs.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class BuyerDetailsScreen extends StatefulWidget {
   final String buyerId;
@@ -51,7 +54,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 
   // ─── Suspend flow — two-step (reason, then confirm), same shape as
   // FarmerDetailsScreen's flow and BuyerManagementScreen's copy — all
-  // three now share promptSuspendReason from suspend_reason_dialog.dart.
+  // three now share promptSuspension from suspension_dialogs.dart.
   // Reactivate stays single-tap, also matching Farmer. Replaces the
   // previous direct, no-confirmation toggle this bottom-bar button used
   // to perform.
@@ -60,47 +63,18 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
     final l10n = AppLocalizations.of(context);
     final buyer = _buyer!;
     if (buyer.isActive) {
-      final reason = await promptSuspendReason(
+      final request = await promptSuspension(
         context: context,
-        title: l10n.buyerDetailsSuspendTitle,
-        hint: l10n.buyerDetailsSuspendReasonHint,
+        role: 'buyer',
+        displayName: buyer.fullName,
       );
-      if (reason == null || reason.trim().isEmpty || !mounted) return;
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (dc) => AlertDialog(
-          title: Text(
-            l10n.farmerMgmtConfirmSuspensionTitle,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-          ),
-          content: Text(
-            '${l10n.buyerMgmtSuspendBuyerLine(buyer.fullName)}\n'
-            '${l10n.farmerMgmtSuspendOutcomeLine}\n'
-            '${l10n.farmerMgmtReasonLine(reason.trim())}',
-            style: GoogleFonts.inter(fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dc, false),
-              child: Text(l10n.farmerMgmtBack),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dc, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.errorRed,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(l10n.farmerMgmtSuspendAccountAction),
-            ),
-          ],
-        ),
-      );
-      if (ok != true) return;
+      if (request == null || !mounted) return;
       try {
         await _repo.setBuyerStatus(
           buyerId: buyer.userId,
           status: 'suspended',
-          reason: reason.trim(),
+          reason: request.reason,
+          suspendedUntil: request.suspendedUntil,
         );
       } catch (_) {
         if (mounted)
@@ -127,7 +101,10 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // The bottom inset belongs to the pinned action bar below, so the
+      // content area only keeps the top (status bar) inset.
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             _TopBar(
@@ -137,11 +114,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppConstants.primaryGreen,
-                      ),
-                    )
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : _buyer == null
                       ? _NotFoundState(cs: cs)
                       : RefreshIndicator(
@@ -178,60 +151,105 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
           ],
         ),
       ),
+      // Notify / Suspend are pinned to the bottom of the screen: a Scaffold
+      // bottom bar sits outside the scrolling list, so it stays put while the
+      // buyer's details scroll above it. It has its own surface and a top
+      // divider so scrolled content never reads as running underneath it, and
+      // it applies the device's bottom inset itself.
       bottomNavigationBar: _buyer == null
           ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => context.push(
-                          AppRoutes.announcementDashboard,
-                          extra: {
-                            'buyerId': _buyer!.userId,
-                            'buyerName': _buyer!.fullName,
-                          },
-                        ),
-                        icon: const Icon(Icons.campaign_outlined, size: 18),
-                        label: Text(
-                          l10n.farmerDetailsNotifyAction,
-                            style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+          : _PinnedActionBar(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push(
+                        AppRoutes.announcementDashboard,
+                        extra: {
+                          'buyerId': _buyer!.userId,
+                          'buyerName': _buyer!.fullName,
+                        },
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _suspendOrReactivate,
-                        style: _buyer!.isActive
-                            ? ElevatedButton.styleFrom(
-                                backgroundColor: AppConstants.errorRed,
-                              )
-                            : null,
-                        icon: Icon(
-                          _buyer!.isActive
-                              ? Icons.block_rounded
-                              : Icons.check_circle_outline_rounded,
-                          size: 18,
-                        ),
-                        label: Text(
-                          _buyer!.isActive
-                              ? l10n.buyerDetailsSuspendAction
-                              : l10n.buyerDetailsReactivateAction,
+                      icon: const Icon(Icons.campaign_outlined, size: 18),
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          l10n.farmerDetailsNotifyAction,
+                          maxLines: 1,
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: ConnectivityService.instance.isOnline
+                          ? _suspendOrReactivate
+                          : null,
+                      style: _buyer!.isActive
+                          ? ElevatedButton.styleFrom(
+                              backgroundColor: AppConstants.errorRed,
+                            )
+                          : null,
+                      icon: Icon(
+                        _buyer!.isActive
+                            ? Icons.block_rounded
+                            : Icons.check_circle_outline_rounded,
+                        size: 18,
+                      ),
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _buyer!.isActive
+                              ? l10n.buyerDetailsSuspendAction
+                              : l10n.buyerDetailsReactivateAction,
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+    );
+  }
+}
+
+/// Fixed footer for the Buyer Details actions. Not part of the scroll view.
+class _PinnedActionBar extends StatelessWidget {
+  final Widget child;
+  const _PinnedActionBar({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        border: Border(
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -244,31 +262,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-            onPressed: onBack,
-          ),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: cs.primary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          // The "..." menu that used to live here (Send Notification /
-          // Suspend Account) was removed — both actions are already always
-          // visible in the bottom bar, so the menu was pure duplication.
-        ],
-      ),
-    );
+    return SubPageTopBar(title: title, onBack: onBack);
   }
 }
 
@@ -352,12 +346,8 @@ class _IdentityCard extends StatelessWidget {
           // "Buyer since <date>" removed — not meaningful info for this
           // card (Admin Buyer Management redesign).
           const SizedBox(height: 16),
-          // Every Edit Profile field always renders here, populated or
-          // not (placeholder "–" when empty) — previously phone/email
-          // only showed up when set, and birth date/gender didn't exist
-          // here at all. Laid out as a 2x2 grid (Email/Phone, then
-          // Date of Birth/Gender) rather than one stacked column, so the
-          // four fields read as a balanced block instead of a long list.
+          // Email and phone are shown here. Date of birth and gender are
+          // not shown on this screen.
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -376,31 +366,6 @@ class _IdentityCard extends StatelessWidget {
                     Icons.phone_rounded,
                     l10n.adminProfilePhoneNumber,
                     buyer.phoneNumber,
-                    cs,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _fieldTile(
-                    Icons.cake_rounded,
-                    l10n.dateOfBirthLabel,
-                    buyer.dateOfBirthLabel,
-                    cs,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _fieldTile(
-                    Icons.person_outline_rounded,
-                    l10n.addMemberGenderLabel,
-                    buyerGenderLabel(l10n, buyer.gender),
                     cs,
                   ),
                 ),

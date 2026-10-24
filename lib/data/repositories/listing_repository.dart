@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import '../models/marketplace_listing_model.dart';
 import '../services/app_event_service.dart';
 import 'crop_lookup.dart';
@@ -38,6 +40,7 @@ class ListingRepository {
     String? photoUrl,
     required String description,
   }) async {
+    await ServerOnly.ensureOnline();
     final listingId = await _client.rpc(
       'create_listing_with_reservation',
       params: {
@@ -64,28 +67,39 @@ class ListingRepository {
 
   Future<List<MarketplaceListingModel>> fetchListings() async {
     try {
-      final response = await _client
-          .from('marketplace_listings')
-          .select()
-          .eq('farmer_id', _userId)
-          .order('created_at', ascending: false);
+      // Cached as the enriched rows (canonical crop name included), so the
+      // list can still be viewed offline.
+      final rows = await OfflineCache.load(
+        screen: 'my_listings',
+        fetch: () async {
+          final response = await _client
+              .from('marketplace_listings')
+              .select()
+              .eq('farmer_id', _userId)
+              .order('created_at', ascending: false);
 
-      final cropIds = response
-          .map((r) => r['crop_id'] as String?)
-          .whereType<String>()
-          .toSet()
+          final cropIds = response
+              .map((r) => r['crop_id'] as String?)
+              .whereType<String>()
+              .toSet()
+              .toList();
+          final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
+
+          return response.map<Map<String, dynamic>>((row) {
+            final cropId = row['crop_id'] as String?;
+            return {
+              ...row,
+              'canonical_crop_name': cropId != null
+                  ? canonicalCropNames[cropId]
+                  : null,
+            };
+          }).toList();
+        },
+      );
+
+      return rows
+          .map((row) => MarketplaceListingModel.fromMap(row))
           .toList();
-      final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
-
-      return response.map((row) {
-        final cropId = row['crop_id'] as String?;
-        return MarketplaceListingModel.fromMap({
-          ...row,
-          'canonical_crop_name': cropId != null
-              ? canonicalCropNames[cropId]
-              : null,
-        });
-      }).toList();
     } catch (_) {
       return [];
     }
@@ -124,6 +138,7 @@ class ListingRepository {
   // by reject, and enforces the status guard atomically — see
   // supabase_schema_listing_withdraw_reservation.sql.
   Future<void> withdrawListing(String listingId) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc('withdraw_listing', params: {'p_listing_id': listingId});
     AppEventService.instance.notify();
   }

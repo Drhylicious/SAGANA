@@ -1,6 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
 import '../models/program_model.dart';
 import '../models/program_enrollment_request_model.dart';
+import '../models/activity_text.dart';
+import '../models/admin_log_message.dart';
 
 /// Farmer-side repository for the Cooperative Product Sales Program —
 /// browsing available products and requesting a purchase. Kept separate
@@ -17,14 +20,17 @@ class FarmerProgramRepository {
   /// was removed) simply sees an empty list.
   Future<List<ProgramProduct>> fetchAvailableProducts(String programId) async {
     try {
-      final rows = await _client
-          .from('program_products')
-          .select(
-            'id, program_id, inventory_item_id, unit_price, is_available, '
-            'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)',
-          )
-          .eq('program_id', programId)
-          .order('created_at');
+      final rows = await OfflineCache.load(
+        screen: 'program_products_$programId',
+        fetch: () => _client
+            .from('program_products')
+            .select(
+              'id, program_id, inventory_item_id, unit_price, is_available, '
+              'cooperative_inventory(item_name, category, unit, quantity_on_hand, image_url)',
+            )
+            .eq('program_id', programId)
+            .order('created_at'),
+      );
       return rows.map((r) {
         final inv = r['cooperative_inventory'] as Map<String, dynamic>?;
         return ProgramProduct.fromMap({
@@ -68,17 +74,20 @@ class FarmerProgramRepository {
     try {
       final farmerId = _client.auth.currentUser?.id;
       if (farmerId == null) return [];
-      final rows = await _client
-          .from('program_product_purchases')
-          .select(
-            'id, program_id, product_id, farmer_id, quantity, unit_price, '
-              'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
-              'cooperative_programs(program_name), '
-            'program_products(cooperative_inventory(item_name, unit, image_url))',
-          )
-          .eq('program_id', programId)
-          .eq('farmer_id', farmerId)
-          .order('requested_at', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'my_purchases_$programId',
+        fetch: () => _client
+            .from('program_product_purchases')
+            .select(
+              'id, program_id, product_id, farmer_id, quantity, unit_price, '
+                'total_amount, status, requested_at, confirmed_at, cancelled_at, cancel_reason, '
+                'cooperative_programs(program_name), '
+              'program_products(cooperative_inventory(item_name, unit, image_url))',
+            )
+            .eq('program_id', programId)
+            .eq('farmer_id', farmerId)
+            .order('requested_at', ascending: false),
+      );
       return rows.map((r) {
         final program = r['cooperative_programs'] as Map<String, dynamic>?;
         final product = r['program_products'] as Map<String, dynamic>?;
@@ -120,7 +129,7 @@ class FarmerProgramRepository {
         try {
           await _client.from('farmer_profile_activity').insert({
             'farmer_id': farmerId,
-            'description': 'Cancelled program purchase request',
+            ...activityRowFields(const AdminLogMessage('activityProgramPurchaseCancelled')),
             'created_at': DateTime.now().toIso8601String(),
       });
         } catch (_) {}
@@ -139,11 +148,14 @@ class FarmerProgramRepository {
   // farmer_id filter is needed or possible here.
   Future<List<CooperativeProgram>> fetchAvailablePrograms() async {
     try {
-      final rows = await _client
-          .from('cooperative_programs')
-          .select()
-          .eq('status', 'active')
-          .order('program_name');
+      final rows = await OfflineCache.load(
+        screen: 'programs_available',
+        fetch: () => _client
+            .from('cooperative_programs')
+            .select()
+            .eq('status', 'active')
+            .order('program_name'),
+      );
       return rows.map((r) => CooperativeProgram.fromMap(r)).toList();
     } catch (_) {
       return [];
@@ -157,14 +169,17 @@ class FarmerProgramRepository {
     try {
       final farmerId = _client.auth.currentUser?.id;
       if (farmerId == null) return [];
-      final rows = await _client
-          .from('program_enrollment_requests')
-          .select(
-            'id, program_id, status, admin_notes, submitted_at, reviewed_at, '
-            'cooperative_programs(program_name, image_url)',
-          )
-          .eq('farmer_id', farmerId)
-          .order('submitted_at', ascending: false);
+      final rows = await OfflineCache.load(
+        screen: 'my_enrollment_requests',
+        fetch: () => _client
+            .from('program_enrollment_requests')
+            .select(
+              'id, program_id, status, admin_notes, submitted_at, reviewed_at, '
+              'cooperative_programs(program_name, image_url)',
+            )
+            .eq('farmer_id', farmerId)
+            .order('submitted_at', ascending: false),
+      );
       return rows.map((r) => ProgramEnrollmentRequest.fromMap(r)).toList();
     } catch (_) {
       return [];

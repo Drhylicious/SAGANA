@@ -174,3 +174,15 @@ doesn't affect anything else.
 - `supabase_schema_farmer_notification_gaps.sql` — its `cancel_order` is superseded by `supabase_schema_cancel_order_pending_only_guard.sql` (the farmer-notification INSERT it added is preserved unchanged in the new canonical version)
 - `supabase_schema_delete_listing.sql` — its `delete_listing` is superseded (first by `supabase_schema_delete_listing_order_guard.sql`, now by `supabase_schema_rejected_listing_terminal.sql`)
 - `supabase_schema_delete_listing_order_guard.sql` — its `delete_listing` is itself now superseded by `supabase_schema_rejected_listing_terminal.sql`
+## Post-market-types updates (2026-10-24): what is canonical now
+
+The reservation mechanics above are unchanged. These layers were added on top, and they change which file is canonical for two functions and add new gates:
+
+- **`create_listing_with_reservation`**: `supabase_schema_market_rules_by_data.sql` is now canonical (NOT `create_listing_ginger_guard.sql`). The only change from the live body: the crop-NAME test (`ILIKE '%ginger%'`) is replaced by the crop's `exclusive_channel` (a crop reserved for one selling channel, Ginger → DA-AMAD Market Linking, cannot be listed). The function also now sets `search_path`.
+- **`place_order`**: unchanged (still the 10-argument fulfillment version). It is now additionally guarded by the BEFORE INSERT trigger `trg_enforce_cooperative_market_order` on `orders`: a Buyer cannot order a listing whose market type is not `buyer_visible`. A Farmer still cannot order their own listing (inside `place_order`).
+- **Market type is two values.** `crop_type` / `price_type` columns are foreign keys to `market_types` (Public Market `open_market`, Cooperative Market `sp3_cooperative`). `da_amad_market` no longer exists; DA-AMAD is a selling channel (`selling_channels`), reserved to a crop by `crop_master.exclusive_channel`.
+- **Visibility.** `can_view_market_type()` + a restrictive read policy on `marketplace_listings` (and on `price_records`). A Buyer's order history reads listing details through the `my_order_listings` view; the batch/harvest read policies use `buyer_has_ordered_batch()`.
+- **Channel guards.** `enforce_selling_channel()` on `marketplace_listings`, `cooperative_purchase_offers`, `informal_sales` and `market_linking_programs`.
+- **Wording.** Order notices read "Pending Order" / "Disapproved" (trigger `trg_notifications_order_wording`); the stored order status values (`pending`, `rejected`) are unchanged.
+
+Replay order for these layers on a fresh database, after everything above: `supabase_schema_market_visibility.sql` (superseded in part by the next two, safe to skip on a new database), `supabase_schema_market_types_channels.sql`, `supabase_schema_market_rules_by_data.sql`, `supabase_schema_order_wording_price_visibility.sql`. Tests: `supabase_schema_market_rules_test.sql`.

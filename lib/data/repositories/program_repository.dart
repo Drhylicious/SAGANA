@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/server_only.dart';
 import '../models/program_model.dart';
 import '../models/program_enrollment_request_model.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 class ProgramDuplicateNameException implements Exception {
   final String programName;
@@ -177,7 +179,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'created',
-        description: 'Created program "${name.trim()}".',
+        message: AdminLogMessage('adminLogProgramCreated', {'name': name.trim()}),
       );
       return true;
     } catch (_) {
@@ -217,7 +219,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'updated',
-        description: 'Updated program "${name.trim()}".',
+        message: AdminLogMessage('adminLogProgramUpdated', {'name': name.trim()}),
         referenceId: id,
       );
       return true;
@@ -267,7 +269,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'deleted',
-        description: 'Deleted program "${row?['program_name'] ?? programId}".',
+        message: AdminLogMessage('adminLogProgramDeleted', {'name': '${row?['program_name'] ?? programId}'}),
       );
       return true;
     } catch (_) {
@@ -360,9 +362,9 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: approve ? 'approved' : 'rejected',
-        description: approve
-            ? 'Approved a farmer\'s program enrollment request.'
-            : 'Declined a farmer\'s program enrollment request.',
+        message: approve
+? const AdminLogMessage('adminLogProgramEnrollmentApproved')
+: const AdminLogMessage('adminLogProgramEnrollmentDeclined'),
         referenceId: id,
       );
       return true;
@@ -380,7 +382,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'member_removed',
-        description: 'Removed a member from a program.',
+        message: const AdminLogMessage('adminLogProgramMemberRemoved'),
         referenceId: programMemberId,
       );
       return true;
@@ -415,6 +417,7 @@ class ProgramRepository {
     required String inventoryItemId,
     required double quantity,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'distribute_program_benefit',
       params: {
@@ -427,7 +430,7 @@ class ProgramRepository {
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'benefit_distributed',
-      description: 'Distributed a program benefit to a member.',
+      message: const AdminLogMessage('adminLogProgramBenefitDistributed'),
       referenceId: programMemberId,
     );
   }
@@ -506,7 +509,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'product_added',
-        description: 'Added a product to a sales program.',
+        message: const AdminLogMessage('adminLogProgramProductAdded'),
         referenceId: programId,
       );
       return true;
@@ -528,7 +531,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'product_updated',
-        description: 'Updated a sales program product.',
+        message: const AdminLogMessage('adminLogProgramProductUpdated'),
         referenceId: productId,
       );
       return true;
@@ -543,7 +546,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'product_removed',
-        description: 'Removed a product from a sales program.',
+        message: const AdminLogMessage('adminLogProgramProductRemoved'),
         referenceId: productId,
       );
       return true;
@@ -614,7 +617,7 @@ class ProgramRepository {
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'purchase_confirmed',
-      description: 'Confirmed payment for a program product purchase.',
+      message: const AdminLogMessage('adminLogProgramPurchaseConfirmed'),
       referenceId: purchaseId,
     );
   }
@@ -632,7 +635,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'purchase_cancelled',
-        description: 'Cancelled a program product purchase.',
+        message: const AdminLogMessage('adminLogProgramPurchaseCancelled'),
         referenceId: purchaseId,
       );
       return true;
@@ -659,33 +662,28 @@ class ProgramRepository {
     AdminActivityRepository().log(
       module: 'programs',
       actionType: 'return_confirmed',
-      description:
-          'Confirmed a revenue-share return (₱${amountReturned.toStringAsFixed(2)}).',
+      message: AdminLogMessage('adminLogProgramReturnConfirmed', {'amount': amountReturned.toStringAsFixed(2)}),
       referenceId: programMemberId,
     );
   }
 
   // ─── Distribution outcome (Phase 8 / Issue 3's Loan/ROI workflow) ───────
-  // 'thriving' is a plain column update (program_members' existing
-  // "admin manages all" RLS policy already covers this) — it just marks the
-  // member eligible for the Revenue Share settlement above, which already
-  // exists and needed no changes. 'failed' needs an RPC because it must
-  // atomically create the farmer_loans row and mark the distribution
+  // 'thriving' goes through record_program_thriving_outcome(), which marks the
+  // member eligible for the Revenue Share settlement above and notifies the
+  // farmer in the same transaction (batch9_01). 'failed' needs an RPC because
+  // it must atomically create the farmer_loans row and mark the distribution
   // converted in one transaction — see convertDistributionToLoan() below.
 
   Future<bool> recordThrivingOutcome(String programMemberId) async {
     try {
-      await _client
-          .from('program_members')
-          .update({
-        'distribution_outcome': 'thriving',
-        'outcome_recorded_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', programMemberId);
+      await _client.rpc(
+        'record_program_thriving_outcome',
+        params: {'p_program_member_id': programMemberId},
+      );
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'outcome_recorded',
-        description: 'Recorded a distribution outcome as thriving.',
+        message: const AdminLogMessage('adminLogProgramOutcomeThriving'),
         referenceId: programMemberId,
       );
       return true;
@@ -721,7 +719,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'converted_to_loan',
-        description: 'Converted a failed distribution into a loan.',
+        message: const AdminLogMessage('adminLogProgramConvertedToLoan'),
         referenceId: programMemberId,
       );
       return true;
@@ -764,7 +762,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'activity_created',
-        description: 'Scheduled "${title.trim()}" for a program.',
+        message: AdminLogMessage('adminLogProgramActivityCreated', {'title': title.trim()}),
         referenceId: programId,
       );
       return true;
@@ -779,7 +777,7 @@ class ProgramRepository {
       AdminActivityRepository().log(
         module: 'programs',
         actionType: 'activity_deleted',
-        description: 'Deleted a program activity.',
+        message: const AdminLogMessage('adminLogProgramActivityDeleted'),
         referenceId: activityId,
       );
       return true;

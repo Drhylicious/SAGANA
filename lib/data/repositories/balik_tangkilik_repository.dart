@@ -1,10 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/server_only.dart';
 import '../models/balik_tangkilik_model.dart';
 import '../models/contribution_model.dart';
 import 'admin_activity_repository.dart';
 import 'farmer_lookup.dart';
 import 'member_sales_aggregation.dart';
-import 'notification_repository.dart';
+import '../models/admin_log_message.dart';
 
 /// Repository for Balik-Tangkilik Management. Reuses fetchMemberSalesTotals
 /// (shared with AdminReportsRepository's Member Contribution Report) so
@@ -301,25 +302,8 @@ class BalikTangkilikRepository {
         .from('member_contributions')
         .upsert(toUpsert, onConflict: 'farmer_id,year');
 
-    // Notification delivery is best-effort, unlike the write above — a
-    // farmer not hearing about their payout doesn't undo the fact that
-    // it was recorded, so this doesn't rethrow.
-    try {
-      final notifDrafts = preview.rows
-          .where((r) => r.estimatedTotal > 0)
-          .map(
-            (r) => NotificationDraft(
-              userId: r.farmerId,
-              type: 'capital',
-              title: 'Balik-Tangkilik Payout Recorded',
-              body:
-                  'Your Balik-Tangkilik payout for $year of ₱${r.estimatedTotal.toStringAsFixed(2)} has been recorded.',
-              routeOnTap: '/farmer/profile/contribution',
-            ),
-          )
-          .toList();
-      await NotificationRepository().createNotifications(notifDrafts);
-    } catch (_) {}
+    // The farmer's payout notice is written by the database
+    // (trg_notify_balik_distributed) when the payout date is set above.
   }
 
   // ─── History ─────────────────────────────────────────────────────────────
@@ -389,7 +373,7 @@ class BalikTangkilikRepository {
     AdminActivityRepository().log(
       module: 'members',
       actionType: 'payout_confirmed',
-      description: 'Confirmed a $year Balik Tangkilik payout decision.',
+      message: AdminLogMessage('adminLogBalikPayoutConfirmed', {'year': '$year'}),
       referenceId: farmerId,
     );
   }
@@ -400,6 +384,7 @@ class BalikTangkilikRepository {
     required String farmerId,
     required int year,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'reject_payout_decision',
       params: {'p_farmer_id': farmerId, 'p_year': year},
@@ -407,7 +392,7 @@ class BalikTangkilikRepository {
     AdminActivityRepository().log(
       module: 'members',
       actionType: 'payout_rejected',
-      description: 'Rejected a $year Balik Tangkilik payout decision.',
+      message: AdminLogMessage('adminLogBalikPayoutRejected', {'year': '$year'}),
       referenceId: farmerId,
     );
   }

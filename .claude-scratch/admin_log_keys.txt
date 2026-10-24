@@ -1,0 +1,74 @@
+adminLogAccountOfficerCreated|fullName|Created Officer account for {fullName}.|Gumawa ng Officer account para kay {fullName}.
+adminLogAccountPasswordReset||Reset an account's password.|Nire-reset ang password ng isang account.
+adminLogAccountResetResolved||Resolved a pending password reset request.|Naayos ang isang nakabinbing request na i-reset ang password.
+adminLogMemberAdded|fullName|Added "{fullName}" as a new member.|Idinagdag si "{fullName}" bilang bagong miyembro.
+adminLogListingApproved||Approved a marketplace listing.|Inaprubahan ang isang listing sa marketplace.
+adminLogListingRejected||Rejected a marketplace listing.|Tinanggihan ang isang listing sa marketplace.
+adminLogLoanItemUpdated|price|Updated a loan catalog item (₱{price}).|Na-update ang isang item sa loan catalog (₱{price}).
+adminLogLoanIssued|monthly|Issued a loan (₱{monthly}/month).|Naglabas ng loan (₱{monthly}/buwan).
+adminLogLoanPaymentRecorded|amount|Recorded a loan payment (₱{amount}).|Nairekord ang bayad sa loan (₱{amount}).
+adminLogLoanMarkedPaid||Manually marked a loan as paid.|Manu-manong minarkahang bayad na ang isang loan.
+adminLogOrderApproved||Approved an order.|Inaprubahan ang isang order.
+adminLogOrderCancelled||Cancelled an order.|Kinansela ang isang order.
+adminLogOrderCompleted||Completed an order.|Natapos ang isang order.
+adminLogProfileUpdated|fullName|{fullName} updated their profile information.|Na-update ni {fullName} ang kanilang profile.
+adminLogProfilePhotoUpdated||Updated their profile picture.|Na-update ang kanilang larawan sa profile.
+adminLogProfilePhotoRemoved||Removed their profile picture.|Inalis ang kanilang larawan sa profile.
+adminLogBalikPayoutConfirmed|year|Confirmed a {year} Balik Tangkilik payout decision.|Kinumpirma ang desisyon sa bayad ng Balik Tangkilik para sa {year}.
+adminLogBalikPayoutRejected|year|Rejected a {year} Balik Tangkilik payout decision.|Tinanggihan ang desisyon sa bayad ng Balik Tangkilik para sa {year}.
+adminLogBroadcastScheduled|title,when|Broadcast "{title}" scheduled for {when}.|Naka-iskedyul ang broadcast na "{title}" para sa {when}.
+adminLogBroadcastSent|title,#count|Broadcast "{title}" sent to {count, plural, =1{1 recipient} other{{count} recipients}}.|Naipadala ang broadcast na "{title}" sa {count, plural, =1{1 tatanggap} other{{count} tatanggap}}.
+adminLogBuyerSuspended||Suspended a buyer account.|Sinuspinde ang isang buyer account.
+adminLogBuyerReactivated||Reactivated a buyer account.|Muling in-activate ang isang buyer account.
+adminLogContributionRecorded|amount|Recorded a capital contribution (₱{amount}).|Nairekord ang kontribusyon sa capital (₱{amount}).
+adminLogInventoryCategoryAdded|name|Added "{name}" as an inventory category.|Idinagdag ang "{name}" bilang kategorya ng imbentaryo.
+adminLogCropCategoryAdded|name|Added "{name}" as a crop category.|Idinagdag ang "{name}" bilang kategorya ng pananim.
+adminLogCoopOfferConfirmed|kg,amount|Confirmed a cooperative offer for {kg}kg (₱{amount}).|Kinumpirma ang alok sa kooperatiba para sa {kg}kg (₱{amount}).
+adminLogCoopOfferDeclined||Declined a cooperative offer.|Tinanggihan ang alok sa kooperatiba.
+adminLogMemberSuspended||Suspended a member.|Sinuspinde ang isang miyembro.
+adminLogMemberReactivated||Reactivated a member.|Muling in-activate ang isang miyembro.
+adminLogMembershipApproved|fullName|Approved {fullName}'s membership application.|Inaprubahan ang membership application ni {fullName}.
+adminLogMembershipRejected||Rejected a membership application.|Tinanggihan ang isang membership application.
+adminLogLoanCatalogPublished|price|Published an inventory item to the loan catalog (₱{price}).|Inilathala ang item ng imbentaryo sa loan catalog (₱{price}).
+adminLogMarketLinkingCompleted||Completed a market linking round.|Natapos ang isang round ng market linking.
+adminLogMarketLinkingStatus|status|Updated a market linking status to "{status}".|Na-update ang status ng market linking sa "{status}".
+adminLogMarketLinkingDeleted||Deleted a cancelled market linking entry.|Binura ang kanselang entry sa market linking.
+adminLogMarketLinkingBatchAttached||Updated the linked batch on a market linking entry.|Na-update ang naka-link na batch sa isang entry ng market linking.
+adminLogEnrollmentApproved||Approved a farmer's DA-AMAD Market Linking enrollment.|Inaprubahan ang enrollment ng magsasaka sa DA-AMAD Market Linking.
+adminLogEnrollmentDeclined||Declined a farmer's DA-AMAD Market Linking enrollment.|Tinanggihan ang enrollment ng magsasaka sa DA-AMAD Market Linking.
+adminLogPriceRecorded|priceType,crop,price,unit|Recorded a {priceType} price for "{crop}" (₱{price}/{unit}).|Nairekord ang {priceType} na presyo para sa "{crop}" (₱{price}/{unit}).
+adminLogPriceDeleted||Deleted a price record.|Binura ang isang record ng presyo.
+adminLogCoopListingPriceUpdated|price|Updated a cooperative market listing price to ₱{price}.|Na-update ang presyo ng listing sa merkado ng kooperatiba sa ₱{price}.
+adminLogProgramCreated|name|Created program "{name}".|Gumawa ng programang "{name}".
+adminLogProgramUpdated|name|Updated program "{name}".|Na-update ang programang "{name}".
+adminLogProgramDeleted|name|Deleted program "{name}".|Binura ang programang "{name}".
+adminLogProgramEnrollmentApproved||Approved a farmer's program enrollment request.|Inaprubahan ang request ng magsasaka na sumali sa programa.
+adminLogProgramEnrollmentDeclined||Declined a farmer's program enrollment request.|Tinanggihan ang request ng magsasaka na sumali sa programa.
+adminLogProgramMemberRemoved||Removed a member from a program.|Inalis ang isang miyembro sa programa.
+adminLogProgramBenefitDistributed||Distributed a program benefit to a member.|Ipinamahagi ang benepisyo ng programa sa isang miyembro.
+adminLogProgramProductAdded||Added a product to a sales program.|Nagdagdag ng produkto sa sales program.
+adminLogProgramProductUpdated||Updated a sales program product.|Na-update ang produkto ng sales program.
+adminLogProgramProductRemoved||Removed a product from a sales program.|Inalis ang produkto sa sales program.
+adminLogProgramPurchaseConfirmed||Confirmed payment for a program product purchase.|Kinumpirma ang bayad sa pagbili ng produkto ng programa.
+adminLogProgramPurchaseCancelled||Cancelled a program product purchase.|Kinansela ang pagbili ng produkto ng programa.
+adminLogProgramReturnConfirmed|amount|Confirmed a revenue-share return (₱{amount}).|Kinumpirma ang bahagi ng kita na ibinalik (₱{amount}).
+adminLogProgramOutcomeThriving||Recorded a distribution outcome as thriving.|Nairekord ang resulta ng pamamahagi bilang maunlad.
+adminLogProgramConvertedToLoan||Converted a failed distribution into a loan.|Ginawang loan ang pamamahaging hindi nagtagumpay.
+adminLogProgramActivityCreated|title|Scheduled "{title}" for a program.|Naka-iskedyul ang "{title}" para sa isang programa.
+adminLogProgramActivityDeleted||Deleted a program activity.|Binura ang isang aktibidad ng programa.
+adminLogPasswordChanged||Changed their account password.|Binago ang kanilang password.
+adminLogInventoryItemAdded|name,category|Added inventory item "{name}" ({category}).|Idinagdag ang item ng imbentaryo na "{name}" ({category}).
+adminLogStockAdded|qty,type|Added {qty} units of stock ({type}).|Nagdagdag ng {qty} yunit ng stock ({type}).
+adminLogStockDeducted|qty,type|Deducted {qty} units of stock ({type}).|Binawasan ng {qty} yunit ng stock ({type}).
+adminLogReorderLevelUpdated||Updated the reorder level for an inventory item.|Na-update ang reorder level ng isang item sa imbentaryo.
+adminLogInventoryItemUpdated|name|Updated inventory item "{name}".|Na-update ang item sa imbentaryo na "{name}".
+adminLogInventoryDeactivated||Deactivated an inventory item.|Na-deactivate ang isang item sa imbentaryo.
+adminLogInventoryDeleted||Deleted inventory item.|Binura ang item sa imbentaryo.
+adminLogCropCatalogAdded|name,category|Added "{name}" to the crop catalog ({category}).|Idinagdag ang "{name}" sa katalogo ng pananim ({category}).
+adminLogCropCatalogUpdated|name,category|Updated "{name}" in the crop catalog ({category}).|Na-update ang "{name}" sa katalogo ng pananim ({category}).
+adminLogCropReactivated||Reactivated a crop in the catalog.|Muling in-activate ang isang pananim sa katalogo.
+adminLogCropDeactivated||Deactivated a crop in the catalog.|Na-deactivate ang isang pananim sa katalogo.
+adminLogCropDeleted||Deleted a crop from the catalog.|Binura ang isang pananim sa katalogo.
+adminLogCropRequestApproved|farmer,crop|Approved {farmer}'s crop request for "{crop}".|Inaprubahan ang request ni {farmer} para sa pananim na "{crop}".
+adminLogCropRequestRejected|farmer,crop|Rejected {farmer}'s crop request for "{crop}".|Tinanggihan ang request ni {farmer} para sa pananim na "{crop}".
+adminLogExportGenerated|format,#count|Generated a {format} export ({count, plural, =1{1 report} other{{count} reports}}).|Nakagawa ng {format} export ({count, plural, =1{1 report} other{{count} na report}}).

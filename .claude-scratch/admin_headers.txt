@@ -1,0 +1,863 @@
+admin/add_new_member_screen.dart-387-    return Scaffold(
+admin/add_new_member_screen.dart-388-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+admin/add_new_member_screen.dart-389-      appBar: AppBar(
+admin/add_new_member_screen.dart-390-        backgroundColor: Colors.transparent,
+admin/add_new_member_screen.dart-391-        elevation: 0,
+admin/add_new_member_screen.dart-392-        leading: IconButton(
+admin/add_new_member_screen.dart:393:          icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/add_new_member_screen.dart-394-          onPressed: () => context.pop(),
+admin/add_new_member_screen.dart-395-        ),
+admin/add_new_member_screen.dart-396-        title: Text(
+admin/add_new_member_screen.dart-397-          l10n.addMemberTitle,
+admin/add_new_member_screen.dart-398-            style: GoogleFonts.poppins(
+admin/add_new_member_screen.dart-399-                fontSize: 18,
+admin/add_new_member_screen.dart-400-                fontWeight: FontWeight.w700,
+admin/add_new_member_screen.dart-401-            color: cs.onSurface,
+admin/add_new_member_screen.dart-402-          ),
+admin/add_new_member_screen.dart-403-        ),
+--
+admin/admin_activity_screen.dart-427-                  color: sagana.glassBackground,
+admin/admin_activity_screen.dart-428-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/admin_activity_screen.dart-429-                ),
+admin/admin_activity_screen.dart-430-                child: Row(
+admin/admin_activity_screen.dart-431-                  children: [
+admin/admin_activity_screen.dart-432-                    IconButton(
+admin/admin_activity_screen.dart:433:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/admin_activity_screen.dart-434-                      onPressed: () => context.pop(),
+admin/admin_activity_screen.dart-435-                    ),
+admin/admin_activity_screen.dart-436-                    Text(
+admin/admin_activity_screen.dart-437-                      l10n.adminActivityTitle,
+admin/admin_activity_screen.dart-438-                      style: GoogleFonts.poppins(
+admin/admin_activity_screen.dart-439-                        fontSize: 18,
+admin/admin_activity_screen.dart-440-                        fontWeight: FontWeight.w700,
+admin/admin_activity_screen.dart-441-                        color: cs.onSurface,
+admin/admin_activity_screen.dart-442-                      ),
+admin/admin_activity_screen.dart-443-                    ),
+--
+admin/admin_calendar_screen.dart-195-                  color: sagana.glassBackground,
+admin/admin_calendar_screen.dart-196-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/admin_calendar_screen.dart-197-                ),
+admin/admin_calendar_screen.dart-198-                child: Row(
+admin/admin_calendar_screen.dart-199-                  children: [
+admin/admin_calendar_screen.dart-200-                    IconButton(
+admin/admin_calendar_screen.dart:201:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/admin_calendar_screen.dart-202-                      onPressed: () => context.pop(),
+admin/admin_calendar_screen.dart-203-                    ),
+admin/admin_calendar_screen.dart-204-                    const SizedBox(width: 4),
+admin/admin_calendar_screen.dart-205-                    Text(
+admin/admin_calendar_screen.dart-206-                      l10n.adminCalTitle,
+admin/admin_calendar_screen.dart-207-                      style: GoogleFonts.poppins(
+admin/admin_calendar_screen.dart-208-                        fontSize: 18,
+admin/admin_calendar_screen.dart-209-                        fontWeight: FontWeight.w700,
+admin/admin_calendar_screen.dart-210-                        color: cs.onSurface,
+admin/admin_calendar_screen.dart-211-                      ),
+--
+admin/admin_inventory_screen.dart-1780-                  color: sagana.glassBackground,
+admin/admin_inventory_screen.dart-1781-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/admin_inventory_screen.dart-1782-                ),
+admin/admin_inventory_screen.dart-1783-                child: Row(
+admin/admin_inventory_screen.dart-1784-                  children: [
+admin/admin_inventory_screen.dart-1785-                    IconButton(
+admin/admin_inventory_screen.dart:1786:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/admin_inventory_screen.dart-1787-                      onPressed: () => context.pop(),
+admin/admin_inventory_screen.dart-1788-                    ),
+admin/admin_inventory_screen.dart-1789-                    Expanded(
+admin/admin_inventory_screen.dart-1790-                      child: Text(
+admin/admin_inventory_screen.dart-1791-                        l10n.adminInvManagementTitle,
+admin/admin_inventory_screen.dart-1792-                        style: GoogleFonts.poppins(
+admin/admin_inventory_screen.dart-1793-                          fontSize: 18,
+admin/admin_inventory_screen.dart-1794-                          fontWeight: FontWeight.w700,
+admin/admin_inventory_screen.dart-1795-                          color: cs.onSurface,
+admin/admin_inventory_screen.dart-1796-                        ),
+--
+admin/admin_notifications_screen.dart-226-                  color: sagana.glassBackground,
+admin/admin_notifications_screen.dart-227-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/admin_notifications_screen.dart-228-                ),
+admin/admin_notifications_screen.dart-229-                child: Row(
+admin/admin_notifications_screen.dart-230-                  children: [
+admin/admin_notifications_screen.dart-231-                    IconButton(
+admin/admin_notifications_screen.dart:232:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/admin_notifications_screen.dart-233-                      onPressed: () => context.pop(),
+admin/admin_notifications_screen.dart-234-                    ),
+admin/admin_notifications_screen.dart-235-                    Expanded(
+admin/admin_notifications_screen.dart-236-                      child: Text(
+admin/admin_notifications_screen.dart-237-                        l10n.pendingNotificationsTitle,
+admin/admin_notifications_screen.dart-238-                        style: GoogleFonts.poppins(
+admin/admin_notifications_screen.dart-239-                            fontSize: 18,
+admin/admin_notifications_screen.dart-240-                            fontWeight: FontWeight.w700,
+admin/admin_notifications_screen.dart-241-                          color: cs.onSurface,
+admin/admin_notifications_screen.dart-242-                        ),
+--
+admin/admin_order_detail_screen.dart-886-            color: sagana.glassBackground,
+admin/admin_order_detail_screen.dart-887-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/admin_order_detail_screen.dart-888-          ),
+admin/admin_order_detail_screen.dart-889-          child: Row(
+admin/admin_order_detail_screen.dart-890-            children: [
+admin/admin_order_detail_screen.dart-891-              IconButton(
+admin/admin_order_detail_screen.dart:892:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/admin_order_detail_screen.dart-893-                onPressed: onBack,
+admin/admin_order_detail_screen.dart-894-              ),
+admin/admin_order_detail_screen.dart-895-              Expanded(
+admin/admin_order_detail_screen.dart-896-                child: Text(
+admin/admin_order_detail_screen.dart-897-                  title,
+admin/admin_order_detail_screen.dart-898-                  style: GoogleFonts.poppins(
+admin/admin_order_detail_screen.dart-899-                    fontSize: 18,
+admin/admin_order_detail_screen.dart-900-                    fontWeight: FontWeight.w700,
+admin/admin_order_detail_screen.dart-901-                    color: cs.primary,
+admin/admin_order_detail_screen.dart-902-                  ),
+--
+admin/admin_profile_screen.dart-139-        height: 64,
+admin/admin_profile_screen.dart-140-        child: Padding(
+admin/admin_profile_screen.dart-141-          padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSm),
+admin/admin_profile_screen.dart-142-          child: Row(
+admin/admin_profile_screen.dart-143-            children: [
+admin/admin_profile_screen.dart-144-              IconButton(
+admin/admin_profile_screen.dart:145:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/admin_profile_screen.dart-146-                onPressed: () => context.pop(),
+admin/admin_profile_screen.dart-147-              ),
+admin/admin_profile_screen.dart-148-              Expanded(
+admin/admin_profile_screen.dart-149-                child: Text(
+admin/admin_profile_screen.dart-150-                  l10n.adminProfileTitle,
+admin/admin_profile_screen.dart-151-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17, color: cs.primary),
+admin/admin_profile_screen.dart-152-                ),
+admin/admin_profile_screen.dart-153-              ),
+admin/admin_profile_screen.dart-154-              // Settings gear removed (Admin Profile & Settings review) —
+admin/admin_profile_screen.dart-155-              // Account/Preferences/Support/Sign-Out now live in the
+--
+admin/all_listings_screen.dart-303-            color: sagana.glassBackground,
+admin/all_listings_screen.dart-304-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/all_listings_screen.dart-305-          ),
+admin/all_listings_screen.dart-306-          child: Row(
+admin/all_listings_screen.dart-307-            children: [
+admin/all_listings_screen.dart-308-              IconButton(
+admin/all_listings_screen.dart:309:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/all_listings_screen.dart-310-                onPressed: onBack,
+admin/all_listings_screen.dart-311-              ),
+admin/all_listings_screen.dart-312-              Expanded(
+admin/all_listings_screen.dart-313-                child: Text(
+admin/all_listings_screen.dart-314-                  AppLocalizations.of(context).marketplaceAllListingsTitle,
+admin/all_listings_screen.dart-315-                  style: GoogleFonts.poppins(
+admin/all_listings_screen.dart-316-                    fontSize: 18,
+admin/all_listings_screen.dart-317-                    fontWeight: FontWeight.w700,
+admin/all_listings_screen.dart-318-                    color: cs.primary,
+admin/all_listings_screen.dart-319-                  ),
+--
+admin/analytics_dashboard_screen.dart-215-            color: sagana.glassBackground,
+admin/analytics_dashboard_screen.dart-216-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/analytics_dashboard_screen.dart-217-          ),
+admin/analytics_dashboard_screen.dart-218-          child: Row(
+admin/analytics_dashboard_screen.dart-219-            children: [
+admin/analytics_dashboard_screen.dart-220-              IconButton(
+admin/analytics_dashboard_screen.dart:221:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/analytics_dashboard_screen.dart-222-                onPressed: () => context.pop(),
+admin/analytics_dashboard_screen.dart-223-              ),
+admin/analytics_dashboard_screen.dart-224-              Expanded(
+admin/analytics_dashboard_screen.dart-225-                child: Text(
+admin/analytics_dashboard_screen.dart-226-                  l10n.reportsAnalyticsDashboard,
+admin/analytics_dashboard_screen.dart-227-                  style: GoogleFonts.poppins(
+admin/analytics_dashboard_screen.dart-228-                    fontWeight: FontWeight.w700,
+admin/analytics_dashboard_screen.dart-229-                    fontSize: 17,
+admin/analytics_dashboard_screen.dart-230-                    color: cs.primary,
+admin/analytics_dashboard_screen.dart-231-                  ),
+--
+admin/balik_tangkilik_management_screen.dart-94-            color: sagana.glassBackground,
+admin/balik_tangkilik_management_screen.dart-95-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/balik_tangkilik_management_screen.dart-96-          ),
+admin/balik_tangkilik_management_screen.dart-97-          child: Row(
+admin/balik_tangkilik_management_screen.dart-98-            children: [
+admin/balik_tangkilik_management_screen.dart-99-              IconButton(
+admin/balik_tangkilik_management_screen.dart:100:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/balik_tangkilik_management_screen.dart-101-                onPressed: () => context.pop(),
+admin/balik_tangkilik_management_screen.dart-102-              ),
+admin/balik_tangkilik_management_screen.dart-103-              Expanded(
+admin/balik_tangkilik_management_screen.dart-104-                child: Text(
+admin/balik_tangkilik_management_screen.dart-105-                  l10n.reportsBalikTangkilikManagement,
+admin/balik_tangkilik_management_screen.dart-106-                  style: GoogleFonts.poppins(
+admin/balik_tangkilik_management_screen.dart-107-                    fontWeight: FontWeight.w700,
+admin/balik_tangkilik_management_screen.dart-108-                    fontSize: 17,
+admin/balik_tangkilik_management_screen.dart-109-                    color: cs.primary,
+admin/balik_tangkilik_management_screen.dart-110-                  ),
+--
+admin/balik_tangkilik_management_screen.dart-1522-                  color: sagana.glassBackground,
+admin/balik_tangkilik_management_screen.dart-1523-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/balik_tangkilik_management_screen.dart-1524-                ),
+admin/balik_tangkilik_management_screen.dart-1525-                child: Row(
+admin/balik_tangkilik_management_screen.dart-1526-                  children: [
+admin/balik_tangkilik_management_screen.dart-1527-                    IconButton(
+admin/balik_tangkilik_management_screen.dart:1528:                      icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/balik_tangkilik_management_screen.dart-1529-                      onPressed: () => Navigator.of(context).pop(),
+admin/balik_tangkilik_management_screen.dart-1530-                    ),
+admin/balik_tangkilik_management_screen.dart-1531-                    Expanded(
+admin/balik_tangkilik_management_screen.dart-1532-                      child: Text(
+admin/balik_tangkilik_management_screen.dart-1533-                        l10n.balikTangkilikYearLogTitle(widget.year.year),
+admin/balik_tangkilik_management_screen.dart-1534-                        style: GoogleFonts.poppins(
+admin/balik_tangkilik_management_screen.dart-1535-                          fontWeight: FontWeight.w700,
+admin/balik_tangkilik_management_screen.dart-1536-                          fontSize: 17,
+admin/balik_tangkilik_management_screen.dart-1537-                          color: cs.primary,
+admin/balik_tangkilik_management_screen.dart-1538-                        ),
+--
+admin/broadcast_history_screen.dart-104-    final cs = Theme.of(context).colorScheme;
+admin/broadcast_history_screen.dart-105-
+admin/broadcast_history_screen.dart-106-    return Scaffold(
+admin/broadcast_history_screen.dart-107-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+admin/broadcast_history_screen.dart-108-      appBar: AppBar(
+admin/broadcast_history_screen.dart-109-        leading: IconButton(
+admin/broadcast_history_screen.dart:110:          icon: const Icon(Icons.arrow_back_rounded),
+admin/broadcast_history_screen.dart-111-          onPressed: () => context.pop(),
+admin/broadcast_history_screen.dart-112-        ),
+admin/broadcast_history_screen.dart-113-        title: Text(
+admin/broadcast_history_screen.dart-114-          l10n.broadcastHistoryTitle,
+admin/broadcast_history_screen.dart-115-          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
+admin/broadcast_history_screen.dart-116-        ),
+admin/broadcast_history_screen.dart-117-        centerTitle: false,
+admin/broadcast_history_screen.dart-118-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+admin/broadcast_history_screen.dart-119-      ),
+admin/broadcast_history_screen.dart-120-      body: Column(
+--
+admin/buyer_details_screen.dart-243-  Widget build(BuildContext context) {
+admin/buyer_details_screen.dart-244-    return Padding(
+admin/buyer_details_screen.dart-245-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+admin/buyer_details_screen.dart-246-      child: Row(
+admin/buyer_details_screen.dart-247-        children: [
+admin/buyer_details_screen.dart-248-          IconButton(
+admin/buyer_details_screen.dart:249:            icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/buyer_details_screen.dart-250-            onPressed: onBack,
+admin/buyer_details_screen.dart-251-          ),
+admin/buyer_details_screen.dart-252-          Expanded(
+admin/buyer_details_screen.dart-253-            child: Text(
+admin/buyer_details_screen.dart-254-              title,
+admin/buyer_details_screen.dart-255-              style: GoogleFonts.poppins(
+admin/buyer_details_screen.dart-256-                fontSize: 18,
+admin/buyer_details_screen.dart-257-                fontWeight: FontWeight.w700,
+admin/buyer_details_screen.dart-258-                color: cs.primary,
+admin/buyer_details_screen.dart-259-              ),
+--
+admin/buyer_management_screen.dart-338-            color: sagana.glassBackground,
+admin/buyer_management_screen.dart-339-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/buyer_management_screen.dart-340-          ),
+admin/buyer_management_screen.dart-341-          child: Row(
+admin/buyer_management_screen.dart-342-            children: [
+admin/buyer_management_screen.dart-343-              IconButton(
+admin/buyer_management_screen.dart:344:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/buyer_management_screen.dart-345-                onPressed: onBack,
+admin/buyer_management_screen.dart-346-              ),
+admin/buyer_management_screen.dart-347-              Expanded(
+admin/buyer_management_screen.dart-348-                child: Text(
+admin/buyer_management_screen.dart-349-                  AppLocalizations.of(context).buyerMgmtTitle,
+admin/buyer_management_screen.dart-350-                  style: GoogleFonts.poppins(
+admin/buyer_management_screen.dart-351-                    fontSize: 18,
+admin/buyer_management_screen.dart-352-                    fontWeight: FontWeight.w700,
+admin/buyer_management_screen.dart-353-                    color: cs.primary,
+admin/buyer_management_screen.dart-354-                  ),
+--
+admin/buyer_order_history_screen.dart-272-          color: sagana.glassBackground,
+admin/buyer_order_history_screen.dart-273-          border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/buyer_order_history_screen.dart-274-        ),
+admin/buyer_order_history_screen.dart-275-        child: Row(
+admin/buyer_order_history_screen.dart-276-          children: [
+admin/buyer_order_history_screen.dart-277-            IconButton(
+admin/buyer_order_history_screen.dart:278:              icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/buyer_order_history_screen.dart-279-              onPressed: onBack,
+admin/buyer_order_history_screen.dart-280-            ),
+admin/buyer_order_history_screen.dart-281-            Expanded(
+admin/buyer_order_history_screen.dart-282-              child: Text(title,
+admin/buyer_order_history_screen.dart-283-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
+admin/buyer_order_history_screen.dart-284-                  maxLines: 1,
+admin/buyer_order_history_screen.dart-285-                  overflow: TextOverflow.ellipsis),
+admin/buyer_order_history_screen.dart-286-            ),
+admin/buyer_order_history_screen.dart-287-          ],
+admin/buyer_order_history_screen.dart-288-        ),
+--
+admin/cooperative_stock_report_screen.dart-137-            color: sagana.glassBackground,
+admin/cooperative_stock_report_screen.dart-138-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/cooperative_stock_report_screen.dart-139-          ),
+admin/cooperative_stock_report_screen.dart-140-          child: Row(
+admin/cooperative_stock_report_screen.dart-141-            children: [
+admin/cooperative_stock_report_screen.dart-142-              IconButton(
+admin/cooperative_stock_report_screen.dart:143:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/cooperative_stock_report_screen.dart-144-                onPressed: () => context.pop(),
+admin/cooperative_stock_report_screen.dart-145-              ),
+admin/cooperative_stock_report_screen.dart-146-              Expanded(
+admin/cooperative_stock_report_screen.dart-147-                child: Text(
+admin/cooperative_stock_report_screen.dart-148-                  l10n.reportsCoopStockReport,
+admin/cooperative_stock_report_screen.dart-149-                  style: GoogleFonts.poppins(
+admin/cooperative_stock_report_screen.dart-150-                    fontWeight: FontWeight.w700,
+admin/cooperative_stock_report_screen.dart-151-                    fontSize: 17,
+admin/cooperative_stock_report_screen.dart-152-                    color: cs.primary,
+admin/cooperative_stock_report_screen.dart-153-                  ),
+--
+admin/create_officer_account_screen.dart-236-    return Scaffold(
+admin/create_officer_account_screen.dart-237-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+admin/create_officer_account_screen.dart-238-      appBar: AppBar(
+admin/create_officer_account_screen.dart-239-        backgroundColor: Colors.transparent,
+admin/create_officer_account_screen.dart-240-        elevation: 0,
+admin/create_officer_account_screen.dart-241-        leading: IconButton(
+admin/create_officer_account_screen.dart:242:          icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/create_officer_account_screen.dart-243-          onPressed: () => context.pop(),
+admin/create_officer_account_screen.dart-244-        ),
+admin/create_officer_account_screen.dart-245-        title: Text(
+admin/create_officer_account_screen.dart-246-          l10n.createOfficerTitle,
+admin/create_officer_account_screen.dart-247-            style: GoogleFonts.poppins(
+admin/create_officer_account_screen.dart-248-                fontSize: 18,
+admin/create_officer_account_screen.dart-249-                fontWeight: FontWeight.w700,
+admin/create_officer_account_screen.dart-250-            color: cs.onSurface,
+admin/create_officer_account_screen.dart-251-          ),
+admin/create_officer_account_screen.dart-252-        ),
+--
+admin/crop_management_screen.dart-885-                  color: sagana.glassBackground,
+admin/crop_management_screen.dart-886-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/crop_management_screen.dart-887-                ),
+admin/crop_management_screen.dart-888-                child: Row(
+admin/crop_management_screen.dart-889-                  children: [
+admin/crop_management_screen.dart-890-                    IconButton(
+admin/crop_management_screen.dart:891:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/crop_management_screen.dart-892-                      onPressed: () => context.pop(),
+admin/crop_management_screen.dart-893-                    ),
+admin/crop_management_screen.dart-894-                    Expanded(
+admin/crop_management_screen.dart-895-                      child: Text(
+admin/crop_management_screen.dart-896-                        l10n.cropMgmtTitle,
+admin/crop_management_screen.dart-897-                        style: GoogleFonts.poppins(
+admin/crop_management_screen.dart-898-                          fontSize: 18,
+admin/crop_management_screen.dart-899-                          fontWeight: FontWeight.w700,
+admin/crop_management_screen.dart-900-                          color: cs.onSurface,
+admin/crop_management_screen.dart-901-                        ),
+--
+admin/crop_request_approval_screen.dart-361-          children: [
+admin/crop_request_approval_screen.dart-362-            Padding(
+admin/crop_request_approval_screen.dart-363-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+admin/crop_request_approval_screen.dart-364-              child: Row(
+admin/crop_request_approval_screen.dart-365-                children: [
+admin/crop_request_approval_screen.dart-366-                  IconButton(
+admin/crop_request_approval_screen.dart:367:                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/crop_request_approval_screen.dart-368-                    onPressed: () => context.pop(),
+admin/crop_request_approval_screen.dart-369-                  ),
+admin/crop_request_approval_screen.dart-370-                  Expanded(
+admin/crop_request_approval_screen.dart-371-                    child: Text(
+admin/crop_request_approval_screen.dart-372-                      l10n.cropRequestTitle,
+admin/crop_request_approval_screen.dart-373-                        style: GoogleFonts.poppins(
+admin/crop_request_approval_screen.dart-374-                            fontWeight: FontWeight.w700,
+admin/crop_request_approval_screen.dart-375-                            fontSize: 18,
+admin/crop_request_approval_screen.dart-376-                        color: cs.onSurface,
+admin/crop_request_approval_screen.dart-377-                      ),
+--
+admin/da_amad_enrollment_screen.dart-185-          children: [
+admin/da_amad_enrollment_screen.dart-186-            Padding(
+admin/da_amad_enrollment_screen.dart-187-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+admin/da_amad_enrollment_screen.dart-188-              child: Row(
+admin/da_amad_enrollment_screen.dart-189-                children: [
+admin/da_amad_enrollment_screen.dart-190-                  IconButton(
+admin/da_amad_enrollment_screen.dart:191:                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/da_amad_enrollment_screen.dart-192-                    onPressed: () => Navigator.of(context).pop(),
+admin/da_amad_enrollment_screen.dart-193-                  ),
+admin/da_amad_enrollment_screen.dart-194-                  Expanded(
+admin/da_amad_enrollment_screen.dart-195-                    child: Text(
+admin/da_amad_enrollment_screen.dart-196-                      'Market Linking Enrollments',
+admin/da_amad_enrollment_screen.dart-197-                      style: GoogleFonts.poppins(
+admin/da_amad_enrollment_screen.dart-198-                        fontWeight: FontWeight.w700,
+admin/da_amad_enrollment_screen.dart-199-                        fontSize: 18,
+admin/da_amad_enrollment_screen.dart-200-                        color: cs.onSurface,
+admin/da_amad_enrollment_screen.dart-201-                      ),
+--
+admin/expense_report_screen.dart-166-            color: sagana.glassBackground,
+admin/expense_report_screen.dart-167-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/expense_report_screen.dart-168-          ),
+admin/expense_report_screen.dart-169-          child: Row(
+admin/expense_report_screen.dart-170-            children: [
+admin/expense_report_screen.dart-171-              IconButton(
+admin/expense_report_screen.dart:172:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/expense_report_screen.dart-173-                onPressed: () => context.pop(),
+admin/expense_report_screen.dart-174-              ),
+admin/expense_report_screen.dart-175-              Expanded(
+admin/expense_report_screen.dart-176-                child: Text(
+admin/expense_report_screen.dart-177-                  l10n.reportsExpenseReport,
+admin/expense_report_screen.dart-178-                  style: GoogleFonts.poppins(
+admin/expense_report_screen.dart-179-                    fontWeight: FontWeight.w700,
+admin/expense_report_screen.dart-180-                    fontSize: 17,
+admin/expense_report_screen.dart-181-                    color: cs.primary,
+admin/expense_report_screen.dart-182-                  ),
+--
+admin/export_center_screen.dart-289-            color: sagana.glassBackground,
+admin/export_center_screen.dart-290-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/export_center_screen.dart-291-          ),
+admin/export_center_screen.dart-292-          child: Row(
+admin/export_center_screen.dart-293-            children: [
+admin/export_center_screen.dart-294-              IconButton(
+admin/export_center_screen.dart:295:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/export_center_screen.dart-296-                onPressed: () => context.pop(),
+admin/export_center_screen.dart-297-              ),
+admin/export_center_screen.dart-298-              Expanded(
+admin/export_center_screen.dart-299-                child: Text(
+admin/export_center_screen.dart-300-                  l10n.reportsExportCenter,
+admin/export_center_screen.dart-301-                  style: GoogleFonts.poppins(
+admin/export_center_screen.dart-302-                    fontWeight: FontWeight.w700,
+admin/export_center_screen.dart-303-                    fontSize: 17,
+admin/export_center_screen.dart-304-                    color: cs.primary,
+admin/export_center_screen.dart-305-                  ),
+--
+admin/farmer_details_screen.dart-554-            color: sagana.glassBackground,
+admin/farmer_details_screen.dart-555-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/farmer_details_screen.dart-556-          ),
+admin/farmer_details_screen.dart-557-          child: Row(
+admin/farmer_details_screen.dart-558-            children: [
+admin/farmer_details_screen.dart-559-              IconButton(
+admin/farmer_details_screen.dart:560:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/farmer_details_screen.dart-561-                onPressed: onBack,
+admin/farmer_details_screen.dart-562-              ),
+admin/farmer_details_screen.dart-563-              Expanded(
+admin/farmer_details_screen.dart-564-                child: Text(
+admin/farmer_details_screen.dart-565-                  title,
+admin/farmer_details_screen.dart-566-                  style: GoogleFonts.poppins(
+admin/farmer_details_screen.dart-567-                    fontSize: 18,
+admin/farmer_details_screen.dart-568-                    fontWeight: FontWeight.w700,
+admin/farmer_details_screen.dart-569-                    color: cs.primary,
+admin/farmer_details_screen.dart-570-                  ),
+--
+admin/farmer_harvest_history_screen.dart-128-          children: [
+admin/farmer_harvest_history_screen.dart-129-            Padding(
+admin/farmer_harvest_history_screen.dart-130-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+admin/farmer_harvest_history_screen.dart-131-              child: Row(
+admin/farmer_harvest_history_screen.dart-132-                children: [
+admin/farmer_harvest_history_screen.dart-133-                  IconButton(
+admin/farmer_harvest_history_screen.dart:134:                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/farmer_harvest_history_screen.dart-135-                    onPressed: () => Navigator.of(context).pop(),
+admin/farmer_harvest_history_screen.dart-136-                  ),
+admin/farmer_harvest_history_screen.dart-137-                  Expanded(
+admin/farmer_harvest_history_screen.dart-138-                    child: Text(
+admin/farmer_harvest_history_screen.dart-139-                      l10n.farmerHarvestHistoryTitle,
+admin/farmer_harvest_history_screen.dart-140-                        style: GoogleFonts.poppins(
+admin/farmer_harvest_history_screen.dart-141-                        fontWeight: FontWeight.w700,
+admin/farmer_harvest_history_screen.dart-142-                        fontSize: 18,
+admin/farmer_harvest_history_screen.dart-143-                        color: cs.onSurface,
+admin/farmer_harvest_history_screen.dart-144-                      ),
+--
+admin/harvest_report_screen.dart-276-            color: sagana.glassBackground,
+admin/harvest_report_screen.dart-277-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/harvest_report_screen.dart-278-          ),
+admin/harvest_report_screen.dart-279-          child: Row(
+admin/harvest_report_screen.dart-280-            children: [
+admin/harvest_report_screen.dart-281-              IconButton(
+admin/harvest_report_screen.dart:282:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/harvest_report_screen.dart-283-                onPressed: () => context.pop(),
+admin/harvest_report_screen.dart-284-              ),
+admin/harvest_report_screen.dart-285-              Expanded(
+admin/harvest_report_screen.dart-286-                child: Text(
+admin/harvest_report_screen.dart-287-                  l10n.reportsHarvestManagement,
+admin/harvest_report_screen.dart-288-                  style: GoogleFonts.poppins(
+admin/harvest_report_screen.dart-289-                    fontWeight: FontWeight.w700,
+admin/harvest_report_screen.dart-290-                    fontSize: 17,
+admin/harvest_report_screen.dart-291-                    color: cs.primary,
+admin/harvest_report_screen.dart-292-                  ),
+--
+admin/issue_new_loan_screen.dart-410-            color: sagana.glassBackground,
+admin/issue_new_loan_screen.dart-411-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/issue_new_loan_screen.dart-412-          ),
+admin/issue_new_loan_screen.dart-413-          child: Row(
+admin/issue_new_loan_screen.dart-414-            children: [
+admin/issue_new_loan_screen.dart-415-              IconButton(
+admin/issue_new_loan_screen.dart:416:                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/issue_new_loan_screen.dart-417-                onPressed: () => context.pop(),
+admin/issue_new_loan_screen.dart-418-              ),
+admin/issue_new_loan_screen.dart-419-              Expanded(
+admin/issue_new_loan_screen.dart-420-                child: Text(
+admin/issue_new_loan_screen.dart-421-                  l10n.issueLoanTitle,
+admin/issue_new_loan_screen.dart-422-                  style: GoogleFonts.poppins(
+admin/issue_new_loan_screen.dart-423-                    fontWeight: FontWeight.w700,
+admin/issue_new_loan_screen.dart-424-                    fontSize: 18,
+admin/issue_new_loan_screen.dart-425-                    color: cs.onSurface,
+admin/issue_new_loan_screen.dart-426-                  ),
+--
+admin/listing_review_screen.dart-382-            color: sagana.glassBackground,
+admin/listing_review_screen.dart-383-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/listing_review_screen.dart-384-          ),
+admin/listing_review_screen.dart-385-          child: Row(
+admin/listing_review_screen.dart-386-            children: [
+admin/listing_review_screen.dart-387-              IconButton(
+admin/listing_review_screen.dart:388:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/listing_review_screen.dart-389-                onPressed: onBack,
+admin/listing_review_screen.dart-390-              ),
+admin/listing_review_screen.dart-391-              Expanded(
+admin/listing_review_screen.dart-392-                child: Text(
+admin/listing_review_screen.dart-393-                  title,
+admin/listing_review_screen.dart-394-                  maxLines: 1,
+admin/listing_review_screen.dart-395-                  overflow: TextOverflow.ellipsis,
+admin/listing_review_screen.dart-396-                  style: GoogleFonts.poppins(
+admin/listing_review_screen.dart-397-                    fontSize: 18,
+admin/listing_review_screen.dart-398-                    fontWeight: FontWeight.w700,
+--
+admin/loan_details_screen.dart-172-            color: sagana.glassBackground,
+admin/loan_details_screen.dart-173-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/loan_details_screen.dart-174-          ),
+admin/loan_details_screen.dart-175-          child: Row(
+admin/loan_details_screen.dart-176-            children: [
+admin/loan_details_screen.dart-177-              IconButton(
+admin/loan_details_screen.dart:178:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/loan_details_screen.dart-179-                onPressed: () => context.pop(),
+admin/loan_details_screen.dart-180-              ),
+admin/loan_details_screen.dart-181-              Expanded(
+admin/loan_details_screen.dart-182-                child: Text(
+admin/loan_details_screen.dart-183-                  _detail != null
+admin/loan_details_screen.dart-184-                      ? l10n.loanDetailsContextualTitle(
+admin/loan_details_screen.dart-185-                          _detail!.loan.referenceNo,
+admin/loan_details_screen.dart-186-                        )
+admin/loan_details_screen.dart-187-                      : l10n.loanDetailsTitle,
+admin/loan_details_screen.dart-188-                  overflow: TextOverflow.ellipsis,
+--
+admin/loan_history_screen.dart-160-            color: sagana.glassBackground,
+admin/loan_history_screen.dart-161-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/loan_history_screen.dart-162-          ),
+admin/loan_history_screen.dart-163-          child: Row(
+admin/loan_history_screen.dart-164-            children: [
+admin/loan_history_screen.dart-165-              IconButton(
+admin/loan_history_screen.dart:166:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/loan_history_screen.dart-167-                onPressed: () => context.pop(),
+admin/loan_history_screen.dart-168-              ),
+admin/loan_history_screen.dart-169-              Expanded(
+admin/loan_history_screen.dart-170-                child: Text(
+admin/loan_history_screen.dart-171-                  l10n.loanHistoryTitle,
+admin/loan_history_screen.dart-172-                  style: GoogleFonts.poppins(
+admin/loan_history_screen.dart-173-                    fontWeight: FontWeight.w700,
+admin/loan_history_screen.dart-174-                    fontSize: 17,
+admin/loan_history_screen.dart-175-                    color: cs.primary,
+admin/loan_history_screen.dart-176-                  ),
+--
+admin/loan_item_management_screen.dart-302-                  color: sagana.glassBackground,
+admin/loan_item_management_screen.dart-303-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/loan_item_management_screen.dart-304-                ),
+admin/loan_item_management_screen.dart-305-                child: Row(
+admin/loan_item_management_screen.dart-306-                  children: [
+admin/loan_item_management_screen.dart-307-                    IconButton(
+admin/loan_item_management_screen.dart:308:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/loan_item_management_screen.dart-309-                      onPressed: () => context.pop(),
+admin/loan_item_management_screen.dart-310-                    ),
+admin/loan_item_management_screen.dart-311-                    Expanded(
+admin/loan_item_management_screen.dart-312-                      child: Text(
+admin/loan_item_management_screen.dart-313-                        l10n.loanItemCatalogTitle,
+admin/loan_item_management_screen.dart-314-                        style: GoogleFonts.poppins(
+admin/loan_item_management_screen.dart-315-                          fontSize: 18,
+admin/loan_item_management_screen.dart-316-                          fontWeight: FontWeight.w700,
+admin/loan_item_management_screen.dart-317-                          color: cs.onSurface,
+admin/loan_item_management_screen.dart-318-                        ),
+--
+admin/loan_report_screen.dart-185-            color: sagana.glassBackground,
+admin/loan_report_screen.dart-186-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/loan_report_screen.dart-187-          ),
+admin/loan_report_screen.dart-188-          child: Row(
+admin/loan_report_screen.dart-189-            children: [
+admin/loan_report_screen.dart-190-              IconButton(
+admin/loan_report_screen.dart:191:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/loan_report_screen.dart-192-                onPressed: () => context.pop(),
+admin/loan_report_screen.dart-193-              ),
+admin/loan_report_screen.dart-194-              Expanded(
+admin/loan_report_screen.dart-195-                child: Text(
+admin/loan_report_screen.dart-196-                  l10n.reportsLoanReport,
+admin/loan_report_screen.dart-197-                  style: GoogleFonts.poppins(
+admin/loan_report_screen.dart-198-                    fontWeight: FontWeight.w700,
+admin/loan_report_screen.dart-199-                    fontSize: 17,
+admin/loan_report_screen.dart-200-                    color: cs.primary,
+admin/loan_report_screen.dart-201-                  ),
+--
+admin/manage_accounts_screen.dart-168-    return Scaffold(
+admin/manage_accounts_screen.dart-169-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+admin/manage_accounts_screen.dart-170-      appBar: AppBar(
+admin/manage_accounts_screen.dart-171-        backgroundColor: Colors.transparent,
+admin/manage_accounts_screen.dart-172-        elevation: 0,
+admin/manage_accounts_screen.dart-173-        leading: IconButton(
+admin/manage_accounts_screen.dart:174:          icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/manage_accounts_screen.dart-175-          onPressed: () => context.pop(),
+admin/manage_accounts_screen.dart-176-        ),
+admin/manage_accounts_screen.dart-177-        title: Text(
+admin/manage_accounts_screen.dart-178-          l10n.manageAccountsTitle,
+admin/manage_accounts_screen.dart-179-          style: GoogleFonts.poppins(
+admin/manage_accounts_screen.dart-180-            fontSize: 18,
+admin/manage_accounts_screen.dart-181-            fontWeight: FontWeight.w700,
+admin/manage_accounts_screen.dart-182-            color: cs.onSurface,
+admin/manage_accounts_screen.dart-183-          ),
+admin/manage_accounts_screen.dart-184-        ),
+--
+admin/market_linking_screen.dart-321-            color: sagana.glassBackground,
+admin/market_linking_screen.dart-322-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/market_linking_screen.dart-323-          ),
+admin/market_linking_screen.dart-324-          child: Row(
+admin/market_linking_screen.dart-325-            children: [
+admin/market_linking_screen.dart-326-              IconButton(
+admin/market_linking_screen.dart:327:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/market_linking_screen.dart-328-                onPressed: onBack,
+admin/market_linking_screen.dart-329-              ),
+admin/market_linking_screen.dart-330-              Expanded(
+admin/market_linking_screen.dart-331-                child: Column(
+admin/market_linking_screen.dart-332-                  mainAxisAlignment: MainAxisAlignment.center,
+admin/market_linking_screen.dart-333-                  crossAxisAlignment: CrossAxisAlignment.start,
+admin/market_linking_screen.dart-334-                  children: [
+admin/market_linking_screen.dart-335-                    Text(
+admin/market_linking_screen.dart-336-                      l10n.marketLinkTitle,
+admin/market_linking_screen.dart-337-                      maxLines: 1,
+--
+admin/member_contribution_report_screen.dart-163-            color: sagana.glassBackground,
+admin/member_contribution_report_screen.dart-164-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/member_contribution_report_screen.dart-165-          ),
+admin/member_contribution_report_screen.dart-166-          child: Row(
+admin/member_contribution_report_screen.dart-167-            children: [
+admin/member_contribution_report_screen.dart-168-              IconButton(
+admin/member_contribution_report_screen.dart:169:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/member_contribution_report_screen.dart-170-                onPressed: () => context.pop(),
+admin/member_contribution_report_screen.dart-171-              ),
+admin/member_contribution_report_screen.dart-172-              Expanded(
+admin/member_contribution_report_screen.dart-173-                child: Text(
+admin/member_contribution_report_screen.dart-174-                  l10n.reportsMemberContributionReport,
+admin/member_contribution_report_screen.dart-175-                  style: GoogleFonts.poppins(
+admin/member_contribution_report_screen.dart-176-                    fontWeight: FontWeight.w700,
+admin/member_contribution_report_screen.dart-177-                    fontSize: 17,
+admin/member_contribution_report_screen.dart-178-                    color: cs.primary,
+admin/member_contribution_report_screen.dart-179-                  ),
+--
+admin/notification_broadcast_screen.dart-570-        height: 64,
+admin/notification_broadcast_screen.dart-571-        child: Padding(
+admin/notification_broadcast_screen.dart-572-          padding: const EdgeInsets.symmetric(horizontal: 8),
+admin/notification_broadcast_screen.dart-573-          child: Row(
+admin/notification_broadcast_screen.dart-574-            children: [
+admin/notification_broadcast_screen.dart-575-              IconButton(
+admin/notification_broadcast_screen.dart:576:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/notification_broadcast_screen.dart-577-                onPressed: onBack,
+admin/notification_broadcast_screen.dart-578-              ),
+admin/notification_broadcast_screen.dart-579-              const SizedBox(width: 4),
+admin/notification_broadcast_screen.dart-580-              Text(
+admin/notification_broadcast_screen.dart-581-                title,
+admin/notification_broadcast_screen.dart-582-                style: GoogleFonts.poppins(
+admin/notification_broadcast_screen.dart-583-                  fontSize: 20,
+admin/notification_broadcast_screen.dart-584-                  fontWeight: FontWeight.w700,
+admin/notification_broadcast_screen.dart-585-                  color: cs.primary,
+admin/notification_broadcast_screen.dart-586-                ),
+--
+admin/offer_detail_screen.dart-305-            color: sagana.glassBackground,
+admin/offer_detail_screen.dart-306-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/offer_detail_screen.dart-307-          ),
+admin/offer_detail_screen.dart-308-          child: Row(
+admin/offer_detail_screen.dart-309-            children: [
+admin/offer_detail_screen.dart-310-              IconButton(
+admin/offer_detail_screen.dart:311:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/offer_detail_screen.dart-312-                onPressed: onBack,
+admin/offer_detail_screen.dart-313-              ),
+admin/offer_detail_screen.dart-314-              Expanded(
+admin/offer_detail_screen.dart-315-                child: Text(title,
+admin/offer_detail_screen.dart-316-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary),
+admin/offer_detail_screen.dart-317-                    overflow: TextOverflow.ellipsis),
+admin/offer_detail_screen.dart-318-              ),
+admin/offer_detail_screen.dart-319-            ],
+admin/offer_detail_screen.dart-320-          ),
+admin/offer_detail_screen.dart-321-        ),
+--
+admin/offer_to_cooperative_screen.dart-218-            color: sagana.glassBackground,
+admin/offer_to_cooperative_screen.dart-219-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/offer_to_cooperative_screen.dart-220-          ),
+admin/offer_to_cooperative_screen.dart-221-          child: Row(
+admin/offer_to_cooperative_screen.dart-222-            children: [
+admin/offer_to_cooperative_screen.dart-223-              IconButton(
+admin/offer_to_cooperative_screen.dart:224:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary, size: 24),
+admin/offer_to_cooperative_screen.dart-225-                onPressed: () => context.pop(),
+admin/offer_to_cooperative_screen.dart-226-                tooltip: l10n.offerCoopBackTooltip,
+admin/offer_to_cooperative_screen.dart-227-              ),
+admin/offer_to_cooperative_screen.dart-228-              Expanded(
+admin/offer_to_cooperative_screen.dart-229-                child: Text(l10n.offerCoopTitle,
+admin/offer_to_cooperative_screen.dart-230-                    style: GoogleFonts.poppins(
+admin/offer_to_cooperative_screen.dart-231-                        fontSize: 18, fontWeight: FontWeight.w700, color: cs.primary)),
+admin/offer_to_cooperative_screen.dart-232-              ),
+admin/offer_to_cooperative_screen.dart-233-            ],
+admin/offer_to_cooperative_screen.dart-234-          ),
+--
+admin/order_delivery_map_screen.dart-89-                      ),
+admin/order_delivery_map_screen.dart-90-                      child: Row(
+admin/order_delivery_map_screen.dart-91-                        children: [
+admin/order_delivery_map_screen.dart-92-                          GestureDetector(
+admin/order_delivery_map_screen.dart-93-                            onTap: () => Navigator.of(context).pop(),
+admin/order_delivery_map_screen.dart-94-                            child: const Icon(
+admin/order_delivery_map_screen.dart:95:                              Icons.arrow_back_rounded,
+admin/order_delivery_map_screen.dart-96-                              color: AppConstants.primaryGreen,
+admin/order_delivery_map_screen.dart-97-                            ),
+admin/order_delivery_map_screen.dart-98-                          ),
+admin/order_delivery_map_screen.dart-99-                          const SizedBox(width: 14),
+admin/order_delivery_map_screen.dart-100-                          Expanded(
+admin/order_delivery_map_screen.dart-101-                            child: Text(
+admin/order_delivery_map_screen.dart-102-                              l10n.orderDetailDeliveryPinTitle,
+admin/order_delivery_map_screen.dart-103-                              style: GoogleFonts.poppins(
+admin/order_delivery_map_screen.dart-104-                                fontSize: 18,
+admin/order_delivery_map_screen.dart-105-                                fontWeight: FontWeight.w700,
+--
+admin/order_management_screen.dart-380-          color: sagana.glassBackground,
+admin/order_management_screen.dart-381-          border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/order_management_screen.dart-382-        ),
+admin/order_management_screen.dart-383-        child: Row(
+admin/order_management_screen.dart-384-          children: [
+admin/order_management_screen.dart-385-            IconButton(
+admin/order_management_screen.dart:386:              icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/order_management_screen.dart-387-              onPressed: onBack,
+admin/order_management_screen.dart-388-            ),
+admin/order_management_screen.dart-389-            Expanded(
+admin/order_management_screen.dart-390-              child: Text(
+admin/order_management_screen.dart-391-                title,
+admin/order_management_screen.dart-392-                style: GoogleFonts.poppins(
+admin/order_management_screen.dart-393-                  fontSize: 18,
+admin/order_management_screen.dart-394-                  fontWeight: FontWeight.w700,
+admin/order_management_screen.dart-395-                  color: cs.primary,
+admin/order_management_screen.dart-396-                ),
+--
+admin/pending_approvals_screen.dart-221-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/pending_approvals_screen.dart-222-          ),
+admin/pending_approvals_screen.dart-223-          child: Row(
+admin/pending_approvals_screen.dart-224-            children: [
+admin/pending_approvals_screen.dart-225-              IconButton(
+admin/pending_approvals_screen.dart-226-                icon: Icon(
+admin/pending_approvals_screen.dart:227:                  Icons.arrow_back_rounded,
+admin/pending_approvals_screen.dart-228-                  color: cs.primary,
+admin/pending_approvals_screen.dart-229-                  size: 24,
+admin/pending_approvals_screen.dart-230-                ),
+admin/pending_approvals_screen.dart-231-                onPressed: () => context.pop(),
+admin/pending_approvals_screen.dart-232-                tooltip: l10n.offerCoopBackTooltip,
+admin/pending_approvals_screen.dart-233-              ),
+admin/pending_approvals_screen.dart-234-              Expanded(
+admin/pending_approvals_screen.dart-235-                child: Text(
+admin/pending_approvals_screen.dart-236-                  l10n.pendingApprovalsTitle,
+admin/pending_approvals_screen.dart-237-                    style: GoogleFonts.poppins(
+--
+admin/price_management_screen.dart-766-            color: sagana.glassBackground,
+admin/price_management_screen.dart-767-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/price_management_screen.dart-768-          ),
+admin/price_management_screen.dart-769-          child: Row(
+admin/price_management_screen.dart-770-            children: [
+admin/price_management_screen.dart-771-              IconButton(
+admin/price_management_screen.dart:772:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/price_management_screen.dart-773-                onPressed: onBack,
+admin/price_management_screen.dart-774-              ),
+admin/price_management_screen.dart-775-              const SizedBox(width: 4),
+admin/price_management_screen.dart-776-              Expanded(
+admin/price_management_screen.dart-777-                child: Text(
+admin/price_management_screen.dart-778-                title,
+admin/price_management_screen.dart-779-                style: GoogleFonts.poppins(
+admin/price_management_screen.dart-780-                  fontSize: 20,
+admin/price_management_screen.dart-781-                  fontWeight: FontWeight.w700,
+admin/price_management_screen.dart-782-                  color: cs.primary,
+--
+admin/program_enrollment_requests_screen.dart-186-          children: [
+admin/program_enrollment_requests_screen.dart-187-            Padding(
+admin/program_enrollment_requests_screen.dart-188-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+admin/program_enrollment_requests_screen.dart-189-              child: Row(
+admin/program_enrollment_requests_screen.dart-190-                children: [
+admin/program_enrollment_requests_screen.dart-191-                  IconButton(
+admin/program_enrollment_requests_screen.dart:192:                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/program_enrollment_requests_screen.dart-193-                    onPressed: () => Navigator.of(context).pop(),
+admin/program_enrollment_requests_screen.dart-194-                  ),
+admin/program_enrollment_requests_screen.dart-195-                  Expanded(
+admin/program_enrollment_requests_screen.dart-196-                    child: Text(
+admin/program_enrollment_requests_screen.dart-197-                      'Enrollment Requests',
+admin/program_enrollment_requests_screen.dart-198-                      maxLines: 1,
+admin/program_enrollment_requests_screen.dart-199-                      overflow: TextOverflow.ellipsis,
+admin/program_enrollment_requests_screen.dart-200-                      style: GoogleFonts.poppins(
+admin/program_enrollment_requests_screen.dart-201-                        fontWeight: FontWeight.w700,
+admin/program_enrollment_requests_screen.dart-202-                        fontSize: 18,
+--
+admin/program_management_screen.dart-691-                  color: sagana.glassBackground,
+admin/program_management_screen.dart-692-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/program_management_screen.dart-693-                ),
+admin/program_management_screen.dart-694-                child: Row(
+admin/program_management_screen.dart-695-                  children: [
+admin/program_management_screen.dart-696-                    IconButton(
+admin/program_management_screen.dart:697:                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+admin/program_management_screen.dart-698-                      onPressed: () => context.pop(),
+admin/program_management_screen.dart-699-                    ),
+admin/program_management_screen.dart-700-                    Expanded(
+admin/program_management_screen.dart-701-                      child: Text(
+admin/program_management_screen.dart-702-                        l10n.programMgmtTitle,
+admin/program_management_screen.dart-703-                        maxLines: 1,
+admin/program_management_screen.dart-704-                        overflow: TextOverflow.ellipsis,
+admin/program_management_screen.dart-705-                        style: GoogleFonts.poppins(
+admin/program_management_screen.dart-706-                            fontSize: 18,
+admin/program_management_screen.dart-707-                            fontWeight: FontWeight.w700,
+--
+admin/program_purchase_review_screen.dart-373-          children: [
+admin/program_purchase_review_screen.dart-374-            Padding(
+admin/program_purchase_review_screen.dart-375-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+admin/program_purchase_review_screen.dart-376-              child: Row(
+admin/program_purchase_review_screen.dart-377-                children: [
+admin/program_purchase_review_screen.dart-378-                  IconButton(
+admin/program_purchase_review_screen.dart:379:                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/program_purchase_review_screen.dart-380-                    onPressed: () => context.pop(),
+admin/program_purchase_review_screen.dart-381-                  ),
+admin/program_purchase_review_screen.dart-382-                  Expanded(
+admin/program_purchase_review_screen.dart-383-                    child: Text('Purchase Requests',
+admin/program_purchase_review_screen.dart-384-                        style: GoogleFonts.poppins(
+admin/program_purchase_review_screen.dart-385-                            fontWeight: FontWeight.w700, fontSize: 18, color: cs.onSurface)),
+admin/program_purchase_review_screen.dart-386-                  ),
+admin/program_purchase_review_screen.dart-387-                ],
+admin/program_purchase_review_screen.dart-388-              ),
+admin/program_purchase_review_screen.dart-389-            ),
+--
+admin/record_payment_screen.dart-447-            color: sagana.glassBackground,
+admin/record_payment_screen.dart-448-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/record_payment_screen.dart-449-          ),
+admin/record_payment_screen.dart-450-          child: Row(
+admin/record_payment_screen.dart-451-            children: [
+admin/record_payment_screen.dart-452-              IconButton(
+admin/record_payment_screen.dart:453:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/record_payment_screen.dart-454-                onPressed: _handleBack,
+admin/record_payment_screen.dart-455-              ),
+admin/record_payment_screen.dart-456-              Expanded(
+admin/record_payment_screen.dart-457-                child: Text(
+admin/record_payment_screen.dart-458-                  _selectedFarmer != null
+admin/record_payment_screen.dart-459-                      ? l10n.paymentContextualTitle(_selectedFarmer!.fullName)
+admin/record_payment_screen.dart-460-                      : l10n.paymentTitle,
+admin/record_payment_screen.dart-461-                  overflow: TextOverflow.ellipsis,
+admin/record_payment_screen.dart-462-                  style: GoogleFonts.poppins(
+admin/record_payment_screen.dart-463-                    fontWeight: FontWeight.w700,
+--
+admin/sales_report_screen.dart-175-            color: sagana.glassBackground,
+admin/sales_report_screen.dart-176-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+admin/sales_report_screen.dart-177-          ),
+admin/sales_report_screen.dart-178-          child: Row(
+admin/sales_report_screen.dart-179-            children: [
+admin/sales_report_screen.dart-180-              IconButton(
+admin/sales_report_screen.dart:181:                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/sales_report_screen.dart-182-                onPressed: () => context.pop(),
+admin/sales_report_screen.dart-183-              ),
+admin/sales_report_screen.dart-184-              Expanded(
+admin/sales_report_screen.dart-185-                child: Text(
+admin/sales_report_screen.dart-186-                  l10n.reportsSalesReport,
+admin/sales_report_screen.dart-187-                  style: GoogleFonts.poppins(
+admin/sales_report_screen.dart-188-                    fontWeight: FontWeight.w700,
+admin/sales_report_screen.dart-189-                    fontSize: 17,
+admin/sales_report_screen.dart-190-                    color: cs.primary,
+admin/sales_report_screen.dart-191-                  ),
+--
+admin/supply_chain_map_screen.dart-226-                Container(
+admin/supply_chain_map_screen.dart-227-                  height: 64,
+admin/supply_chain_map_screen.dart-228-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+admin/supply_chain_map_screen.dart-229-                  child: Row(
+admin/supply_chain_map_screen.dart-230-                    children: [
+admin/supply_chain_map_screen.dart-231-                      IconButton(
+admin/supply_chain_map_screen.dart:232:                        icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
+admin/supply_chain_map_screen.dart-233-                        onPressed: () => context.pop(),
+admin/supply_chain_map_screen.dart-234-                      ),
+admin/supply_chain_map_screen.dart-235-                      const SizedBox(width: 4),
+admin/supply_chain_map_screen.dart-236-                      Expanded(
+admin/supply_chain_map_screen.dart-237-                        child: Text(
+admin/supply_chain_map_screen.dart-238-                          l10n.supplyChainTitle,
+admin/supply_chain_map_screen.dart-239-                          style: GoogleFonts.poppins(
+admin/supply_chain_map_screen.dart-240-                            fontSize: 20,
+admin/supply_chain_map_screen.dart-241-                            fontWeight: FontWeight.w700,
+admin/supply_chain_map_screen.dart-242-                            color: cs.onSurface,
+--
+admin/supply_chain_map_screen.dart-730-                      ),
+admin/supply_chain_map_screen.dart-731-                      child: Row(
+admin/supply_chain_map_screen.dart-732-                        children: [
+admin/supply_chain_map_screen.dart-733-                          GestureDetector(
+admin/supply_chain_map_screen.dart-734-                            onTap: () => context.pop(),
+admin/supply_chain_map_screen.dart-735-                            child: const Icon(
+admin/supply_chain_map_screen.dart:736:                              Icons.arrow_back_rounded,
+admin/supply_chain_map_screen.dart-737-                              color: AppConstants.primaryGreen,
+admin/supply_chain_map_screen.dart-738-                            ),
+admin/supply_chain_map_screen.dart-739-                          ),
+admin/supply_chain_map_screen.dart-740-                          const SizedBox(width: 14),
+admin/supply_chain_map_screen.dart-741-                          Expanded(
+admin/supply_chain_map_screen.dart-742-                            child: Text(
+admin/supply_chain_map_screen.dart-743-                              l10n.supplyChainMapSection,
+admin/supply_chain_map_screen.dart-744-                              style: GoogleFonts.poppins(
+admin/supply_chain_map_screen.dart-745-                                fontSize: 18,
+admin/supply_chain_map_screen.dart-746-                                fontWeight: FontWeight.w700,

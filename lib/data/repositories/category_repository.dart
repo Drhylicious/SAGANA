@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 /// Shared repository for the admin-managed category lookup tables
 /// (inventory_categories, crop_categories — see
@@ -43,7 +44,7 @@ class CategoryRepository {
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'category_added',
-        description: 'Added "$result" as an inventory category.',
+        message: AdminLogMessage('adminLogInventoryCategoryAdded', {'name': result}),
       );
     }
     return result;
@@ -55,7 +56,7 @@ class CategoryRepository {
       AdminActivityRepository().log(
         module: 'crops',
         actionType: 'category_added',
-        description: 'Added "$result" as a crop category.',
+        message: AdminLogMessage('adminLogCropCategoryAdded', {'name': result}),
       );
     }
     return result;

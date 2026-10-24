@@ -11,6 +11,8 @@ import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/member_access.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class AdminCalendarScreen extends StatefulWidget {
   const AdminCalendarScreen({super.key});
@@ -180,40 +182,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
       body: Column(
         children: [
           // Glass top bar
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64 + MediaQuery.of(context).padding.top,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  right: 20,
-                ),
-                decoration: BoxDecoration(
-                  color: sagana.glassBackground,
-                  border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                      onPressed: () => context.pop(),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      l10n.adminCalTitle,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          SubPageTopBar(title: l10n.adminCalTitle, onBack: () => context.pop()),
 
           if (!_isOnline)
             Container(
@@ -329,14 +298,7 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
 
                           // Grid
                           if (_isLoading)
-                            Container(
-                              height: 240,
-                              alignment: Alignment.center,
-                              child: const CircularProgressIndicator(
-                                color: AppConstants.primaryGreen,
-                                strokeWidth: 2,
-                              ),
-                            )
+                            const SkeletonBlock(height: 240)
                           else
                             GridView.builder(
                               shrinkWrap: true,

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/client_id.dart';
 import '../models/harvest_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/hive_service.dart';
@@ -17,10 +18,14 @@ class HarvestEntryRepository {
     String? variety,
     String? storageLocation,
   }) async {
+    // Database key for this harvest. Kept with the queued record so a replay
+    // that finds the row already on the server is recognized, not duplicated.
+    final clientId = newClientId();
     final isOnline = await ConnectivityService.instance.checkConnectivity();
 
     if (!isOnline) {
       final localId = await HiveService.savePendingHarvest({
+        'client_id': clientId,
         'crop_id': cropId,
         'crop_name': cropName,
         'crop_category': cropCategory,
@@ -50,6 +55,7 @@ class HarvestEntryRepository {
     }
 
     return _submitOnline(
+      clientId: clientId,
       cropId: cropId,
       cropName: cropName,
       cropCategory: cropCategory,
@@ -65,7 +71,12 @@ class HarvestEntryRepository {
   /// Supabase. Shared by the immediate online path above and by
   /// SyncService's replay of queued offline submissions, so the two paths
   /// can never drift apart.
+  ///
+  /// [clientId] is the row's primary key. If a row with that id already exists
+  /// (an earlier replay inserted it before failing), it is reused, so the
+  /// harvest is never recorded twice.
   Future<HarvestModel> _submitOnline({
+    required String clientId,
     required String cropId,
     required String cropName,
     required String cropCategory,
@@ -75,9 +86,16 @@ class HarvestEntryRepository {
     String? variety,
     String? storageLocation,
   }) async {
-    final harvestResponse = await _client
+    var harvestRow = await _client
+        .from('harvest_records')
+        .select()
+        .eq('id', clientId)
+        .maybeSingle();
+
+    harvestRow ??= await _client
         .from('harvest_records')
         .insert({
+          'id': clientId,
           'farmer_id': _userId,
           'crop_id': cropId,
           'crop_name': cropName,
@@ -92,7 +110,7 @@ class HarvestEntryRepository {
         .select()
         .single();
 
-    final harvest = HarvestModel.fromMap(harvestResponse);
+    final harvest = HarvestModel.fromMap(harvestRow);
 
     // Look up cooperative eligibility and market type once, at harvest
     // time, via the crop's catalog link — denormalized onto the batch so
@@ -126,22 +144,30 @@ class HarvestEntryRepository {
     // Auto-create inventory batch — required for this harvest to ever be
     // usable (listed, offered to the cooperative, or informally sold).
     // If this insert fails, the harvest_records row is rolled back rather
-    // than left orphaned with no way for the farmer to recover it.
+    // than left orphaned with no way for the farmer to recover it. A batch
+    // that already exists for this harvest is not inserted a second time.
     try {
-      await _client.from('inventory_batches').insert({
-        'farmer_id': _userId,
-        'harvest_record_id': harvest.id,
-        'crop_id': cropId,
-        'crop_name': cropName,
-        'batch_number': batchNumber,
-        'quantity_kg': quantityKg,
-        'available_kg': quantityKg,
-        'reserved_kg': 0,
-        'sold_kg': 0,
-        'status': 'available',
-        'is_coop_eligible': isCoopEligible,
-        'crop_type': cropType,
-      });
+      final existingBatch = await _client
+          .from('inventory_batches')
+          .select('id')
+          .eq('harvest_record_id', harvest.id)
+          .maybeSingle();
+      if (existingBatch == null) {
+        await _client.from('inventory_batches').insert({
+          'farmer_id': _userId,
+          'harvest_record_id': harvest.id,
+          'crop_id': cropId,
+          'crop_name': cropName,
+          'batch_number': batchNumber,
+          'quantity_kg': quantityKg,
+          'available_kg': quantityKg,
+          'reserved_kg': 0,
+          'sold_kg': 0,
+          'status': 'available',
+          'is_coop_eligible': isCoopEligible,
+          'crop_type': cropType,
+        });
+      }
     } catch (e) {
       try {
         await _client.from('harvest_records').delete().eq('id', harvest.id);
@@ -161,6 +187,9 @@ class HarvestEntryRepository {
   /// once connectivity returns.
   Future<HarvestModel> submitQueuedHarvest(Map<dynamic, dynamic> payload) {
     return _submitOnline(
+      // Records queued before client ids existed have none. They get a fresh
+      // id, so the duplicate check cannot apply to them.
+      clientId: payload['client_id'] as String? ?? newClientId(),
       cropId: payload['crop_id'] as String,
       cropName: payload['crop_name'] as String,
       cropCategory: payload['crop_category'] as String? ?? 'Other',

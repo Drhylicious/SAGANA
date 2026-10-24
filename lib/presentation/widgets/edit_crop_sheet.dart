@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../data/models/farmer_crop_model.dart' show FarmerCropModel, marketTypeLabelFor;
 import '../../data/repositories/crop_repository.dart';
 import 'management_modal.dart';
@@ -62,26 +63,14 @@ class _EditCropModalState extends State<_EditCropModal> {
   Future<void> _save() async {
     if (_pickedImageBytes == null) return;
     setState(() => _isSaving = true);
-    final photoUrl = await widget.repo
-        .uploadCropPhoto(_pickedImageBytes!, _pickedImageExt ?? 'jpg');
-    if (photoUrl == null) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not upload photo. Please try again.',
-                style: GoogleFonts.inter(fontSize: 13)),
-          ),
-        );
-      }
-      return;
-    }
-    final saved = await widget.repo
-        .updateCropPhoto(widget.crop.id, widget.crop.cropName, photoUrl);
+    final result = await widget.repo.setCropPhoto(
+      bytes: _pickedImageBytes!,
+      fileExtension: _pickedImageExt ?? 'jpg',
+      cropId: widget.crop.id,
+      cropName: widget.crop.cropName,
+    );
     if (!mounted) return;
-    if (saved) {
-      Navigator.pop(context, true);
-    } else {
+    if (result.failed) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -89,7 +78,17 @@ class _EditCropModalState extends State<_EditCropModal> {
               style: GoogleFonts.inter(fontSize: 13)),
         ),
       );
+      return;
     }
+    if (result.queued) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).savedOnDeviceSyncLater,
+              style: GoogleFonts.inter(fontSize: 13)),
+        ),
+      );
+    }
+    Navigator.pop(context, true);
   }
 
   @override

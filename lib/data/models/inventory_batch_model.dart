@@ -12,7 +12,13 @@ class InventoryBatchModel {
   final String
   status; // available | reserved | sold_out | withdrawn | low_stock
   final bool isCoopEligible;
-  final String? cropType; // sp3_cooperative | da_amad_market | open_market
+  final String? cropType; // a market_types.code (Public or Cooperative)
+
+  /// The one selling channel this batch's crop is reserved for, if any
+  /// (inventory_batches.exclusive_channel, copied from the crop). Null for an
+  /// ordinary crop, which can use Marketplace, Offer to Cooperative and
+  /// Informal Sale. Set (DA-AMAD Market Linking) for Ginger only.
+  final String? exclusiveChannel;
   /// The crop's display image — farmer's own crop photo if set, else the
   /// crop_master catalog photo, else null. Resolved by the repository via
   /// fetchFarmerCropImageMap(), not derived here, since it requires a
@@ -38,6 +44,7 @@ class InventoryBatchModel {
     required this.status,
     this.isCoopEligible = false,
     this.cropType,
+    this.exclusiveChannel,
     this.displayImageUrl,
     this.category,
     required this.createdAt,
@@ -85,6 +92,7 @@ class InventoryBatchModel {
       status: map['status'] as String? ?? 'available',
       isCoopEligible: map['is_coop_eligible'] as bool? ?? false,
       cropType: map['crop_type'] as String?,
+      exclusiveChannel: map['exclusive_channel'] as String?,
       displayImageUrl: map['display_image_url'] as String?,
       category: map['category'] as String?,
       createdAt: parseDate(map['created_at']) ?? DateTime.now(),

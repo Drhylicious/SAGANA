@@ -32,6 +32,10 @@ class BuyerActivityItem {
   // which case the card falls back to its default icon.
   final String? imageUrl;
 
+  // Profile-type items only — the activity key (e.g. 'activityAddressAdded'),
+  // so the card picks its badge from the kind of entry, not from its text.
+  final String? messageKey;
+
   const BuyerActivityItem({
     required this.id,
     required this.type,
@@ -42,5 +46,6 @@ class BuyerActivityItem {
     required this.timestamp,
     this.orderStatus,
     this.imageUrl,
+    this.messageKey,
   });
 }

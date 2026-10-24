@@ -5,17 +5,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
+import '../../../data/services/auth_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/offline_actions.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/change_password_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Farmer Edit Profile — name, phone, photo, Change Password.
 /// Route: /farmer/profile/edit. Mirrors AdminEditProfileScreen exactly;
@@ -82,6 +88,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
         _nameController.text = profile?.fullName ?? '';
         _phoneController.text = profile?.phoneNumber ?? '';
         _emailController.text = profile?.contactEmail ?? '';
+        _originalEmail = profile?.contactEmail?.trim() ?? '';
         _photoUrl = profile?.profilePhotoUrl;
         _dateOfBirth = profile?.dateOfBirth;
         _gender = profile?.gender;
@@ -106,16 +113,20 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     setState(() => _isUploadingPhoto = true);
     final Uint8List bytes = await picked.readAsBytes();
     final ext = picked.name.split('.').last;
-    final url = await _repo.updatePhoto(imageBytes: bytes, fileExtension: ext);
+    final result = await _repo.updatePhoto(imageBytes: bytes, fileExtension: ext);
     if (!mounted) return;
     setState(() {
       _isUploadingPhoto = false;
-      if (url != null) _photoUrl = url;
+      if (result.url != null) _photoUrl = result.url;
     });
-    if (url != null) {
+    final l10n = AppLocalizations.of(context);
+    if (result.url != null) {
       FarmerProfileStateService.instance.refresh();
-    } else if (mounted) {
-      final l10n = AppLocalizations.of(context);
+    } else if (result.queued) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.savedOnDeviceSyncLater)));
+    } else {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.photoUploadFailed)));
@@ -123,7 +134,9 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   }
 
   // A valid email address format (the same rule the database enforces).
-  static final _emailPattern = RegExp(r'^[^@s]+@[^@s]+.[^@s]+$');
+  // The email as it was when the screen opened, so the domain check runs only
+  // when the person actually changes it.
+  String _originalEmail = '';
 
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
@@ -137,10 +150,35 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       return;
     }
     final email = _emailController.text.trim();
-    if (email.isNotEmpty && !_emailPattern.hasMatch(email)) {
+    if (email.isNotEmpty && !isValidEmailFormat(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.registerInvalidEmail),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+      return;
+    }
+    // Same email check as registration: when the address was changed, its domain
+    // must be able to receive mail. The database enforces format and uniqueness.
+    if (email.isNotEmpty && email.toLowerCase() != _originalEmail.toLowerCase()) {
+      final domain = await AuthService.checkEmailDomain(email);
+      if (!mounted) return;
+      if (domain == EmailDomainStatus.noMailServer) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.registerEmailDomainInvalid),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+        return;
+      }
+    }
+    final phoneText = _phoneController.text.trim();
+    if (phoneText.isNotEmpty && normalizePhilippineMobile(phoneText) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.registerInvalidPhone),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -165,7 +203,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     }
     setState(() => _isSaving = true);
     try {
-      await _repo.updateBasicInfo(
+      final outcome = await _repo.updateBasicInfo(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         contactEmail: _emailController.text.trim(),
@@ -176,8 +214,12 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.profileUpdated),
-          backgroundColor: AppConstants.successGreen,
+          content: Text(
+            outcome == SaveOutcome.queued
+                ? l10n.savedOnDeviceSyncLater
+                : l10n.profileUpdated,
+          ),
+          backgroundColor: AppConstants.midGreen,
         ),
       );
       context.pop();
@@ -186,7 +228,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(friendlyErrorMessage(e)),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -196,18 +238,12 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final sagana = context.saganaColors;
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message:
-                  "You're offline — you won't be able to save changes until you're reconnected.",
-            ),
           // When the banner is showing, it already occupies the space the
           // status bar inset would otherwise reserve, so that inset is
           // removed here to avoid double top-padding between the banner
@@ -216,68 +252,26 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
           MediaQuery.removePadding(
             context: context,
             removeTop: !_isOnline,
-            child: AppBar(
-              backgroundColor: sagana.scaffoldBackground,
-              elevation: 0,
-              // Same circular back button FarmerTopBar renders (40x40
-              // circle, card-background fill, primary-tinted border) — the
-              // plain BackButton this replaced didn't match Edit Farm
-              // Details' header.
-              leading: Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: GestureDetector(
-                  onTap: () => context.pop(),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: sagana.cardBackground,
-                      border: Border.all(
-                        color: cs.primary.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    child: Icon(Icons.arrow_back_rounded, color: cs.primary),
+            child: SubPageTopBar(
+              title: l10n.editProfile,
+              onBack: () => context.pop(),
+              trailing: TextButton(
+                onPressed: _isSaving ? null : _save,
+                child: Text(
+                  l10n.save,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.primaryGreen,
                   ),
                 ),
               ),
-              title: Text(
-                l10n.editProfile,
-                style: GoogleFonts.poppins(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: _isSaving ? null : _save,
-                  child: Text(
-                    l10n.save,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.primaryGreen,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
-          // Matches FarmerTopBar's own divider color exactly (cs.outline at
-          // 20% alpha) — sagana.glassBorder (tried first) is meant for the
-          // blurred-glass header style and read as nearly invisible here.
-          // Drawn as a plain sibling rather than via AppBar's own `bottom:`
-          // slot — this AppBar is a bare widget inside a Column (not
-          // Scaffold.appBar), and AppBar's `bottom` relies on a bounded
-          // height being handed down the way Scaffold provides it; without
-          // that, it crashes with "RenderFlex children have non-zero flex
-          // but incoming height constraints are unbounded." A plain
-          // Container next to it needs no such assumption.
-          Container(height: 1, color: cs.outline.withValues(alpha: 0.20)),
+          if (!_isOnline) OfflineStatusCard(message: l10n.offlineSaveNotice),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _loadFailed
                 ? _EditProfileLoadError(onRetry: _load, isOnline: _isOnline)
                 : ListView(

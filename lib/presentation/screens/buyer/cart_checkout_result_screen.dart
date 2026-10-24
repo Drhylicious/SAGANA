@@ -6,6 +6,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cart_item_model.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/order_result_pieces.dart';
+import '../../widgets/shared_widgets.dart';
 
 class CartCheckoutResultScreen extends StatelessWidget {
   // Each succeeded item carries the orderId place_order() returned — fed
@@ -53,6 +54,7 @@ class CartCheckoutResultScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingSafeH, vertical: 24),
           children: [
+            OfflineStatusCard(title: l10n.offlineStatusTitle, message: l10n.offlineBuyerBody),
             const SizedBox(height: 12),
             // Same OrderResultIcon Buy Now's Order Success uses — just a
             // different icon/color for the partial-failure case, not a

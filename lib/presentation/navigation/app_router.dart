@@ -97,7 +97,8 @@ import '../../presentation/screens/admin/balik_tangkilik_management_screen.dart'
 import '../../presentation/screens/admin/farmer_harvest_history_screen.dart';
 import '../../presentation/screens/admin/marketplace_dashboard_screen.dart';
 import '../../presentation/screens/admin/offer_to_cooperative_screen.dart';
-import '../../presentation/screens/admin/offer_detail_screen.dart';
+import '../../presentation/screens/shared/coop_offer_negotiation_screen.dart';
+import '../../presentation/screens/farmer/farmer_coop_offers_screen.dart';
 import '../../presentation/screens/admin/buyer_management_screen.dart';
 import '../../presentation/screens/admin/buyer_details_screen.dart';
 import '../../presentation/screens/admin/buyer_order_history_screen.dart';
@@ -502,6 +503,15 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.listingSuccess,
           parentNavigatorKey: rootNavigatorKey,
+          // The success screen shows the listing it was handed; without it
+          // there is nothing to show, so send the user to their listings.
+          redirect: (context, state) {
+            final extra = state.extra;
+            if (extra is ListingSuccessArgs || extra is MarketplaceListingModel) {
+              return null;
+            }
+            return AppRoutes.myListings;
+          },
           pageBuilder: (c, s) => AppPageTransitions.scaleIn(
             key: s.pageKey,
             child: ListingSuccessScreen(initialArg: s.extra),
@@ -891,7 +901,29 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
-            child: OfferDetailScreen(offerId: s.extra as String? ?? ''),
+            child: CoopOfferNegotiationScreen(
+              offerId: s.extra as String? ?? '',
+              isFarmer: false,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerCoopOffers,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const FarmerCoopOffersScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerCoopOfferDetail,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: CoopOfferNegotiationScreen(
+              offerId: s.extra as String? ?? '',
+              isFarmer: true,
+            ),
           ),
         ),
         GoRoute(

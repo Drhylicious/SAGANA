@@ -89,7 +89,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             'A new code was sent to ${widget.email}',
             style: GoogleFonts.inter(fontSize: 13),
           ),
-          backgroundColor: AppConstants.successGreen,
+          backgroundColor: AppConstants.midGreen,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),

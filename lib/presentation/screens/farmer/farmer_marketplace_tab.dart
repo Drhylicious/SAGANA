@@ -9,6 +9,7 @@ import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/animated_pressable.dart';
+import '../../widgets/skeleton.dart';
 
 /// Farmer-as-buyer Marketplace tab (Phase 9) — mirrors Buyer's
 /// MarketplaceBrowseScreen body field-for-field (search, dynamic category
@@ -127,7 +128,7 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
           child: _isLoading
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
                 )
               : _allListings.isEmpty
                   ? _buildEmptyState(l10n, isFilterEmpty: false)

@@ -6,9 +6,12 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
 import '../../../data/repositories/farmer_market_rates_repository.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/skeleton.dart';
+import '../../../data/services/market_types_service.dart';
 import '../../widgets/shared_widgets.dart';
 
 class ViewMarketScreen extends StatefulWidget {
@@ -73,14 +76,13 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            OfflineBanner(message: l10n.farmerDashOfflineBanner),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(screen: FarmerMarketRatesRepository.cacheScreen(marketType: _marketType), isOnline: _isOnline, offlineMessage: l10n.farmerDashOfflineBanner),
                     _buildSearchRow(l10n),
                     _buildMarketTypeChips(l10n),
                     const SizedBox(height: 8),
@@ -122,10 +124,9 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
   }
 
   Widget _buildMarketTypeChips(AppLocalizations l10n) {
-    const types = [
+    final types = <String?>[
       null,
-      'sp3_cooperative',
-      'open_market',
+      ...MarketTypes.instance.activeTypes.map((t) => t.code),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -171,7 +172,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
           padding: EdgeInsets.only(bottom: 12),
           child: GlassCard(
             padding: EdgeInsets.all(16),
-            child: _Shimmer(width: double.infinity, height: 56),
+            child: SkeletonBlock(width: double.infinity, height: 56),
           ),
         ),
       );
@@ -342,73 +343,4 @@ class _MarketRateListTile extends StatelessWidget {
   }
 }
 
-class _Shimmer extends StatefulWidget {
-  final double width;
-  final double height;
 
-  const _Shimmer({required this.width, required this.height});
-
-  @override
-  State<_Shimmer> createState() => _ShimmerState();
-}
-
-class _ShimmerState extends State<_Shimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-    _animation = Tween<double>(begin: -1, end: 2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (_, __) => Container(
-        width: widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            stops: [
-              (_animation.value - 1).clamp(0.0, 1.0),
-              _animation.value.clamp(0.0, 1.0),
-              (_animation.value + 1).clamp(0.0, 1.0),
-            ],
-            colors: [
-              Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.35),
-              Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.45),
-              Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.35),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

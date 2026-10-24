@@ -49,6 +49,13 @@ class MarketplaceListingModel {
   bool get isRejected => status == 'rejected';
   bool get isSold => status == 'sold';
 
+  /// Approved and still open for purchase (Available). An approved listing
+  /// with nothing left is Sold Out instead; see [isSoldOut].
+  bool get isAvailable => status == 'approved' && remainingKg > 0;
+
+  /// Nothing left to buy: stored as sold, or approved with 0 kg remaining.
+  bool get isSoldOut => status == 'sold' || (status == 'approved' && remainingKg <= 0);
+
   String get displayName {
     final name = canonicalCropName ?? cropName;
     final v = variety?.trim();
@@ -95,23 +102,28 @@ class MarketplaceListingModel {
 
 // ─── Listing Filter ───────────────────────────────────────────────────────────
 
-enum ListingFilter { all, pending, live, withdrawn, rejected, sold }
+/// Farmer-side filter for My Listings. The chip names follow the shared
+/// listing terminology (see listing_status_badge.dart): Pending Approval,
+/// Available, Sold Out, Disapproved, Withdrawn.
+enum ListingFilter { all, pending, available, soldOut, disapproved, withdrawn }
 
 extension ListingFilterExt on ListingFilter {
+  /// English fallback only; screens use listingFilterLabel() for the
+  /// localized text.
   String get label {
     switch (this) {
       case ListingFilter.all:
         return 'All';
       case ListingFilter.pending:
-        return 'Pending Review';
-      case ListingFilter.live:
-        return 'Live on Market';
+        return 'Pending Approval';
+      case ListingFilter.available:
+        return 'Available';
+      case ListingFilter.soldOut:
+        return 'Sold Out';
+      case ListingFilter.disapproved:
+        return 'Disapproved';
       case ListingFilter.withdrawn:
         return 'Withdrawn';
-      case ListingFilter.rejected:
-        return 'Rejected';
-      case ListingFilter.sold:
-        return 'Sold';
     }
   }
 
@@ -121,14 +133,14 @@ extension ListingFilterExt on ListingFilter {
         return true;
       case ListingFilter.pending:
         return listing.isPending;
-      case ListingFilter.live:
-        return listing.isLive;
+      case ListingFilter.available:
+        return listing.isAvailable;
+      case ListingFilter.soldOut:
+        return listing.isSoldOut;
+      case ListingFilter.disapproved:
+        return listing.isRejected;
       case ListingFilter.withdrawn:
         return listing.isWithdrawn;
-      case ListingFilter.rejected:
-        return listing.isRejected;
-      case ListingFilter.sold:
-        return listing.isSold;
     }
   }
 }

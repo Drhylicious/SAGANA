@@ -7,6 +7,7 @@ import 'web_safe_blur_container.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../data/services/connectivity_service.dart';
 
 export 'farmer_top_bar.dart';
 export 'disposal_action_sheet.dart';
@@ -337,43 +338,90 @@ class ConfirmDialog extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OfflineBanner
+// OfflineStatusCard
 // ─────────────────────────────────────────────────────────────────────────────
 
-class OfflineBanner extends StatelessWidget {
-  // Default message is a safe fallback; callers should pass a
-  // screen-accurate message via the `message` parameter.
+/// Contained soft-red status card for offline state (the Price Management
+/// design, shared). It listens to connectivity itself and shows nothing while
+/// the device is online, unless [showWhenOnline] is set (used for saved-data
+/// notices). [message] should be screen-accurate.
+class OfflineStatusCard extends StatelessWidget {
+  final String? title;
   final String? message;
+  final bool showWhenOnline;
 
-  const OfflineBanner({super.key, this.message});
+  const OfflineStatusCard({
+    super.key,
+    this.title,
+    this.message,
+    this.showWhenOnline = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppConstants.spacingGutter,
-        vertical: AppConstants.spacingSm,
-      ),
-      color: AppConstants.warningAmber,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.wifi_off_rounded, size: 16, color: Colors.white),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              message ?? 'You\'re offline',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-              ),
+    return StreamBuilder<bool>(
+      stream: ConnectivityService.instance.onConnectivityChanged,
+      initialData: ConnectivityService.instance.isOnline,
+      builder: (context, snapshot) {
+        final online = snapshot.data ?? true;
+        if (online && !showWhenOnline) return const SizedBox.shrink();
+
+        final l10n = AppLocalizations.of(context);
+        final cs = Theme.of(context).colorScheme;
+        final resolvedTitle =
+            title ?? (showWhenOnline ? null : l10n.offlineStatusTitle);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppConstants.spacingSafeH,
+            8,
+            AppConstants.spacingSafeH,
+            8,
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cs.errorContainer,
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+              border: Border.all(color: cs.error.withValues(alpha: 0.20)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  online ? Icons.history_rounded : Icons.cloud_off_rounded,
+                  color: cs.error,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (resolvedTitle != null)
+                        Text(
+                          resolvedTitle,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onErrorContainer,
+                          ),
+                        ),
+                      Text(
+                        message ?? l10n.offlineStatusDefaultBody,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: cs.onErrorContainer.withValues(alpha: 0.80),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

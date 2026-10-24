@@ -333,7 +333,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Your enrollment request is pending admin review.',
+                          'Your enrollment request is pending Manager review.',
                           style: GoogleFonts.inter(fontSize: 13, color: AppConstants.warningAmber),
                         ),
                       ),

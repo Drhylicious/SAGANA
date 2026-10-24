@@ -4,17 +4,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_profile_repository.dart';
+import '../../../data/services/offline_actions.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/change_password_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../../data/models/admin_log_message.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin Edit Profile — name, phone, photo, and Change Password.
 /// Route: /admin/profile/edit. Same shape as BuyerEditProfileScreen:
@@ -109,15 +115,21 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       setState(() => _isUploadingPhoto = true);
       final bytes = await picked.readAsBytes();
       final extension = picked.name.split('.').last;
-      final url = await _repo.updatePhoto(
+      final result = await _repo.updatePhoto(
         imageBytes: bytes,
         fileExtension: extension,
       );
       if (!mounted) return;
 
-      if (url != null) {
-        setState(() => _photoUrl = url);
+      if (result.url != null) {
+        setState(() => _photoUrl = result.url);
         AdminProfileStateService.instance.refresh();
+      } else if (result.queued) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).savedOnDeviceSyncLater),
+          ),
+        );
       } else {
         _showPhotoError();
       }
@@ -152,9 +164,20 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       return;
     }
 
+    final phoneText = _phoneController.text.trim();
+    if (phoneText.isNotEmpty && normalizePhilippineMobile(phoneText) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.registerInvalidPhone),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
-      await _repo.updateBasicInfo(
+      final outcome = await _repo.updateBasicInfo(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         dateOfBirth: _dateOfBirth,
@@ -164,18 +187,22 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.adminProfileUpdated),
-          backgroundColor: AppConstants.successGreen,
+          content: Text(
+            outcome == SaveOutcome.queued
+                ? l10n.savedOnDeviceSyncLater
+                : l10n.adminProfileUpdated,
+          ),
+          backgroundColor: AppConstants.midGreen,
         ),
       );
       context.pop();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
       final l10n2 = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n2.adminProfileSaveError),
+          content: Text(readableDatabaseMessage(e) ?? l10n2.adminProfileSaveError),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -189,37 +216,12 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(
-          onPressed: () => context.pop(),
-          color: AppConstants.primaryGreen,
-        ),
-        title: Text(
-          l10n.editProfile,
-          style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: Text(
-              l10n.adminProfileSaveChanges,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.editProfile, onBack: () => Navigator.of(context).pop(), trailing: TextButton( onPressed: _isSaving ? null : _save, child: Text( l10n.adminProfileSaveChanges, style: GoogleFonts.poppins( fontSize: 14, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen, ), ), )),
+          Expanded(child: _isLoading
+          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
           : ListView(
               padding: const EdgeInsets.fromLTRB(
                 AppConstants.spacingSafeH,
@@ -367,7 +369,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                           onSuccess: () => AdminActivityRepository().log(
                             module: 'profile',
                             actionType: 'password_changed',
-                            description: 'Changed their account password.',
+                            message: const AdminLogMessage('adminLogPasswordChanged'),
                           ),
                         ),
                       ),
@@ -375,7 +377,9 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                   ],
                   ),
               ],
-            ),
+            )),
+        ],
+      ),
     );
   }
 }

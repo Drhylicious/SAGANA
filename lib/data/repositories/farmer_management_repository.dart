@@ -1,6 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import '../models/farmer_member_model.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 class FarmerManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -10,132 +13,140 @@ class FarmerManagementRepository {
 
   Future<List<FarmerMemberModel>> fetchFarmers() async {
     try {
-      // 1. All farmer user IDs with role status.
-      // 'draft' applicants (account created, application not yet submitted)
-      // are deliberately excluded — they stay off the Members list until
-      // they tap Submit Application (Issue 5 / Decision D5).
-      final roleRows = await _client
-          .from('user_roles')
-          .select(
-            'user_id, status, created_at, application_attempts, '
-            'rejection_reason, suspension_reason',
-          )
-          .eq('role', 'farmer')
-          .neq('status', 'draft');
+      final rows = await OfflineCache.load(
+        screen: 'members_farmers',
+        fetch: () async {
+          // 1. All farmer user IDs with role status.
+          // Only role = 'farmer' rows are listed, so Buyers (and Officers and
+          // Managers) never appear in Members. New registrations arrive as
+          // 'pending'; a legacy 'draft' applicant (registered under the old
+          // flow, never submitted) stays off the list until they submit.
+          final roleRows = await _client
+              .from('user_roles')
+              .select(
+                'user_id, status, created_at, application_attempts, '
+                'rejection_reason, suspension_reason',
+              )
+              .eq('role', 'farmer')
+              .neq('status', 'draft');
 
-      if (roleRows.isEmpty) return [];
+          if (roleRows.isEmpty) return [];
 
-      final userIds = roleRows.map((r) => r['user_id'] as String).toList();
+          final userIds = roleRows.map((r) => r['user_id'] as String).toList();
 
-      final roleMap = {
-        for (final r in roleRows)
-          r['user_id'] as String: {
-            'status': r['status'] as String? ?? 'pending',
-            'created_at': r['created_at'] as String?,
-            'application_attempts': r['application_attempts'],
-            'rejection_reason': r['rejection_reason'] as String?,
-            'suspension_reason': r['suspension_reason'] as String?,
-          },
-      };
+          final roleMap = {
+            for (final r in roleRows)
+              r['user_id'] as String: {
+                'status': r['status'] as String? ?? 'pending',
+                'created_at': r['created_at'] as String?,
+                'application_attempts': r['application_attempts'],
+                'rejection_reason': r['rejection_reason'] as String?,
+                'suspension_reason': r['suspension_reason'] as String?,
+              },
+          };
 
-      // 2. user_information
-      final infoRows = await _client
-          .from('user_information')
-          .select(
-            'user_id, full_name, profile_photo_url, last_active_at, '
-            'contact_email, phone_number',
-          )
-          .inFilter('user_id', userIds);
+          // 2. user_information
+          final infoRows = await _client
+              .from('user_information')
+              .select(
+                'user_id, full_name, profile_photo_url, last_active_at, '
+                'contact_email, phone_number',
+              )
+              .inFilter('user_id', userIds);
 
-      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
+          final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
-      // 3. farmer_profiles (is_verified)
-      final profileRows = await _client
-          .from('farmer_profiles')
-          .select('user_id, is_verified')
-          .inFilter('user_id', userIds);
+          // 3. farmer_profiles (is_verified)
+          final profileRows = await _client
+              .from('farmer_profiles')
+              .select('user_id, is_verified')
+              .inFilter('user_id', userIds);
 
-      final profileMap = {
-        for (final r in profileRows) r['user_id'] as String: r,
-      };
+          final profileMap = {
+            for (final r in profileRows) r['user_id'] as String: r,
+          };
 
-      // 4. Crops per farmer
-      final cropRows = await _client
-          .from('farmer_crops')
-          .select('farmer_id, crop_name')
-          .inFilter('farmer_id', userIds);
+          // 4. Crops per farmer
+          final cropRows = await _client
+              .from('farmer_crops')
+              .select('farmer_id, crop_name')
+              .inFilter('farmer_id', userIds);
 
-      final cropsMap = <String, List<String>>{};
-      for (final r in cropRows) {
-        final id = r['farmer_id'] as String;
-        cropsMap.putIfAbsent(id, () => []).add(r['crop_name'] as String);
-      }
+          final cropsMap = <String, List<String>>{};
+          for (final r in cropRows) {
+            final id = r['farmer_id'] as String;
+            cropsMap.putIfAbsent(id, () => []).add(r['crop_name'] as String);
+          }
 
-      // 5. Loan summary per farmer
-      final loanRows = await _client
-          .from('farmer_loans')
-          .select('farmer_id, total_value, amount_paid, status')
-          .inFilter('farmer_id', userIds)
-          .neq('status', 'paid');
+          // 5. Loan summary per farmer
+          final loanRows = await _client
+              .from('farmer_loans')
+              .select('farmer_id, total_value, amount_paid, status')
+              .inFilter('farmer_id', userIds)
+              .neq('status', 'paid');
 
-      final loanMap = <String, Map<String, dynamic>>{};
-      for (final r in loanRows) {
-        final id = r['farmer_id'] as String;
-        final rem =
-            ((r['total_value'] as num).toDouble() -
-                    (r['amount_paid'] as num? ?? 0).toDouble())
-                .clamp(0.0, double.infinity);
-        final existing = loanMap[id];
-        final balance = (existing?['balance'] as double? ?? 0) + rem;
-        final paymentStatus = r['status'] as String? ?? 'active';
-        final isOverdue =
-            paymentStatus == 'overdue' ||
-            ((existing?['status'] as String?) == 'overdue');
-        loanMap[id] = {
-          'balance': balance,
-          'status': isOverdue ? 'overdue' : 'active',
-        };
-      }
+          final loanMap = <String, Map<String, dynamic>>{};
+          for (final r in loanRows) {
+            final id = r['farmer_id'] as String;
+            final rem =
+                ((r['total_value'] as num).toDouble() -
+                        (r['amount_paid'] as num? ?? 0).toDouble())
+                    .clamp(0.0, double.infinity);
+            final existing = loanMap[id];
+            final balance = (existing?['balance'] as double? ?? 0) + rem;
+            final paymentStatus = r['status'] as String? ?? 'active';
+            final isOverdue =
+                paymentStatus == 'overdue' ||
+                ((existing?['status'] as String?) == 'overdue');
+            loanMap[id] = {
+              'balance': balance,
+              'status': isOverdue ? 'overdue' : 'active',
+            };
+          }
 
-      // 6. Last harvest date per farmer
-      final harvestRows = await _client
-          .from('harvest_records')
-          .select('farmer_id, harvest_date')
-          .inFilter('farmer_id', userIds)
-          .order('harvest_date', ascending: false);
+          // 6. Last harvest date per farmer
+          final harvestRows = await _client
+              .from('harvest_records')
+              .select('farmer_id, harvest_date')
+              .inFilter('farmer_id', userIds)
+              .order('harvest_date', ascending: false);
 
-      final harvestMap = <String, String>{};
-      for (final r in harvestRows) {
-        final id = r['farmer_id'] as String;
-        harvestMap.putIfAbsent(id, () => r['harvest_date'] as String);
-      }
+          final harvestMap = <String, String>{};
+          for (final r in harvestRows) {
+            final id = r['farmer_id'] as String;
+            harvestMap.putIfAbsent(id, () => r['harvest_date'] as String);
+          }
 
-      return userIds.map((uid) {
-        final role = roleMap[uid]!;
-        final info = infoMap[uid] ?? {};
-        final profile = profileMap[uid] ?? {};
-        final loan = loanMap[uid];
+          return userIds.map<Map<String, dynamic>>((uid) {
+            final role = roleMap[uid]!;
+            final info = infoMap[uid] ?? {};
+            final profile = profileMap[uid] ?? {};
+            final loan = loanMap[uid];
 
-        return FarmerMemberModel.fromMap({
-          'user_id': uid,
-          'full_name': info['full_name'] as String? ?? 'Farmer',
-          'contact_email': info['contact_email'] as String?,
-          'phone_number': info['phone_number'] as String?,
-          'profile_photo_url': info['profile_photo_url'] as String?,
-          'member_status': role['status'],
-          'last_active_at': info['last_active_at'],
-          'application_attempts': role['application_attempts'],
-          'rejection_reason': role['rejection_reason'],
-          'suspension_reason': role['suspension_reason'],
-          'is_verified': profile['is_verified'] as bool? ?? false,
-          'crops': cropsMap[uid] ?? [],
-          'outstanding_balance': loan?['balance'] ?? 0.0,
-          'loan_status': loan != null ? loan['status'] : 'none',
-          'is_synced': true,
-          'last_harvest_date': harvestMap[uid],
-          'joined_at': role['created_at'],
-        });
-      }).toList();
+            return {
+              'user_id': uid,
+              'full_name': info['full_name'] as String? ?? 'Farmer',
+              'contact_email': info['contact_email'] as String?,
+              'phone_number': info['phone_number'] as String?,
+              'profile_photo_url': info['profile_photo_url'] as String?,
+              'member_status': role['status'],
+              'last_active_at': info['last_active_at'],
+              'application_attempts': role['application_attempts'],
+              'rejection_reason': role['rejection_reason'],
+              'suspension_reason': role['suspension_reason'],
+              'is_verified': profile['is_verified'] as bool? ?? false,
+              'crops': cropsMap[uid] ?? [],
+              'outstanding_balance': loan?['balance'] ?? 0.0,
+              'loan_status': loan != null ? loan['status'] : 'none',
+              'is_synced': true,
+              'last_harvest_date': harvestMap[uid],
+              'joined_at': role['created_at'],
+            };
+          }).toList();
+        },
+      );
+
+      return rows.map((r) => FarmerMemberModel.fromMap(r)).toList();
     } catch (_) {
       return [];
     }
@@ -152,30 +163,15 @@ class FarmerManagementRepository {
 
       final userIds = roleRows.map((r) => r['user_id'] as String).toList();
 
-      // Only count a member as "active" if their role status is active
-      // AND their farmer_profiles.is_verified flag is true. This keeps the
-      // KPI in sync with the approval workflow — a role can be flipped to
-      // 'active' without going through approveMember(), but they shouldn't
-      // show up as a verified SP3 member until is_verified is set.
-      final profileRows = await _client
-          .from('farmer_profiles')
-          .select('user_id, is_verified')
-          .inFilter('user_id', userIds);
-
-      final verifiedSet = {
-        for (final r in profileRows)
-          if (r['is_verified'] == true) r['user_id'] as String,
-      };
-
+      // Active = role status 'active', the same rule the member badges and
+      // filter chips use. is_verified is not part of it.
       int active = 0;
       int pending = 0;
       int rejected = 0;
       int draft = 0;
       for (final r in roleRows) {
-        final uid = r['user_id'] as String;
         final status = r['status'] as String? ?? 'pending';
-        // Active = status active AND is_verified true
-        if (status == 'active' && verifiedSet.contains(uid)) active++;
+        if (status == 'active') active++;
         if (status == 'pending') pending++;
         if (status == 'rejected') rejected++;
         if (status == 'draft') draft++;
@@ -221,21 +217,25 @@ class FarmerManagementRepository {
   // ─── Approve a pending member (Issue 5) ──────────────────────────────────
   //
   // One atomic RPC (approve_member): pending -> active with the
-  // acknowledgement gate ON, is_verified set, registry linked,
+  // acknowledgement gate ON, is_verified set, the capital-shares row ensured,
   // 'member_approved' notification sent, and a member_status_events audit
-  // row written. The login username is NEVER changed by approval.
+  // row written. No registry is read or written. The login username is NEVER
+  // changed by approval.
 
   Future<ApproveMemberResult> approveMember({
     required String userId,
     required String fullName,
   }) async {
+    await ServerOnly.ensureOnline();
     try {
       await _client.rpc('approve_member', params: {'p_user_id': userId});
 
       AdminActivityRepository().log(
         module: 'members',
         actionType: 'approved',
-        description: 'Approved $fullName\'s membership application.',
+        message: AdminLogMessage('adminLogMembershipApproved', {
+          'fullName': fullName,
+        }),
         referenceId: userId,
       );
       return const ApproveMemberResult(success: true);
@@ -249,16 +249,17 @@ class FarmerManagementRepository {
 
   // ─── Reject a pending application (Issue 5) ───────────────────────────────
   //
-  // reject_member: pending -> 'rejected' (a distinct status — the account
-  // stays listed but gains NO farmer access, unlike the old behaviour
-  // which set 'suspended' and accidentally let them in). Reason is
-  // required; it is shown to the applicant and recorded in the audit trail.
-  // The applicant can review their details and resubmit (up to 3 total).
+  // reject_member: pending -> 'rejected', shown as "Disapproved" (a distinct
+  // status — the account stays listed but gains NO farmer access, unlike the
+  // old behaviour which set 'suspended' and accidentally let them in). Reason
+  // is required; it is shown to the applicant and recorded in the audit
+  // trail. The applicant can review their details and resubmit.
 
   Future<void> rejectMember({
     required String userId,
     required String reason,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'reject_member',
       params: {'p_user_id': userId, 'p_reason': reason.trim()},
@@ -266,25 +267,39 @@ class FarmerManagementRepository {
     AdminActivityRepository().log(
       module: 'members',
       actionType: 'rejected',
-      description: 'Rejected a membership application.',
+      message: const AdminLogMessage('adminLogMembershipRejected'),
       referenceId: userId,
     );
   }
 
   // ─── Suspend / reactivate (Issue 5, Decision D17) ────────────────────────
 
+  /// Manager-only. Removes a disapproved applicant's account from the system.
+  /// The RPC refuses anything that is not a disapproved farmer applicant.
+  Future<void> deleteRejectedApplicant({required String userId}) async {
+    await _client.rpc(
+      'admin_delete_rejected_applicant',
+      params: {'p_user_id': userId},
+    );
+  }
+
   Future<void> suspendMember({
     required String userId,
     required String reason,
+    DateTime? suspendedUntil, // null = until an admin reactivates
   }) async {
     await _client.rpc(
       'suspend_member',
-      params: {'p_user_id': userId, 'p_reason': reason.trim()},
+      params: {
+        'p_user_id': userId,
+        'p_reason': reason.trim(),
+        'p_suspended_until': suspendedUntil?.toUtc().toIso8601String(),
+      },
     );
     AdminActivityRepository().log(
       module: 'members',
       actionType: 'suspended',
-      description: 'Suspended a member.',
+      message: const AdminLogMessage('adminLogMemberSuspended'),
       referenceId: userId,
     );
   }
@@ -294,7 +309,7 @@ class FarmerManagementRepository {
     AdminActivityRepository().log(
       module: 'members',
       actionType: 'reactivated',
-      description: 'Reactivated a member.',
+      message: const AdminLogMessage('adminLogMemberReactivated'),
       referenceId: userId,
     );
   }
@@ -374,9 +389,9 @@ extension FarmerListFilter on List<FarmerMemberModel> {
       list = list.where((f) => f.loanStatus == filter.loanFilter).toList();
     }
 
-    // Sort — the chosen option is the tiebreaker; Rejected applicants
+    // Sort — the chosen option is the tiebreaker; Disapproved applicants
     // always sink to the bottom of the list regardless of sort option
-    // (verification bugfix: a rejected record is archived-for-reference,
+    // (verification bugfix: a disapproved record is archived-for-reference,
     // not a normal member row competing for name/loan/etc. ranking).
     int byOption(FarmerMemberModel a, FarmerMemberModel b) {
       switch (filter.sortBy) {

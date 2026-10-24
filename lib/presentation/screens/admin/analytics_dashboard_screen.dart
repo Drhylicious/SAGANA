@@ -19,6 +19,10 @@ import '../../widgets/planting_forecast_card.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/top_harvested_crops_chart.dart';
 import '../../widgets/trend_chart_painter.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 
 /// Analytics Dashboard — Admin.
 /// Pushed above the shell. Route: /admin/analytics
@@ -47,6 +51,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   final _adminAnalyticsRepo = AdminAnalyticsRepository();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
 
   List<PlantingForecast> _forecasts = [];
   List<TopSellingCrop> _topCrops = [];
@@ -67,6 +72,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -112,10 +120,10 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   List<CropPriceCard> get _priceSnapshotCards {
     final sorted = [..._priceCards]
       ..sort((a, b) {
-      final ad = a.priceDiff?.abs() ?? -1;
-      final bd = b.priceDiff?.abs() ?? -1;
-      return bd.compareTo(ad);
-    });
+        final ad = a.priceDiff?.abs() ?? -1;
+        final bd = b.priceDiff?.abs() ?? -1;
+        return bd.compareTo(ad);
+      });
     return sorted.take(4).toList();
   }
 
@@ -142,9 +150,21 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
+          CachedDataNotice(
+            screen: 'analytics_price_cards',
+            otherScreens: const [
+              'analytics_top_crops',
+              'analytics_planting_forecast',
+            ],
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlinePriceData,
+          ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
@@ -184,7 +204,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                               padding: const EdgeInsets.only(
                                 bottom: AppConstants.spacingMd,
                               ),
-                                child: PlantingForecastCard(forecast: f),
+                              child: PlantingForecastCard(forecast: f),
                             ),
                           ),
                       ],
@@ -202,38 +222,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsAnalyticsDashboard,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SubPageTopBar(
+      title: l10n.reportsAnalyticsDashboard,
+      onBack: () => context.pop(),
     );
   }
 
@@ -626,7 +617,7 @@ class _PriceSnapshotCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-                    children: [
+              children: [
                 Text(
                   price.cropName,
                   maxLines: 1,
@@ -638,10 +629,10 @@ class _PriceSnapshotCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                      Row(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
-                        children: [
+                  children: [
                     Flexible(
                       child: Text(
                         '₱${price.currentPrice.toStringAsFixed(2)}',
@@ -652,21 +643,21 @@ class _PriceSnapshotCard extends StatelessWidget {
                           color: cs.primary,
                         ),
                       ),
-                          ),
+                    ),
                     if (delta != null) ...[
-                          const SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Icon(delta.icon, size: 11, color: delta.color),
-                          Text(
+                      Text(
                         delta.label,
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                           color: delta.color,
-                          ),
+                        ),
                       ),
                     ],
                   ],
-                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   l10n.priceUpdatedPrefix(_updatedLabel()),

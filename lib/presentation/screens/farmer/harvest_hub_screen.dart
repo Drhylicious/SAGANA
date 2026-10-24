@@ -13,8 +13,11 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 class HarvestHubScreen extends StatefulWidget {
   const HarvestHubScreen({super.key});
@@ -125,7 +128,8 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
             },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onAboutOrganization: () =>
+                context.pushRoute(AppRoutes.aboutCooperative),
             onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
             onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
           );
@@ -133,10 +137,6 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
       ),
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(
-              message: "You're offline — new harvests are saved on your device and will sync automatically, but your harvest history may not be up to date.",
-            ),
           Expanded(
             child: Stack(
               children: [
@@ -149,6 +149,17 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                 Column(
                   children: [
                     const SizedBox(height: 50),
+                    CachedDataNotice(
+                      screen: 'harvests',
+                      otherScreens: [
+                        'harvest_season_stats_${DateTime.now().year}',
+                        'inventory_stats',
+                      ],
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineHarvestHub,
+                    ),
                     Expanded(
                       child: RefreshIndicator(
                         color: AppConstants.primaryGreen,
@@ -168,11 +179,13 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                                 seasonHarvestCount: _seasonHarvestCount,
                                 cropCount: _cropCount,
                                 onRecordHarvest: () => context.pushRoute(
-                                    AppRoutes.selectCropForHarvest),
+                                  AppRoutes.selectCropForHarvest,
+                                ),
                                 onMyCrops: () =>
                                     context.pushRoute(AppRoutes.cropListing),
                                 onManageInventory: () => context.pushRoute(
-                                    AppRoutes.manageInventory),
+                                  AppRoutes.manageInventory,
+                                ),
                               ),
                               const SizedBox(height: 16),
 
@@ -185,8 +198,8 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                                 harvests: _allHarvests,
                                 cropsById: _cropsById,
                                 isLoading: _isLoading,
-                                onViewAll: () => context
-                                    .pushRoute(AppRoutes.harvestHistory),
+                                onViewAll: () =>
+                                    context.pushRoute(AppRoutes.harvestHistory),
                               ),
                             ],
                           ),
@@ -208,8 +221,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                     title: 'Harvest',
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
-                    onProfileTap: () =>
-                        context.goTab(AppRoutes.farmerProfile),
+                    onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
                     onNotificationTap: () =>
                         context.pushRoute(AppRoutes.farmerNotifications),
                     enableMenu: true,
@@ -384,7 +396,8 @@ class _HeroCard extends StatelessWidget {
                     begin: gradient.begin,
                     end: gradient.end,
                     colors: [
-                      for (final c in gradient.colors) c.withValues(alpha: 0.82),
+                      for (final c in gradient.colors)
+                        c.withValues(alpha: 0.82),
                     ],
                   ),
                 ),
@@ -509,7 +522,7 @@ class _RecentHarvestsSection extends StatelessWidget {
                 3,
                 (_) => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child: _HarvestRowShimmer(),
+                  child: SkeletonBlock(height: 64),
                 ),
               ),
             ),
@@ -550,7 +563,10 @@ class _RecentHarvestsSection extends StatelessWidget {
                   .map(
                     (e) => Column(
                       children: [
-                        _HarvestTile(harvest: e.value, imageUrl: cropsById[e.value.cropId]?.displayImageUrl),
+                        _HarvestTile(
+                          harvest: e.value,
+                          imageUrl: cropsById[e.value.cropId]?.displayImageUrl,
+                        ),
                         if (e.key < harvests.length - 1)
                           Divider(
                             height: 1,
@@ -672,86 +688,3 @@ class _HarvestTile extends StatelessWidget {
 // flatCardDecoration container while loading (replaces the old
 // individually-carded shimmer block, consistent with the tile-based list).
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _HarvestRowShimmer extends StatefulWidget {
-  const _HarvestRowShimmer();
-
-  @override
-  State<_HarvestRowShimmer> createState() => _HarvestRowShimmerState();
-}
-
-class _HarvestRowShimmerState extends State<_HarvestRowShimmer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-    _anim = Tween<double>(
-      begin: -1,
-      end: 2,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Widget _block(double w, double h) => AnimatedBuilder(
-    animation: _anim,
-    builder: (_, __) => Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        gradient: LinearGradient(
-          stops: [
-            (_anim.value - 1).clamp(0.0, 1.0),
-            _anim.value.clamp(0.0, 1.0),
-            (_anim.value + 1).clamp(0.0, 1.0),
-          ],
-          colors: const [
-            Color(0xFFE8E8E8),
-            Color(0xFFF5F5F5),
-            Color(0xFFE8E8E8),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _block(40, 40),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _block(120, 13),
-              const SizedBox(height: 6),
-              _block(90, 11),
-            ],
-          ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _block(50, 12),
-            const SizedBox(height: 4),
-            _block(60, 9),
-          ],
-        ),
-      ],
-    );
-  }
-}

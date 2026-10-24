@@ -10,21 +10,10 @@ import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
+import '../../widgets/order_status_style.dart';
 import '../../widgets/shared_widgets.dart';
-
-// Same bypass/mapping my_orders_screen.dart uses for its own order cards —
-// reused here rather than reinvented, so a status reads identically in
-// both places instead of this screen keeping its own hardcoded-English
-// copy of the same switch.
-String _orderStatusBadge(String status, AppLocalizations l10n) {
-  switch (status) {
-    case 'pending':   return l10n.buyerOrdersStatusPending;
-    case 'approved':  return l10n.buyerOrdersStatusApproved;
-    case 'completed': return l10n.buyerOrdersStatusCompleted;
-    case 'cancelled': return l10n.buyerOrdersStatusCancelled;
-    default:          return status.toUpperCase();
-  }
-}
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
 
 // Phase 13 — farmer-as-buyer order history, under Profile -> Farm Records.
 // Mirrors Phase 8's redesigned Buyer Orders screen (search + status pill
@@ -41,7 +30,7 @@ class FarmerOrdersScreen extends StatefulWidget {
   State<FarmerOrdersScreen> createState() => _FarmerOrdersScreenState();
 }
 
-const List<String?> _kStatuses = [null, 'pending', 'approved', 'completed', 'cancelled'];
+const List<String?> _kStatuses = [null, 'pending', 'approved', 'completed', 'cancelled', 'rejected'];
 
 class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   final _repo = BuyerOrderRepository();
@@ -98,13 +87,8 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   }
 
   Color _statusColor(String? status, ColorScheme cs) {
-    switch (status) {
-      case 'pending': return AppConstants.warningAmber;
-      case 'approved': return AppConstants.successGreen;
-      case 'completed': return AppConstants.primaryGreen;
-      case 'cancelled': return AppConstants.errorRed;
-      default: return cs.primary;
-    }
+    if (status == null) return cs.primary; // null = "All"
+    return orderStatusColor(status);
   }
 
   // Same dynamic banner my_orders_screen.dart uses — was missing here
@@ -164,6 +148,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
       case 'approved': return l10n.buyerOrdersEmptyApproved;
       case 'completed': return l10n.buyerOrdersEmptyCompleted;
       case 'cancelled': return l10n.buyerOrdersEmptyCancelled;
+      case 'rejected': return l10n.buyerOrdersEmptyRejected;
       default: return l10n.buyerOrdersEmptyAll;
     }
   }
@@ -179,14 +164,17 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
       backgroundColor: AppConstants.offWhite,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — your orders may not be up to date."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    CachedDataNotice(
+            screen: 'orders',
+            isOnline: _isOnline,
+            offlineMessage: AppLocalizations.of(context).offlineOrders,
+          ),
                     if (approved.isNotEmpty) _buildApprovedBanner(l10n, approved),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -207,7 +195,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
                         children: [
                           for (final status in _kStatuses) ...[
                             ListingStatusFilterChip(
-                              label: status == null ? l10n.farmerMgmtAllFilter : _orderStatusBadge(status, l10n),
+                              label: status == null ? l10n.farmerMgmtAllFilter : buyerOrderStatusLabel(status, l10n),
                               active: _statusFilter == status,
                               color: _statusColor(status, cs),
                               onTap: () => setState(() => _statusFilter = status),
@@ -221,7 +209,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
                     const SizedBox(height: 8),
                     Expanded(
                       child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                           : visible.isEmpty
                               ? Center(
                                   child: Text(_emptyMessage(l10n),
@@ -269,14 +257,7 @@ class _OrderCard extends StatelessWidget {
   final BuyerOrderModel order;
   const _OrderCard({required this.order});
 
-  Color get _statusColor {
-    switch (order.status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending': return AppConstants.warningAmber;
-      case 'completed': return AppConstants.primaryGreen;
-      default: return AppConstants.outline;
-    }
-  }
+  Color get _statusColor => orderStatusColor(order.status);
 
   void _openDetail(BuildContext context) {
     context.pushRoute(AppRoutes.farmerOrderDetail, extra: order.id);
@@ -285,12 +266,12 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isCancelled = order.isCancelled;
+    final isEnded = order.isCancelled || order.isRejected;
 
     return GestureDetector(
       onTap: () => _openDetail(context),
       child: Opacity(
-        opacity: isCancelled ? 0.6 : 1.0,
+        opacity: isEnded ? 0.6 : 1.0,
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -330,7 +311,7 @@ class _OrderCard extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                              child: Text(_orderStatusBadge(order.status, l10n),
+                              child: Text(buyerOrderStatusLabel(order.status, l10n),
                                   style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: _statusColor)),
                             ),
                           ],
@@ -362,7 +343,7 @@ class _OrderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
               ],
-              if (!isCancelled)
+              if (!isEnded)
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -390,7 +371,10 @@ class _OrderCard extends StatelessWidget {
                   ),
                 )
               else
-                Text(l10n.buyerOrdersCancelledOn(_formatDate(order.updatedAt)),
+                Text(
+                    order.isRejected
+                        ? l10n.buyerOrdersRejectedOn(_formatDate(order.updatedAt))
+                        : l10n.buyerOrdersCancelledOn(_formatDate(order.updatedAt)),
                     style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
               const SizedBox(height: 10),
               SizedBox(
@@ -414,6 +398,7 @@ class _OrderCard extends StatelessWidget {
           child: Text(l10n.buyerOrdersReorder),
         );
       case 'cancelled':
+      case 'rejected':
         return OutlinedButton(
           onPressed: () => context.goTab(AppRoutes.myListings),
           child: Text(l10n.buyerOrdersBrowseAgain),

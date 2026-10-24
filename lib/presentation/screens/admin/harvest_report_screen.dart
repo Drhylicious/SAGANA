@@ -14,6 +14,10 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../../core/utils/member_access.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 
 enum _BatchStatusFilter { all, available, reserved, lowStock, soldOut }
 
@@ -81,6 +85,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
   String _inventorySearchQuery = '';
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   HarvestReportData _harvestData = HarvestReportData.empty();
   InventoryReportData _inventoryData = InventoryReportData.empty();
   List<double> _yieldTrend = [];
@@ -88,6 +93,9 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -175,7 +183,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
-        backgroundColor: AppConstants.warningAmber,
+        backgroundColor: AppConstants.snackbarWarning,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -239,11 +247,16 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
+          CachedDataNotice(
+            screen: AdminReportsRepository.harvestCacheScreen(_period),
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineStaffBody,
+          ),
           if (!_isLoading) _buildExecutiveHeader(context, l10n, cs),
           _buildTabBar(context, l10n, cs),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : TabBarView(
                     controller: _tabController,
                     children: [
@@ -263,52 +276,21 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsHarvestManagement,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.primary),
-                onPressed: () => context.push(
-                  AppRoutes.exportCenter,
-                  // Harvest Report's export now covers both tabs' data
-                  // (Activity + Batches & Stock) in one file — see
-                  // serializeHarvestReportCsv() — so both tabs preselect
-                  // the same module.
-                  extra: ExportCenterArgs(
-                    preselectedModule: ReportModuleType.harvest,
-                    period: _period,
-                  ),
-                ),
-                tooltip: l10n.reportsExportCenter,
-              ),
-            ],
+    return SubPageTopBar(
+      title: l10n.reportsHarvestManagement,
+      onBack: () => context.pop(),
+      // Harvest Report's export covers both tabs (Activity + Batches & Stock)
+      // in one file, so both tabs preselect the same module.
+      trailing: IconButton(
+        icon: Icon(Icons.file_download_outlined, color: cs.primary),
+        onPressed: () => context.push(
+          AppRoutes.exportCenter,
+          extra: ExportCenterArgs(
+            preselectedModule: ReportModuleType.harvest,
+            period: _period,
           ),
         ),
+        tooltip: l10n.reportsExportCenter,
       ),
     );
   }

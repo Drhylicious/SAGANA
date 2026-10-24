@@ -20,6 +20,8 @@ import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/material_list_tile.dart';
 import '../../widgets/profile_avatar.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Issue New Loan — Admin.
 /// Pushed above the shell (has a back button). Route: /admin/loans/issue
@@ -227,6 +229,13 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       return;
     }
 
+    // Loan issuance is decided by the server (stock and reference numbers),
+    // so it is never kept on the device.
+    if (!_isOnline) {
+      _showSnack(l10n.serverOnlyOffline, isError: true);
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final nextPaymentDate = BodSchedule.upcoming(_issuedDate);
@@ -257,20 +266,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         );
         if (!mounted) return;
         _showSnack(l10n.issueLoanSuccess(result.referenceNo));
-        context.pop(true);
-      } else {
-        await HiveService.savePendingLoanIssuance({
-          'farmerId': _selectedFarmer!.id,
-          'items': items,
-          'issuedDate': _issuedDate.toIso8601String(),
-          'monthlyPayment': monthlyPayment,
-          'nextPaymentDate': nextPaymentDate.toIso8601String(),
-          'notes': _notesController.text.trim().isEmpty
-              ? null
-              : _notesController.text.trim(),
-        });
-        if (!mounted) return;
-        _showSnack(l10n.issueLoanQueuedOffline);
         context.pop(true);
       }
     } catch (e) {
@@ -304,7 +299,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
         content: Text(message, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isError
             ? AppConstants.errorRed
-            : AppConstants.successGreen,
+            : AppConstants.midGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -326,10 +321,10 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
-          if (!_isOnline) const OfflineBanner(),
+          if (!_isOnline) const OfflineStatusCard(),
           Expanded(
             child: _isLoadingRoster
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(
                       AppConstants.spacingSafeH,
@@ -397,39 +392,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.issueLoanTitle,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.issueLoanTitle, onBack: () => context.pop());
   }
 
   // ─── Farmer section ─────────────────────────────────────────────────────
@@ -1124,7 +1087,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: (_isSubmitting || !_capitalEligible) ? null : _submit,
+              onPressed: (_isSubmitting || !_capitalEligible || !_isOnline)
+                  ? null
+                  : _submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
                 foregroundColor: Colors.white,

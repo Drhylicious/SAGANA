@@ -9,6 +9,11 @@ import '../../../data/repositories/buyer_address_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// My Addresses — a peer to Edit Profile/Recent Activity off the drawer,
 /// shared by Buyer and Farmer (farmer-as-buyer uses the same address book,
@@ -26,11 +31,15 @@ class MyAddressesScreen extends StatefulWidget {
 class _MyAddressesScreenState extends State<MyAddressesScreen> {
   final _repo = BuyerAddressRepository();
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   List<BuyerAddressModel> _addresses = [];
 
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -53,6 +62,10 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
   }
 
   Future<void> _setDefault(BuyerAddressModel address) async {
+    if (!_isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
     await _repo.setDefaultAddress(address.id);
     _load();
   }
@@ -64,6 +77,10 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
       child: _DeleteAddressConfirmDialog(label: address.label),
     );
     if (confirmed != true || !mounted) return;
+    if (!_isOnline) {
+      AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
+      return;
+    }
     await _repo.deleteAddress(address.id);
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -76,52 +93,10 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        // Same circular back button FarmerTopBar renders (40x40 circle,
-        // card-background fill, primary-tinted border) — the plain
-        // BackButton this replaced didn't match Edit Farm Details' header.
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 12),
-          child: GestureDetector(
-            onTap: () => context.pop(),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: sagana.cardBackground,
-                border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
-              ),
-              child: Icon(Icons.arrow_back_rounded, color: cs.primary),
-            ),
-          ),
-        ),
-        title: Text(
-          l10n.buyerAddressesTitle,
-          style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
-          ),
-        ),
-        // Matches FarmerTopBar's own divider color exactly (cs.outline at
-        // 20% alpha) — sagana.glassBorder (tried first) is meant for the
-        // blurred-glass header style and reads as nearly invisible against
-        // a plain opaque AppBar like this one.
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            color: cs.outline.withValues(alpha: 0.20),
-          ),
-        ),
-      ),
+
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addOrEdit(),
         backgroundColor: AppConstants.primaryGreen,
@@ -134,29 +109,48 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
           ),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: _addresses.isEmpty
-                  ? _buildEmptyState(l10n)
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppConstants.spacingSafeH,
-                        16,
-                        AppConstants.spacingSafeH,
-                        96,
-                      ),
-                      itemCount: _addresses.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) => _AddressTile(
-                        address: _addresses[i],
-                        onEdit: () => _addOrEdit(_addresses[i]),
-                        onSetDefault: () => _setDefault(_addresses[i]),
-                        onDelete: () => _delete(_addresses[i]),
-                      ),
-                    ),
-            ),
+      body: Column(
+        children: [
+          SubPageTopBar(
+            title: l10n.buyerAddressesTitle,
+            onBack: () => Navigator.of(context).pop(),
+          ),
+          CachedDataNotice(
+            screen: 'buyer_addresses',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: _addresses.isEmpty
+                        ? _buildEmptyState(l10n)
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppConstants.spacingSafeH,
+                              16,
+                              AppConstants.spacingSafeH,
+                              96,
+                            ),
+                            itemCount: _addresses.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, i) => _AddressTile(
+                              address: _addresses[i],
+                              onEdit: () => _addOrEdit(_addresses[i]),
+                              onSetDefault: () => _setDefault(_addresses[i]),
+                              onDelete: () => _delete(_addresses[i]),
+                            ),
+                          ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

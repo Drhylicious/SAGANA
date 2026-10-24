@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Generic dedicated Support & Info screen — used for About the
 /// Cooperative, Privacy Policy, and Terms of Use (Admin Profile &
@@ -34,46 +34,11 @@ class SupportInfoScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        // Same circular back button + divider treatment as every other
-        // secondary screen (e.g. Edit Farm Details' FarmerTopBar) — this
-        // shared screen previously used a bare BackButton with no divider,
-        // reached identically from every role's Navigation Drawer.
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 12),
-          child: GestureDetector(
-            onTap: () => context.pop(),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: sagana.cardBackground,
-                border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
-              ),
-              child: Icon(Icons.arrow_back_rounded, color: cs.primary),
-            ),
-          ),
-        ),
-        title: Text(
-          title,
-          style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            color: cs.outline.withValues(alpha: 0.20),
-          ),
-        ),
-      ),
-      body: ListView(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: title, onBack: () => Navigator.of(context).pop()),
+          Expanded(child: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppConstants.spacingSafeH,
           8,
@@ -100,6 +65,8 @@ class SupportInfoScreen extends StatelessWidget {
               color: cs.onSurface,
             ),
           ),
+        ],
+      )),
         ],
       ),
     );

@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
@@ -14,6 +16,8 @@ import '../../../routes/app_routes.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Sales Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/sales
@@ -36,6 +40,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   ReportPeriod _period = ReportPeriod.thisMonth;
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   String _searchQuery = '';
   String? _sellingTypeFilter; // null = All
   SalesReportData _data = SalesReportData.empty();
@@ -45,6 +50,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -117,6 +125,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
+          CachedDataNotice(
+            screen: AdminReportsRepository.salesCacheScreen(_period),
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineStaffBody,
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -133,7 +146,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   if (_isLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 60),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
                     )
                   else ...[
                     // The 4 headline KPIs (Total Revenue, Total Volume,
@@ -162,50 +175,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsSalesReport,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.primary),
-                onPressed: () => context.push(
-                  AppRoutes.exportCenter,
-                  extra: ExportCenterArgs(
-                    preselectedModule: ReportModuleType.sales,
-                    period: _period,
-                  ),
-                ),
-                tooltip: l10n.reportsExportCenter,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.reportsSalesReport, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.file_download_outlined, color: cs.primary), onPressed: () => context.push( AppRoutes.exportCenter, extra: ExportCenterArgs( preselectedModule: ReportModuleType.sales, period: _period, ), ), tooltip: l10n.reportsExportCenter, ));
   }
 
   Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {

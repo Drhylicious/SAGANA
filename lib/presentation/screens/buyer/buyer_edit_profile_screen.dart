@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -15,6 +17,11 @@ import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/change_password_dialog.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/auth_service.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class BuyerEditProfileScreen extends StatefulWidget {
   const BuyerEditProfileScreen({super.key});
@@ -30,6 +37,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   final _emailController = TextEditingController();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
   String? _photoUrl;
@@ -39,6 +47,9 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -58,6 +69,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
       _emailController.text = profile?.contactEmail ?? '';
+      _originalEmail = profile?.contactEmail?.trim() ?? '';
       _dateOfBirth = profile?.dateOfBirth;
       _gender = profile?.gender;
       _isLoading = false;
@@ -98,7 +110,9 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   }
 
   // A valid email address format (the same rule the database enforces).
-  static final _emailPattern = RegExp(r'^[^@s]+@[^@s]+.[^@s]+$');
+  // The email as it was when the screen opened, so the domain check runs only
+  // when the person actually changes it.
+  String _originalEmail = '';
 
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
@@ -112,10 +126,35 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
       return;
     }
     final email = _emailController.text.trim();
-    if (email.isNotEmpty && !_emailPattern.hasMatch(email)) {
+    if (email.isNotEmpty && !isValidEmailFormat(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.registerInvalidEmail),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+      return;
+    }
+    // Same email check as registration: when the address was changed, its domain
+    // must be able to receive mail. The database enforces format and uniqueness.
+    if (email.isNotEmpty && email.toLowerCase() != _originalEmail.toLowerCase()) {
+      final domain = await AuthService.checkEmailDomain(email);
+      if (!mounted) return;
+      if (domain == EmailDomainStatus.noMailServer) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.registerEmailDomainInvalid),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+        return;
+      }
+    }
+    final phoneText = _phoneController.text.trim();
+    if (phoneText.isNotEmpty && normalizePhilippineMobile(phoneText) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.registerInvalidPhone),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -153,7 +192,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.profileUpdated),
-          backgroundColor: AppConstants.successGreen,
+          backgroundColor: AppConstants.midGreen,
         ),
       );
       context.pop();
@@ -162,7 +201,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(friendlyErrorMessage(e)),
           backgroundColor: AppConstants.errorRed,
         ),
       );
@@ -176,254 +215,263 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: sagana.scaffoldBackground,
-        elevation: 0,
-        leading: BackButton(
-          onPressed: () => context.pop(),
-          color: AppConstants.primaryGreen,
-        ),
-        title: Text(
-          l10n.editProfile,
-          style: GoogleFonts.poppins(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.primaryGreen,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: Text(
-              l10n.save,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.primaryGreen,
+
+      body: Column(
+        children: [
+          SubPageTopBar(
+            title: l10n.editProfile,
+            onBack: () => Navigator.of(context).pop(),
+            trailing: TextButton(
+              onPressed: _isSaving ? null : _save,
+              child: Text(
+                l10n.save,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.primaryGreen,
+                ),
               ),
             ),
           ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spacingSafeH,
-                16,
-                AppConstants.spacingSafeH,
-                40,
-              ),
-              children: [
-                Center(
-                  child: Stack(
+          CachedDataNotice(
+            screen: 'buyer_profile_info',
+            otherScreens: const ['buyer_profile_row'],
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineBuyerBody,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppConstants.spacingSafeH,
+                      16,
+                      AppConstants.spacingSafeH,
+                      40,
+                    ),
                     children: [
-                      ProfileAvatar(
-                        photoUrl: _photoUrl,
-                        displayName: _nameController.text.isNotEmpty
-                            ? _nameController.text
-                            : l10n.buyerDefaultName,
-                        radius: 56,
-                      ),
-                      if (_isUploadingPhoto)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black38,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _pickPhoto,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppConstants.primaryGreen,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton(
-                    onPressed: _isUploadingPhoto ? null : _pickPhoto,
-                    child: Text(
-                      l10n.changePhoto,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppConstants.primaryGreen,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SectionLabel(label: l10n.personalInformation),
-                const SizedBox(height: 8),
-                AppTextField(
-                  controller: _nameController,
-                  label: l10n.fullName,
-                  prefixIcon: Icons.person_outline_rounded,
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  controller: _emailController,
-                  label: l10n.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  controller: _phoneController,
-                  label: l10n.phoneNumber,
-                  hint: '09XXXXXXXXX',
-                  prefixIcon: Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _BuyerLabeledDateField(
-                        label: l10n.addMemberDobLabel,
-                        hintText: l10n.addMemberSelectHint,
-                        valueText: _dateOfBirth == null
-                            ? ''
-                            : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
-                        onTap: () async {
-                          final picked = await AppUtils.pickDateOfBirth(
-                            context,
-                            initialDate: _dateOfBirth,
-                          );
-                          if (picked == null) return;
-                          if (!AppUtils.isAtLeast18(picked)) {
-                            if (!context.mounted) return;
-                            await AppUtils.showUnder18Dialog(context);
-                            return;
-                          }
-                          setState(() => _dateOfBirth = picked);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppDropdownField<String>(
-                        value: _gender,
-                        hintText: l10n.addMemberSelectHint,
-                        labelText: l10n.addMemberGenderLabel,
-                        items: const ['male', 'female', 'prefer_not_to_say'],
-                        itemLabel: (key) => buyerGenderLabel(l10n, key)!,
-                        onChanged: (v) => setState(() => _gender = v),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SectionLabel(label: l10n.sectionSecurity),
-                const SizedBox(height: 8),
-                Material(
-                  color: context.saganaColors.cardBackground,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  elevation: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusLg,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusLg,
-                      ),
-                      onTap: () => AppDialog.show<void>(
-                        context: context,
-                        child: ChangePasswordDialog(
-                          onSuccess: _repository.logPasswordChanged,
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
+                      Center(
+                        child: Stack(
                           children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: AppConstants.primaryGreen.withValues(
-                                  alpha: 0.1,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.lock_reset_rounded,
-                                color: AppConstants.primaryGreen,
-                              ),
+                            ProfileAvatar(
+                              photoUrl: _photoUrl,
+                              displayName: _nameController.text.isNotEmpty
+                                  ? _nameController.text
+                                  : l10n.buyerDefaultName,
+                              radius: 56,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    l10n.changePassword,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                            if (_isUploadingPhoto)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black38,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
                                     ),
                                   ),
-                                  Text(
-                                    l10n.updatePasswordSubtitle,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: AppConstants.onSurfaceVariant,
+                                ),
+                              )
+                            else
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: _pickPhoto,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: AppConstants.primaryGreen,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: _isUploadingPhoto ? null : _pickPhoto,
+                          child: Text(
+                            l10n.changePhoto,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppConstants.primaryGreen,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SectionLabel(label: l10n.personalInformation),
+                      const SizedBox(height: 8),
+                      AppTextField(
+                        controller: _nameController,
+                        label: l10n.fullName,
+                        prefixIcon: Icons.person_outline_rounded,
+                        textCapitalization: TextCapitalization.words,
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _emailController,
+                        label: l10n.emailAddress,
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _phoneController,
+                        label: l10n.phoneNumber,
+                        hint: '09XXXXXXXXX',
+                        prefixIcon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _BuyerLabeledDateField(
+                              label: l10n.addMemberDobLabel,
+                              hintText: l10n.addMemberSelectHint,
+                              valueText: _dateOfBirth == null
+                                  ? ''
+                                  : '${_dateOfBirth!.year}-${_dateOfBirth!.month.toString().padLeft(2, '0')}-${_dateOfBirth!.day.toString().padLeft(2, '0')}',
+                              onTap: () async {
+                                final picked = await AppUtils.pickDateOfBirth(
+                                  context,
+                                  initialDate: _dateOfBirth,
+                                );
+                                if (picked == null) return;
+                                if (!AppUtils.isAtLeast18(picked)) {
+                                  if (!context.mounted) return;
+                                  await AppUtils.showUnder18Dialog(context);
+                                  return;
+                                }
+                                setState(() => _dateOfBirth = picked);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppDropdownField<String>(
+                              value: _gender,
+                              hintText: l10n.addMemberSelectHint,
+                              labelText: l10n.addMemberGenderLabel,
+                              items: const [
+                                'male',
+                                'female',
+                                'prefer_not_to_say',
+                              ],
+                              itemLabel: (key) => buyerGenderLabel(l10n, key)!,
+                              onChanged: (v) => setState(() => _gender = v),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      SectionLabel(label: l10n.sectionSecurity),
+                      const SizedBox(height: 8),
+                      Material(
+                        color: context.saganaColors.cardBackground,
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusLg,
+                        ),
+                        elevation: 0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusLg,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusLg,
+                            ),
+                            onTap: () => AppDialog.show<void>(
+                              context: context,
+                              child: ChangePasswordDialog(
+                                onSuccess: _repository.logPasswordChanged,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: AppConstants.primaryGreen
+                                          .withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.lock_reset_rounded,
+                                      color: AppConstants.primaryGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          l10n.changePassword,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          l10n.updatePasswordSubtitle,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color:
+                                                AppConstants.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: AppConstants.outline.withValues(
+                                      alpha: 0.5,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              color: AppConstants.outline.withValues(
-                                alpha: 0.5,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ),
-              ],
-            ),
+          ),
+        ],
+      ),
     );
   }
 }

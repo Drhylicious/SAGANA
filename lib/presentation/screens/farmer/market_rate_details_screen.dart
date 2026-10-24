@@ -7,6 +7,7 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
 import '../../../data/repositories/farmer_market_rates_repository.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 
@@ -56,8 +57,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
           Column(
             children: [
               SizedBox(height: 64 + MediaQuery.of(context).padding.top),
-              if (!_isOnline)
-                OfflineBanner(message: l10n.farmerMarketRateOfflineBanner),
+              CachedDataNotice(screen: FarmerMarketRatesRepository.cacheScreen(cropId: rate?.cropId), isOnline: _isOnline, offlineMessage: l10n.farmerMarketRateOfflineBanner),
               Expanded(
                 child: rate == null
                     ? _buildMissingState(context)

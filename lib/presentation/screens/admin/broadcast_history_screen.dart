@@ -8,6 +8,8 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/broadcast_model.dart';
 import '../../../data/repositories/broadcast_repository.dart';
 import '../../widgets/app_dropdown_field.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 const String _allCategoriesValue = '__all__';
 
@@ -104,19 +106,11 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          l10n.broadcastHistoryTitle,
-          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        centerTitle: false,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-      ),
+
       body: Column(
+        children: [
+          SubPageTopBar(title: l10n.broadcastHistoryTitle, onBack: () => context.pop()),
+          Expanded(child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -164,11 +158,7 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppConstants.primaryGreen,
-                    ),
-                  )
+                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                 : _filteredItems.isEmpty
                 ? Center(
                     child: Padding(
@@ -288,6 +278,8 @@ class _BroadcastHistoryScreenState extends State<BroadcastHistoryScreen> {
                     },
                   ),
           ),
+        ],
+      )),
         ],
       ),
     );

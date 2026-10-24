@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/activity_text.dart';
 import '../models/admin_dashboard_model.dart';
+import '../models/admin_log_message.dart';
 import 'farmer_lookup.dart';
 
 /// Reads and writes admin_activity_log (see
@@ -21,19 +23,21 @@ class AdminActivityRepository {
   Future<void> log({
     required String module,
     required String actionType,
-    required String description,
+    required AdminLogMessage message,
     String? referenceId,
   }) async {
     try {
       final uid = _client.auth.currentUser?.id;
       if (uid == null) return;
-      await _client.from('admin_activity_log').insert({
+      final row = {
         'admin_id': uid,
         'module': module,
         'action_type': actionType,
-        'description': description,
+        // English copy for any reader that doesn't know the key yet.
+        'description': adminLogEnglish(message),
         if (referenceId != null) 'reference_id': referenceId,
-      });
+      };
+      await _client.from('admin_activity_log').insert(row);
     } catch (_) {
       // Best-effort — logging must never break the action it's logging.
     }
@@ -44,12 +48,18 @@ class AdminActivityRepository {
     int offset = 0,
     List<String>? moduleFilters,
   }) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return [];
     try {
+      // Recent Activity shows only this user's own actions. The table's RLS
+      // lets every staff member read the whole log, so the scope is applied
+      // here rather than relied on implicitly.
       var query = _client
           .from('admin_activity_log')
           .select(
             'id, admin_id, module, description, reference_id, created_at',
-          );
+          )
+          .eq('admin_id', uid);
       if (moduleFilters != null) {
         query = query.inFilter('module', moduleFilters);
       }
@@ -70,7 +80,7 @@ class AdminActivityRepository {
         return AdminActivityItem(
           id: r['id'] as String,
           type: AdminActivityType.logged,
-          plainDescription: r['description'] as String,
+          plainDescription: localizeAdminLogRow(r),
           adminName: adminId != null ? infoMap[adminId]?.fullName : null,
           timestamp: DateTime.parse(r['created_at'] as String),
           isPrimary: false,

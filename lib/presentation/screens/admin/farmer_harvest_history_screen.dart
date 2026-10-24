@@ -12,6 +12,8 @@ import '../../widgets/crop_category_chips.dart';
 import '../../widgets/harvest_log_widgets.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin's read-only view of one farmer's Harvest History — mirrors the
 /// farmer-facing screen (harvest_history_screen.dart) exactly: same KPI
@@ -125,27 +127,7 @@ class _AdminFarmerHarvestHistoryScreenState
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      l10n.farmerHarvestHistoryTitle,
-                        style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            SubPageTopBar(title: l10n.farmerHarvestHistoryTitle, onBack: () => Navigator.of(context).pop()),
             Expanded(
               child: widget.farmerId == null
                   ? Center(
@@ -190,13 +172,9 @@ class _AdminFarmerHarvestHistoryScreenState
                             ),
                           const SizedBox(height: 16),
                           if (_isLoading)
-                            const Center(
-                              child: Padding(
+                            const Padding(
                               padding: EdgeInsets.only(top: 40),
-                                child: CircularProgressIndicator(
-                                  color: AppConstants.primaryGreen,
-                                ),
-                              ),
+                              child: SkeletonList(),
                             )
                           else if (_filtered.isEmpty)
                             Padding(

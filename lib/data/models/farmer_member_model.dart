@@ -1,14 +1,20 @@
 // ─── Member Status (Issue 5 — 5-status model) ─────────────────────────────────
 //
-// Active     — normal member.
+// The Manager's approval of a Farmer's registration has three outcomes, shown
+// as Pending, Approved and Disapproved. 'Approved' is the stored value
+// 'active' and 'Disapproved' is the stored value 'rejected' — the labels
+// changed, the stored values did not.
+//
+// Active     — normal member (shown as "Approved").
 // Inactive   — DERIVED, not a stored user_roles.status. status='active' AND
 //              user_information.last_active_at older than 30 days. Indicator
 //              only; never blocks login (Decision D11).
 // Suspended  — manual admin action, blocks login, reason recorded.
 // Pending    — application submitted, awaiting admin review.
-// Rejected   — application rejected; account stays listed, no farmer access.
-// Draft      — account created but application NOT yet submitted. Hidden from
-//              the Admin Members list until submit_application() (Decision D5).
+// Rejected   — application disapproved; account stays listed, no farmer access.
+// Draft      — legacy: an account registered under the old flow whose
+//              application was never submitted. New registrations go straight
+//              to Pending. Hidden from the Members list until submitted.
 
 enum MemberStatus { active, inactive, suspended, pending, rejected, draft }
 
@@ -43,7 +49,7 @@ extension MemberStatusExt on MemberStatus {
       case MemberStatus.pending:
         return 'Pending';
       case MemberStatus.rejected:
-        return 'Rejected';
+        return 'Disapproved';
       case MemberStatus.draft:
         return 'Draft';
     }
@@ -110,6 +116,76 @@ extension MemberStatusExt on MemberStatus {
       this == MemberStatus.active || this == MemberStatus.inactive;
 }
 
+// ─── Actions available from the Members list ─────────────────────────────────
+//
+// The ⋯ menu on a member's card in the Members list is the ONE place a Manager
+// acts on a member. A member's profile screen is view-only. This is the single
+// rule for which actions each status gets, so the list and any test read the
+// same thing.
+
+enum MemberListAction {
+  viewProfile,
+  approve,
+  disapprove,
+  sendNotification,
+  resetPassword,
+  issueLoan,
+  recordLoanPayment,
+  toggleSuspend, // Set Suspended / Set Active
+  deleteApplicant,
+}
+
+extension MemberStatusActions on MemberStatus {
+  /// A person who has applied but is not (or no longer) a member: Pending,
+  /// Disapproved or a draft. Their profile is read-only and member-only actions
+  /// (loans, payments, capital) are not offered.
+  bool get isApplicant =>
+      this == MemberStatus.pending ||
+      this == MemberStatus.rejected ||
+      this == MemberStatus.draft;
+
+  /// In the order shown in the ⋯ menu.
+  List<MemberListAction> get listActions {
+    switch (this) {
+      case MemberStatus.pending:
+        // Under review: look, then decide. Nothing a member can do.
+        return const [
+          MemberListAction.viewProfile,
+          MemberListAction.approve,
+          MemberListAction.disapprove,
+        ];
+      case MemberStatus.rejected:
+        return const [
+          MemberListAction.viewProfile,
+          MemberListAction.sendNotification,
+          MemberListAction.resetPassword,
+          MemberListAction.deleteApplicant,
+        ];
+      case MemberStatus.draft:
+        return const [MemberListAction.viewProfile];
+      case MemberStatus.active:
+      case MemberStatus.inactive:
+        return const [
+          MemberListAction.viewProfile,
+          MemberListAction.sendNotification,
+          MemberListAction.resetPassword,
+          MemberListAction.issueLoan,
+          MemberListAction.recordLoanPayment,
+          MemberListAction.toggleSuspend,
+        ];
+      case MemberStatus.suspended:
+        // A suspended member cannot be issued a new loan.
+        return const [
+          MemberListAction.viewProfile,
+          MemberListAction.sendNotification,
+          MemberListAction.resetPassword,
+          MemberListAction.recordLoanPayment,
+          MemberListAction.toggleSuspend,
+        ];
+    }
+  }
+}
+
 // ─── Loan Summary ─────────────────────────────────────────────────────────────
 
 enum LoanStatusSummary { none, active, overdue }
@@ -170,18 +246,17 @@ class FarmerMemberModel {
 
   bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
 
-  /// Members-list card subtitle: email if present, else phone, else both
-  /// (email first) if both are present, else null (nothing shown) — never
-  /// the farmer's address, which used to be shown here.
-  String? get contactLine {
+  /// Members-list card contact details, one entry per line: the email first,
+  /// then the phone number. Whichever is missing is left out, so the list is
+  /// empty when neither is recorded (nothing shown) — never the farmer's
+  /// address, which used to be shown here.
+  List<String> get contactLines {
     final email = contactEmail?.trim();
     final phone = phoneNumber?.trim();
-    final hasEmail = email != null && email.isNotEmpty;
-    final hasPhone = phone != null && phone.isNotEmpty;
-    if (hasEmail && hasPhone) return '$email • $phone';
-    if (hasEmail) return email;
-    if (hasPhone) return phone;
-    return null;
+    return [
+      if (email != null && email.isNotEmpty) email,
+      if (phone != null && phone.isNotEmpty) phone,
+    ];
   }
 
   bool get hasOutstandingLoan => outstandingLoanBalance > 0;

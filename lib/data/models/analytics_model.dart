@@ -116,7 +116,7 @@ class TransactionRecord {
 
 class CropPriceCard {
   final String cropName;
-  final String priceType; // 'sp3_cooperative' | 'open_market'
+  final String priceType; // a market_types.code (Public or Cooperative)
   final double currentPrice;
   final double? previousPrice;
   final double? costPerKg;

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../widgets/map_attribution_links.dart';
 import '../../../core/constants/osm_config.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 const _defaultCenter = LatLng(13.6302, 121.9392);
 const _defaultZoom = 15.0;
@@ -45,21 +46,11 @@ class _FarmLocationFullMapScreenState extends State<FarmLocationFullMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppConstants.offWhite,
-        foregroundColor: AppConstants.charcoal,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: _done,
-        ),
-        title: Text(
-          'Farm Location',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
-      ),
-      body: Stack(
+
+      body: Column(
+        children: [
+          SubPageTopBar(title: 'Farm Location', onBack: _done),
+          Expanded(child: Stack(
         children: [
           fm.FlutterMap(
             mapController: _mapCtrl,
@@ -147,6 +138,8 @@ class _FarmLocationFullMapScreenState extends State<FarmLocationFullMapScreen> {
               ),
             ),
           ),
+        ],
+      )),
         ],
       ),
     );

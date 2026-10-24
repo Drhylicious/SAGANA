@@ -16,6 +16,9 @@ import '../../widgets/buyer_activity_card.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/skeleton.dart';
 
 class BuyerAccountScreen extends StatefulWidget {
   const BuyerAccountScreen({super.key});
@@ -30,6 +33,7 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   final _buyerOrderRepo = BuyerOrderRepository();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   BuyerProfileModel? _profile;
   int _unreadCount = 0;
 
@@ -39,6 +43,9 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
     _loadActivity();
   }
@@ -121,25 +128,44 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: 'buyer_profile_info',
+                otherScreens: const [
+                  'buyer_profile_row',
+                  'buyer_profile_orders_all',
+                  'buyer_profile_orders_completed',
+                ],
+                isOnline: _isOnline,
+                offlineMessage: l10n.offlineBuyerBody,
+              ),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SkeletonList(),
+                      )
                     : RefreshIndicator(
                         onRefresh: _refreshAll,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(
-                            AppConstants.spacingSafeH, 16, AppConstants.spacingSafeH, 40,
+                            AppConstants.spacingSafeH,
+                            16,
+                            AppConstants.spacingSafeH,
+                            40,
                           ),
                           children: [
                             _buildIdentityCard(l10n),
                             const SizedBox(height: 20),
                             SectionLabel(label: l10n.purchaseSummary),
-                            hasOrders ? _buildStatsRow(l10n) : _buildFirstOrderPrompt(context, l10n),
+                            hasOrders
+                                ? _buildStatsRow(l10n)
+                                : _buildFirstOrderPrompt(context, l10n),
                             const SizedBox(height: 20),
                             _RecentActivitySection(
                               items: _recentActivity,
                               isLoading: _isActivityLoading,
-                              onViewAll: () => context.push(AppRoutes.buyerRecentActivity),
+                              onViewAll: () =>
+                                  context.push(AppRoutes.buyerRecentActivity),
                             ),
                           ],
                         ),
@@ -148,7 +174,9 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             ],
           ),
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: BuyerTopBar(
               title: l10n.account,
               unreadCount: _unreadCount,
@@ -191,9 +219,14 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
               ],
             ),
             borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-            border: Border.all(color: AppConstants.buyerBlue.withValues(alpha: 0.14)),
+            border: Border.all(
+              color: AppConstants.buyerBlue.withValues(alpha: 0.14),
+            ),
             boxShadow: [
-              BoxShadow(color: const Color(0xFF455A64).withValues(alpha: 0.06), blurRadius: 16),
+              BoxShadow(
+                color: const Color(0xFF455A64).withValues(alpha: 0.06),
+                blurRadius: 16,
+              ),
             ],
           ),
           child: Column(
@@ -202,9 +235,14 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
               Container(
                 height: 4,
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.radiusXl)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppConstants.radiusXl),
+                  ),
                   gradient: LinearGradient(
-                    colors: [AppConstants.buyerBlue, AppConstants.buyerBlue.withValues(alpha: 0.35)],
+                    colors: [
+                      AppConstants.buyerBlue,
+                      AppConstants.buyerBlue.withValues(alpha: 0.35),
+                    ],
                   ),
                 ),
               ),
@@ -223,10 +261,16 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(profile?.fullName ?? l10n.buyerDefaultName,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+                          Text(
+                            profile?.fullName ?? l10n.buyerDefaultName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppConstants.onSurface,
+                            ),
+                          ),
                           if (hasContactEmail || hasPhone) ...[
                             const SizedBox(height: 4),
                             // Built as a list rather than two independent
@@ -238,8 +282,16 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
                             // either single-line or both-lines cases
                             // equally compact.
                             for (final (i, w) in [
-                              if (hasContactEmail) _contactLine(Icons.email_outlined, profile!.contactEmail!),
-                              if (hasPhone) _contactLine(Icons.phone_outlined, profile!.phoneNumber!),
+                              if (hasContactEmail)
+                                _contactLine(
+                                  Icons.email_outlined,
+                                  profile!.contactEmail!,
+                                ),
+                              if (hasPhone)
+                                _contactLine(
+                                  Icons.phone_outlined,
+                                  profile!.phoneNumber!,
+                                ),
                             ].indexed) ...[
                               if (i > 0) const SizedBox(height: 2),
                               w,
@@ -264,10 +316,15 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
         Icon(icon, size: 13, color: AppConstants.onSurfaceVariant),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
         ),
       ],
     );
@@ -284,20 +341,32 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
     return Row(
       children: [
         Expanded(
-          child: _statTile(l10n.statOrders, '${profile?.totalOrders ?? 0}',
-              icon: Icons.shopping_bag_rounded, color: AppConstants.buyerBlue,
-              onTap: () => context.go(AppRoutes.myOrders)),
+          child: _statTile(
+            l10n.statOrders,
+            '${profile?.totalOrders ?? 0}',
+            icon: Icons.shopping_bag_rounded,
+            color: AppConstants.buyerBlue,
+            onTap: () => context.go(AppRoutes.myOrders),
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _statTile(l10n.statCompleted, '${profile?.completedOrders ?? 0}',
-              icon: Icons.check_circle_rounded, color: AppConstants.successGreen,
-              onTap: () => context.go(AppRoutes.myOrders, extra: 2)), // Completed tab index
+          child: _statTile(
+            l10n.statCompleted,
+            '${profile?.completedOrders ?? 0}',
+            icon: Icons.check_circle_rounded,
+            color: AppConstants.successGreen,
+            onTap: () => context.go(AppRoutes.myOrders, extra: 2),
+          ), // Completed tab index
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _statTile(l10n.statSpent, '₱${(profile?.totalSpent ?? 0).toStringAsFixed(0)}',
-              icon: Icons.payments_rounded, color: AppConstants.primaryGreen),
+          child: _statTile(
+            l10n.statSpent,
+            '₱${(profile?.totalSpent ?? 0).toStringAsFixed(0)}',
+            icon: Icons.payments_rounded,
+            color: AppConstants.primaryGreen,
+          ),
         ),
       ],
     );
@@ -308,7 +377,13 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
   // stat) rather than the plain value/label tile used previously, so
   // Purchase Summary reads as the same kind of stat card used elsewhere
   // in SAGANA.
-  Widget _statTile(String label, String value, {required IconData icon, required Color color, VoidCallback? onTap}) {
+  Widget _statTile(
+    String label,
+    String value, {
+    required IconData icon,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
     final tile = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -328,31 +403,66 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
             child: Icon(icon, size: 14, color: color),
           ),
           const SizedBox(height: 8),
-          Text(value, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: AppConstants.onSurface)),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: AppConstants.onSurface,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
     if (onTap == null) return tile;
-    return InkWell(borderRadius: BorderRadius.circular(AppConstants.radiusLg), onTap: onTap, child: tile);
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      onTap: onTap,
+      child: tile,
+    );
   }
 
   Widget _buildFirstOrderPrompt(BuildContext context, AppLocalizations l10n) {
     return GlassCard(
       child: Column(
         children: [
-          Icon(Icons.shopping_basket_outlined, size: 36, color: AppConstants.primaryGreen.withValues(alpha: 0.6)),
+          Icon(
+            Icons.shopping_basket_outlined,
+            size: 36,
+            color: AppConstants.primaryGreen.withValues(alpha: 0.6),
+          ),
           const SizedBox(height: 10),
-          Text(l10n.buyerNoOrdersTitle, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(
+            l10n.buyerNoOrdersTitle,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(l10n.buyerNoOrdersSubtitle,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+          Text(
+            l10n.buyerNoOrdersSubtitle,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            child: PrimaryButton(label: l10n.browseMarketplace, onPressed: () => context.go(AppRoutes.marketplaceBrowse)),
+            child: PrimaryButton(
+              label: l10n.browseMarketplace,
+              onPressed: () => context.go(AppRoutes.marketplaceBrowse),
+            ),
           ),
         ],
       ),
@@ -387,9 +497,14 @@ class _RecentActivitySection extends StatelessWidget {
             SectionLabel(label: l10n.buyerActivityTitle),
             GestureDetector(
               onTap: onViewAll,
-              child: Text(l10n.buyerActivityViewAll,
-                  style: GoogleFonts.poppins(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+              child: Text(
+                l10n.buyerActivityViewAll,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
             ),
           ],
         ),
@@ -398,26 +513,42 @@ class _RecentActivitySection extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
-            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            decoration: BoxDecoration(
+              color: context.saganaColors.cardBackground,
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            ),
+            child: const SkeletonBlock(height: 56),
           )
         else if (items.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24),
-            decoration: BoxDecoration(color: context.saganaColors.cardBackground, borderRadius: BorderRadius.circular(AppConstants.radiusLg)),
+            decoration: BoxDecoration(
+              color: context.saganaColors.cardBackground,
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            ),
             child: Column(
               children: [
-                Icon(Icons.history_rounded, size: 36, color: AppConstants.outline.withValues(alpha: 0.5)),
+                Icon(
+                  Icons.history_rounded,
+                  size: 36,
+                  color: AppConstants.outline.withValues(alpha: 0.5),
+                ),
                 const SizedBox(height: 8),
-                Text(l10n.buyerActivityEmpty, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+                Text(
+                  l10n.buyerActivityEmpty,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           )
         else
           ...groupBuyerActivityByDate(items, l10n).entries.map(
-                (e) => BuyerActivityDateGroup(label: e.key, items: e.value),
-              ),
+            (e) => BuyerActivityDateGroup(label: e.key, items: e.value),
+          ),
       ],
     );
   }

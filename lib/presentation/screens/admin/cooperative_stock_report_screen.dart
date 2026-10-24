@@ -11,6 +11,10 @@ import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../../data/services/connectivity_service.dart';
 
 /// Cooperative Stock Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/coop-stock
@@ -34,6 +38,7 @@ class _CooperativeStockReportScreenState
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
+  bool _isOnline = ConnectivityService.instance.isOnline;
   String _searchQuery = '';
   // null = All. Any other value = a real category name from
   // _data.categoryCounts. No separate Low Stock filter — the low-stock
@@ -44,6 +49,9 @@ class _CooperativeStockReportScreenState
   @override
   void initState() {
     super.initState();
+    ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (mounted) setState(() => _isOnline = v);
+    });
     _load();
   }
 
@@ -91,11 +99,16 @@ class _CooperativeStockReportScreenState
       body: Column(
         children: [
           _buildTopBar(context, l10n, cs, sagana),
+          CachedDataNotice(
+            screen: 'coop_stock_report',
+            isOnline: _isOnline,
+            offlineMessage: l10n.offlineStaffBody,
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(
                         AppConstants.spacingSafeH,
@@ -124,49 +137,7 @@ class _CooperativeStockReportScreenState
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.spacingSm,
-          ),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: () => context.pop(),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.reportsCoopStockReport,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.file_download_outlined, color: cs.primary),
-                onPressed: () => context.push(
-                  AppRoutes.exportCenter,
-                  extra: const ExportCenterArgs(
-                    preselectedModule: ReportModuleType.coopStock,
-                  ),
-                ),
-                tooltip: l10n.reportsExportCenter,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: l10n.reportsCoopStockReport, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.file_download_outlined, color: cs.primary), onPressed: () => context.push( AppRoutes.exportCenter, extra: const ExportCenterArgs( preselectedModule: ReportModuleType.coopStock, ), ), tooltip: l10n.reportsExportCenter, ));
   }
 
   /// Header + KPI row together in one bordered, padded card — matching

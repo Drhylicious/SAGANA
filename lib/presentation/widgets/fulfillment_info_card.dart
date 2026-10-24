@@ -20,6 +20,11 @@ import '../../core/theme/sagana_colors.dart';
 /// (Checkout uses this to reuse the exact same layout for its own
 /// selected-address summary, which opens the address picker on tap) — omit
 /// it for the read-only, post-order-placement uses elsewhere.
+///
+/// Pass [onViewMap] to add a "View Full Map" link after the notes. Only the
+/// Admin Order Detail does this (it shows the order's saved pinpoint, view
+/// only). Checkout and the buyer-facing screens never pass it, so they show
+/// no map link.
 class FulfillmentInfoCard extends StatelessWidget {
   final String? fulfillmentMethod; // 'pickup' | 'delivery' | null
   final String? deliveryAddress;
@@ -28,6 +33,7 @@ class FulfillmentInfoCard extends StatelessWidget {
   final String? deliveryLabel;
   final String? deliveryNotes;
   final VoidCallback? onTap;
+  final VoidCallback? onViewMap;
 
   const FulfillmentInfoCard({
     super.key,
@@ -38,6 +44,7 @@ class FulfillmentInfoCard extends StatelessWidget {
     this.deliveryLabel,
     this.deliveryNotes,
     this.onTap,
+    this.onViewMap,
   });
 
   @override
@@ -49,6 +56,7 @@ class FulfillmentInfoCard extends StatelessWidget {
     final sagana = context.saganaColors;
     final isPickup = method == 'pickup';
     final notes = deliveryNotes?.trim();
+    final hasNotes = notes != null && notes.isNotEmpty;
 
     final card = Container(
       width: double.infinity,
@@ -123,11 +131,35 @@ class FulfillmentInfoCard extends StatelessWidget {
               Text(deliveryLabel!,
                   style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
             ],
-            if (notes != null && notes.isNotEmpty) ...[
+            if (hasNotes || onViewMap != null) ...[
               const SizedBox(height: 10),
               Divider(height: 1, color: AppConstants.outline.withValues(alpha: 0.10)),
               const SizedBox(height: 10),
+            ],
+            if (hasNotes)
               Text(notes, style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.onSurfaceVariant, height: 1.4)),
+            if (onViewMap != null) ...[
+              if (hasNotes) const SizedBox(height: 12),
+              InkWell(
+                onTap: onViewMap,
+                borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.map_outlined, size: 16, color: AppConstants.primaryGreen),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          l10n.orderDetailViewFullMap,
+                          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, size: 20, color: AppConstants.outline.withValues(alpha: 0.7)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ],
         ],

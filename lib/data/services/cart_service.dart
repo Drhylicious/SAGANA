@@ -1,26 +1,43 @@
-import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/cart_item_model.dart';
+import 'encrypted_box.dart';
+import 'hive_service.dart';
 
-/// Local buyer cart storage. Follows SettingsRepository's exact Hive
+/// Local buyer and farmer cart storage. Follows SettingsRepository's exact Hive
 /// idiom — open the box fresh per call rather than holding a long-lived
-/// reference. Each item is stored under its own listingId key (not as
-/// one serialized List), which is what makes "merge by listingId" trivial:
-/// adding an already-cart-present listing just overwrites its key instead
-/// of requiring a manual find-and-replace inside a list.
+/// reference.
+///
+/// Each item is stored under a key of the form `userId::listingId`, so every
+/// account on the device has its own cart. A cart persists across app restarts
+/// and offline periods, and is cleared only when its own user signs out
+/// (see HiveService.clearUserSession). Items are added, changed and removed only while
+/// online; the screens enforce that.
 class CartService {
+  /// The signed-in user's id, or 'anonymous' when no one is signed in.
+  static String get _ownerId => HiveService.getUserId() ?? 'anonymous';
+
+  static String _key(String listingId) => '$_ownerId::$listingId';
+
+  /// Keys in the cart box that belong to the signed-in user.
+  static Iterable<dynamic> _ownKeys(dynamic box) {
+    final prefix = '$_ownerId::';
+    return box.keys.where((k) => k is String && k.startsWith(prefix));
+  }
+
   Future<List<CartItemModel>> getItems() async {
-    final box = await Hive.openBox(AppConstants.hiveBoxCart);
-    return box.values
+    final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
+    return _ownKeys(box)
         .map(
-          (raw) => CartItemModel.fromMap(Map<String, dynamic>.from(raw as Map)),
+          (k) => CartItemModel.fromMap(
+            Map<String, dynamic>.from(box.get(k) as Map),
+          ),
         )
         .toList();
   }
 
   Future<int> itemCount() async {
-    final box = await Hive.openBox(AppConstants.hiveBoxCart);
-    return box.length;
+    final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
+    return _ownKeys(box).length;
   }
 
   Future<void> addItem({
@@ -34,8 +51,9 @@ class CartService {
     required double availableKgSnapshot,
     required double quantityKg,
   }) async {
-    final box = await Hive.openBox(AppConstants.hiveBoxCart);
-    final existingRaw = box.get(listingId);
+    final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
+    final key = _key(listingId);
+    final existingRaw = box.get(key);
 
     if (existingRaw != null) {
       final existing = CartItemModel.fromMap(
@@ -45,7 +63,7 @@ class CartService {
         0.0,
         availableKgSnapshot,
       );
-      await box.put(listingId, existing.toMap());
+      await box.put(key, existing.toMap());
     } else {
       final item = CartItemModel(
         listingId: listingId,
@@ -58,26 +76,28 @@ class CartService {
         availableKgSnapshot: availableKgSnapshot,
         quantityKg: quantityKg,
       );
-      await box.put(listingId, item.toMap());
+      await box.put(key, item.toMap());
     }
   }
 
   Future<void> updateQuantity(String listingId, double quantityKg) async {
-    final box = await Hive.openBox(AppConstants.hiveBoxCart);
-    final raw = box.get(listingId);
+    final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
+    final key = _key(listingId);
+    final raw = box.get(key);
     if (raw == null) return;
     final item = CartItemModel.fromMap(Map<String, dynamic>.from(raw as Map));
     item.quantityKg = quantityKg;
-    await box.put(listingId, item.toMap());
+    await box.put(key, item.toMap());
   }
 
   Future<void> removeItem(String listingId) async {
-    final box = await Hive.openBox(AppConstants.hiveBoxCart);
-    await box.delete(listingId);
+    final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
+    await box.delete(_key(listingId));
   }
 
+  /// Empties the signed-in user's cart only.
   Future<void> clear() async {
-    final box = await Hive.openBox(AppConstants.hiveBoxCart);
-    await box.clear();
+    final box = await EncryptedBox.open(AppConstants.hiveBoxCart);
+    await box.deleteAll(_ownKeys(box).toList());
   }
 }

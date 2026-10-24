@@ -11,7 +11,8 @@ import '../../../data/repositories/broadcast_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/web_safe_blur_container.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 import 'broadcast_history_screen.dart'
     show recipientTypeLabel, broadcastCategoryLabel;
 
@@ -59,6 +60,9 @@ class _NotificationBroadcastScreenState
   // ── Screen state ───────────────────────────────────────────────────────────
   bool _isLoading  = true;
   bool _isSending  = false;
+  // Kept across retries of the same send attempt so a repeated request is not sent twice.
+  String? _pendingSendKey;
+  String? _pendingSendFingerprint;
   bool _isOnline   = true;
   StreamSubscription<bool>? _connectivitySub;
 
@@ -212,8 +216,15 @@ class _NotificationBroadcastScreenState
     }
 
     setState(() => _isSending = true);
+    // A changed message or audience is a new send, so it gets a new key.
+    final fingerprint = '$title|$body|${_category.value}|${_recipientType.value}|$_currentRecipientFilter|${_scheduleEnabled ? _scheduledAt : null}';
+    if (_pendingSendKey == null || _pendingSendFingerprint != fingerprint) {
+      _pendingSendKey = BroadcastRepository.newClientKey();
+      _pendingSendFingerprint = fingerprint;
+    }
     try {
       final count = await _repo.sendBroadcast(
+        clientKey:       _pendingSendKey,
         title:           title,
         body:            body,
         category:        _category,
@@ -223,6 +234,7 @@ class _NotificationBroadcastScreenState
       );
 
       if (!mounted) return;
+      _pendingSendKey = null;
       setState(() => _isSending = false);
 
       final recipientNoun =
@@ -265,6 +277,11 @@ class _NotificationBroadcastScreenState
       _refreshRecipientCount();
       await Future.delayed(const Duration(milliseconds: 400));
       if (mounted) _loadAll();
+    } on BroadcastNoRecipientsException {
+      // Nothing matched, so nothing was sent. Clear the key: the next attempt is new.
+      _pendingSendKey = null;
+      setState(() => _isSending = false);
+      _showSnack(l10n.broadcastNoRecipients);
     } catch (e) {
       debugPrint('NotificationBroadcastScreen._send failed: $e');
       setState(() => _isSending = false);
@@ -278,7 +295,7 @@ class _NotificationBroadcastScreenState
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isSuccess
-            ? AppConstants.successGreen
+            ? AppConstants.midGreen
             : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -328,11 +345,7 @@ class _NotificationBroadcastScreenState
               const SizedBox(height: 64),
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppConstants.primaryGreen,
-                        ),
-                      )
+                    ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                     : ListView(
                         controller: _scrollCtrl,
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
@@ -564,35 +577,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return WebSafeBlurContainer(
-      decoration: BoxDecoration(
-        color: sagana.glassBackground,
-        border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-      ),
-      child: SizedBox(
-        height: 64,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: cs.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: title, onBack: onBack);
   }
 }
 
@@ -1260,7 +1245,7 @@ class _SendButton extends StatelessWidget {
                 ),
               )
             : Text(
-                !isOnline ? 'Offline — Cannot Send' : label,
+                !isOnline ? AppLocalizations.of(context).offlineCannotSend : label,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 15,

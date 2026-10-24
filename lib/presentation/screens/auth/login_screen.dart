@@ -1,15 +1,19 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../widgets/shared_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/staggered_entrance.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/models/suspension_notice.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/auth_visuals.dart';
+import '../../widgets/suspension_dialogs.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -108,10 +112,14 @@ class _LoginScreenState extends State<LoginScreen>
       context.go(route);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = AuthService.parseAuthError(e);
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
+      // A suspended account is already signed out; show the red notice
+      // instead of an ordinary error line.
+      if (e is AccountSuspendedException) {
+        await showSuspensionNotice(context: context, notice: e.notice);
+        return;
+      }
+      setState(() => _errorMessage = AuthService.parseAuthError(e));
     }
   }
 
@@ -220,6 +228,7 @@ class _LoginScreenState extends State<LoginScreen>
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            const OfflineStatusCard(),
                             StaggeredEntrance(index: 0, child: _LogoSection()),
                             const SizedBox(height: 32),
                             StaggeredEntrance(
@@ -519,19 +528,13 @@ class _EmailField extends StatelessWidget {
       autocorrect: false,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       decoration: authFieldDecoration(
-        hint: isUsername ? 'Enter your username or email' : 'admin@sp3.coop',
+        hint: isUsername ? 'Enter your username or email' : 'manager@sp3.coop',
         icon: isUsername ? Icons.badge_outlined : Icons.mail_outline_rounded,
       ),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) {
-          return 'Username or email is required';
-        }
-        if (!isUsername) {
-          final regex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-          if (!regex.hasMatch(v.trim())) return 'Enter a valid email address';
-        }
-        return null;
-      },
+      // Judged from the text at validation time. (isUsername only changes the
+      // hint and keyboard; it is captured when the card is built, so using it
+      // here let "abc@" through on the first press.)
+      validator: validateLoginIdentifier,
     );
   }
 }
@@ -644,7 +647,7 @@ class _AdminNote extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Admin access is managed by SP3 Cooperative staff.',
+              'Manager access is managed by SP3 Cooperative staff.',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: AppConstants.onSurfaceVariant,
@@ -903,8 +906,8 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
               const SizedBox(height: 8),
 
               Text(
-                'You can request a temporary password from the SAGANA Admin. '
-                'The Admin will review your request and assist you.',
+                'You can request a temporary password from the SAGANA Manager. '
+                'The Manager will review your request and assist you.',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: AppConstants.onSurfaceVariant,
@@ -924,7 +927,7 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                     borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                   ),
                   child: Text(
-                    'Request sent. An SP3 Admin will assist you.',
+                    'Request sent. An SP3 Manager will assist you.',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: AppConstants.successGreen,

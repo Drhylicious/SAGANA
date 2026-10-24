@@ -8,14 +8,17 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
+import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
-import '../../widgets/shared_widgets.dart';
+import '../../widgets/cached_data_notice.dart';
+import '../../widgets/sync_status_card.dart';
 import '../../../core/utils/member_access.dart';
 import 'admin_activity_screen.dart'
     show adminActivityDescription, adminActivityTimeLabel, moduleColor;
@@ -27,6 +30,8 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
+enum _DashSection { priorities, coop, kpi, calendar, modules, activity }
+
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _repo = AdminDashboardRepository();
 
@@ -34,13 +39,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<DashboardPriority> _priorities = [];
   List<AdminActivityItem> _activity = [];
   CoopPerformanceSummary _coopSummary = CoopPerformanceSummary.empty;
-  List<InventoryAlertItem> _inventoryAlerts = [];
   List<ManagementModuleCard> _managementModules = [];
   List<CalendarEvent> _calendarEvents = [];
   int _unreadCount = 0;
   String _adminName = 'Admin';
 
-  bool _isLoading = true;
+  // Sections appear as soon as their own data arrives, so a slow query no
+  // longer holds back the rest of the dashboard. Refreshes keep showing the
+  // previous data instead of re-showing the skeleton.
+  final Set<_DashSection> _ready = {};
   bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySub;
 
@@ -52,8 +59,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _isOnline = ConnectivityService.instance.isOnline;
     _connectivitySub = ConnectivityService.instance.onConnectivityChanged
         .listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
+          if (mounted) setState(() => _isOnline = v);
+        });
     _loadAll();
   }
 
@@ -70,39 +77,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
-    _repo
-        .clearDashboardCache(); // Phase 5, item 5.1 — fresh data every cycle, not stale reuse
-    final results = await Future.wait([
-      _repo.fetchKpiSummary(),
-      _repo.fetchDashboardPriorities(),
-      _repo.fetchRecentActivity(
-        limit: 5,
-      ), // Dashboard preview kept compact per your request — Activity Log's own call is separate and untouched
-      _repo.fetchCoopPerformance(),
-      _repo.fetchInventoryAlerts(),
-      _repo.fetchManagementModuleBadges(),
-      _repo.fetchCalendarEvents(
-        year: _calendarMonth.year,
-        month: _calendarMonth.month,
+    _repo.clearDashboardCache(); // fresh data every cycle, not stale reuse
+    final month = _calendarMonth;
+    await Future.wait<void>([
+      _section(_DashSection.kpi, _repo.fetchKpiSummary(), (v) => _kpi = v),
+      _section(
+        _DashSection.priorities,
+        _repo.fetchDashboardPriorities(),
+        (v) => _priorities = v,
       ),
-      NotificationRepository().fetchUnreadCount(),
-      _repo.fetchAdminFirstName(),
+      _section(
+        _DashSection.activity,
+        AdminActivityRepository().fetchActivity(
+          limit: 5,
+        ), // this user's own actions only
+        (v) => _activity = v,
+      ),
+      _section(
+        _DashSection.coop,
+        _repo.fetchCoopPerformance(),
+        (v) => _coopSummary = v,
+      ),
+      _section(
+        _DashSection.modules,
+        _repo.fetchManagementModuleBadges(),
+        (v) => _managementModules = v,
+      ),
+      _section(
+        _DashSection.calendar,
+        _repo.fetchCalendarEvents(year: month.year, month: month.month),
+        (v) => _calendarEvents = v,
+      ),
+      _loadHeaderExtras(),
     ]);
-    if (!mounted) return;
-    setState(() {
-      _kpi               = results[0] as AdminKpiSummary;
-      _priorities        = results[1] as List<DashboardPriority>;
-      _activity          = results[2] as List<AdminActivityItem>;
-      _coopSummary       = results[3] as CoopPerformanceSummary;
-      _inventoryAlerts   = results[4] as List<InventoryAlertItem>;
-      _managementModules = results[5] as List<ManagementModuleCard>;
-      _calendarEvents    = results[6] as List<CalendarEvent>;
-      _unreadCount       = results[7] as int;
-      final adminFirstName = results[8] as String?;
-      if (adminFirstName != null) _adminName = adminFirstName;
-      _isLoading         = false;
-    });
+  }
+
+  // Runs one dashboard fetch and applies its result as soon as it completes.
+  // The section is marked ready even on failure, so a failed query shows an
+  // empty section rather than a skeleton that never clears.
+  Future<void> _section<T>(
+    _DashSection section,
+    Future<T> fetch,
+    void Function(T) apply,
+  ) async {
+    try {
+      final value = await fetch;
+      if (mounted) setState(() => apply(value));
+    } catch (e) {
+      debugPrint('[AdminDashboardScreen] $section: $e');
+    } finally {
+      if (mounted) setState(() => _ready.add(section));
+    }
+  }
+
+  Future<void> _loadHeaderExtras() async {
+    try {
+      final results = await Future.wait<Object?>([
+        NotificationRepository().fetchUnreadCount(),
+        _repo.fetchAdminFirstName(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _unreadCount = results[0] as int;
+        final adminFirstName = results[1] as String?;
+        if (adminFirstName != null) _adminName = adminFirstName;
+      });
+    } catch (e) {
+      debugPrint('[AdminDashboardScreen] header extras: $e');
+    }
   }
 
   Future<void> _changeCalendarMonth(int delta) async {
@@ -239,9 +281,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n   = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context);
     final sagana = context.saganaColors;
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -271,8 +313,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         onRefresh: _loadAll,
         child: CustomScrollView(
           slivers: [
-            if (!_isOnline) const SliverToBoxAdapter(child: OfflineBanner()),
-
             SliverPersistentHeader(
               pinned: true,
               delegate: AdminTopBarDelegate(
@@ -280,11 +320,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 unreadCount: _unreadCount,
                 onNotificationTap: () => context
                     .push(AppRoutes.adminNotifications)
-                        .then((_) => _loadAll()),
+                    .then((_) => _loadAll()),
                 onBroadcastTap: () =>
                     context.push(AppRoutes.announcementDashboard),
                 onProfileTap: () => context.push(AppRoutes.adminProfile),
                 enableMenu: true,
+              ),
+            ),
+
+            // Below the top bar, not above it (same placement as Price
+            // Management's offline card).
+            SliverToBoxAdapter(
+              child: CachedDataNotice(
+                screen: AdminDashboardRepository.cacheScreens().first,
+                otherScreens: AdminDashboardRepository.cacheScreens()
+                    .skip(1)
+                    .toList(),
+                isOnline: _isOnline,
+                offlineMessage: l10n.offlineStaffBody,
               ),
             ),
 
@@ -318,7 +371,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 16),
 
                   // ── Dynamic Hero Card (Today's Priorities) ───────────────
-                  if (!_isLoading)
+                  if (_ready.contains(_DashSection.priorities))
                     _PrioritiesHeroCard(
                       priorities: _priorities,
                       onTap: (p) =>
@@ -327,24 +380,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       sagana: sagana,
                     )
                   else
-                    const _ShimmerBlock(height: 120),
+                    const SkeletonBlock(height: 120),
                   const SizedBox(height: 20),
 
                   // ── Cooperative Performance ────────────────────────────
-                  _CoopPerformanceCard(
-                    summary: _coopSummary,
-                    onTap: () => context.go(AppRoutes.operationalReports),
-                    cs: cs,
-                    sagana: sagana,
-                  ),
+                  if (_ready.contains(_DashSection.coop))
+                    _CoopPerformanceCard(
+                      summary: _coopSummary,
+                      onTap: () => context.go(AppRoutes.operationalReports),
+                      cs: cs,
+                      sagana: sagana,
+                    )
+                  else
+                    const SkeletonBlock(height: 120),
                   const SizedBox(height: 20),
 
                   // ── KPI Strip ────────────────────────────────────────────
                   // Grouped inside the same outer titled container the
                   // Report tab uses (Executive Snapshot etc.), not just
                   // individually restyled cards.
-                  if (_isLoading)
-                    const _ShimmerBlock(height: 150)
+                  if (!_ready.contains(_DashSection.kpi))
+                    const SkeletonBlock(height: 150)
                   else
                     ReportSectionCard(
                       title: 'Overview',
@@ -354,45 +410,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   const SizedBox(height: 20),
 
-                  // ── Inventory Alerts ─────────────────────────────────────
-                  if (!_isLoading && _inventoryAlerts.isNotEmpty) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: _SectionHeader(
-                            icon: Icons.inventory_2_outlined,
-                            label: l10n.adminDashInventoryAlerts,
-                            iconColor: AppConstants.warningAmber,
-                            cs: cs,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          // Phase 2: this card now describes cooperative_inventory
-                          // (Inventory Management's own stock), so the link routes
-                          // there instead of the farmer-harvest-batches screen.
-                          onTap: () => context.push(AppRoutes.adminInventory),
-                          child: Text(
-                            l10n.adminDashViewInventory,
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: cs.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _InventoryAlertsCard(
-                      alerts: _inventoryAlerts,
-                      cs: cs,
-                      sagana: sagana,
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
+                  // ── Sync & connectivity (below Overview) ─────────────────
+                  const SyncStatusCard(),
+                  const SizedBox(height: 20),
                   // ── Color-Coded Calendar ─────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -422,8 +442,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  if (_isLoading)
-                    const _ShimmerBlock(height: 280)
+                  if (!_ready.contains(_DashSection.calendar))
+                    const SkeletonBlock(height: 280)
                   else
                     _MiniCalendar(
                       month: _calendarMonth,
@@ -437,13 +457,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                   // ── Management Modules ───────────────────────────────────
                   _SectionHeader(
-                      icon: Icons.grid_view_rounded,
-                      label: l10n.adminDashManagementModules,
+                    icon: Icons.grid_view_rounded,
+                    label: l10n.adminDashManagementModules,
                     cs: cs,
                   ),
                   const SizedBox(height: 12),
-                  if (_isLoading)
-                    const _ShimmerBlock(height: 200)
+                  if (!_ready.contains(_DashSection.modules))
+                    const SkeletonBlock(height: 200)
                   else
                     _ManagementModulesGrid(
                       modules: _managementModules,
@@ -478,8 +498,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (_isLoading)
-                    const _ShimmerBlock(height: 280)
+                  if (!_ready.contains(_DashSection.activity))
+                    const SkeletonBlock(height: 280)
                   else
                     _ActivityFeed(
                       items: _activity,
@@ -581,7 +601,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                   Text(
                     l10n.adminDashAllClearMessage,
                     style: GoogleFonts.inter(
-                        fontSize: 12,
+                      fontSize: 12,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
@@ -600,8 +620,8 @@ class _PrioritiesHeroCard extends StatelessWidget {
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -649,8 +669,8 @@ class _PrioritiesHeroCard extends StatelessWidget {
                   child: Text(
                     l10n.buyerCartItemCount(priorities.length),
                     style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
@@ -694,7 +714,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                               Text(
                                 p.value,
                                 style: GoogleFonts.inter(
-                                    fontSize: 11,
+                                  fontSize: 11,
                                   color: cs.onSurfaceVariant,
                                 ),
                               ),
@@ -703,7 +723,7 @@ class _PrioritiesHeroCard extends StatelessWidget {
                         ),
                         Icon(
                           Icons.chevron_right_rounded,
-                            color: color.withValues(alpha: 0.60),
+                          color: color.withValues(alpha: 0.60),
                           size: 18,
                         ),
                       ],
@@ -712,9 +732,9 @@ class _PrioritiesHeroCard extends StatelessWidget {
                 ),
                 if (!isLast)
                   Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
                     color: cs.outline.withValues(alpha: 0.08),
                   ),
               ],
@@ -787,8 +807,8 @@ class _KpiStrip extends StatelessWidget {
         color: _isLoanDataStale(kpi.loanDataAsOf)
             ? AppConstants.warningAmber
             : kpi.overdueLoans > 0
-                ? AppConstants.errorRed
-                : cs.outline,
+            ? AppConstants.errorRed
+            : cs.outline,
         icon: Icons.warning_amber_rounded,
       ),
       _KpiTile(
@@ -876,7 +896,7 @@ class _KpiCard extends StatelessWidget {
                 child: Text(
                   tile.label,
                   style: GoogleFonts.inter(
-                      fontSize: 10,
+                    fontSize: 10,
                     color: cs.onSurfaceVariant,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -897,142 +917,6 @@ class _KpiCard extends StatelessWidget {
             style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inventory Alerts Card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _InventoryAlertsCard extends StatelessWidget {
-  final List<InventoryAlertItem> alerts;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-
-  const _InventoryAlertsCard({
-    required this.alerts,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
-        ],
-      ),
-      child: Column(
-        children: alerts.asMap().entries.map((entry) {
-          final i = entry.key;
-          final item = entry.value;
-          final isLast = i == alerts.length - 1;
-          final color = item.isDepleted
-              ? AppConstants.errorRed
-              : AppConstants.warningAmber;
-          final label = item.isDepleted
-              ? l10n.adminDashDepletedBadge
-              : l10n.reportsLowStockBadge;
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        color: color,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.itemName,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurface,
-                            ),
-                          ),
-                          Text(
-                            item.category,
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull,
-                            ),
-                          ),
-                          child: Text(
-                            label,
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: color,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (!isLast)
-                Divider(
-                    height: 1,
-                    color: cs.outline.withValues(alpha: 0.08),
-                    indent: 16,
-                  endIndent: 16,
-                ),
-            ],
-          );
-        }).toList(),
       ),
     );
   }
@@ -1267,15 +1151,15 @@ class _MiniCalendar extends StatelessWidget {
                             .take(3)
                             .map(
                               (type) => Container(
-                                  width: 4,
-                                  height: 4,
-                                  margin: const EdgeInsets.symmetric(
+                                width: 4,
+                                height: 4,
+                                margin: const EdgeInsets.symmetric(
                                   horizontal: 1,
                                 ),
-                                  decoration: BoxDecoration(
-                                    color: _eventColor(type),
-                                    shape: BoxShape.circle,
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: _eventColor(type),
+                                  shape: BoxShape.circle,
+                                ),
                               ),
                             )
                             .toList(),
@@ -1310,7 +1194,7 @@ class _MiniCalendar extends StatelessWidget {
                     Text(
                       _legendLabel(l10n, type),
                       style: GoogleFonts.inter(
-                          fontSize: 10,
+                        fontSize: 10,
                         color: cs.onSurfaceVariant,
                       ),
                     ),
@@ -1343,12 +1227,12 @@ class _ManagementModulesGrid extends StatelessWidget {
   });
 
   static const _icons = {
-    'inventory':    Icons.inventory_2_rounded,
-    'crops':        Icons.grass_rounded,
-    'programs':     Icons.people_alt_rounded,
-    'loan-items':   Icons.category_rounded,
+    'inventory': Icons.inventory_2_rounded,
+    'crops': Icons.grass_rounded,
+    'programs': Icons.people_alt_rounded,
+    'loan-items': Icons.category_rounded,
     'supply-chain': Icons.alt_route_rounded,
-    'prices':       Icons.sell_rounded,
+    'prices': Icons.sell_rounded,
   };
 
   // Card title/subtitle are looked up here by id rather than read off the
@@ -1420,7 +1304,7 @@ class _ManagementModulesGrid extends StatelessWidget {
               border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 8,
                 ),
               ],
@@ -1443,31 +1327,28 @@ class _ManagementModulesGrid extends StatelessWidget {
                       ),
                       child: Icon(icon, color: cs.primary, size: 20),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: m.hasBadgeAlert
-                            ? AppConstants.warningAmber.withValues(alpha: 0.15)
-                            : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.radiusFull,
+                    if (m.badgeLabel.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.radiusFull,
+                          ),
+                        ),
+                        child: Text(
+                          m.badgeLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurfaceVariant,
+                            letterSpacing: 0.2,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        m.badgeLabel,
-                        style: GoogleFonts.inter(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                          color: m.hasBadgeAlert
-                              ? AppConstants.warningAmber
-                              : cs.onSurfaceVariant,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -1489,7 +1370,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                       Text(
                         _subtitle(l10n, m.id),
                         style: GoogleFonts.inter(
-                            fontSize: 9,
+                          fontSize: 9,
                           color: cs.onSurfaceVariant,
                         ),
                         maxLines: 1,
@@ -1560,15 +1441,20 @@ class _ActivityFeed extends StatelessWidget {
           return Column(
             children: [
               GestureDetector(
-                onTap: (membersAccessAllowed || !(item.type == AdminActivityType.member || item.type == AdminActivityType.harvest)) ? () => onTap(item) : null,
+                onTap:
+                    (membersAccessAllowed ||
+                        !(item.type == AdminActivityType.member ||
+                            item.type == AdminActivityType.harvest))
+                    ? () => onTap(item)
+                    : null,
                 behavior: HitTestBehavior.opaque,
                 child: _ActivityRow(item: item, cs: cs),
               ),
               if (!isLast)
                 Divider(
-                    height: 1,
-                    color: cs.outline.withValues(alpha: 0.08),
-                    indent: 16,
+                  height: 1,
+                  color: cs.outline.withValues(alpha: 0.08),
+                  indent: 16,
                   endIndent: 16,
                 ),
             ],
@@ -1611,7 +1497,7 @@ class _ActivityRow extends StatelessWidget {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                  color: _dotColor(),
+                color: _dotColor(),
                 shape: BoxShape.circle,
               ),
             ),
@@ -1630,7 +1516,7 @@ class _ActivityRow extends StatelessWidget {
                     : Text(
                         desc,
                         style: GoogleFonts.inter(
-                            fontSize: 13,
+                          fontSize: 13,
                           color: cs.onSurface,
                         ),
                       ),
@@ -1640,7 +1526,7 @@ class _ActivityRow extends StatelessWidget {
                     Text(
                       adminActivityTimeLabel(l10n, item.timestamp),
                       style: GoogleFonts.inter(
-                          fontSize: 11,
+                        fontSize: 11,
                         color: cs.onSurfaceVariant,
                       ),
                     ),
@@ -1648,7 +1534,7 @@ class _ActivityRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       Icon(
                         Icons.chevron_right_rounded,
-                          size: 12,
+                        size: 12,
                         color: cs.onSurfaceVariant,
                       ),
                     ],
@@ -1774,7 +1660,7 @@ class _CoopPerformanceCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 _StatPill(
                   l10n.adminDashStatFarmerStock,
-                    '${summary.totalStockKg.toStringAsFixed(0)} kg',
+                  '${summary.totalStockKg.toStringAsFixed(0)} kg',
                   cs,
                 ),
                 const SizedBox(width: 12),
@@ -1797,7 +1683,7 @@ class _CoopPerformanceCard extends StatelessWidget {
             Text.rich(
               TextSpan(
                 style: GoogleFonts.inter(
-                    fontSize: 13,
+                  fontSize: 13,
                   color: cs.onSurfaceVariant,
                 ),
                 children: [
@@ -1878,15 +1764,9 @@ class _StatPill extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   final String label;
   final IconData? icon;
-  final Color? iconColor;
   final ColorScheme? cs;
 
-  const _SectionHeader({
-    required this.label,
-    this.icon,
-    this.iconColor,
-    this.cs,
-  });
+  const _SectionHeader({required this.label, this.icon, this.cs});
 
   @override
   Widget build(BuildContext context) {
@@ -1895,7 +1775,7 @@ class _SectionHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 18, color: iconColor ?? scheme.primary),
+          Icon(icon, size: 18, color: scheme.primary),
           const SizedBox(width: 6),
         ],
         // Flexible + ellipsis: translated section titles (e.g. "Kalendaryo
@@ -1917,22 +1797,6 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ShimmerBlock extends StatelessWidget {
-  final double height;
-  const _ShimmerBlock({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
     );
   }
 }

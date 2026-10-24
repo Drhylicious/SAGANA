@@ -1,10 +1,12 @@
+import '../services/market_types_service.dart';
+
 class PriceRecordModel {
   final String id;
   final String cropId;
   final String cropName;
   final double price;
   final String unit;
-  final String priceType; // 'sp3_cooperative' | 'open_market'
+  final String priceType; // a market_types.code (Public or Cooperative)
   final double? previousPrice;
   final DateTime recordedAt;
   final String? recordedBy;
@@ -44,16 +46,7 @@ class PriceRecordModel {
 
   String get formattedPrice => '₱${price.toStringAsFixed(2)}/$unit';
 
-  String get priceTypeLabel {
-    switch (priceType) {
-      case 'sp3_cooperative':
-        return 'Cooperative Market Price';
-      case 'da_amad_market':
-        return 'DA-AMAD Market Price';
-      default:
-        return 'Public Market Price';
-    }
-  }
+  String get priceTypeLabel => '${MarketTypes.instance.label(priceType)} Price';
 
   // ─── Serialization ───────────────────────────────────────────────────────────
 
@@ -64,7 +57,7 @@ class PriceRecordModel {
       cropName:      map['crop_name'] as String,
       price:         (map['price'] as num).toDouble(),
       unit:          map['unit'] as String? ?? 'kg',
-      priceType:     map['price_type'] as String? ?? 'open_market',
+      priceType:     map['price_type'] as String? ?? (MarketTypes.instance.defaultCode ?? ''),
       previousPrice: map['previous_price'] != null
           ? (map['previous_price'] as num).toDouble()
           : null,

@@ -77,7 +77,7 @@ class AdminTopBar extends StatelessWidget {
     return AnimatedBuilder(
       animation: profileState,
       builder: (context, _) {
-        final displayName = profileState.fullName ?? 'Admin';
+        final displayName = profileState.fullName ?? 'Manager';
         final profilePhotoUrl = profileState.profilePhotoUrl;
 
         return ClipRect(
@@ -88,7 +88,9 @@ class AdminTopBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
                 color: sagana.glassBackground,
-                border: Border(bottom: BorderSide(color: sagana.glassBorder)),
+                border: Border(
+                  bottom: BorderSide(color: cs.outline.withValues(alpha: 0.18)),
+                ),
               ),
               child: Row(
                 children: [

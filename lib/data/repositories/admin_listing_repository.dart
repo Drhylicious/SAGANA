@@ -1,6 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
+import '../models/admin_log_message.dart';
 
 // ─── Admin Listing Model ──────────────────────────────────────────────────────
 // Extends the farmer-side MarketplaceListingModel with admin-only fields.
@@ -37,6 +40,11 @@ class AdminListingModel {
   // crop_id migration).
   final String? canonicalCropName;
 
+  // marketplace_listings.crop_type: a market_types.code (Public or
+  // Cooperative). Null only for a stale offline snapshot taken before this
+  // was selected.
+  final String? marketType;
+
   const AdminListingModel({
     required this.id,
     required this.farmerId,
@@ -60,6 +68,7 @@ class AdminListingModel {
     this.farmerRejectedCount = 0,
     this.farmerOutstandingLoan = 0,
     this.canonicalCropName,
+    this.marketType,
   });
 
   // ── Computed helpers ──────────────────────────────────────────────────────
@@ -68,6 +77,11 @@ class AdminListingModel {
   bool get isApproved => status == 'approved';
   bool get isSold => status == 'sold';
   bool get isRejected => status == 'rejected';
+
+  /// Nothing left to buy: stored as sold, or approved with 0 kg remaining.
+  /// Same rule as MarketplaceListingModel.isSoldOut.
+  bool get isSoldOut =>
+      status == 'sold' || (status == 'approved' && remainingKg <= 0);
 
   /// Matches MarketplaceListingModel.displayName — crop + variety when present.
   String get displayName {
@@ -86,13 +100,13 @@ class AdminListingModel {
   String get statusLabel {
     switch (status) {
       case 'pending_review':
-        return 'Pending';
+        return 'Pending Approval';
       case 'approved':
-        return 'Live';
+        return isSoldOut ? 'Sold Out' : 'Available';
       case 'sold':
-        return 'Sold';
+        return 'Sold Out';
       case 'rejected':
-        return 'Rejected';
+        return 'Disapproved';
       default:
         return status;
     }
@@ -184,6 +198,7 @@ class AdminListingModel {
       farmerOutstandingLoan: (map['farmer_outstanding_loan'] as num? ?? 0)
           .toDouble(),
       canonicalCropName: map['canonical_crop_name'] as String?,
+      marketType: map['crop_type'] as String?,
     );
   }
 }
@@ -284,10 +299,10 @@ class AdminListingRepository {
     );
   }
 
-  /// Pending Review now browses review *outcomes* (pending/approved/rejected),
-  /// not just the open queue — a scoped fetch rather than reusing
-  /// fetchAllListings, so this screen never accidentally shows
-  /// sold/withdrawn listings that belong to All Listings.
+  /// Listing Approvals browses the Manager's approval *outcomes* (pending,
+  /// approved, disapproved), not just the open queue. A sold listing was
+  /// approved, so it is included and counts as Approved; withdrawn listings
+  /// (a Farmer housekeeping action nobody decided on) are not.
   Future<List<AdminListingModel>> fetchReviewListings({
     String?
     statusFilter, // null = pending_review + approved + rejected combined
@@ -309,7 +324,7 @@ class AdminListingRepository {
       categoryFilter: categoryFilter,
     );
     return all
-        .where((l) => l.isPending || l.isApproved || l.isRejected)
+        .where((l) => l.isPending || l.isApproved || l.isSold || l.isRejected)
         .toList();
   }
 
@@ -321,161 +336,175 @@ class AdminListingRepository {
     int? limit,
   }) async {
     try {
-      var query = _client
-          .from('marketplace_listings')
-          .select(
-            'id, farmer_id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, '
-            'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at',
-          );
+      // The merged listing maps are cached (the search text is applied after the
+      // read, so it is not part of the key). Models are built after the cache.
+      final enriched = await OfflineCache.load(
+        screen:
+            'listings_${statusFilter ?? 'all'}_${cropFilter ?? 'all'}_'
+            '${categoryFilter ?? 'all'}_${limit ?? 'all'}',
+        fetch: () async {
+          var query = _client
+              .from('marketplace_listings')
+              .select(
+                'id, farmer_id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, '
+                'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at, crop_type',
+              );
 
-      if (statusFilter != null) {
-        query = query.eq('status', statusFilter);
-      } else {
-        // Withdrawn is a farmer housekeeping action, not something admin
-        // reviews or acts on — excluded whenever no specific status was
-        // asked for (the "All" chip), so All = Pending + Live + Changes +
-        // Sold + Rejected always holds without a 7th chip nobody needs.
-        query = query.neq('status', 'withdrawn');
-      }
-      if (cropFilter != null) {
-        // Crops now comes from a crop_master-backed picker rather than
-        // free-text search, so exact match is correct — .ilike substring
-        // matching was only ever a workaround for a text field with no picker.
-        query = query.eq('crop_name', cropFilter);
-      }
-      if (categoryFilter != null) {
-        final namesInCategory = await fetchCropsByCategory(
-          category: categoryFilter,
-        );
-        if (namesInCategory.isEmpty) return [];
-        query = query.inFilter('crop_name', namesInCategory);
-      }
+          if (statusFilter != null) {
+            query = query.eq('status', statusFilter);
+          } else {
+            // Withdrawn is a farmer housekeeping action, not something admin
+            // reviews or acts on — excluded whenever no specific status was
+            // asked for (the "All" chip), so All = Pending + Live + Changes +
+            // Sold + Rejected always holds without a 7th chip nobody needs.
+            query = query.neq('status', 'withdrawn');
+          }
+          if (cropFilter != null) {
+            // Crops now comes from a crop_master-backed picker rather than
+            // free-text search, so exact match is correct — .ilike substring
+            // matching was only ever a workaround for a text field with no picker.
+            query = query.eq('crop_name', cropFilter);
+          }
+          if (categoryFilter != null) {
+            final namesInCategory = await fetchCropsByCategory(
+              category: categoryFilter,
+            );
+            if (namesInCategory.isEmpty) return <Map<String, dynamic>>[];
+            query = query.inFilter('crop_name', namesInCategory);
+          }
 
-      final ordered = query.order('created_at', ascending: false);
-      final rows = limit != null ? await ordered.limit(limit) : await ordered;
+          final ordered = query.order('created_at', ascending: false);
+          final rows = limit != null
+              ? await ordered.limit(limit)
+              : await ordered;
 
-      if (rows.isEmpty) return [];
+          if (rows.isEmpty) return <Map<String, dynamic>>[];
 
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-      final batchIds = rows
-          .where((r) => r['inventory_batch_id'] != null)
-          .map((r) => r['inventory_batch_id'] as String)
-          .toSet()
-          .toList();
-      final cropNames = rows
-          .map((r) => r['crop_name'] as String)
-          .toSet()
-          .toList();
-      final cropIds = rows
-          .map((r) => r['crop_id'] as String?)
-          .whereType<String>()
-          .toSet()
-          .toList();
-      final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
+          final farmerIds = rows
+              .map((r) => r['farmer_id'] as String)
+              .toSet()
+              .toList();
+          final batchIds = rows
+              .where((r) => r['inventory_batch_id'] != null)
+              .map((r) => r['inventory_batch_id'] as String)
+              .toSet()
+              .toList();
+          final cropNames = rows
+              .map((r) => r['crop_name'] as String)
+              .toSet()
+              .toList();
+          final cropIds = rows
+              .map((r) => r['crop_id'] as String?)
+              .whereType<String>()
+              .toSet()
+              .toList();
+          final canonicalCropNames = await fetchCropNameMap(_client, cropIds);
 
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name, profile_photo_url')
-          .inFilter('user_id', farmerIds);
-      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
+          final infoRows = await _client
+              .from('user_information')
+              .select('user_id, full_name, profile_photo_url')
+              .inFilter('user_id', farmerIds);
+          final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
-      final batchMap = <String, double>{};
-      if (batchIds.isNotEmpty) {
-        final batchRows = await _client
-            .from('inventory_batches')
-            .select('id, available_kg')
-            .inFilter('id', batchIds);
-        for (final r in batchRows) {
-          batchMap[r['id'] as String] = (r['available_kg'] as num).toDouble();
-        }
-      }
+          final batchMap = <String, double>{};
+          if (batchIds.isNotEmpty) {
+            final batchRows = await _client
+                .from('inventory_batches')
+                .select('id, available_kg')
+                .inFilter('id', batchIds);
+            for (final r in batchRows) {
+              batchMap[r['id'] as String] = (r['available_kg'] as num)
+                  .toDouble();
+            }
+          }
 
-      final priceMap = <String, double>{};
-      try {
-        final priceRows = await _client
-            .from('price_records')
-            .select('crop_name, price')
-            .inFilter('crop_name', cropNames)
-            .order('recorded_at', ascending: false);
-        for (final r in priceRows) {
-          final cn = r['crop_name'] as String;
-          priceMap.putIfAbsent(cn, () => (r['price'] as num).toDouble());
-        }
-      } catch (_) {}
+          final priceMap = <String, double>{};
+          try {
+            final priceRows = await _client
+                .from('price_records')
+                .select('crop_name, price')
+                .inFilter('crop_name', cropNames)
+                .order('recorded_at', ascending: false);
+            for (final r in priceRows) {
+              final cn = r['crop_name'] as String;
+              priceMap.putIfAbsent(cn, () => (r['price'] as num).toDouble());
+            }
+          } catch (_) {}
 
-      final historyRows = await _client
-          .from('marketplace_listings')
-          .select('farmer_id, status')
-          .inFilter('farmer_id', farmerIds);
-      final historyMap = <String, Map<String, int>>{};
-      for (final r in historyRows) {
-        final fid = r['farmer_id'] as String;
-        final stat = r['status'] as String;
-        historyMap.putIfAbsent(
-          fid,
-          () => {'total': 0, 'approved': 0, 'rejected': 0},
-        );
-        historyMap[fid]!['total'] = (historyMap[fid]!['total'] ?? 0) + 1;
-        if (stat == 'approved') {
-          historyMap[fid]!['approved'] =
-              (historyMap[fid]!['approved'] ?? 0) + 1;
-        }
-        if (stat == 'rejected') {
-          historyMap[fid]!['rejected'] =
-              (historyMap[fid]!['rejected'] ?? 0) + 1;
-        }
-      }
+          final historyRows = await _client
+              .from('marketplace_listings')
+              .select('farmer_id, status')
+              .inFilter('farmer_id', farmerIds);
+          final historyMap = <String, Map<String, int>>{};
+          for (final r in historyRows) {
+            final fid = r['farmer_id'] as String;
+            final stat = r['status'] as String;
+            historyMap.putIfAbsent(
+              fid,
+              () => {'total': 0, 'approved': 0, 'rejected': 0},
+            );
+            historyMap[fid]!['total'] = (historyMap[fid]!['total'] ?? 0) + 1;
+            if (stat == 'approved') {
+              historyMap[fid]!['approved'] =
+                  (historyMap[fid]!['approved'] ?? 0) + 1;
+            }
+            if (stat == 'rejected') {
+              historyMap[fid]!['rejected'] =
+                  (historyMap[fid]!['rejected'] ?? 0) + 1;
+            }
+          }
 
-      final loanMap = <String, double>{};
-      try {
-        final loanRows = await _client
-            .from('farmer_loans')
-            .select('farmer_id, total_value, amount_paid')
-            .inFilter('farmer_id', farmerIds)
-            .neq('status', 'paid');
-        for (final r in loanRows) {
-          final fid = r['farmer_id'] as String;
-          final rem =
-              ((r['total_value'] as num).toDouble() -
-                      (r['amount_paid'] as num? ?? 0).toDouble())
-                  .clamp(0.0, double.infinity);
-          loanMap[fid] = (loanMap[fid] ?? 0) + rem;
-        }
-      } catch (_) {}
+          final loanMap = <String, double>{};
+          try {
+            final loanRows = await _client
+                .from('farmer_loans')
+                .select('farmer_id, total_value, amount_paid')
+                .inFilter('farmer_id', farmerIds)
+                .neq('status', 'paid');
+            for (final r in loanRows) {
+              final fid = r['farmer_id'] as String;
+              final rem =
+                  ((r['total_value'] as num).toDouble() -
+                          (r['amount_paid'] as num? ?? 0).toDouble())
+                      .clamp(0.0, double.infinity);
+              loanMap[fid] = (loanMap[fid] ?? 0) + rem;
+            }
+          } catch (_) {}
 
-      var result = rows.map((r) {
-        final fid = r['farmer_id'] as String;
-        final info = infoMap[fid] ?? {};
-        final batchId = r['inventory_batch_id'] as String?;
-        final history = historyMap[fid] ?? {};
-        final cn = r['crop_name'] as String;
-        final cropId = r['crop_id'] as String?;
-        final volumeKg = (r['volume_kg'] as num).toDouble();
+          return rows.map<Map<String, dynamic>>((r) {
+            final fid = r['farmer_id'] as String;
+            final info = infoMap[fid] ?? {};
+            final batchId = r['inventory_batch_id'] as String?;
+            final history = historyMap[fid] ?? {};
+            final cn = r['crop_name'] as String;
+            final cropId = r['crop_id'] as String?;
+            final volumeKg = (r['volume_kg'] as num).toDouble();
 
-        return AdminListingModel.fromMap({
-          ...r,
-          'farmer_name': info['full_name'] as String? ?? 'Farmer',
-          'farmer_photo_url': info['profile_photo_url'] as String?,
-          'listing_photo_url': r['photo_url'],
-          'batch_id': r['inventory_batch_id'],
-          'batch_available_kg': _adjustedBatchAvailable(
-            batchId != null ? batchMap[batchId] : null,
-            r['status'] as String? ?? 'pending_review',
-            volumeKg,
-          ),
-          'market_ref_price': priceMap[cn],
-          'canonical_crop_name': cropId != null
-              ? canonicalCropNames[cropId]
-              : null,
-          'farmer_total_submissions': history['total'] ?? 0,
-          'farmer_approved_count': history['approved'] ?? 0,
-          'farmer_rejected_count': history['rejected'] ?? 0,
-          'farmer_outstanding_loan': loanMap[fid] ?? 0.0,
-        });
-      }).toList();
+            return {
+              ...r,
+              'farmer_name': info['full_name'] as String? ?? 'Farmer',
+              'farmer_photo_url': info['profile_photo_url'] as String?,
+              'listing_photo_url': r['photo_url'],
+              'batch_id': r['inventory_batch_id'],
+              'batch_available_kg': _adjustedBatchAvailable(
+                batchId != null ? batchMap[batchId] : null,
+                r['status'] as String? ?? 'pending_review',
+                volumeKg,
+              ),
+              'market_ref_price': priceMap[cn],
+              'canonical_crop_name': cropId != null
+                  ? canonicalCropNames[cropId]
+                  : null,
+              'farmer_total_submissions': history['total'] ?? 0,
+              'farmer_approved_count': history['approved'] ?? 0,
+              'farmer_rejected_count': history['rejected'] ?? 0,
+              'farmer_outstanding_loan': loanMap[fid] ?? 0.0,
+            };
+          }).toList();
+        },
+      );
+
+      var result = enriched.map((m) => AdminListingModel.fromMap(m)).toList();
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final q = searchQuery.toLowerCase();
@@ -497,10 +526,13 @@ class AdminListingRepository {
 
   Future<ListingSummaryStats> fetchSummaryStats() async {
     try {
-      final rows = await _client
-          .from('marketplace_listings')
-          .select('status')
-          .neq('status', 'withdrawn');
+      final rows = await OfflineCache.load(
+        screen: 'listing_status_rows',
+        fetch: () => _client
+            .from('marketplace_listings')
+            .select('status')
+            .neq('status', 'withdrawn'),
+      );
 
       int pending = 0, approved = 0, sold = 0, rejected = 0;
       for (final r in rows) {
@@ -545,11 +577,12 @@ class AdminListingRepository {
   }
 
   Future<void> approveListing(String listingId) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc('approve_listing', params: {'p_listing_id': listingId});
     AdminActivityRepository().log(
       module: 'listings',
       actionType: 'approved',
-      description: 'Approved a marketplace listing.',
+      message: const AdminLogMessage('adminLogListingApproved'),
       referenceId: listingId,
     );
   }
@@ -560,7 +593,7 @@ class AdminListingRepository {
           .from('marketplace_listings')
           .select(
             'id, farmer_id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
-            'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at',
+            'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at, crop_type',
           )
           .eq('id', listingId)
           .maybeSingle();
@@ -675,6 +708,7 @@ class AdminListingRepository {
     required String listingId,
     required String reason,
   }) async {
+    await ServerOnly.ensureOnline();
     await _client.rpc(
       'reject_listing',
       params: {'p_listing_id': listingId, 'p_reason': reason.trim()},
@@ -682,7 +716,7 @@ class AdminListingRepository {
     AdminActivityRepository().log(
       module: 'listings',
       actionType: 'rejected',
-      description: 'Rejected a marketplace listing.',
+      message: const AdminLogMessage('adminLogListingRejected'),
       referenceId: listingId,
     );
   }

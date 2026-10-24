@@ -68,6 +68,10 @@ ALTER TABLE public.officer_profiles
 -- ════════════════════════════════════════════════════════════
 
 DROP FUNCTION IF EXISTS public.create_officer_account(text,text,text,text,text,text,uuid);
+-- Also drop the current signature. An earlier migration already created it,
+-- and a bare CREATE FUNCTION fails with 42723 if it exists. Dropping first
+-- keeps this file safe to re-run.
+DROP FUNCTION IF EXISTS public.create_officer_account(text,text,text,date,text,text,text,text,uuid);
 
 CREATE FUNCTION public.create_officer_account(
   p_username      text,

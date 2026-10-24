@@ -9,10 +9,13 @@ import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
 import 'listing_success_screen.dart' show ListingSuccessArgs;
+import '../../widgets/skeleton.dart';
+import '../../../core/l10n/app_localizations.dart';
 
 // FilteringTextInputFormatter.allow with an anchored (^) pattern only ever
 // re-validates from the start of the string, via allMatches() — once a
@@ -238,15 +241,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       setState(() => _isSubmitting = false);
       // create_listing_with_reservation raises when the submitted quantity
       // exceeds real available stock, and separately when the crop is
-      // Ginger (DA-AMAD-exclusive, sold only through Market Linking) —
-      // surface both specifically instead of a generic message, since
-      // they're actionable, expected failures rather than network/server
-      // errors.
+      // the crop is reserved for another selling channel (Ginger → DA-AMAD
+      // Market Linking) — surface both specifically instead of a generic
+      // message, since they're actionable, expected failures rather than
+      // network/server errors. The database's own sentence for the second
+      // case ("<crop> can only be sold through <channel> — …") is shown as is.
       final errorText = e.toString();
       final message = errorText.contains('Not enough available quantity')
           ? 'Not enough available stock for that quantity. Please lower it and try again.'
-          : errorText.contains('Ginger cannot be listed')
-              ? 'Ginger can only be sold through the Market Linking program, not the open Marketplace.'
+          : errorText.contains('can only be sold through')
+              ? friendlyErrorMessage(e)
               : 'Failed to submit listing. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
@@ -267,14 +271,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       resizeToAvoidBottomInset: true,
       body: Column(
         children: [
-          if (!_isOnline)
-            const OfflineBanner(message: "You're offline — you won't be able to submit a new listing until you're reconnected."),
           Expanded(
             child: Stack(
               children: [
                 Column(
                   children: [
                     const SizedBox(height: 72),
+                    if (!_isOnline) OfflineStatusCard(message: AppLocalizations.of(context).offlineListingSubmit),
                     Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -290,7 +293,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         const _SectionLabel(number: 1, title: 'Choose What to Sell'),
                         const SizedBox(height: 10),
                         _isLoadingBatches
-                            ? const SizedBox(height: 110, child: Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen)))
+                            ? const SkeletonBlock(height: 110)
                             : _batches.isEmpty
                                 ? _NoBatchesNotice(onGoToInventory: () =>
                                   context.pushReplacementRoute(AppRoutes.manageInventory))
@@ -351,7 +354,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       _BottomActions(
                         isOnline: _isOnline,
                         isSubmitting: _isSubmitting,
-                        canSubmit: _selectedBatch != null,
+                        canSubmit: _selectedBatch != null && _isOnline,
                         onSubmit: _handleSubmit,
                         onViewListings: () => Navigator.of(context).pop(),
                       ),
@@ -456,7 +459,7 @@ class _AdminReviewBanner extends StatelessWidget {
                     style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant, height: 1.4),
                     children: [
                       const TextSpan(text: 'Your listing will be reviewed by the '),
-                      TextSpan(text: 'SP3 Cooperative admin', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
+                      TextSpan(text: 'SP3 Cooperative Manager', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppConstants.onSurface)),
                       const TextSpan(text: ' before becoming visible to buyers in the marketplace.'),
                     ],
                   ),
@@ -870,20 +873,13 @@ class _FormCard extends StatelessWidget {
 
 class _FieldLabel extends StatelessWidget {
   final String text;
-  final bool optional;
-  const _FieldLabel(this.text, {this.optional = false});
+  const _FieldLabel(this.text);
 
   @override
   Widget build(BuildContext context) {
-    return RichText(
-      text: TextSpan(
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant),
-        children: [
-          TextSpan(text: text),
-          if (optional)
-            TextSpan(text: '  (Optional)', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w400, color: AppConstants.outline)),
-        ],
-      ),
+    return Text(
+      text,
+      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppConstants.onSurfaceVariant),
     );
   }
 }
@@ -1105,7 +1101,7 @@ class _WhatHappensNextCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Your listing enters the cooperative admin\'s review queue before it appears to buyers.',
+            'Your listing enters the cooperative Manager\'s review queue before it appears to buyers.',
             style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
           ),
           const SizedBox(height: 14),

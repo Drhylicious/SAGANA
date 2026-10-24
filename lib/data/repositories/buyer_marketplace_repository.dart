@@ -1,4 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/market_types_service.dart';
+import '../services/offline_cache.dart';
+import '../services/server_only.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_listing_model.dart';
 import '../models/price_record_model.dart';
@@ -17,15 +20,19 @@ class BuyerMarketplaceRepository {
   final SupabaseClient _client = Supabase.instance.client;
   final PriceManagementRepository _priceRepo = PriceManagementRepository();
 
-  static const List<String> _priceTypePriority = [
-    'open_market',
-    'sp3_cooperative',
-  ];
-
-  // external market price first (open_market) since that reflects what a
-  // buyer should expect to pay; sp3_cooperative is SP3's farmgate
-  // procurement rate to farmers, not a consumer price, so it's used only
-  // as a last-resort fallback when no market price exists.
+  // Which market's price to prefer, read from market_types: a market Buyers
+  // can see (the Public Market price, which is what a buyer should expect to
+  // pay) first, then the rest in their table order. A farmer-only market's
+  // price (SP3's farmgate procurement rate, not a consumer price) is only a
+  // last-resort fallback, and only for accounts that can read it at all.
+  List<String> get _priceTypePriority {
+    final types = [...MarketTypes.instance.activeTypes];
+    types.sort((a, b) {
+      if (a.buyerVisible != b.buyerVisible) return a.buyerVisible ? -1 : 1;
+      return a.sortOrder.compareTo(b.sortOrder);
+    });
+    return types.map((t) => t.code).toList();
+  }
   Map<String, double> _resolvePriceMap(List<PriceRecordModel> prices) {
     final byCrop = <String, Map<String, double>>{};
     for (final p in prices) {
@@ -71,6 +78,11 @@ class BuyerMarketplaceRepository {
   // to fetch page 2+. `.range()` supports both in one call and is fully
   // backward compatible: existing callers passing only `limit` still get
   // rows 0..limit-1, identical to before, since offset defaults to 0.
+  /// OfflineCache key for one approved-listings page (matches the key written by
+  /// fetchApprovedListings), for the marketplace notice.
+  static String listingsCacheScreen({int? limit, int offset = 0}) =>
+      'buyer_listings_${limit ?? 'all'}_$offset';
+
   Future<List<BuyerListingModel>> fetchApprovedListings({
     int? limit,
     int offset = 0,
@@ -85,10 +97,23 @@ class BuyerMarketplaceRepository {
           .eq('status', 'approved');
 
       final ordered = query.order('created_at', ascending: false);
-      final rows = limit != null
-          ? await ordered.range(offset, offset + limit - 1)
-          : await ordered;
+      final loaded = await OfflineCache.load(
+        screen: 'buyer_listings_${limit ?? 'all'}_$offset',
+        fetch: () async => limit != null
+            ? await ordered.range(offset, offset + limit - 1)
+            : await ordered,
+      );
 
+      // A saved snapshot may predate the current market rules (a crop moved to
+      // a farmer-only market, or this account's access changed). Rows served
+      // from the cache are re-checked here; live rows are already filtered by
+      // the database.
+      final cacheKey = listingsCacheScreen(limit: limit, offset: offset);
+      final rows = OfflineCache.servedFromCache(cacheKey)
+          ? loaded
+                .where((r) => MarketTypes.instance.visibleToCurrentUser(r['crop_type'] as String?))
+                .toList()
+          : loaded;
       if (rows.isEmpty) return [];
 
       final batchIds = rows
@@ -203,15 +228,27 @@ class BuyerMarketplaceRepository {
 
   Future<BuyerListingModel?> fetchListingById(String listingId) async {
     try {
-      final row = await _client
-          .from('marketplace_listings')
-          .select(
-            'id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
-            'inventory_batch_id, photo_url, description, created_at, farmer_id, crop_type',
-          )
-          .eq('id', listingId)
-          .eq('status', 'approved')
-          .maybeSingle();
+      final rowRows = await OfflineCache.load(
+        screen: 'buyer_listing_$listingId',
+        fetch: () => _client
+            .from('marketplace_listings')
+            .select(
+              'id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
+              'inventory_batch_id, photo_url, description, created_at, farmer_id, crop_type',
+            )
+            .eq('id', listingId)
+            .eq('status', 'approved')
+            .limit(1),
+      );
+      final row = rowRows.isEmpty ? null : rowRows.first;
+
+      // A snapshot saved before this account's market access changed (or before
+      // the crop moved to a farmer-only market) must not open for a Buyer.
+      if (row != null &&
+          OfflineCache.servedFromCache('buyer_listing_$listingId') &&
+          !MarketTypes.instance.visibleToCurrentUser(row['crop_type'] as String?)) {
+        return null;
+      }
 
       if (row == null) return null;
 
@@ -354,6 +391,27 @@ class BuyerMarketplaceRepository {
     }
   }
 
+  /// The live rows behind a set of cart lines, keyed by listing id, as this
+  /// account can read them. A listing the database hides from this account
+  /// (a farmer-only market, for a Buyer) or that was removed simply has no row.
+  /// Returns null when the lookup itself failed (offline or a server error):
+  /// the caller must then not treat missing rows as "unavailable".
+  Future<Map<String, Map<String, dynamic>>?> fetchCartListingRows(
+    List<String> listingIds,
+  ) async {
+    if (listingIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('marketplace_listings')
+          .select('id, status, remaining_kg, crop_type, farmer_id')
+          .inFilter('id', listingIds);
+      return {for (final r in rows) r['id'] as String: r};
+    } catch (e) {
+      debugPrint('BuyerMarketplaceRepository.fetchCartListingRows failed: $e');
+      return null;
+    }
+  }
+
   // ─── Place order — calls the atomic RPC, does NOT swallow errors ──────────
   // Financial write: must throw on failure so the UI can show the real
   // reason (e.g. insufficient stock), same convention as every other
@@ -377,13 +435,14 @@ class BuyerMarketplaceRepository {
     String? deliveryRecipientName,
     String? deliveryLabel,
   }) async {
+    await ServerOnly.ensureOnline();
     await AuthService.requireActiveMembership();
     try {
       final result = await _client.rpc(
         'place_order',
         params: {
-        'p_listing_id': listingId,
-        'p_quantity_kg': quantityKg,
+          'p_listing_id': listingId,
+          'p_quantity_kg': quantityKg,
           'p_fulfillment_method': fulfillmentMethod,
           'p_delivery_address': deliveryAddress,
           'p_delivery_latitude': deliveryLatitude,

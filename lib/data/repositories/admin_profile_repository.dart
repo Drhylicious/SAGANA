@@ -2,8 +2,10 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_profile_model.dart';
 import '../services/hive_service.dart';
+import '../services/offline_actions.dart';
 import '../services/profile_photo_service.dart';
 import 'admin_activity_repository.dart';
+import '../models/admin_log_message.dart';
 
 /// Repository for the logged-in admin's own profile — user_information +
 /// admin_profiles, joined at this layer. Every method operates on the
@@ -49,7 +51,7 @@ class AdminProfileRepository {
       return AdminProfileModel(
         userId: _userId,
         email: _client.auth.currentUser?.email ?? '',
-        fullName: infoRow['full_name'] as String? ?? 'Admin',
+        fullName: infoRow['full_name'] as String? ?? 'Manager',
         phoneNumber: infoRow['phone_number'] as String?,
         profilePhotoUrl: infoRow['profile_photo_url'] as String?,
         contactEmail: infoRow['contact_email'] as String?,
@@ -187,7 +189,32 @@ class AdminProfileRepository {
   /// live on officer_profiles, not the admin_profiles operational-access
   /// grant row). No-op for date_of_birth/gender when both are left null,
   /// so existing callers are unaffected.
-  Future<void> updateBasicInfo({
+  /// Saves now, or keeps the change on this device when offline.
+  Future<SaveOutcome> updateBasicInfo({
+    required String fullName,
+    String? phoneNumber,
+    DateTime? dateOfBirth,
+    String? gender,
+  }) {
+    return OfflineActions.run(
+      kind: 'admin_basic_info',
+      payload: {
+        'fullName': fullName,
+        'phoneNumber': phoneNumber,
+        'dateOfBirth': encodeDate(dateOfBirth),
+        'gender': gender,
+      },
+      online: () => updateBasicInfoOnline(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+      ),
+    );
+  }
+
+  /// The server write behind updateBasicInfo(). Also run by offline replay.
+  Future<void> updateBasicInfoOnline({
     required String fullName,
     String? phoneNumber,
     DateTime? dateOfBirth,
@@ -204,7 +231,7 @@ class AdminProfileRepository {
     AdminActivityRepository().log(
       module: 'profile',
       actionType: 'updated',
-      description: '$fullName updated their profile information.',
+      message: AdminLogMessage('adminLogProfileUpdated', {'fullName': fullName}),
     );
 
     if (dateOfBirth == null && gender == null) return;
@@ -223,7 +250,33 @@ class AdminProfileRepository {
         .eq('user_id', _userId);
   }
 
-  Future<String?> updatePhoto({
+  /// Uploads now, or keeps the photo on this device when offline. A queued
+  /// photo has no URL until it syncs.
+  Future<PhotoSaveResult> updatePhoto({
+    required Uint8List imageBytes,
+    required String fileExtension,
+  }) async {
+    String? url;
+    try {
+      final outcome = await OfflineActions.run(
+        kind: 'admin_photo',
+        payload: {'imageBytes': imageBytes, 'fileExtension': fileExtension},
+        online: () async {
+          url = await updatePhotoOnline(
+            imageBytes: imageBytes,
+            fileExtension: fileExtension,
+          );
+        },
+      );
+      return PhotoSaveResult(outcome: outcome, url: url);
+    } catch (_) {
+      return const PhotoSaveResult.failed();
+    }
+  }
+
+  /// Uploads the photo and writes its URL. Throws on failure, so a queued
+  /// photo that is rejected keeps its reason. Also run by offline replay.
+  Future<String> updatePhotoOnline({
     required Uint8List imageBytes,
     required String fileExtension,
   }) async {
@@ -233,25 +286,30 @@ class AdminProfileRepository {
       imageBytes: imageBytes,
       fileExtension: fileExtension,
     );
-    if (url == null) return null;
+    if (url == null) throw Exception('Photo upload failed.');
 
-    try {
-      await _client
-          .from('user_information')
-          .update({'profile_photo_url': url})
-          .eq('user_id', _userId);
-      AdminActivityRepository().log(
-        module: 'profile',
-        actionType: 'photo_updated',
-        description: 'Updated their profile picture.',
-      );
-      return url;
-    } catch (_) {
-      return null;
-    }
+    await _client
+        .from('user_information')
+        .update({'profile_photo_url': url})
+        .eq('user_id', _userId);
+    AdminActivityRepository().log(
+      module: 'profile',
+      actionType: 'photo_updated',
+      message: const AdminLogMessage('adminLogProfilePhotoUpdated'),
+    );
+    return url;
   }
 
-  Future<void> removePhoto() async {
+  /// Removes the photo now, or keeps the removal on this device when offline.
+  Future<SaveOutcome> removePhoto() {
+    return OfflineActions.run(
+      kind: 'admin_photo_remove',
+      payload: const {},
+      online: removePhotoOnline,
+    );
+  }
+
+  Future<void> removePhotoOnline() async {
     await _client
         .from('user_information')
         .update({'profile_photo_url': null})
@@ -259,7 +317,7 @@ class AdminProfileRepository {
     AdminActivityRepository().log(
       module: 'profile',
       actionType: 'photo_removed',
-      description: 'Removed their profile picture.',
+      message: const AdminLogMessage('adminLogProfilePhotoRemoved'),
     );
   }
 }

@@ -4,12 +4,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/cached_data_notice.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/listing_filter_modal.dart';
+import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge, ListingMarketFilterRow;
+import '../../widgets/listing_status_badge.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
 class AllListingsScreen extends StatefulWidget {
   const AllListingsScreen({super.key});
@@ -28,7 +32,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
   bool _isOnline = true;
 
   String _searchQuery = '';
-  String? _statusFilter; // null = All
+  String? _marketFilter; // null = All markets, else a crop_type value
 
   @override
   void initState() {
@@ -50,9 +54,8 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     super.dispose();
   }
 
-  // Status is deliberately NOT passed here — it's filtered client-side in
-  // _filtered below, so switching status chips never re-hits the network
-  // (matching Order Management's already-smooth behavior).
+  // The market filter and the search are applied client-side in _filtered
+  // below, so switching chips never re-hits the network.
   Future<void> _loadAll() async {
     if (!_hasLoadedOnce) setState(() => _isLoading = true);
     final listings = await _repo.fetchAllListings();
@@ -65,9 +68,10 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
   }
 
   List<AdminListingModel> get _filtered {
-    var list = _statusFilter == null
-        ? _allListings
-        : _allListings.where((l) => l.status == _statusFilter);
+    Iterable<AdminListingModel> list = _allListings;
+    if (_marketFilter != null) {
+      list = list.where((l) => l.marketType == _marketFilter);
+    }
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where(
@@ -78,10 +82,6 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
       );
     }
     return list.toList();
-  }
-
-  void _onStatusFilterChanged(String? status) {
-    setState(() => _statusFilter = status);
   }
 
   Future<void> _quickApprove(AdminListingModel listing) async {
@@ -96,7 +96,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
       SnackBar(
         content: Text(msg, style: GoogleFonts.inter(fontSize: 13)),
         backgroundColor: isSuccess
-            ? AppConstants.successGreen
+            ? AppConstants.midGreen
             : AppConstants.charcoal,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -120,16 +120,17 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
           Column(
             children: [
               const SizedBox(height: 64),
+              CachedDataNotice(
+                screen: 'listings_all_all_all_all',
+                isOnline: _isOnline,
+                offlineMessage: AppLocalizations.of(context).offlineListingActions,
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadAll,
                   child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppConstants.primaryGreen,
-                          ),
-                        )
+                      ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
                       : ListView(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
                           children: [
@@ -164,61 +165,13 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                             ),
                             const SizedBox(height: 14),
 
-                            // ── Status chips — same plain-pill style as
-                            // Pending Approval / Offer to Cooperative now
-                            // (no count badge), instead of this screen's own
-                            // previous, visually different chip design.
-                            SizedBox(
-                              height: 34,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                children: [
-                                  ListingStatusFilterChip(
-                                    label: l10n.farmerMgmtAllFilter,
-                                    active: _statusFilter == null,
-                                    color: cs.primary,
-                                    onTap: () => _onStatusFilterChanged(null),
-                                    cs: cs,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ListingStatusFilterChip(
-                                    label:
-                                        l10n.buyerOrderDetailPendingTimestamp,
-                                    active: _statusFilter == 'pending_review',
-                                    color: cs.error,
-                                    onTap: () => _onStatusFilterChanged(
-                                      'pending_review',
-                                  ),
-                                    cs: cs,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ListingStatusFilterChip(
-                                    label: l10n.marketplaceFilterLive,
-                                    active: _statusFilter == 'approved',
-                                    color: AppConstants.successGreen,
-                                    onTap: () =>
-                                        _onStatusFilterChanged('approved'),
-                                    cs: cs,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ListingStatusFilterChip(
-                                    label: l10n.marketplaceFilterSold,
-                                    active: _statusFilter == 'sold',
-                                    color: cs.onSurfaceVariant,
-                                    onTap: () => _onStatusFilterChanged('sold'),
-                                    cs: cs,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ListingStatusFilterChip(
-                                    label: l10n.farmerMgmtStatusRejectedLabel,
-                                    active: _statusFilter == 'rejected',
-                                    color: cs.error,
-                                    onTap: () =>
-                                        _onStatusFilterChanged('rejected'),
-                                    cs: cs,
-                                  ),
-                                ],
-                              ),
+                            // ── Market chips only: All Markets / Cooperative Market /
+                            // Public Market. They decide which market's listings
+                            // are shown; each card's badge carries its status.
+                            ListingMarketFilterRow(
+                              value: _marketFilter,
+                              onChanged: (v) =>
+                                  setState(() => _marketFilter = v),
                             ),
                             const SizedBox(height: 20),
 
@@ -226,7 +179,7 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
                               _EmptyState(
                                 hasSearch:
                                     _searchQuery.isNotEmpty ||
-                                    _statusFilter != null,
+                                    _marketFilter != null,
                                 cs: cs,
                                 sagana: sagana,
                               )
@@ -296,37 +249,7 @@ class _TopAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            border: Border(bottom: BorderSide(color: sagana.glassBorder)),
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: cs.primary),
-                onPressed: onBack,
-              ),
-              Expanded(
-                child: Text(
-                  AppLocalizations.of(context).marketplaceAllListingsTitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return SubPageTopBar(title: AppLocalizations.of(context).marketplaceAllListingsTitle, onBack: onBack);
   }
 }
 
@@ -350,11 +273,9 @@ class _AllListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final statusColor = _statusColor(listing.status, cs, context);
-    final statusLabel = listingStatusLabel(l10n, listing.status);
-
-    return GestureDetector(
+    return SoldOutGrey(
+      active: listing.isSoldOut,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -383,7 +304,7 @@ class _AllListingCard extends StatelessWidget {
               width: 3,
               margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
-                color: listing.isPending ? cs.error : Colors.transparent,
+                color: listing.isPending ? AppConstants.warningAmber : Colors.transparent,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(AppConstants.radiusLg),
                   bottomLeft: Radius.circular(AppConstants.radiusLg),
@@ -426,10 +347,10 @@ class _AllListingCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      _StatusBadge(
-                        label: statusLabel,
-                        color: statusColor,
-                        cs: cs,
+                      ListingStatusBadge.forListing(
+                        context,
+                        status: listing.status,
+                        remainingKg: listing.remainingKg,
                       ),
                     ],
                   ),
@@ -442,6 +363,10 @@ class _AllListingCard extends StatelessWidget {
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (listing.marketType != null) ...[
+                    const SizedBox(height: 4),
+                    ListingMarketBadge(marketType: listing.marketType),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -526,16 +451,8 @@ class _AllListingCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
-  }
-
-  Color _statusColor(String status, ColorScheme cs, BuildContext context) {
-    switch (status) {
-      case 'pending_review':
-        return cs.error;
-      default:
-        return ListingStatusDisplay.color(context, status);
-    }
   }
 }
 
@@ -553,37 +470,6 @@ class _Thumb extends StatelessWidget {
           Icons.eco_outlined,
           size: 26,
           color: cs.outline.withValues(alpha: 0.40),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  final ColorScheme cs;
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 8,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.3,
-          color: color,
         ),
       ),
     );
