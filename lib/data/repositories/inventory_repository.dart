@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/inventory_batch_model.dart';
 import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
@@ -34,11 +35,18 @@ class InventoryRepository {
     try {
       final response = await _client
           .from('inventory_batches')
-          .select('quantity_kg, available_kg, sold_kg')
+          .select('quantity_kg, available_kg, sold_kg, unit')
           .eq('farmer_id', _userId);
 
       double available = 0, reserved = 0, sold = 0;
+      // Batches measured in another unit (sack, piece ...) are not added to
+      // these kg totals; they are counted so the screen can say so.
+      var otherUnitBatches = 0;
       for (final row in response) {
+        if (!isKg(row['unit'] as String?)) {
+          otherUnitBatches++;
+          continue;
+        }
         final quantity = (row['quantity_kg'] as num).toDouble();
         final avail = (row['available_kg'] as num).toDouble();
         final soldKg = (row['sold_kg'] as num).toDouble();
@@ -51,9 +59,19 @@ class InventoryRepository {
         final reservedForBatch = quantity - avail - soldKg;
         reserved += reservedForBatch > 0 ? reservedForBatch : 0;
       }
-      return {'available': available, 'reserved': reserved, 'sold': sold};
+      return {
+        'available': roundQuantity(available),
+        'reserved': roundQuantity(reserved),
+        'sold': roundQuantity(sold),
+        'other_unit_batches': otherUnitBatches.toDouble(),
+      };
     } catch (_) {
-      return {'available': 0, 'reserved': 0, 'sold': 0};
+      return {
+        'available': 0,
+        'reserved': 0,
+        'sold': 0,
+        'other_unit_batches': 0,
+      };
     }
   }
 

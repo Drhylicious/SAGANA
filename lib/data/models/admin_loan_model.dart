@@ -27,6 +27,77 @@ class AllTimeLoanSummary {
       );
 }
 
+/// Summary of the loans ISSUED within the period selected on the Loan Report.
+/// Computed from that same loan list, so the headline figures always agree
+/// with the rows below them. Collected and balance are as of today (what has
+/// been paid on those loans so far), not payments received inside the period.
+/// "Healthy" uses the same rule as [AllTimeLoanSummary]: overdue loans make up
+/// no more than 20% of the loans still outstanding.
+class LoanPeriodSummary {
+  final int loanCount;
+  final int activeCount;
+  final int overdueCount;
+  final int paidCount;
+  final double totalIssued;
+  final double totalCollected;
+  final double totalOutstanding;
+  final double overdueBalance;
+
+  const LoanPeriodSummary({
+    required this.loanCount,
+    required this.activeCount,
+    required this.overdueCount,
+    required this.paidCount,
+    required this.totalIssued,
+    required this.totalCollected,
+    required this.totalOutstanding,
+    required this.overdueBalance,
+  });
+
+  factory LoanPeriodSummary.fromLoans(List<AdminLoanSummary> loans) {
+    var active = 0, overdue = 0, paid = 0;
+    var issued = 0.0, collected = 0.0, outstanding = 0.0, overdueBalance = 0.0;
+    for (final loan in loans) {
+      issued += loan.totalValue;
+      collected += loan.amountPaid;
+      if (loan.isPaid) {
+        paid++;
+      } else {
+        outstanding += loan.remainingBalance;
+        if (loan.isOverdue) {
+          overdue++;
+          overdueBalance += loan.remainingBalance;
+        } else {
+          active++;
+        }
+      }
+    }
+    return LoanPeriodSummary(
+      loanCount: loans.length,
+      activeCount: active,
+      overdueCount: overdue,
+      paidCount: paid,
+      totalIssued: issued,
+      totalCollected: collected,
+      totalOutstanding: outstanding,
+      overdueBalance: overdueBalance,
+    );
+  }
+
+  /// Share of the issued value that has been repaid so far, 0–100.
+  double get repaymentRatePercent =>
+      totalIssued > 0
+      ? (totalCollected / totalIssued * 100).clamp(0.0, 100.0).toDouble()
+      : 0.0;
+
+  int get outstandingCount => activeCount + overdueCount;
+
+  bool get hasActivity => loanCount > 0;
+
+  bool get isHealthy =>
+      outstandingCount == 0 || overdueCount / outstandingCount <= 0.2;
+}
+
 class LoanDashboardStats {
   final int activeLoansCount;
   final int overdueLoansCount;

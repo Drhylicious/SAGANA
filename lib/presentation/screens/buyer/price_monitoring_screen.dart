@@ -17,6 +17,7 @@ import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/price_display_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../../data/services/market_types_service.dart';
 
@@ -108,29 +109,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     }).toList();
   }
 
-  /// The visible prices grouped under their crop category, categories in
-  /// alphabetical order with uncategorised crops last.
-  List<MapEntry<String, List<PriceRecordModel>>> _groupByCategory(
-    List<PriceRecordModel> prices,
-    String otherLabel,
-  ) {
-    final groups = <String, List<PriceRecordModel>>{};
-    for (final p in prices) {
-      final c = p.cropCategory?.trim();
-      groups
-          .putIfAbsent(c == null || c.isEmpty ? otherLabel : c, () => [])
-          .add(p);
-    }
-    final entries = groups.entries.toList()
-      ..sort((a, b) {
-        if (a.key == otherLabel) return 1;
-        if (b.key == otherLabel) return -1;
-        return a.key.toLowerCase().compareTo(b.key.toLowerCase());
-      });
-    return entries;
-  }
-
-  Future<void> _toggleExpand(String cropId) async {
+  Future<void> _toggleExpand(String cropId, String priceType) async {
     if (_expandedCropId == cropId) {
       setState(() => _expandedCropId = null);
       return;
@@ -140,11 +119,15 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
       _isTrendLoading = true;
       _trend = [];
     });
-    // Trend lines for Buyers come from Public Market prices only.
-    final trend = (await _priceRepo.fetchTrendForCrop(cropId))
-        .where((p) => MarketTypes.instance.isBuyerVisible(p.priceType))
-        .toList();
-    if (!mounted) return;
+    // The trend is that crop's history in the market of the card tapped. A
+    // Buyer's card is always a Public Market price; the filter below keeps a
+    // saved offline copy honest too.
+    final trend = (await _priceRepo.fetchTrendForCrop(
+      cropId,
+      priceType: priceType,
+    )).where((p) => MarketTypes.instance.isBuyerVisible(p.priceType)).toList();
+    // Another card may have been opened while this one was loading.
+    if (!mounted || _expandedCropId != cropId) return;
     setState(() {
       _trend = trend;
       _isTrendLoading = false;
@@ -261,7 +244,11 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     AppLocalizations l10n,
     List<PriceRecordModel> filtered,
   ) {
-    final groups = _groupByCategory(filtered, l10n.buyerPriceCategoryOther);
+    final groups = groupPricesByCategory<PriceRecordModel>(
+      filtered,
+      (p) => p.cropCategory,
+      l10n.buyerPriceCategoryOther,
+    );
     final markets = filtered.map((p) => p.priceType).toSet();
     final title = markets.length == 1
         ? l10n.buyerPriceHeaderTitle(MarketTypes.instance.label(markets.first))
@@ -280,7 +267,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
           100,
         ),
         children: [
-          _MarketHeader(
+          PriceMarketHeader(
             title: title,
             subtitle: l10n.buyerPriceHeaderSubtitle,
             cropCount: filtered.length,
@@ -288,7 +275,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
           ),
           for (final group in groups) ...[
             const SizedBox(height: 20),
-            _CategoryHeader(title: group.key, count: group.value.length),
+            PriceCategoryHeader(title: group.key, count: group.value.length),
             const SizedBox(height: 10),
             for (int i = 0; i < group.value.length; i++) ...[
               if (i > 0) const SizedBox(height: 10),
@@ -300,7 +287,10 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
                 ),
                 trend: _trend,
                 isTrendLoading: _isTrendLoading,
-                onTap: () => _toggleExpand(group.value[i].cropId),
+                onTap: () => _toggleExpand(
+                  group.value[i].cropId,
+                  group.value[i].priceType,
+                ),
               ),
             ],
           ],
@@ -385,180 +375,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// List header + category header
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Names the market the prices below belong to, says what they are, and gives
-/// a quick count and freshness.
-class _MarketHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final int cropCount;
-  final String updated;
-
-  const _MarketHeader({
-    required this.title,
-    required this.subtitle,
-    required this.cropCount,
-    required this.updated,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    const accent = AppConstants.primaryGreen;
-
-    Widget pill(IconData icon, String text) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: accent),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: accent,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.14),
-            accent.withValues(alpha: 0.04),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: accent.withValues(alpha: 0.20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: const Icon(
-                  Icons.storefront_rounded,
-                  size: 22,
-                  color: accent,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        height: 1.35,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              pill(Icons.eco_rounded, l10n.buyerPriceCropCount(cropCount)),
-              pill(Icons.update_rounded, l10n.priceUpdatedPrefix(updated)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CategoryHeader extends StatelessWidget {
-  final String title;
-  final int count;
-
-  const _CategoryHeader({required this.title, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Flexible(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: cs.outline.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-          ),
-          child: Text(
-            '$count',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Divider(height: 1, color: cs.outline.withValues(alpha: 0.15)),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Collapsed/expanded crop card — exclusive inline expansion
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -589,10 +405,10 @@ class _CropCard extends StatelessWidget {
         curve: Curves.easeInOut,
         child: Container(
           padding: const EdgeInsets.all(14),
-          // Same flatCardDecoration Farmer's View Market Rates tile uses —
-          // only the expanded-state accent border is Buyer-specific (this
-          // card expands in place; Farmer's pushes to a detail screen
-          // instead, so it has no equivalent state to mark).
+          // Same flatCardDecoration Farmer's Market Rates tile uses — only the
+          // expanded-state accent border is Buyer-specific (this card expands
+          // in place; Farmer's pushes to a detail screen instead, so it has no
+          // equivalent state to mark).
           decoration: flatCardDecoration(context).copyWith(
             border: isExpanded
                 ? Border.all(color: AppConstants.primaryGreen, width: 1.5)
@@ -606,9 +422,11 @@ class _CropCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 _buildStatusTag(l10n),
                 const SizedBox(height: 14),
-                _buildTrendArea(l10n),
-                const SizedBox(height: 12),
-                _buildStatsRow(l10n),
+                PriceTrendPanel(
+                  trend: trend,
+                  isLoading: isTrendLoading,
+                  current: price,
+                ),
               ],
             ],
           ),
@@ -622,40 +440,14 @@ class _CropCard extends StatelessWidget {
   // Every price on this screen is a Public Market price, so the card carries
   // no per-card market badge — the header above the list names the market.
   Widget _buildHeader(BuildContext context, AppLocalizations l10n) {
-    final color = MarketTypeDisplay.color(context, price.priceType);
-    final imageUrl = price.cropImageUrl;
-    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     final cs = Theme.of(context).colorScheme;
-    final deltaColor = price.isUp
-        ? AppConstants.successGreen
-        : price.isDown
-        ? AppConstants.errorRed
-        : AppConstants.outline;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Same crop image Admin's Price Management shows — referenced
-        // only (from Crop Management), never uploaded from here.
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          child: SizedBox(
-            width: 64,
-            height: 64,
-            child: hasImage
-                ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: color.withValues(alpha: 0.12),
-                      child: Icon(Icons.eco_outlined, size: 26, color: color),
-                    ),
-                  )
-                : Container(
-                    color: color.withValues(alpha: 0.12),
-                    child: Icon(Icons.eco_outlined, size: 26, color: color),
-                  ),
-          ),
+        PriceCropThumb(
+          imageUrl: price.cropImageUrl,
+          color: MarketTypeDisplay.color(context, price.priceType),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -688,48 +480,7 @@ class _CropCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '₱${price.price.toStringAsFixed(2)}',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-            Text(
-              '/${price.unit}',
-              style: GoogleFonts.inter(fontSize: 11, color: cs.outline),
-            ),
-            if (price.previousPrice != null) ...[
-              const SizedBox(height: 2),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    price.isUp
-                        ? Icons.arrow_upward_rounded
-                        : price.isDown
-                        ? Icons.arrow_downward_rounded
-                        : Icons.remove_rounded,
-                    size: 12,
-                    color: deltaColor,
-                  ),
-                  Text(
-                    '₱${price.priceDifference!.abs().toStringAsFixed(2)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: deltaColor,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
+        PriceAmountColumn(price: price),
         const SizedBox(width: 4),
         Icon(
           isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
@@ -758,126 +509,4 @@ class _CropCard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildTrendArea(AppLocalizations l10n) {
-    final prices = trend.map((p) => p.price).toList();
-    return SizedBox(
-      height: 100,
-      width: double.infinity,
-      child: isTrendLoading
-          ? const SkeletonBlock(height: 100)
-          : prices.length < 2
-          ? Center(
-              child: Text(
-                l10n.buyerPriceNoTrendHistory,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppConstants.onSurfaceVariant,
-                ),
-              ),
-            )
-          : CustomPaint(
-              painter: _SparklinePainter(
-                prices: prices,
-                color: AppConstants.primaryGreen,
-              ),
-              size: Size.infinite,
-            ),
-    );
-  }
-
-  Widget _buildStatsRow(AppLocalizations l10n) {
-    final prices = trend.map((p) => p.price).toList();
-    final high = prices.isEmpty
-        ? price.price
-        : prices.reduce((a, b) => a > b ? a : b);
-    final low = prices.isEmpty
-        ? price.price
-        : prices.reduce((a, b) => a < b ? a : b);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _statColumn(
-          l10n.buyerPriceStatHigh,
-          '₱${high.toStringAsFixed(2)}',
-          AppConstants.successGreen,
-        ),
-        _statColumn(
-          l10n.buyerPriceStatLow,
-          '₱${low.toStringAsFixed(2)}',
-          AppConstants.errorRed,
-        ),
-        _statColumn(
-          l10n.buyerPriceStatCurrent,
-          price.formattedPrice,
-          AppConstants.primaryGreen,
-        ),
-      ],
-    );
-  }
-
-  Widget _statColumn(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            color: AppConstants.onSurfaceVariant,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Minimal local sparkline — unchanged from the original screen.
-class _SparklinePainter extends CustomPainter {
-  final List<double> prices;
-  final Color color;
-  const _SparklinePainter({required this.prices, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final min = prices.reduce((a, b) => a < b ? a : b);
-    final max = prices.reduce((a, b) => a > b ? a : b);
-    final range = (max - min).abs() < 0.01 ? 1.0 : max - min;
-
-    final path = Path();
-    final stepX = size.width / (prices.length - 1);
-    for (int i = 0; i < prices.length; i++) {
-      final x = i * stepX;
-      final y = size.height - ((prices[i] - min) / range) * size.height;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(path, linePaint);
-
-    final fillPath = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(fillPath, Paint()..color = color.withValues(alpha: 0.08));
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
-      oldDelegate.prices != prices || oldDelegate.color != color;
 }

@@ -4,6 +4,7 @@ import '../services/server_only.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
 import '../models/admin_log_message.dart';
+import '../../core/utils/quantity_utils.dart';
 
 // ─── Admin Listing Model ──────────────────────────────────────────────────────
 // Extends the farmer-side MarketplaceListingModel with admin-only fields.
@@ -18,6 +19,10 @@ class AdminListingModel {
   final double volumeKg;
   final double remainingKg;
   final double pricePerKg;
+
+  /// The unit volumeKg, remainingKg and pricePerKg are measured in (copied
+  /// from the batch by the database; the fields keep their old names).
+  final String unit;
   final String
   status; // pending_review | approved | withdrawn | sold | rejected
   final String? adminNotes;
@@ -55,6 +60,7 @@ class AdminListingModel {
     required this.volumeKg,
     required this.remainingKg,
     required this.pricePerKg,
+    this.unit = kDefaultUnit,
     required this.status,
     this.adminNotes,
     this.batchId,
@@ -112,7 +118,7 @@ class AdminListingModel {
     }
   }
 
-  double get totalValue => volumeKg * pricePerKg;
+  double get totalValue => moneyOf(volumeKg, pricePerKg);
 
   /// Whether listing qty exceeds available batch stock
   bool get hasStockWarning =>
@@ -178,6 +184,7 @@ class AdminListingModel {
           (map['remaining_kg'] as num?)?.toDouble() ??
           (map['volume_kg'] as num).toDouble(),
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       status: map['status'] as String? ?? 'pending_review',
       adminNotes: map['admin_notes'] as String?,
       batchId: map['batch_id'] as String?,
@@ -346,7 +353,7 @@ class AdminListingRepository {
           var query = _client
               .from('marketplace_listings')
               .select(
-                'id, farmer_id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, '
+                'id, farmer_id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, unit, '
                 'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at, crop_type',
               );
 
@@ -419,15 +426,19 @@ class AdminListingRepository {
           }
 
           final priceMap = <String, double>{};
+          final priceUnitMap = <String, String>{};
           try {
             final priceRows = await _client
                 .from('price_records')
-                .select('crop_name, price')
+                .select('crop_name, price, unit')
                 .inFilter('crop_name', cropNames)
                 .order('recorded_at', ascending: false);
             for (final r in priceRows) {
               final cn = r['crop_name'] as String;
-              priceMap.putIfAbsent(cn, () => (r['price'] as num).toDouble());
+              if (!priceMap.containsKey(cn)) {
+                priceMap[cn] = (r['price'] as num).toDouble();
+                priceUnitMap[cn] = unitOrDefault(r['unit'] as String?);
+              }
             }
           } catch (_) {}
 
@@ -444,7 +455,8 @@ class AdminListingRepository {
               () => {'total': 0, 'approved': 0, 'rejected': 0},
             );
             historyMap[fid]!['total'] = (historyMap[fid]!['total'] ?? 0) + 1;
-            if (stat == 'approved') {
+            // A sold listing was approved, so it counts as approved.
+            if (stat == 'approved' || stat == 'sold') {
               historyMap[fid]!['approved'] =
                   (historyMap[fid]!['approved'] ?? 0) + 1;
             }
@@ -491,7 +503,14 @@ class AdminListingRepository {
                 r['status'] as String? ?? 'pending_review',
                 volumeKg,
               ),
-              'market_ref_price': priceMap[cn],
+              // A reference price is only comparable when it is quoted in the
+              // same unit as the listing (a price per kg says nothing about a
+              // price per sack), so it is left out otherwise.
+              'market_ref_price':
+                  unitOrDefault(priceUnitMap[cn]).toLowerCase() ==
+                      unitOrDefault(r['unit'] as String?).toLowerCase()
+                  ? priceMap[cn]
+                  : null,
               'canonical_crop_name': cropId != null
                   ? canonicalCropNames[cropId]
                   : null,
@@ -592,7 +611,7 @@ class AdminListingRepository {
       final row = await _client
           .from('marketplace_listings')
           .select(
-            'id, farmer_id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
+            'id, farmer_id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, unit, '
             'status, admin_notes, inventory_batch_id, photo_url, created_at, updated_at, crop_type',
           )
           .eq('id', listingId)
@@ -639,12 +658,16 @@ class AdminListingRepository {
       try {
         final priceRow = await _client
             .from('price_records')
-            .select('price')
+            .select('price, unit')
             .ilike('crop_name', cn)
             .order('recorded_at', ascending: false)
             .limit(1)
             .maybeSingle();
-        marketRefPrice = priceRow?['price'] != null
+        // Only comparable when quoted in the listing's own unit.
+        final sameUnit =
+            unitOrDefault(priceRow?['unit'] as String?).toLowerCase() ==
+            unitOrDefault(row['unit'] as String?).toLowerCase();
+        marketRefPrice = (sameUnit && priceRow?['price'] != null)
             ? (priceRow!['price'] as num).toDouble()
             : null;
       } catch (_) {}
@@ -657,7 +680,8 @@ class AdminListingRepository {
             .eq('farmer_id', farmerId);
         totalSubs = histRows.length;
         for (final r in histRows) {
-          if (r['status'] == 'approved') approved++;
+          // A sold listing was approved, so it counts as approved.
+          if (r['status'] == 'approved' || r['status'] == 'sold') approved++;
           if (r['status'] == 'rejected') rejected++;
         }
       } catch (_) {}

@@ -365,16 +365,10 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminProfileDefaultRole => 'Manager ng Kooperatiba';
 
   @override
-  String get adminProfileFullName => 'Buong Pangalan';
-
-  @override
   String get adminProfilePhoneNumber => 'Numero ng Telepono';
 
   @override
   String get adminProfileSaveChanges => 'I-save ang Pagbabago';
-
-  @override
-  String get adminProfileNameRequired => 'Kailangan ang buong pangalan.';
 
   @override
   String get adminProfileUpdated => 'Matagumpay na na-update ang profile.';
@@ -965,11 +959,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get exportSummaryEmpty =>
-      'Pumili ng isa o higit pang ulat na i-export bilang CSV.';
+      'Pumili ng isa o higit pang ulat na i-export.';
 
   @override
-  String exportSummary(int count) {
-    return '$count ulat ang i-export bilang hiwalay na CSV file.';
+  String exportSummary(int count, String format) {
+    return '$count ulat ang i-export bilang hiwalay na $format file.';
   }
 
   @override
@@ -992,12 +986,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get analyticsInactive => 'Hindi Aktibo';
-
-  @override
-  String get analyticsLoanHealth => 'Kalusugan ng Koleksyon ng Pautang';
-
-  @override
-  String get analyticsCollectionRate => 'rate ng koleksyon';
 
   @override
   String get analyticsPriceSnapshot => 'Snapshot ng Presyo';
@@ -1675,7 +1663,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String buyerBrowseUnitsSold(String count) {
-    return '$count kg naibenta';
+    return '$count naibenta';
   }
 
   @override
@@ -1823,7 +1811,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminDashStatFarmerStock => 'Stock ng Magsasaka';
 
   @override
-  String get adminDashStatListings => 'Mga Listahan';
+  String get adminDashStatListings => 'Mga Available na Listahan';
 
   @override
   String get adminDashStatSalesAllTime => 'Benta (all-time)';
@@ -2532,7 +2520,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String buyerCartAdjustedReduced(String name, String qty) {
-    return 'Binawasan ang $name sa ${qty}kg — iyon na lang ang natitira.';
+    return 'Binawasan ang $name sa $qty — iyon na lang ang natitira.';
   }
 
   @override
@@ -2585,9 +2573,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get photoUploadFailed => 'Hindi na-upload ang larawan. Subukan muli.';
 
   @override
-  String get fullNameEmpty => 'Kailangan ang buong pangalan.';
-
-  @override
   String get profileUpdated => 'Na-update ang profile.';
 
   @override
@@ -2629,7 +2614,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get aboutCooperativeBody =>
-      'Ang SP3 Agriculture Cooperative (Samahan ng Pagkakaisa sa Pag-unlad ng Payanas) ay naglilingkod sa mga magsasakang miyembro sa Barangay Payanas, Torrijos, Marinduque. Opisyal itong nairehistro sa Cooperative Development Authority (CDA) noong Pebrero 1, 2017 (Registration No. 9520-1040000000036899), at inuri bilang isang Micro cooperative.\n\nNahahati ang kita ng kooperatiba sa mga miyembro sa pamamagitan ng dalawang paraang kinikilala sa kanilang by-laws: ang Balik-Tangkilik (patronage refund batay sa dami ng ibinentang ani ng miyembro sa kooperatiba) at ang Interest on Share Capital (batay sa naipong capital share contribution ng bawat miyembro). Kabilang sa pangunahing negosyo ng kooperatiba ang Copra Buy and Sell, Peanut Cookies Production, at Rice and Feeds Retailing, at ang mga miyembro nito ay pangunahing nagtatanim ng mani, luya, saging, palay, at copra.\n\nUpang maging miyembro, dapat residente ng Barangay Payanas, 18 taong gulang pataas, at magbayad ng hindi bababa sa ₱100 kada buwan para sa capital build-up, kasama ang taunang capital share na ₱2,000.\n\nEmail Address\n(placeholder — ilalagay pa)\n\nContact Number\n(placeholder — ilalagay pa)';
+      'Ang SP3 Agriculture Cooperative (Samahan ng Pagkakaisa sa Pag-unlad ng Payanas) ay naglilingkod sa mga magsasakang miyembro sa Barangay Payanas, Torrijos, Marinduque. Opisyal itong nairehistro sa Cooperative Development Authority (CDA) noong Pebrero 1, 2017 (Registration No. 9520-1040000000036899), at inuri bilang isang Micro cooperative.\n\nNahahati ang kita ng kooperatiba sa mga miyembro sa pamamagitan ng dalawang paraang kinikilala sa kanilang by-laws: ang Balik-Tangkilik (patronage refund batay sa dami ng ibinentang ani ng miyembro sa kooperatiba) at ang Interest on Share Capital (batay sa naipong capital share contribution ng bawat miyembro). Kabilang sa pangunahing negosyo ng kooperatiba ang Copra Buy and Sell, Peanut Cookies Production, at Rice and Feeds Retailing, at ang mga miyembro nito ay pangunahing nagtatanim ng mani, luya, saging, at palay.\n\nUpang maging miyembro, dapat residente ng Barangay Payanas, 18 taong gulang pataas, at magbayad ng hindi bababa sa ₱100 kada buwan para sa capital build-up, kasama ang taunang capital share na ₱2,000.\n\nEmail Address\n(placeholder — ilalagay pa)\n\nContact Number\n(placeholder — ilalagay pa)';
 
   @override
   String get privacyPolicy => 'Patakaran sa Privacy';
@@ -2853,7 +2838,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String checkoutItemsSummary(int count, String weight) {
-    return '$count item • $weight kg kabuuan';
+    return '$count item • $weight kabuuan';
   }
 
   @override
@@ -2871,15 +2856,19 @@ class AppLocalizationsTl extends AppLocalizations {
       'Ito ang sarili mong listing — maaari mo itong pamahalaan mula sa Listing tab.';
 
   @override
-  String get buyerListingOrderQty => 'Dami ng Order (kg)';
-
-  @override
-  String buyerListingMaxAvailable(String kg) {
-    return 'Max: $kg kg ang natitira';
+  String buyerListingOrderQty(String unit) {
+    return 'Dami ng Order ($unit)';
   }
 
   @override
-  String get buyerPricePerKg => 'Presyo bawat kg';
+  String buyerListingMaxAvailable(String qty) {
+    return 'Max: $qty ang natitira';
+  }
+
+  @override
+  String buyerPricePerKg(String unit) {
+    return 'Presyo bawat $unit';
+  }
 
   @override
   String buyerOrderDetailTitle(String ref) {
@@ -2993,15 +2982,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get brandingPartner => 'Kasosyo: SP3 Agriculture Cooperative';
-
-  @override
-  String get registerFullNameHintFarmer => 'Ang buo mong pangalan';
-
-  @override
-  String get registerFullNameHintBuyer => 'Ang buo mong pangalan';
-
-  @override
-  String get registerEnterFullName => 'Ilagay ang buo mong pangalan';
 
   @override
   String get registerPhoneLabel => 'Numero ng Telepono';
@@ -3227,15 +3207,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get addMemberSectionPersonal => 'Personal na Impormasyon';
-
-  @override
-  String get addMemberFullNameLabel => 'Buong Pangalan';
-
-  @override
-  String get addMemberFullNameHint => 'Buong pangalan ng miyembro';
-
-  @override
-  String get addMemberFullNameRequired => 'Kailangan ang buong pangalan';
 
   @override
   String get addMemberPhoneLabel => 'Numero ng Telepono';
@@ -3516,16 +3487,13 @@ class AppLocalizationsTl extends AppLocalizations {
   String get pendingFullNameLabel => 'Buong Pangalan';
 
   @override
-  String get pendingFullNameRequired => 'Ilagay ang iyong buong pangalan';
-
-  @override
-  String get pendingPhoneOptionalLabel => 'Numero ng Telepono (opsyonal)';
+  String get pendingPhoneFieldLabel => 'Numero ng Telepono';
 
   @override
   String get pendingPhoneInvalid => 'Hindi wastong PH number';
 
   @override
-  String get pendingEmailOptionalLabel => 'Email (opsyonal)';
+  String get pendingEmailFieldLabel => 'Email';
 
   @override
   String get pendingDobLabel => 'Petsa ng Kapanganakan';
@@ -3534,7 +3502,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get pendingSelectHint => 'Pumili';
 
   @override
-  String get pendingGenderOptionalLabel => 'Kasarian (opsyonal)';
+  String get pendingGenderFieldLabel => 'Kasarian';
 
   @override
   String get pendingAgeError => 'Dapat 18 taong gulang pataas.';
@@ -3551,15 +3519,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get createOfficerSectionOfficer => 'Officer';
-
-  @override
-  String get createOfficerFullNameLabel => 'Buong Pangalan';
-
-  @override
-  String get createOfficerFullNameHint => 'Buong pangalan ng Officer';
-
-  @override
-  String get createOfficerFullNameRequired => 'Kailangan ang buong pangalan';
 
   @override
   String get createOfficerEmailLabel => 'Email';
@@ -4402,7 +4361,9 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminOrderDetailQuantity => 'Dami';
 
   @override
-  String get adminOrderDetailPricePerKg => 'Presyo bawat kg';
+  String adminOrderDetailPricePerKg(String unit) {
+    return 'Presyo bawat $unit';
+  }
 
   @override
   String get adminOrderDetailTotalAmount => 'Kabuuang Halaga';
@@ -4445,6 +4406,24 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get listingFilterPending => 'Naghihintay';
+
+  @override
+  String get coopMyOffersSearchHint => 'Maghanap ng pananim...';
+
+  @override
+  String listingReviewCropTitle(String crop) {
+    return 'Pagsusuri ng $crop';
+  }
+
+  @override
+  String listingReviewKgLeft(String remaining, String total) {
+    return '$remaining sa $total ang natitira';
+  }
+
+  @override
+  String listingReviewKgListed(String total) {
+    return '$total ang nakalista';
+  }
 
   @override
   String get listingApprovalsViewDetails => 'Tingnan ang Detalye';
@@ -5296,7 +5275,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String listingReviewQuantityExceeds(String amount) {
-    return 'Lumagpas ang dami ng listahan sa stock ng batch nang $amount kg';
+    return 'Lumagpas ang dami ng listahan sa stock ng batch nang $amount';
   }
 
   @override
@@ -5357,7 +5336,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String marketLinkLinkedToBatch(String number) {
-    return 'Naka-link sa Batch #$number';
+    return 'Naka-link sa $number';
   }
 
   @override
@@ -5408,6 +5387,14 @@ class AppLocalizationsTl extends AppLocalizations {
   String get marketLinkUpdateFailed => 'Nabigong i-update. Pakisubukang muli.';
 
   @override
+  String get marketLinkPriceRequired =>
+      'Ilagay ang napagkasunduang presyo bawat kg, higit sa 0 (halimbawa 45.50).';
+
+  @override
+  String get marketLinkVolumeRequired =>
+      'Ilagay ang dami na nais ng buyer, higit sa 0 (halimbawa 3.45).';
+
+  @override
   String get marketLinkTitleCompleteSale => 'Tapusin ang Benta';
 
   @override
@@ -5438,7 +5425,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String marketLinkBatchAvailableLine(String number, String amount) {
-    return 'Batch #$number — $amount kg ang available';
+    return '$number — $amount kg ang available';
   }
 
   @override
@@ -6360,13 +6347,13 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get farmerAnalyticsPeriodCaption =>
-      'Para lang ito sa Pagganap ng Sakahan at Kasaysayan ng Presyo.';
+      'Para lang ito sa Pagganap ng Sakahan, Mga Kamakailang Transaksyon at Kasaysayan ng Presyo.';
 
   @override
   String get farmerAnalyticsPeriodThisMonth => 'Ngayong Buwan';
 
   @override
-  String get farmerAnalyticsPeriodThisSeason => 'Ngayong Season';
+  String get farmerAnalyticsPeriodThisQuarter => 'Ngayong Quarter';
 
   @override
   String get farmerAnalyticsPeriodThisYear => 'Ngayong Taon';
@@ -6409,7 +6396,7 @@ class AppLocalizationsTl extends AppLocalizations {
     String qty,
     String reference,
   ) {
-    return '$date • $qty kg • REF: #$reference';
+    return '$date • $qty • REF: #$reference';
   }
 
   @override
@@ -6441,6 +6428,40 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String get farmerAnalyticsTopHarvestedCropsTitle =>
       'Pinaka-Inaning Pananim (Buong Kooperatiba, 90 araw)';
+
+  @override
+  String get farmerAnalyticsLoadError =>
+      'Hindi na-load ang ilang numero, kaya maaaring kulang ang mga kabuuan sa ibaba.';
+
+  @override
+  String get farmerAnalyticsRetry => 'Subukan muli';
+
+  @override
+  String farmerAnalyticsOtherUnitsNote(int count) {
+    return '$count ani na naitala sa ibang yunit (gaya ng sako) ay hindi kasama sa kabuuang kg.';
+  }
+
+  @override
+  String farmerAnalyticsShareOfYield(String percent) {
+    return '$percent% ng kabuuang ani';
+  }
+
+  @override
+  String get farmerAnalyticsViewAllTransactions =>
+      'Tingnan ang lahat ng transaksyon';
+
+  @override
+  String get farmerAnalyticsPriceLow => 'Pinakamababa';
+
+  @override
+  String get farmerAnalyticsPriceHigh => 'Pinakamataas';
+
+  @override
+  String get farmerAnalyticsPriceLatest => 'Pinakabago';
+
+  @override
+  String get farmerAnalyticsFarmPerformanceHint =>
+      'Ang kita ay mula lamang sa mga nakumpletong benta: Marketplace, Alok sa Kooperatiba, Informal na Benta at DA-AMAD Market Linking. Hindi kasama sa gastos ang mga subsidiyadong item.';
 
   @override
   String adminLogAccountOfficerCreated(String fullName) {
@@ -7136,11 +7157,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get coopClosedDeclined =>
-      'Tinanggihan ng kooperatiba ang alok na ito. Bumalik ang kg sa batch.';
+      'Tinanggihan ng kooperatiba ang alok na ito. Bumalik ang dami sa batch.';
 
   @override
   String get coopClosedCancelled =>
-      'Kinansela ng magsasaka ang alok na ito. Bumalik ang kg sa batch.';
+      'Kinansela ng magsasaka ang alok na ito. Bumalik ang dami sa batch.';
 
   @override
   String coopActionAccept(String price) {
@@ -7186,7 +7207,9 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
-  String get coopPriceLabel => 'Iyong presyo kada kg';
+  String coopPriceLabel(String unit) {
+    return 'Iyong presyo kada $unit';
+  }
 
   @override
   String get coopCounterSend => 'Ipadala ang Kontra-alok';
@@ -7215,7 +7238,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get coopDeclineBody =>
-      'Babalik sa imbentaryo ng magsasaka ang naka-reserbang kg. Aabisuhan ang magsasaka.';
+      'Babalik sa imbentaryo ng magsasaka ang naka-reserbang dami. Aabisuhan ang magsasaka.';
 
   @override
   String get coopDeclineConfirm => 'Tanggihan ang Alok';
@@ -7228,7 +7251,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get coopCancelBody =>
-      'Babalik sa iyong imbentaryo ang naka-reserbang kg. Aabisuhan ang kooperatiba.';
+      'Babalik sa iyong imbentaryo ang naka-reserbang dami. Aabisuhan ang kooperatiba.';
 
   @override
   String get coopCancelConfirm => 'Kanselahin ang Alok';
@@ -7267,12 +7290,653 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get coopOfferDialogSubtitle =>
-      'Ilagay ang presyo kada kg. Maaaring tanggapin ito ng SP3 o magpadala ng kontra-alok, at maaari kayong makipag-negosasyon hanggang magkasundo.';
+      'Ilagay ang presyo kada yunit. Maaaring tanggapin ito ng SP3 o magpadala ng kontra-alok, at maaari kayong makipag-negosasyon hanggang magkasundo.';
 
   @override
-  String get coopOfferAskingLabel => 'Hinihingi mong presyo kada kg';
+  String coopOfferAskingLabel(String unit) {
+    return 'Hinihingi mong presyo kada $unit';
+  }
 
   @override
-  String get coopOfferAskingRequired =>
-      'Ilagay ang hinihingi mong presyo kada kg.';
+  String coopOfferAskingRequired(String unit) {
+    return 'Ilagay ang hinihingi mong presyo kada $unit.';
+  }
+
+  @override
+  String get loanHistoryFilterTitle => 'I-filter ang mga Pautang';
+
+  @override
+  String get loanHistoryFilterSubtitle =>
+      'Ipakita lamang ang mga pautang na naibigay sa loob ng isang panahon';
+
+  @override
+  String get loanHistoryFilterIssued => 'PETSA NG PAGBIBIGAY';
+
+  @override
+  String get loanHistoryFilterTooltip => 'I-filter ayon sa petsa ng pagbibigay';
+
+  @override
+  String loanHistoryIssuedPeriodTag(String period) {
+    return 'Naibigay: $period';
+  }
+
+  @override
+  String get paymentLoanValue => 'Halaga ng Pautang';
+
+  @override
+  String get paymentPaidSoFar => 'Nabayaran Na';
+
+  @override
+  String paymentRepaidPercent(String percent) {
+    return '$percent% nabayaran';
+  }
+
+  @override
+  String get paymentAmountLabel => 'Natanggap na Halaga *';
+
+  @override
+  String get paymentChipMonthly => 'Buwanan';
+
+  @override
+  String get paymentChipFullBalance => 'Buong Balanse';
+
+  @override
+  String get paymentSettlesLoan =>
+      'Mababayaran nang buo ang pautang sa bayad na ito.';
+
+  @override
+  String get paymentNotesHint => 'hal. numero ng resibo o paalala';
+
+  @override
+  String get issueLoanSectionBorrower => 'Nanghihiram';
+
+  @override
+  String get issueLoanSectionTerms => 'Mga Tuntunin ng Pagbabayad';
+
+  @override
+  String issueLoanItemsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count item',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get issueLoanMonthlyPaymentLabel => 'Buwanang Bayad *';
+
+  @override
+  String get issueLoanMonthlyHelp =>
+      'Ang babayaran ng magsasaka bawat buwan sa pulong ng BOD.';
+
+  @override
+  String issueLoanMonthlyEstimate(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count buwanang bayad',
+      one: '1 buwanang bayad',
+    );
+    return 'Humigit-kumulang $_temp0 para mabayaran ang pautang.';
+  }
+
+  @override
+  String get issueLoanMonthlyRequired => 'Ilagay ang buwanang bayad.';
+
+  @override
+  String get issueLoanErrorSelectItem => 'Pumili ng item.';
+
+  @override
+  String get issueLoanErrorQuantityRequired => 'Ilagay ang dami.';
+
+  @override
+  String get issueLoanErrorQuantityInvalid => 'Dapat higit sa zero ang dami.';
+
+  @override
+  String get issueLoanAllItemsAdded =>
+      'Nasa pautang na ang lahat ng maaaring ipautang na item.';
+
+  @override
+  String get issueLoanLineTotal => 'Kabuuan ng Item';
+
+  @override
+  String paymentActiveLoansCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count aktibong pautang',
+      one: '1 aktibong pautang',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String paymentOverdueCount(int count) {
+    return '$count lampas na sa takda';
+  }
+
+  @override
+  String paymentNoLoanFarmersToggle(int count) {
+    return 'Walang aktibong pautang ($count)';
+  }
+
+  @override
+  String issueLoanFarmerCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count magsasaka',
+      one: '1 magsasaka',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanFormNotes => 'Tala';
+
+  @override
+  String get rptAllDates => 'Lahat ng petsa';
+
+  @override
+  String get rptNoActivity => 'Walang Aktibidad';
+
+  @override
+  String get rptNoMatches => 'Walang tumutugma sa iyong paghahanap o filter.';
+
+  @override
+  String rptShowingCount(int shown, int total) {
+    return 'Ipinapakita ang $shown sa $total';
+  }
+
+  @override
+  String get rptViewFarmerProfile => 'Tingnan ang Profile ng Magsasaka';
+
+  @override
+  String get rptFarmer => 'Magsasaka';
+
+  @override
+  String get rptCrop => 'Pananim';
+
+  @override
+  String get rptQuantity => 'Dami';
+
+  @override
+  String get rptAmount => 'Halaga';
+
+  @override
+  String get rptDate => 'Petsa';
+
+  @override
+  String get rptCategory => 'Kategorya';
+
+  @override
+  String get rptDescription => 'Paglalarawan';
+
+  @override
+  String get rptReferenceNo => 'Numero ng Sanggunian';
+
+  @override
+  String get rptOrderStatus => 'Katayuan ng Order';
+
+  @override
+  String get rptSoldTo => 'Ibinenta Kay';
+
+  @override
+  String get rptSellingChannel => 'Paraan ng Pagbebenta';
+
+  @override
+  String get rptMarketType => 'Uri ng Pamilihan';
+
+  @override
+  String get rptStatusCompleted => 'Tapos na';
+
+  @override
+  String rptItemsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count item',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get rptTrendCaption =>
+      'Nakaraang 6 na buwan. Hindi apektado ng filter ng panahon.';
+
+  @override
+  String get rptSalesEmpty => 'Walang naitalang benta sa panahong ito.';
+
+  @override
+  String get rptSalesBySellingChannel => 'Benta ayon sa Paraan ng Pagbebenta';
+
+  @override
+  String rptSalesChannelShare(String percent) {
+    return '$percent% ng benta';
+  }
+
+  @override
+  String get rptAllChannels => 'Lahat ng Paraan';
+
+  @override
+  String get rptSalesOverviewHint =>
+      'Mga natapos na benta mula sa lahat ng paraan ng pagbebenta.';
+
+  @override
+  String get rptAverageSale => 'Karaniwang Benta';
+
+  @override
+  String get rptHarvestEntriesStat => 'Mga Naitalang Ani';
+
+  @override
+  String get rptContributingFarmers => 'Mga Magsasakang Nag-ani';
+
+  @override
+  String get rptCommitted => 'Nakalaan na';
+
+  @override
+  String rptBatchNumber(String number) {
+    return '$number';
+  }
+
+  @override
+  String get rptStatusAvailable => 'Magagamit';
+
+  @override
+  String get rptStatusLowStock => 'Paubos na';
+
+  @override
+  String get rptStatusCommitted => 'Nakalaan na';
+
+  @override
+  String get rptStatusSoldOut => 'Naubos na';
+
+  @override
+  String get rptStatusWithdrawn => 'Binawi';
+
+  @override
+  String get rptLoanSummaryTitle => 'Buod ng Pautang';
+
+  @override
+  String get rptLoansIssued => 'Mga Naipautang';
+
+  @override
+  String get rptTotalValueIssued => 'Kabuuang Halagang Naipautang';
+
+  @override
+  String get rptOverdueBalance => 'Balanse na Lampas sa Takda';
+
+  @override
+  String get rptRepaymentRate => 'Antas ng Pagbabayad';
+
+  @override
+  String get rptLoanStatusTitle => 'Mga Pautang ayon sa Katayuan';
+
+  @override
+  String get rptStatusActive => 'Aktibo';
+
+  @override
+  String get rptStatusOverdue => 'Lampas sa Takda';
+
+  @override
+  String get rptStatusPaid => 'Bayad na';
+
+  @override
+  String rptNextDue(String date) {
+    return 'Susunod na bayad: $date';
+  }
+
+  @override
+  String get rptNoLoansInPeriod => 'Walang pautang na inisyu sa panahong ito.';
+
+  @override
+  String rptRepaidPercent(String percent) {
+    return '$percent% nabayaran na';
+  }
+
+  @override
+  String get rptPaidByFarmers => 'Binayaran ng Magsasaka';
+
+  @override
+  String get rptSubsidizedEntries => 'Mga Subsidized na Entry';
+
+  @override
+  String get rptExpenseNote =>
+      'Binibilang ang mga subsidized na entry ngunit walang halagang piso.';
+
+  @override
+  String rptShareOfTotal(String percent) {
+    return '$percent% ng kabuuan';
+  }
+
+  @override
+  String get rptSubsidizedNoAmount => 'Subsidized (walang halaga)';
+
+  @override
+  String get rptParticipationHint =>
+      'Mga aktibong miyembrong nag-ani o gumawa ng listing sa napiling panahon.';
+
+  @override
+  String get rptPriceSnapshotHint =>
+      'Pinakabagong naitalang presyo. Una ang mga pananim na may kamakailang pagbabago.';
+
+  @override
+  String rptActiveMembersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count aktibong miyembro',
+      one: '1 aktibong miyembro',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get rptExportSelectAll => 'Piliin lahat';
+
+  @override
+  String get rptExportClear => 'I-clear';
+
+  @override
+  String get rptExportQuickSelect => 'Mabilisang Pagpili';
+
+  @override
+  String get rptExportDescSales =>
+      'Mga natapos na benta mula sa lahat ng paraan ng pagbebenta';
+
+  @override
+  String get rptExportDescHarvest =>
+      'Mga talaan ng ani, kasama ang batches at stock';
+
+  @override
+  String get rptExportDescExpense =>
+      'Mga gastos ng magsasaka ayon sa kategorya';
+
+  @override
+  String get rptExportDescLoan => 'Mga naipautang, bayad at balanse';
+
+  @override
+  String get rptExportDescPatronage =>
+      'Benta ng miyembro at bahagi sa patronage';
+
+  @override
+  String get rptExportDescCoopStock => 'Antas ng stock ng kooperatiba ngayon';
+
+  @override
+  String get rptExportScopePeriod => 'Gumagamit ng panahon';
+
+  @override
+  String get rptExportScopeYear => 'Gumagamit ng taon';
+
+  @override
+  String get rptExportScopeSnapshot => 'Kasalukuyang kalagayan';
+
+  @override
+  String get rptExportSnapshotNote =>
+      'Kasalukuyang kalagayan ang Cooperative Stock, kaya hindi ito apektado ng panahon.';
+
+  @override
+  String get rptExportNoPeriodNeeded =>
+      'Walang gamit na panahon ang mga napiling ulat.';
+
+  @override
+  String get rptExportFormatPdfDesc => 'Dokumentong handa nang i-print';
+
+  @override
+  String get rptExportFormatCsvDesc => 'Spreadsheet para sa Excel o Sheets';
+
+  @override
+  String rptExportSelectedCount(int count) {
+    return '$count ang napili';
+  }
+
+  @override
+  String get rptExportReady => 'Handa na ang export';
+
+  @override
+  String get rptExportShareAgain => 'Ibahagi muli';
+
+  @override
+  String get rptExportGenerating => 'Ginagawa…';
+
+  @override
+  String get priceStatAverage => 'Karaniwan';
+
+  @override
+  String get farmerMarketRateTrendTitle => 'TREND NG PRESYO';
+
+  @override
+  String get farmAddressSectionTitle => 'Address ng Bukid';
+
+  @override
+  String get farmAddressFixedNote =>
+      'Ang iyong bukid ay nasa sakop ng kooperatiba. Ilagay ang kalye, gusali at numero ng bahay ng bukid.';
+
+  @override
+  String farmAddressLegacyNotice(String address) {
+    return 'Na-save ang address ng iyong bukid bilang karaniwang teksto: \"$address\". Punan ang mga field sa ibaba para i-update ito, o iwanang blangko para panatilihin.';
+  }
+
+  @override
+  String get farmLocationSectionTitle => 'Lokasyon ng Bukid';
+
+  @override
+  String get farmLocationMapTitle => 'Lokasyon ng Bukid';
+
+  @override
+  String get farmViewFullMap => 'Tingnan ang Buong Mapa';
+
+  @override
+  String get farmMapHint =>
+      'I-tap ang Tingnan ang Buong Mapa para ilagay ang pin ng iyong bukid. Minamarkahan nito ang iyong bukid, hindi ang address ng iyong bahay.';
+
+  @override
+  String get farmPinNotSet =>
+      'Wala pang pin ng bukid. Gamitin ang Tingnan ang Buong Mapa para maglagay.';
+
+  @override
+  String get farmPinFarFromBarangay =>
+      'Malayo ang pin na ito sa Barangay Payanas. Tiyaking minamarkahan nito ang iyong bukid.';
+
+  @override
+  String get nameSurnameLabel => 'Apelyido';
+
+  @override
+  String get nameFirstNameLabel => 'Pangalan';
+
+  @override
+  String get nameMiddleInitialLabel => 'M.I.';
+
+  @override
+  String get nameSuffixLabel => 'Hulapi';
+
+  @override
+  String get nameSuffixNone => 'Wala';
+
+  @override
+  String get nameSurnameHint => 'hal. Dela Cruz';
+
+  @override
+  String get nameFirstNameHint => 'hal. Juan o Marc Louie';
+
+  @override
+  String get nameSurnameRequired => 'Kailangan ang apelyido';
+
+  @override
+  String get nameFirstNameRequired => 'Kailangan ang pangalan';
+
+  @override
+  String get nameLengthError => 'Dapat 2 hanggang 60 titik';
+
+  @override
+  String get nameCharactersError =>
+      'Titik, espasyo, gitling, kudlit at tuldok lang ang puwede';
+
+  @override
+  String get nameInitialError => 'Isang titik lang';
+
+  @override
+  String nameFullNamePreview(String name) {
+    return 'Buong pangalan: $name';
+  }
+
+  @override
+  String get memberProfilePersonalTitle => 'Personal na Impormasyon';
+
+  @override
+  String get memberProfileFullName => 'Buong Pangalan';
+
+  @override
+  String get memberProfileMemberSince => 'Miyembro Mula';
+
+  @override
+  String get memberProfileResidentialTitle => 'Tirahan';
+
+  @override
+  String get memberProfileNoMapPin =>
+      'Walang naka-pin sa mapa para sa address na ito.';
+
+  @override
+  String get memberProfileFarmInfoTitle => 'Impormasyon ng Sakahan';
+
+  @override
+  String get memberProfileFarmName => 'Pangalan ng Sakahan';
+
+  @override
+  String get memberProfileOwnership => 'Pagmamay-ari ng Lupa';
+
+  @override
+  String get memberProfileSoilType => 'Uri ng Lupa';
+
+  @override
+  String get memberProfileWaterSource => 'Pinagkukunan ng Tubig';
+
+  @override
+  String get memberProfileCropsTitle => 'Pangunahing Pananim';
+
+  @override
+  String get memberProfileNoFarmAddress =>
+      'Wala pang naka-save na address ng sakahan.';
+
+  @override
+  String get memberProfileNoFarmPin =>
+      'Hindi pa naka-pin ng magsasaka ang sakahan sa mapa.';
+
+  @override
+  String get memberProfileCoordinates => 'Koordinado';
+
+  @override
+  String get memberContributionPatronageSection => 'Patronage';
+
+  @override
+  String get memberContributionCapitalSection => 'Capital';
+
+  @override
+  String nameLegacyNotice(String name) {
+    return 'Naka-save ang pangalan mo bilang isang linya: \"$name\". Ilagay ito sa mga field sa itaas para makumpleto ang profile, o iwanang walang laman para manatili ito.';
+  }
+
+  @override
+  String get farmerDetailsTitle => 'Detalye ng Magsasaka';
+
+  @override
+  String get emailStatusVerified => 'Beripikado';
+
+  @override
+  String get emailStatusUnverified => 'Hindi pa beripikado';
+
+  @override
+  String get emailVerifyAction => 'I-verify ang Email';
+
+  @override
+  String emailVerifyCodeSent(String email) {
+    return 'Nagpadala kami ng 6-digit na code sa $email. Mag-e-expire ito sa loob ng 10 minuto.';
+  }
+
+  @override
+  String get emailVerifyCodeLabel => 'Code ng beripikasyon';
+
+  @override
+  String get emailVerifyConfirm => 'I-verify';
+
+  @override
+  String get emailVerifyResend => 'Ipadala muli ang code';
+
+  @override
+  String emailVerifyResendIn(int seconds) {
+    return 'Ipadala muli sa ${seconds}s';
+  }
+
+  @override
+  String get emailVerifySuccess => 'Beripikado na ang iyong email address.';
+
+  @override
+  String emailVerifyInvalidCode(int left) {
+    return 'Mali ang code. Natitirang subok: $left.';
+  }
+
+  @override
+  String get emailVerifyInvalidCodeNoCount => 'Mali ang code.';
+
+  @override
+  String get emailVerifyEnterCode => 'Ilagay ang 6-digit na code.';
+
+  @override
+  String get emailVerifyExpired => 'Nag-expire na ang code. Humiling ng bago.';
+
+  @override
+  String get emailVerifyTooMany =>
+      'Masyadong maraming maling subok. Humiling ng bagong code.';
+
+  @override
+  String get emailVerifyNoCode =>
+      'Walang naghihintay na code. Humiling ng bago.';
+
+  @override
+  String get emailVerifyEmailChanged =>
+      'Nagbago ang iyong email address. Humiling ng bagong code.';
+
+  @override
+  String emailVerifyCooldown(int seconds) {
+    return 'Maghintay ng $seconds segundo bago humiling ng panibagong code.';
+  }
+
+  @override
+  String get emailVerifyLimit =>
+      'Masyadong maraming hiniling na code. Subukan muli mamaya.';
+
+  @override
+  String get emailVerifySendFailed =>
+      'Hindi namin naipadala ang email. Subukan muli sandali.';
+
+  @override
+  String get emailVerifyOffline =>
+      'Offline ka. Kumonekta sa internet para ma-verify ang iyong email.';
+
+  @override
+  String get emailVerifyUnauthorized =>
+      'Nag-expire na ang iyong session. Mag-sign in muli.';
+
+  @override
+  String get emailVerifyGenericError => 'Nagkaproblema. Subukan muli.';
+
+  @override
+  String get emailVerifyAlready => 'Beripikado na ang email address na ito.';
+
+  @override
+  String get emailVerifyNoEmail => 'Maglagay muna ng email address.';
+
+  @override
+  String get recoveryEmailVerifiedOnlyTitle =>
+      'Kailangan ng beripikadong email para sa email recovery';
+
+  @override
+  String get recoveryEmailVerifiedOnlyBody =>
+      'Ipinapadala lang ang reset code sa email address na na-verify sa Edit Profile. Ilagay ang iyong username sa ibaba para humiling ng pansamantalang password sa Manager.';
+
+  @override
+  String get recoveryUsernameLabel => 'Username';
 }

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/buyer_order_model.dart';
@@ -403,8 +404,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _summaryRow(l10n.buyerOrdersQuantityLabel, '${order.quantityKg.toStringAsFixed(0)} kg'),
-          _summaryRow(l10n.buyerPricePerKg, '₱${order.pricePerKg.toStringAsFixed(2)}'),
+          _summaryRow(l10n.buyerOrdersQuantityLabel, formatQuantityUnit(order.quantityKg, order.unit)),
+          _summaryRow(l10n.buyerPricePerKg(unitOrDefault(order.unit)), formatPesos(order.pricePerKg)),
           const Divider(height: 20),
           _summaryRow(l10n.buyerOrdersTotalLabel, '₱${order.totalPrice.toStringAsFixed(2)}', bold: true),
           const SizedBox(height: 12),

@@ -80,7 +80,7 @@ class SupplyChainSummary {
 
 // ─── Map Filter ───────────────────────────────────────────────────────────────
 
-enum MapCropFilter { all, peanut, ginger, palay, banana, copra }
+enum MapCropFilter { all, peanut, ginger, palay, banana }
 
 extension MapCropFilterExt on MapCropFilter {
   String get label {
@@ -95,8 +95,6 @@ extension MapCropFilterExt on MapCropFilter {
         return 'Palay';
       case MapCropFilter.banana:
         return 'Banana';
-      case MapCropFilter.copra:
-        return 'Copra';
     }
   }
 

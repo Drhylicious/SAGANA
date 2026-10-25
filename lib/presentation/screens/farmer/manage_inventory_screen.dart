@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/inventory_batch_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
 import '../../../data/repositories/informal_sale_repository.dart';
@@ -158,7 +159,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
   void _showUpdateQuantityDialog(InventoryBatchModel batch) {
     final controller = TextEditingController(
-      text: batch.availableKg.toStringAsFixed(0),
+      text: formatQuantity(batch.availableKg),
     );
     showDialog(
       context: context,
@@ -175,7 +176,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${batch.cropName} • Batch #${batch.batchNumber}',
+              '${batch.cropName} • ${formatBatchNumber(batch.batchNumber)}',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: AppConstants.outline,
@@ -187,12 +188,10 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-              ],
+              inputFormatters: [DecimalInputFormatter(max: batch.availableKg)],
               autofocus: true,
               decoration: InputDecoration(
-                labelText: 'Available Quantity (kg)',
+                labelText: 'Available Quantity (${unitOrDefault(batch.unit)})',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
@@ -200,7 +199,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Total batch quantity: ${batch.quantityKg.toStringAsFixed(0)} kg  •  You can only decrease this value',
+              'Total batch quantity: ${formatQuantityUnit(batch.quantityKg, batch.unit)}  •  You can only decrease this value',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: AppConstants.outline,
@@ -218,12 +217,20 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final newQty = double.tryParse(controller.text.trim());
               final maxAvailable = batch.availableKg;
-              if (newQty == null || newQty < 0 || newQty > maxAvailable) {
+              final raw = controller.text.trim();
+              // 0 is allowed here on purpose (it empties the batch); every
+              // other value must be a valid decimal within the stock on hand.
+              final isZero = raw.isNotEmpty &&
+                  raw != '.' &&
+                  RegExp(r'^0*\.?0*$').hasMatch(raw);
+              final newQty = isZero
+                  ? 0.0
+                  : parseDecimal(raw, max: maxAvailable);
+              if (newQty == null) {
                 PostActionFeedback.error(
                   context,
-                  'Enter a value between 0 and ${maxAvailable.toStringAsFixed(0)} kg. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.',
+                  'Enter a value between 0 and ${formatQuantityUnit(maxAvailable, batch.unit)}. Increasing beyond the current available amount isn\'t supported here — released reservations restore this automatically.',
                 );
                 return;
               }
@@ -236,7 +243,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                 return;
               }
               Navigator.pop(context);
-              await _repo.updateQuantity(batch.id, newQty);
+              await _repo.updateQuantity(batch.id, roundQuantity(newQty));
               _loadData();
             },
             style: ElevatedButton.styleFrom(
@@ -315,6 +322,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
       context,
       cropName: batch.cropName,
       availableKg: batch.availableKg,
+      unit: batch.unit,
       isCoopEligible: batch.isCoopEligible,
       exclusiveChannel: batch.exclusiveChannel,
     );
@@ -479,6 +487,29 @@ class _SummaryMetrics extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The three cards are kg totals. Batches measured in another unit (sack,
+    // piece ...) are not added to them: SAGANA never adds different units.
+    final otherUnits = (summary['other_unit_batches'] ?? 0).round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [_cards(), if (!isLoading && otherUnits > 0) _otherUnitsNote(otherUnits)],
+    );
+  }
+
+  Widget _otherUnitsNote(int count) => Padding(
+    padding: const EdgeInsets.only(top: 8, left: 4),
+    child: Text(
+      count == 1
+          ? 'Totals count batches in kg. 1 batch uses another unit and is not included.'
+          : 'Totals count batches in kg. $count batches use other units and are not included.',
+      style: GoogleFonts.inter(
+        fontSize: 11,
+        color: AppConstants.onSurfaceVariant,
+      ),
+    ),
+  );
+
+  Widget _cards() {
     return Row(
       children: [
         Expanded(
@@ -511,8 +542,7 @@ class _SummaryMetrics extends StatelessWidget {
     );
   }
 
-  String _fmt(double v) =>
-      v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+  String _fmt(double v) => formatQuantity(v);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -720,11 +750,14 @@ class _BatchCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 2),
+                        // The long batch number may take two lines on a
+                        // narrow phone rather than overflowing.
                         Text(
-                          'Batch: #${batch.batchNumber}',
+                          formatBatchNumber(batch.batchNumber),
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: AppConstants.outline,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.onSurfaceVariant,
                           ),
                         ),
                         if (batch.exclusiveChannel != null) ...[
@@ -785,11 +818,13 @@ class _BatchCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Stock: ${batch.availableKg.toStringAsFixed(0)}kg of ${batch.quantityKg.toStringAsFixed(0)}kg',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppConstants.outline,
+                  Flexible(
+                    child: Text(
+                      'Stock: ${formatQuantity(batch.availableKg)} of ${formatQuantityUnit(batch.quantityKg, batch.unit)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppConstants.outline,
+                      ),
                     ),
                   ),
                   Text(
@@ -1346,7 +1381,7 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
   void initState() {
     super.initState();
     _qtyController = TextEditingController(
-      text: widget.batch.availableKg.toStringAsFixed(0),
+      text: formatQuantity(widget.batch.availableKg),
     );
   }
 
@@ -1357,10 +1392,14 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
   }
 
   Future<void> _submit() async {
-    final qty = double.tryParse(_qtyController.text.trim());
-    if (qty == null || qty <= 0 || qty > widget.batch.availableKg) {
-      setState(() => _error =
-          'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.');
+    final error = quantityErrorText(
+      _qtyController.text,
+      max: widget.batch.availableKg,
+      unit: widget.batch.unit,
+    );
+    final qty = parseDecimal(_qtyController.text, max: widget.batch.availableKg);
+    if (error != null || qty == null) {
+      setState(() => _error = error ?? 'Enter a valid quantity.');
       return;
     }
 
@@ -1368,7 +1407,7 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
     try {
       await _repo.submitGingerForSale(
         inventoryBatchId: widget.batch.id,
-        volumeKg: qty,
+        volumeKg: roundQuantity(qty),
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -1390,11 +1429,9 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
       body: TextField(
         controller: _qtyController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-        ],
+        inputFormatters: [DecimalInputFormatter(max: widget.batch.availableKg)],
         decoration: InputDecoration(
-          labelText: 'Quantity to submit (kg)',
+          labelText: 'Quantity to submit (${unitOrDefault(widget.batch.unit)})',
           errorText: _error,
         ),
       ),
@@ -1442,7 +1479,7 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   void initState() {
     super.initState();
     _qtyController = TextEditingController(
-      text: widget.batch.availableKg.toStringAsFixed(0),
+      text: formatQuantity(widget.batch.availableKg),
     );
   }
 
@@ -1455,16 +1492,17 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
 
   Future<void> _submit() async {
     final l10n = AppLocalizations.of(context);
-    final qty = double.tryParse(_qtyController.text.trim());
-    final price = double.tryParse(_priceController.text.trim());
+    final unit = unitOrDefault(widget.batch.unit);
+    final qty = parseDecimal(_qtyController.text, max: widget.batch.availableKg);
+    final price = parseDecimal(_priceController.text);
 
     setState(() {
-      _qtyError = (qty == null || qty <= 0 || qty > widget.batch.availableKg)
-          ? 'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.'
-          : null;
-      _priceError = (price == null || price <= 0)
-          ? l10n.coopOfferAskingRequired
-          : null;
+      _qtyError = quantityErrorText(
+        _qtyController.text,
+        max: widget.batch.availableKg,
+        unit: widget.batch.unit,
+      );
+      _priceError = price == null ? l10n.coopOfferAskingRequired(unit) : null;
       _submitError = null;
     });
     if (_qtyError != null || _priceError != null) return;
@@ -1473,8 +1511,8 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
     try {
       await _repo.offerToCooperative(
         batch: widget.batch,
-        quantityKg: qty!,
-        askingPricePerKg: price!,
+        quantityKg: roundQuantity(qty!),
+        askingPricePerKg: roundQuantity(price!),
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -1496,6 +1534,7 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    final unit = unitOrDefault(widget.batch.unit);
     final enteredQty = double.tryParse(_qtyController.text.trim());
     final enteredPrice = double.tryParse(_priceController.text.trim());
     final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
@@ -1507,21 +1546,19 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _FieldLabel(label: 'Quantity to offer (kg)', cs: cs),
+          _FieldLabel(label: 'Quantity to offer ($unit)', cs: cs),
           TextFormField(
             controller: _qtyController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-            ],
+            inputFormatters: const [DecimalInputFormatter()],
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(hintText: '0.00', errorText: _qtyError),
           ),
           const SizedBox(height: 4),
           Text(
             exceedsAvailable
-                ? 'Only ${widget.batch.availableKg.toStringAsFixed(0)} kg available — reduce the quantity.'
-                : '${widget.batch.availableKg.toStringAsFixed(0)} kg available',
+                ? 'Only ${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available — reduce the quantity.'
+                : '${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available',
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: exceedsAvailable ? FontWeight.w600 : FontWeight.w400,
@@ -1529,13 +1566,11 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
             ),
           ),
           const SizedBox(height: 14),
-          _FieldLabel(label: l10n.coopOfferAskingLabel, cs: cs),
+          _FieldLabel(label: l10n.coopOfferAskingLabel(unit), cs: cs),
           TextFormField(
             controller: _priceController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}\.?\d{0,2}')),
-            ],
+            inputFormatters: const [DecimalInputFormatter(maxWholeDigits: 6)],
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               prefixText: '₱ ',
@@ -1550,8 +1585,8 @@ class _OfferToCooperativeDialogState extends State<_OfferToCooperativeDialog> {
             const SizedBox(height: 4),
             Text(
               l10n.coopTotalPreview(
-                coopKg(enteredQty),
-                coopPeso(enteredQty * enteredPrice),
+                coopKg(enteredQty, widget.batch.unit),
+                coopPeso(moneyOf(enteredQty, enteredPrice)),
               ),
               style: GoogleFonts.poppins(
                 fontSize: 13,
@@ -1615,7 +1650,7 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
   void initState() {
     super.initState();
     _qtyController = TextEditingController(
-      text: widget.batch.availableKg.toStringAsFixed(0),
+      text: formatQuantity(widget.batch.availableKg),
     );
   }
 
@@ -1628,17 +1663,20 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
   }
 
   Future<void> _submit() async {
-    final qty = double.tryParse(_qtyController.text.trim());
+    final qty = parseDecimal(_qtyController.text, max: widget.batch.availableKg);
     final buyer = _buyerController.text.trim();
-    final amount = double.tryParse(_amountController.text.trim());
+    final amount = parseDecimal(_amountController.text);
 
     setState(() {
-      _qtyError = (qty == null || qty <= 0 || qty > widget.batch.availableKg)
-          ? 'Enter a quantity up to ${widget.batch.availableKg.toStringAsFixed(0)} kg.'
-          : null;
+      _qtyError = quantityErrorText(
+        _qtyController.text,
+        max: widget.batch.availableKg,
+        unit: widget.batch.unit,
+      );
       _buyerError = buyer.isEmpty ? 'Buyer name is required.' : null;
-      _amountError =
-          (amount == null || amount <= 0) ? 'Amount received is required.' : null;
+      _amountError = amount == null
+          ? priceErrorText(_amountController.text, label: 'Amount received')
+          : null;
       _submitError = null;
     });
     if (_qtyError != null || _buyerError != null || _amountError != null) return;
@@ -1647,9 +1685,9 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
     try {
       await _repo.recordInformalSale(
         batch: widget.batch,
-        quantityKg: qty!,
+        quantityKg: roundQuantity(qty!),
         buyerName: buyer,
-        amount: amount,
+        amount: roundQuantity(amount!),
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -1665,6 +1703,7 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final unit = unitOrDefault(widget.batch.unit);
     final enteredQty = double.tryParse(_qtyController.text.trim());
     final exceedsAvailable = enteredQty != null && enteredQty > widget.batch.availableKg;
 
@@ -1675,21 +1714,19 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _FieldLabel(label: 'Quantity sold (kg)', cs: cs),
+          _FieldLabel(label: 'Quantity sold ($unit)', cs: cs),
           TextFormField(
             controller: _qtyController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-            ],
+            inputFormatters: const [DecimalInputFormatter()],
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(hintText: '0.00', errorText: _qtyError),
           ),
           const SizedBox(height: 4),
           Text(
             exceedsAvailable
-                ? 'Only ${widget.batch.availableKg.toStringAsFixed(0)} kg available — reduce the quantity.'
-                : '${widget.batch.availableKg.toStringAsFixed(0)} kg available',
+                ? 'Only ${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available — reduce the quantity.'
+                : '${formatQuantityUnit(widget.batch.availableKg, widget.batch.unit)} available',
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: exceedsAvailable ? FontWeight.w600 : FontWeight.w400,
@@ -1707,9 +1744,7 @@ class _RecordInformalSaleDialogState extends State<_RecordInformalSaleDialog> {
           TextFormField(
             controller: _amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-            ],
+            inputFormatters: const [DecimalInputFormatter()],
             decoration: InputDecoration(
               prefixText: '₱ ',
               hintText: '0.00',

@@ -165,13 +165,16 @@ class SalesTransactionRow {
   final String cropType; // 'palay' | 'peanut' | other crop's lowercased name
   final String cropName;
   final double quantityKg;
+
+  /// The unit quantityKg is measured in (the field keeps its old name).
+  final String unit;
   final double amount;
   final DateTime saleDate;
   final String? referenceNo;
   final String
   sellingType; // offer_to_cooperative | marketplace | informal_sale | da_amad_market_linking
   final String?
-  marketType; // 'Cooperative Market' | 'Public Market' | 'DA-AMAD Market' | null
+  marketType; // 'Cooperative Market' | 'Public Market' | null (marketplace only)
 
   /// Populated for every channel except Offer to Cooperative (that
   /// transaction is directly with the cooperative, not an external
@@ -189,6 +192,7 @@ class SalesTransactionRow {
     required this.cropType,
     required this.cropName,
     required this.quantityKg,
+    this.unit = 'kg',
     required this.amount,
     required this.saleDate,
     this.referenceNo,
@@ -205,6 +209,7 @@ class SalesTransactionRow {
     'cropType': cropType,
     'cropName': cropName,
     'quantityKg': quantityKg,
+    'unit': unit,
     'amount': amount,
     'saleDate': saleDate.toIso8601String(),
     'referenceNo': referenceNo,
@@ -221,17 +226,115 @@ class SalesTransactionRow {
         cropType: map['cropType'] as String,
         cropName: map['cropName'] as String,
         quantityKg: (map['quantityKg'] as num).toDouble(),
+        // Snapshots saved before units existed have none: they were kg.
+        unit: (map['unit'] as String?)?.trim().isNotEmpty == true
+            ? map['unit'] as String
+            : 'kg',
         amount: (map['amount'] as num).toDouble(),
         saleDate: DateTime.parse(map['saleDate'] as String),
         referenceNo: map['referenceNo'] as String?,
         sellingType: map['sellingType'] as String,
-        marketType: map['marketType'] as String?,
+        // Older offline snapshots stored "DA-AMAD Market" here, but DA-AMAD
+        // is a selling channel and has no market type.
+        marketType: map['sellingType'] == 'da_amad_market_linking'
+            ? null
+            : map['marketType'] as String?,
         buyerName: map['buyerName'] as String?,
         orderStatus: map['orderStatus'] as String?,
       );
 }
 
-/// One Selling Type's aggregate — Sales Report's four channel cards.
+/// Combines the four selling channels' completed sales into the Sales Report.
+///
+/// Pure (no database): the same rows give the same report, which is what the
+/// tests rely on. Rules:
+///  * Revenue and the monthly trend add each row's [SalesTransactionRow.amount]
+///    — pesos are pesos whatever the unit — and are rounded to the centavo.
+///  * Quantities are kg figures: a row measured in another unit (sack, piece…)
+///    counts as a sale and in the revenue, but its quantity is not added to a
+///    kg total. Units are never added together.
+///  * Every row is counted once, under the channel it came from.
+SalesReportData buildSalesReportData({
+  required List<SalesTransactionRow> offerRows,
+  required List<SalesTransactionRow> marketplaceRows,
+  required List<SalesTransactionRow> informalRows,
+  required List<SalesTransactionRow> daAmadRows,
+}) {
+  final allRows = [
+    ...offerRows,
+    ...marketplaceRows,
+    ...informalRows,
+    ...daAmadRows,
+  ]..sort((a, b) => b.saleDate.compareTo(a.saleDate));
+
+  double round2(double v) => (v * 100).round() / 100;
+  double kgOf(SalesTransactionRow r) =>
+      (r.unit.trim().isEmpty || r.unit.trim() == 'kg') ? r.quantityKg : 0;
+
+  double totalRevenue = 0;
+  double totalQtyKg = 0;
+  final monthlyBuckets = <String, double>{};
+  for (final row in allRows) {
+    totalRevenue += row.amount;
+    totalQtyKg += kgOf(row);
+    final bucketKey =
+        '${row.saleDate.year}-${row.saleDate.month.toString().padLeft(2, '0')}';
+    monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + row.amount;
+  }
+
+  final sortedMonthKeys = monthlyBuckets.keys.toList()..sort();
+  final fullTrend = sortedMonthKeys
+      .map((k) => round2(monthlyBuckets[k]!))
+      .toList();
+  final trend = fullTrend.length > 6
+      ? fullTrend.sublist(fullTrend.length - 6)
+      : fullTrend;
+
+  SalesChannelTotal channel(String type, List<SalesTransactionRow> rows) =>
+      SalesChannelTotal(
+        sellingType: type,
+        label: sellingChannelLabel(type),
+        amount: round2(rows.fold(0.0, (sum, r) => sum + r.amount)),
+        quantityKg: round2(rows.fold(0.0, (sum, r) => sum + kgOf(r))),
+        transactionCount: rows.length,
+      );
+
+  // The four channel cards are always present, zero-valued when a channel has
+  // no sales in the period.
+  return SalesReportData(
+    totalRevenue: round2(totalRevenue),
+    totalQuantityKg: round2(totalQtyKg),
+    transactionCount: allRows.length,
+    monthlyTrend: trend,
+    transactions: allRows,
+    channelTotals: [
+      channel('offer_to_cooperative', offerRows),
+      channel('marketplace', marketplaceRows),
+      channel('informal_sale', informalRows),
+      channel('da_amad_market_linking', daAmadRows),
+    ],
+  );
+}
+
+/// English display name of a selling channel key, for the exported CSV and
+/// PDF files (which have no BuildContext). On-screen labels come from the
+/// localization files instead; both use the same wording.
+String sellingChannelLabel(String sellingType) {
+  switch (sellingType) {
+    case 'offer_to_cooperative':
+      return 'Offer to Cooperative';
+    case 'marketplace':
+      return 'Marketplace';
+    case 'informal_sale':
+      return 'Informal Sale';
+    case 'da_amad_market_linking':
+      return 'DA-AMAD Market Linking';
+    default:
+      return sellingType;
+  }
+}
+
+/// One selling channel's aggregate — Sales Report's four channel cards.
 class SalesChannelTotal {
   final String sellingType;
   final String label;
@@ -361,9 +464,20 @@ class MemberContributionReportData {
 
 // ─── Inventory Report ───────────────────────────────────────────────────────
 
-/// One row in Inventory Report's batch table. Available/Reserved/Sold are
-/// real stored columns on inventory_batches — no cross-referencing against
-/// orders needed, unlike what I originally assumed before seeing the schema.
+/// Kilograms of a batch already committed to a Marketplace listing, a
+/// cooperative offer or a sale that is not yet completed. The reservation
+/// model lowers `available_kg` when stock is committed and never touches the
+/// stored `reserved_kg` column (it stays 0), so the committed amount is what
+/// is left of the harvested quantity after available and sold stock.
+double committedBatchKg({
+  required double quantityKg,
+  required double availableKg,
+  required double soldKg,
+}) => (quantityKg - availableKg - soldKg).clamp(0.0, double.infinity);
+
+/// One row in Inventory Report's batch table. Available and Sold are real
+/// stored columns on inventory_batches. [reservedKg] is the committed amount
+/// (see [committedBatchKg]) and is shown to the Manager as "Committed".
 class InventoryReportRow {
   final String batchId;
   final String farmerId;
@@ -374,6 +488,9 @@ class InventoryReportRow {
   final double availableKg;
   final double reservedKg;
   final double soldKg;
+
+  /// The unit every quantity on this row is measured in.
+  final String unit;
   final String
   status; // available | reserved | sold_out | withdrawn | low_stock
   final DateTime createdAt;
@@ -388,6 +505,7 @@ class InventoryReportRow {
     required this.availableKg,
     required this.reservedKg,
     required this.soldKg,
+    this.unit = 'kg',
     required this.status,
     required this.createdAt,
   });
@@ -452,6 +570,9 @@ class HarvestReportRow {
   final String farmerName;
   final String cropName;
   final double quantityKg;
+
+  /// The unit quantityKg is measured in.
+  final String unit;
   final DateTime harvestDate;
   final bool isSynced;
   final String batchNumber; // links 1:1 to InventoryReportRow.batchNumber
@@ -462,6 +583,7 @@ class HarvestReportRow {
     required this.farmerName,
     required this.cropName,
     required this.quantityKg,
+    this.unit = 'kg',
     required this.harvestDate,
     required this.isSynced,
     required this.batchNumber,

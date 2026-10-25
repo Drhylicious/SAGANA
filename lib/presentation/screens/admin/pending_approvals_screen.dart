@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../../core/utils/listing_order.dart';
 import '../../widgets/listing_filter_modal.dart'
     show ListingStatusFilterChip, ListingMarketBadge;
 import '../../widgets/listing_status_badge.dart';
@@ -23,8 +26,10 @@ class PendingApprovalsScreen extends StatefulWidget {
   State<PendingApprovalsScreen> createState() => _PendingApprovalsScreenState();
 }
 
-class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
+class _PendingApprovalsScreenState extends State<PendingApprovalsScreen>
+    with WidgetsBindingObserver {
   final _repo = AdminListingRepository();
+  StreamSubscription<bool>? _connectivitySub;
   final _searchCtrl = TextEditingController();
 
   // Fetched once (the full pending/approved/rejected outcome set), then
@@ -45,8 +50,12 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
   @override
   void initState() {
     super.initState();
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
+    WidgetsBinding.instance.addObserver(this);
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (!mounted) return;
+      final cameOnline = v && !_isOnline;
+      setState(() => _isOnline = v);
+      if (cameOnline) _load();
     });
     AppTheme.applySystemOverlay(context);
     _searchCtrl.addListener(
@@ -55,8 +64,17 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
     _load();
   }
 
+  // Reload when the app returns to the foreground so decisions made on
+  // another device show up without a restart.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _load();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _connectivitySub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -87,7 +105,9 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
             (l.variety?.toLowerCase().contains(q) ?? false),
       );
     }
-    return list.toList();
+    // Pending first, then Approved, Disapproved last; newest first inside each
+    // group. Applied after the filter and the search.
+    return orderForApprovals(list);
   }
 
   @override
@@ -341,34 +361,43 @@ class _PendingListingCard extends StatelessWidget {
                       context,
                       status: listing.status,
                     ),
-                    if (listing.marketType != null) ...[
-                      const SizedBox(width: 6),
-                      ListingMarketBadge(marketType: listing.marketType),
-                    ],
-                    const SizedBox(width: 6),
-                    if (listing.hasStockWarning)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: cs.errorContainer.withValues(alpha: 0.50),
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                        ),
-                        child: Text(
-                          '⚠ Stock',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: cs.error,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
+                // Market and stock pills wrap onto their own line, so the
+                // title and the approval badge never get squeezed on a
+                // narrow phone.
+                if (listing.marketType != null || listing.hasStockWarning) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (listing.marketType != null)
+                        ListingMarketBadge(marketType: listing.marketType),
+                      if (listing.hasStockWarning)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cs.errorContainer.withValues(alpha: 0.50),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusFull,
+                            ),
+                          ),
+                          child: Text(
+                            '⚠ Stock',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: cs.error,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -423,12 +452,12 @@ class _PendingListingCard extends StatelessWidget {
                   children: [
                     _InfoChip(
                       icon: Icons.payments_outlined,
-                      label: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                      label: formatPricePerUnit(listing.pricePerKg, listing.unit),
                       cs: cs,
                     ),
                     _InfoChip(
                       icon: Icons.scale_outlined,
-                      label: '${listing.volumeKg.toStringAsFixed(0)} kg',
+                      label: formatQuantityUnit(listing.volumeKg, listing.unit),
                       cs: cs,
                     ),
                     if (listing.priceDiffPercent != null)

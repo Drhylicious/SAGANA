@@ -1,3 +1,5 @@
+import '../../core/utils/quantity_utils.dart';
+
 /// Local-only cart line item — lives in Hive, never in Supabase. A cart
 /// is a pre-purchase scratchpad, not business data; the only thing that
 /// needs to be correct and durable is the moment of checkout, which
@@ -7,6 +9,9 @@ class CartItemModel {
   final String cropName;
   final String? variety;
   final double pricePerKg;
+
+  /// The unit this line is sold in; pricePerKg is the price of one of them.
+  final String unit;
   final String? photoUrl;
   // Display-only, same as the rest of this snapshot — shown on the cart
   // tile so a buyer/farmer sees the same listing details there as on
@@ -25,6 +30,7 @@ class CartItemModel {
     required this.cropName,
     this.variety,
     required this.pricePerKg,
+    this.unit = kDefaultUnit,
     this.photoUrl,
     this.category,
     this.marketType,
@@ -39,13 +45,14 @@ class CartItemModel {
     return '$cropName ($v)';
   }
 
-  double get subtotal => quantityKg * pricePerKg;
+  double get subtotal => moneyOf(quantityKg, pricePerKg);
 
   Map<String, dynamic> toMap() => {
         'listing_id': listingId,
         'crop_name': cropName,
         'variety': variety,
         'price_per_kg': pricePerKg,
+        'unit': unit,
         'photo_url': photoUrl,
     'category': category,
     'market_type': marketType,
@@ -59,6 +66,7 @@ class CartItemModel {
       cropName: map['crop_name'] as String,
       variety: map['variety'] as String?,
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       photoUrl: map['photo_url'] as String?,
       category: map['category'] as String?,
       marketType: map['market_type'] as String?,

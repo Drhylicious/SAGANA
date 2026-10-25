@@ -414,8 +414,11 @@ class _KpiStrip extends StatelessWidget {
       _KpiTile(l10n.marketDashKpiCoopOffers, '$pendingOffersCount', AppConstants.successGreen, Icons.handshake_rounded),
     ];
 
+    // Tall enough for icon + a two-line label + the number (24px padding
+    // included): a label such as "Pending Approval", or its Tagalog form,
+    // wraps to two lines in a 112px tile.
     return SizedBox(
-      height: 98,
+      height: 114,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: tiles.length,

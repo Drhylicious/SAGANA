@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_address_model.dart';
 import '../../../data/models/cart_item_model.dart';
@@ -666,10 +667,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildAdditionalInfoCard(AppLocalizations l10n) {
-    final totalQty = widget.items.fold<double>(0, (s, i) => s + i.quantityKg);
-    final qtyLabel = totalQty == totalQty.roundToDouble()
-        ? totalQty.toStringAsFixed(0)
-        : totalQty.toStringAsFixed(2);
+    // Totalled per unit: kilograms and sacks are never added together.
+    final qtyLabel = formatQuantitiesByUnit(
+      widget.items.map((i) => (quantity: i.quantityKg, unit: i.unit)),
+    );
     final notes = _method == _FulfillmentMethod.delivery
         ? _selectedAddress?.notes
         : null;
@@ -810,7 +811,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${item.quantityKg.toStringAsFixed(item.quantityKg == item.quantityKg.roundToDouble() ? 0 : 2)} kg × ₱${item.pricePerKg.toStringAsFixed(2)}',
+                  '${formatQuantityUnit(item.quantityKg, item.unit)} × ${formatPricePerUnit(item.pricePerKg, item.unit)}',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: AppConstants.onSurfaceVariant,

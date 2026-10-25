@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_listing_model.dart';
 import '../../../data/models/buyer_profile_model.dart';
@@ -528,7 +529,10 @@ class _ListingCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                            formatPricePerUnit(
+                              listing.pricePerKg,
+                              listing.unit,
+                            ),
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -538,7 +542,7 @@ class _ListingCard extends StatelessWidget {
                         ),
                         Text(
                           l10n.buyerBrowseUnitsSold(
-                            listing.soldKg.toStringAsFixed(0),
+                            formatQuantityUnit(listing.soldKg, listing.unit),
                           ),
                           style: GoogleFonts.inter(
                             fontSize: 11,
@@ -559,7 +563,7 @@ class _ListingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      '${listing.displayAvailableKg.toStringAsFixed(0)} kg ${l10n.buyerBrowseAvailableSuffix}',
+                      '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: AppConstants.onSurfaceVariant,

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/staggered_entrance.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
@@ -16,7 +17,12 @@ import '../../widgets/auth_visuals.dart';
 import '../../widgets/suspension_dialogs.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.otpEligibility});
+
+  /// Tests: stands in for the database's answer to "may this email get a reset
+  /// code?" (AuthService.canUseOtpReset).
+  @visibleForTesting
+  final Future<bool> Function(String identifier)? otpEligibility;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -143,21 +149,28 @@ class _LoginScreenState extends State<LoginScreen>
     if (_isForgotPasswordLoading) return;
     setState(() => _isForgotPasswordLoading = true);
     try {
-      // Admins, and any Farmer/Buyer who has promoted a real contact email,
-      // are eligible for the automated OTP reset; everyone else (including
-      // Officer, always) is routed to Admin-assisted reset. See
-      // can_use_otp_reset() — unifies this without special-casing by role.
+      // The emailed reset code is for an email address that has been VERIFIED
+      // (Edit Profile -> Verify Email) and is the account's sign-in email;
+      // everyone else (an Officer, always, and anyone whose email is not
+      // verified) is routed to Password Assistance, where the Manager sets a
+      // temporary password. The database answers this in can_use_otp_reset();
+      // the same rule is enforced again when the email is sent, so skipping
+      // this screen does not help.
       final identifier = _identifierController.text.trim();
       // A username always gets Request Password Assistance, even when its account
       // has an email on file. Only a valid email that belongs to a SAGANA account
       // gets the reset-link flow.
       final isEmail = _emailPattern.hasMatch(identifier);
-      final canUseOtp = isEmail && await AuthService.canUseOtpReset(identifier);
+      final canUseOtp = isEmail &&
+          await (widget.otpEligibility ?? AuthService.canUseOtpReset)(identifier);
       if (!mounted) return;
       if (canUseOtp) {
         await _showAdminResetSheet(prefill: identifier);
       } else {
-        await _showContactAdminSheet();
+        // An email that cannot be used gets the same explanation whether the
+        // address is unknown, has no verification, or belongs to nobody, so
+        // this reveals nothing about which accounts exist.
+        await _showContactAdminSheet(typedEmail: isEmail);
       }
     } finally {
       if (mounted) setState(() => _isForgotPasswordLoading = false);
@@ -183,10 +196,14 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Future<void> _showContactAdminSheet() async {
+  Future<void> _showContactAdminSheet({bool typedEmail = false}) async {
     await _showSlidingSheet(
-      builder: (context) =>
-          _ContactAdminSheet(username: _identifierController.text.trim()),
+      builder: (context) => _ContactAdminSheet(
+        // An email is not a username: when one was typed the person is asked for
+        // their username inside the sheet.
+        username: typedEmail ? '' : _identifierController.text.trim(),
+        typedEmail: typedEmail,
+      ),
     );
   }
 
@@ -834,7 +851,10 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
 
 class _ContactAdminSheet extends StatefulWidget {
   final String username;
-  const _ContactAdminSheet({required this.username});
+
+  /// The person typed an email address that cannot receive a reset code.
+  final bool typedEmail;
+  const _ContactAdminSheet({required this.username, this.typedEmail = false});
 
   @override
   State<_ContactAdminSheet> createState() => _ContactAdminSheetState();
@@ -843,8 +863,17 @@ class _ContactAdminSheet extends StatefulWidget {
 class _ContactAdminSheetState extends State<_ContactAdminSheet> {
   bool _isSubmitting = false;
   bool _requestSent = false;
+  late final TextEditingController _usernameCtrl =
+      TextEditingController(text: widget.username);
 
-  bool get _hasUsername => widget.username.isNotEmpty;
+  String get _username => _usernameCtrl.text.trim();
+  bool get _hasUsername => _username.isNotEmpty;
+
+  @override
+  void dispose() {
+    _usernameCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -917,6 +946,57 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
 
               const SizedBox(height: 20),
 
+              // An email was typed that cannot be sent a reset code: say why, in
+              // words that are the same for every such address, and ask for the
+              // username the Manager's request is made with.
+              if (widget.typedEmail) ...[
+                Container(
+                  key: const ValueKey('recovery-verified-only-notice'),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppConstants.warningAmber.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppLocalizations.of(context).recoveryEmailVerifiedOnlyTitle,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppConstants.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppLocalizations.of(context).recoveryEmailVerifiedOnlyBody,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          height: 1.45,
+                          color: AppConstants.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  key: const ValueKey('recovery-username'),
+                  controller: _usernameCtrl,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context).recoveryUsernameLabel,
+                    prefixIcon: const Icon(Icons.person_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+
               if (_requestSent) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -937,7 +1017,7 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
                 ),
               ],
 
-              if (!_hasUsername) ...[
+              if (!_hasUsername && !widget.typedEmail) ...[
                 const SizedBox(height: 12),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,10 +1116,10 @@ class _ContactAdminSheetState extends State<_ContactAdminSheet> {
   }
 
   Future<void> _handleRequest() async {
-    if (widget.username.isEmpty) return;
+    if (!_hasUsername) return;
     setState(() => _isSubmitting = true);
     try {
-      await AuthService.requestPasswordAssistance(widget.username);
+      await AuthService.requestPasswordAssistance(_username);
     } catch (_) {
       // Deliberately no error surfaced here either — see the RPC's
       // enumeration-safety note. Whether it's a network hiccup or the

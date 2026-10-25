@@ -127,7 +127,7 @@ void main() {
   test('the badge says Pending Applicant, not Pending Verification', () {
     expect(AppLocalizationsEn().farmerDetailsPendingApplicantBadge, 'Pending Applicant');
     expect(AppLocalizationsTl().farmerDetailsPendingApplicantBadge, 'Nakabinbing Aplikante');
-    final profile = File('lib/presentation/screens/admin/farmer_details_screen.dart')
+    final profile = File('lib/presentation/widgets/member_profile_cards.dart')
         .readAsStringSync();
     expect(profile, contains('l10n.farmerDetailsPendingApplicantBadge'));
     final applicant = File('lib/presentation/screens/farmer/pending_applicant_screen.dart')

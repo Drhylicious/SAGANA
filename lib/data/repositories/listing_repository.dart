@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import '../models/marketplace_listing_model.dart';
@@ -47,8 +48,10 @@ class ListingRepository {
       'p_batch_id': inventoryBatchId,
       'p_crop_name': cropName,
       'p_variety': variety,
-      'p_quantity_kg': volumeKg,
-      'p_price_per_kg': pricePerKg,
+      // Both are DECIMAL(10,2) in the database; rounding here keeps a value
+      // like 0.45 or 12.50 exactly as typed (no binary-float tail).
+      'p_quantity_kg': roundQuantity(volumeKg),
+      'p_price_per_kg': roundQuantity(pricePerKg),
       'p_photo_url': photoUrl,
         'p_description': description,
       },

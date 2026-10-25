@@ -198,11 +198,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   : l10n.adminProfileDefaultRole),
                           style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
                     ),
-                    if (profile.department != null) ...[
-                      const SizedBox(height: 4),
-                      Text(profile.department!,
-                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
-                    ],
                   ],
                 ),
               ),
@@ -211,7 +206,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           const SizedBox(height: 16),
           Divider(color: cs.outline.withValues(alpha: 0.24), height: 1),
           const SizedBox(height: 14),
-          _heroRow(l10n.adminProfileEmail, profile.email, cs),
+          // Both come from the account itself (user_information and the sign-in
+          // record), never from the app, so whoever holds this account sees
+          // their own details.
+          _heroRow(l10n.emailAddress, _orDash(profile.displayEmail), cs),
+          const SizedBox(height: 12),
+          _heroRow(l10n.adminProfilePhoneNumber, _orDash(profile.phoneNumber), cs),
           const SizedBox(height: 12),
           _heroRow(
             l10n.adminProfileAdminSince,
@@ -221,6 +221,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         ],
       ),
     );
+  }
+
+  static String _orDash(String? value) {
+    final v = value?.trim() ?? '';
+    return v.isEmpty ? '—' : v;
   }
 
   /// Full-width label + value row — value gets all remaining width and

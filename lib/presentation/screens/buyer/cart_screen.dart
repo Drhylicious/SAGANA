@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../widgets/app_toast.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -28,9 +29,6 @@ class CartScreen extends StatefulWidget {
   @override
   State<CartScreen> createState() => _CartScreenState();
 }
-
-String _fmtCartQty(double q) =>
-    q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(2);
 
 class _CartScreenState extends State<CartScreen> {
   final _cartService = CartService();
@@ -278,7 +276,10 @@ class _CartScreenState extends State<CartScreen> {
       } else if (live < item.quantityKg) {
         await _cartService.updateQuantity(item.listingId, live);
         adjustments.add(
-          l10n.buyerCartAdjustedReduced(item.displayName, _fmtCartQty(live)),
+          l10n.buyerCartAdjustedReduced(
+            item.displayName,
+            formatQuantityUnit(live, item.unit),
+          ),
         );
       }
     }
@@ -688,7 +689,7 @@ class _CartItemTile extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '₱${item.pricePerKg.toStringAsFixed(2)}/kg',
+                    formatPricePerUnit(item.pricePerKg, item.unit),
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: AppConstants.onSurfaceVariant,
@@ -726,13 +727,16 @@ class _CartItemTile extends StatelessWidget {
                         issueText == null && item.quantityKg > 0.01 ? onDecrement : null,
                       ),
                       SizedBox(
-                        width: 40,
-                        child: Text(
-                          _fmtCartQty(item.quantityKg),
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                        width: 64,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            formatQuantityUnit(item.quantityKg, item.unit),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),

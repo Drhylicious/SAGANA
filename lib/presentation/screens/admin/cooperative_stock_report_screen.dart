@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -259,7 +258,7 @@ class _CooperativeStockReportScreenState
                         ),
                       ),
                       Text(
-                        '${entry.value} items',
+                        l10n.rptItemsCount(entry.value),
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
@@ -311,6 +310,23 @@ class _CooperativeStockReportScreenState
           ),
         ),
         const SizedBox(height: AppConstants.spacingSm),
+        // Search bar first, filter chips directly below it.
+        if (_data.items.isNotEmpty)
+          TextField(
+            controller: _searchController,
+            onChanged: (v) => setState(() => _searchQuery = v),
+            decoration: InputDecoration(
+              hintText: l10n.reportsSearchItems,
+              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: cs.outline,
+                size: 20,
+              ),
+            ),
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
+          ),
+        const SizedBox(height: AppConstants.spacingSm),
         if (_data.items.isNotEmpty)
           SizedBox(
             height: 34,
@@ -346,26 +362,10 @@ class _CooperativeStockReportScreenState
             ),
           ),
         const SizedBox(height: AppConstants.spacingSm),
-        if (_data.items.isNotEmpty)
-          TextField(
-            controller: _searchController,
-            onChanged: (v) => setState(() => _searchQuery = v),
-            decoration: InputDecoration(
-              hintText: l10n.reportsSearchItems,
-              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: cs.outline,
-                size: 20,
-              ),
-            ),
-            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
-          ),
-        const SizedBox(height: AppConstants.spacingSm),
         if (_data.items.isEmpty)
           ReportEmptyState(message: l10n.reportsNoCoopStockYet)
         else if (filtered.isEmpty)
-          ReportEmptyState(message: l10n.reportsNoSearchResults)
+          ReportEmptyState(message: l10n.rptNoMatches)
         else
           ...filtered.map((i) => _buildItemRow(context, i, cs, sagana)),
       ],

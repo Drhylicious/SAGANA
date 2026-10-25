@@ -1,24 +1,19 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_analytics_model.dart';
-import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/analytics_model.dart';
 import '../../../data/repositories/admin_analytics_repository.dart';
-import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/repositories/analytics_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/planting_forecast_card.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/top_harvested_crops_chart.dart';
-import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/cached_data_notice.dart';
@@ -29,9 +24,10 @@ import '../../../data/services/connectivity_service.dart';
 ///
 /// Deliberately does not duplicate the Operational Reports hub's KPI
 /// summary — that surface already belongs to Reports. This screen focuses
-/// on what's genuinely analytical: planting forecast trend, top harvested
-/// crops, member participation, loan health, and a price snapshot linking
-/// out to the full Price Management screen rather than rebuilding it.
+/// on what is genuinely analytical: a cooperative snapshot, member
+/// participation, loan repayment, a price snapshot, top harvested crops and
+/// the planting forecast. Every figure comes from data already stored; nothing
+/// here is estimated.
 ///
 /// Planting Recommendations are read-only and framed the same honest way
 /// as the farmer-facing screen (supply-trend only, not demand-informed) —
@@ -47,7 +43,6 @@ class AnalyticsDashboardScreen extends StatefulWidget {
 
 class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   final _analyticsRepo = AnalyticsRepository();
-  final _loanRepo = AdminLoanRepository();
   final _adminAnalyticsRepo = AdminAnalyticsRepository();
 
   bool _isLoading = true;
@@ -56,17 +51,14 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   List<PlantingForecast> _forecasts = [];
   List<TopSellingCrop> _topCrops = [];
   List<CropPriceCard> _priceCards = [];
-  AllTimeLoanSummary _loanSummary = AllTimeLoanSummary.empty();
-  List<double> _collectionTrend = [];
   MemberParticipationSummary _participation =
       MemberParticipationSummary.empty();
 
-  // Scoped to Member Participation only — Top Harvested Crops and
-  // Planting Forecast read from crop_planting_forecast/top_harvested_crops,
-  // both explicitly fixed-window, period-independent SQL views by design
-  // (see supabase_schema_top_harvested_crops.sql), and Loan Health is
-  // deliberately all-time. Member Participation's fetchMemberParticipation
-  // already accepted an optional `since` that nothing on this screen used.
+  // Scoped to Member Participation only — Top Harvested Crops and Planting
+  // Forecast read from fixed-window SQL views (see
+  // supabase_schema_top_harvested_crops.sql), and the loan figures are
+  // deliberately all-time / current. The selector sits inside the
+  // Participation card so it is clear what it controls.
   ReportPeriod _participationPeriod = ReportPeriod.thisMonth;
 
   @override
@@ -84,8 +76,6 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       _analyticsRepo.fetchPlantingForecasts(),
       _analyticsRepo.fetchTopSellingCrops(),
       _analyticsRepo.fetchPriceCards(),
-      _loanRepo.fetchAllTimeLoanSummary(),
-      _loanRepo.fetchMonthlyCollectionTrend(),
       _adminAnalyticsRepo.fetchMemberParticipation(
         since: _participationPeriod.range().startDate,
       ),
@@ -95,9 +85,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       _forecasts = results[0] as List<PlantingForecast>;
       _topCrops = results[1] as List<TopSellingCrop>;
       _priceCards = results[2] as List<CropPriceCard>;
-      _loanSummary = results[3] as AllTimeLoanSummary;
-      _collectionTrend = results[4] as List<double>;
-      _participation = results[5] as MemberParticipationSummary;
+      _participation = results[3] as MemberParticipationSummary;
       _isLoading = false;
     });
   }
@@ -112,11 +100,9 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   }
 
   /// Price Snapshot shows the current price for up to 4 crops, movers
-  /// (a recorded price change) sorted first — but no longer hides every
-  /// card just because none of them have moved yet. Previously this
-  /// filtered to priceDiff != null only, which meant a crop with only one
-  /// price ever recorded (no previous price to diff against) was
-  /// invisible here even though its current price was real, on-file data.
+  /// (a recorded price change) sorted first — but never hides a card just
+  /// because none of them have moved yet: a crop with only one price ever
+  /// recorded is still real, on-file data.
   List<CropPriceCard> get _priceSnapshotCards {
     final sorted = [..._priceCards]
       ..sort((a, b) {
@@ -125,18 +111,6 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
         return bd.compareTo(ad);
       });
     return sorted.take(4).toList();
-  }
-
-  /// Month abbreviations for fetchMonthlyCollectionTrend()'s trailing
-  /// window — the same period-independent method Loan Report itself
-  /// uses, so this label logic is safe here too.
-  List<String> _trailingMonthLabels(int count) {
-    final now = DateTime.now();
-    return List.generate(count, (i) {
-      final offset = count - 1 - i;
-      final date = DateTime(now.year, now.month - offset, 1);
-      return DateFormat('MMM').format(date);
-    });
   }
 
   @override
@@ -149,7 +123,10 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          _buildTopBar(context, l10n, cs, sagana),
+          SubPageTopBar(
+            title: l10n.reportsAnalyticsDashboard,
+            onBack: () => context.pop(),
+          ),
           CachedDataNotice(
             screen: 'analytics_price_cards',
             otherScreens: const [
@@ -175,16 +152,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
                         32,
                       ),
                       children: [
-                        _buildParticipationPeriodSelector(cs),
-                        const SizedBox(height: AppConstants.spacingMd),
-                        ReportSectionHeader(
-                          icon: Icons.insights_rounded,
-                          title: l10n.reportsAnalyticsOverview,
-                        ),
-                        const SizedBox(height: AppConstants.spacingMd),
-                        _buildParticipationCard(context, l10n, cs, sagana),
-                        const SizedBox(height: AppConstants.spacingSectionV),
-                        _buildLoanHealthCard(context, l10n, cs, sagana),
+                        _buildParticipationCard(l10n, cs),
                         const SizedBox(height: AppConstants.spacingSectionV),
                         _buildPriceSnapshot(context, l10n, cs, sagana),
                         if (_topCrops.isNotEmpty) ...[
@@ -216,107 +184,26 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return SubPageTopBar(
-      title: l10n.reportsAnalyticsDashboard,
-      onBack: () => context.pop(),
-    );
-  }
+  Widget _buildParticipationCard(AppLocalizations l10n, ColorScheme cs) {
+    final p = _participation;
+    final participated = p.activeHarvestedCount + p.activeListedCount;
+    final rate = p.totalMembers > 0 ? participated / p.totalMembers * 100 : 0.0;
 
-  /// Segmented-pill period selector, visually mirroring Farmer Analytics'
-  /// own _PeriodSelector (farmer_analytics_screen.dart) at the user's
-  /// request — reuses the existing ReportPeriod enum already used
-  /// everywhere else in Admin Reports instead of introducing a third
-  /// period type. Scoped to Member Participation only; see the
-  /// _participationPeriod field doc comment for why nothing else on this
-  /// screen can meaningfully respond to a period filter.
-  Widget _buildParticipationPeriodSelector(ColorScheme cs) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-          ),
-          child: Row(
-            children: reportPeriodChipOrder.map((p) {
-              final isActive = p == _participationPeriod;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => _setParticipationPeriod(p),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? AppConstants.primaryGreen
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      p.label,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: isActive ? Colors.white : cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Applies to Member Participation only.',
-          style: GoogleFonts.inter(fontSize: 9, color: cs.onSurfaceVariant),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildParticipationCard(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
+    return ReportSectionCard(
+      title: l10n.analyticsMemberParticipation,
+      icon: Icons.diversity_3_rounded,
+      subtitle: l10n.rptParticipationHint,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.analyticsMemberParticipation,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: cs.onSurface,
-            ),
-          ),
+          _buildPeriodSelector(l10n, cs),
           const SizedBox(height: AppConstants.spacingMd),
           Row(
             children: [
               Expanded(
                 child: _tierStat(
                   l10n.analyticsActiveHarvested,
-                  _participation.activeHarvestedCount,
+                  p.activeHarvestedCount,
                   AppConstants.successGreen,
                 ),
               ),
@@ -324,21 +211,103 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
               Expanded(
                 child: _tierStat(
                   l10n.analyticsActiveListed,
-                  _participation.activeListedCount,
+                  p.activeListedCount,
                   AppConstants.buyerBlue,
                 ),
               ),
               const SizedBox(width: AppConstants.spacingSm),
               Expanded(
                 child: _tierStat(
-                  l10n.analyticsInactive,
-                  _participation.inactiveCount,
+                  l10n.rptNoActivity,
+                  p.inactiveCount,
                   AppConstants.warningAmber,
                 ),
               ),
             ],
           ),
+          if (p.totalMembers > 0) ...[
+            const SizedBox(height: AppConstants.spacingMd),
+            _proportionBar(p),
+            const SizedBox(height: 6),
+            Text(
+              '${l10n.rptActiveMembersCount(p.totalMembers)} · '
+              '${l10n.reportsParticipationRate}: ${rate.toStringAsFixed(0)}%',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// The three tiers as one segmented bar, in proportion to member counts.
+  Widget _proportionBar(MemberParticipationSummary p) {
+    Widget segment(int count, Color color) => count == 0
+        ? const SizedBox.shrink()
+        : Expanded(
+            flex: count,
+            child: Container(height: 8, color: color),
+          );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      child: Row(
+        children: [
+          segment(p.activeHarvestedCount, AppConstants.successGreen),
+          segment(p.activeListedCount, AppConstants.buyerBlue),
+          segment(p.inactiveCount, AppConstants.warningAmber),
+        ],
+      ),
+    );
+  }
+
+  /// Segmented-pill period selector, visually mirroring Farmer Analytics'
+  /// own period selector — reuses the ReportPeriod enum every Admin report
+  /// uses. Lives inside the Participation card, the only section it controls.
+  Widget _buildPeriodSelector(AppLocalizations l10n, ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Row(
+        children: reportPeriodChipOrder.map((p) {
+          final isActive = p == _participationPeriod;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => _setParticipationPeriod(p),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 36,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppConstants.primaryGreen
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                // Same height and width for every segment; the label shrinks
+                // to fit rather than wrapping or being cut off.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    reportPeriodLabel(l10n, p),
+                    maxLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isActive ? Colors.white : cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -364,76 +333,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(fontSize: 9, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoanHealthCard(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    final isHealthy = _loanSummary.isHealthy;
-    final repaymentRate = _loanSummary.repaymentRatePercent;
-    final healthColor = isHealthy
-        ? AppConstants.successGreen
-        : AppConstants.warningAmber;
-
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                l10n.analyticsLoanHealth,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: cs.onSurface,
-                ),
-              ),
-              Text(
-                '${repaymentRate.toStringAsFixed(0)}% ${l10n.analyticsCollectionRate}',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: healthColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppConstants.spacingSm),
-          SizedBox(
-            height: 100,
-            child: _collectionTrend.length < 2
-                ? Center(
-                    child: Text(
-                      l10n.reportsNotEnoughTrendData,
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
-                    ),
-                  )
-                : CustomPaint(
-                    size: const Size(double.infinity, 100),
-                    painter: TrendChartPainter(
-                      values: _collectionTrend,
-                      lineColor: cs.primary,
-                      gradientColor: cs.primary,
-                      xLabels: _trailingMonthLabels(_collectionTrend.length),
-                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
-                    ),
-                  ),
+            style: GoogleFonts.inter(fontSize: 10, color: color),
           ),
         ],
       ),
@@ -448,40 +348,22 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   ) {
     final cards = _priceSnapshotCards;
 
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
+    return ReportSectionCard(
+      title: l10n.analyticsPriceSnapshot,
+      icon: Icons.sell_rounded,
+      subtitle: l10n.rptPriceSnapshotHint,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.analyticsPriceSnapshot,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: AppConstants.spacingSm),
           if (cards.isEmpty)
             Text(
               l10n.reportsNotEnoughTrendData,
               style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
             )
           else
-            // Card-style display, matching Price Management's own _PriceCard
-            // visual language (image top with market-type badge overlay,
-            // name/price/% delta/freshness below) rather than the plain
-            // text rows this replaces — but without Price Management's
-            // edit affordance, since this snapshot is read-only.
-            // Horizontally scrollable per its own row, similar in concept
-            // to Farmer Analytics' Price Monitoring cards without copying
-            // that design directly (narrower, no margin/kg row, percentage
-            // delta instead of a peso amount, matching Price Management).
+            // Card-style display matching Price Management's own price cards
+            // (image with market-type badge, name, price, % change,
+            // freshness), read-only, one horizontally scrolling row.
             SizedBox(
               height: 150,
               child: ListView.separated(

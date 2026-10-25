@@ -216,6 +216,7 @@ class AppTextField extends StatefulWidget {
   final TextCapitalization textCapitalization;
   final int maxLines;
   final List<TextInputFormatter>? inputFormatters;
+  final FocusNode? focusNode;
 
   const AppTextField({
     super.key,
@@ -233,6 +234,7 @@ class AppTextField extends StatefulWidget {
     this.textCapitalization = TextCapitalization.none,
     this.maxLines = 1,
     this.inputFormatters,
+    this.focusNode,
   });
 
   @override
@@ -247,6 +249,7 @@ class _AppTextFieldState extends State<AppTextField> {
     final cs = Theme.of(context).colorScheme;
     return TextFormField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
       obscureText: widget.isPassword && _obscureText,
       keyboardType: widget.keyboardType,
       validator: widget.validator,

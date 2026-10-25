@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/market_linking_repository.dart';
@@ -711,7 +712,7 @@ class _EntryCard extends StatelessWidget {
                         Icon(Icons.scale_outlined, size: 13, color: cs.outline),
                         const SizedBox(width: 4),
                         Text(
-                          '${entry.volumeKg!.toStringAsFixed(0)} kg',
+                          '${formatQuantity(entry.volumeKg!)} kg',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: cs.onSurfaceVariant,
@@ -775,7 +776,9 @@ class _EntryCard extends StatelessWidget {
                       // screen.
                       Flexible(
                         child: Text(
-                          l10n.marketLinkLinkedToBatch(entry.batchNumber!),
+                          l10n.marketLinkLinkedToBatch(
+                            formatBatchNumber(entry.batchNumber),
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
@@ -789,7 +792,7 @@ class _EntryCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             l10n.marketLinkConfirmedVolumeSuffix(
-                              entry.confirmedVolumeKg!.toStringAsFixed(0),
+                              formatQuantity(entry.confirmedVolumeKg!),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1215,6 +1218,27 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
+    // A sale needs a real price and quantity: both must be valid decimals
+    // above zero (0.45, 12.50 …) before a buyer can be recorded, and the
+    // agreed price must exist before the sale is completed. The database
+    // refuses the same cases, so a stale screen cannot get past either.
+    final price = parseDecimal(_priceCtrl.text);
+    final requested = parseDecimal(_requestedVolumeCtrl.text);
+    String? problem;
+    if (widget.targetStatus == MarketLinkingStatus.buyerFound) {
+      if (price == null) {
+        problem = l10n.marketLinkPriceRequired;
+      } else if (requested == null) {
+        problem = l10n.marketLinkVolumeRequired;
+      }
+    } else if (_isCompleting && (widget.entry.pricePerKg ?? 0) <= 0) {
+      problem = l10n.marketLinkPriceRequired;
+    }
+    if (problem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       // Attach/clear the batch independently of status, unless we're
@@ -1239,11 +1263,9 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
         buyerContact: _isCancelling || _buyerContactCtrl.text.trim().isEmpty
             ? null
             : _buyerContactCtrl.text.trim(),
-        pricePerKg: _isCancelling
-            ? null
-            : double.tryParse(_priceCtrl.text.trim()),
+        pricePerKg: _isCancelling ? null : price,
         requestedVolumeKg: widget.targetStatus == MarketLinkingStatus.buyerFound
-            ? double.tryParse(_requestedVolumeCtrl.text.trim())
+            ? requested
             : null,
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         inventoryBatchId: _isCompleting ? _selectedBatchId : null,
@@ -1324,7 +1346,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
               _ReadOnlyRow(
                 label: l10n.marketLinkQuantityBuyerWantsLabel,
                 value: widget.entry.requestedVolumeKg != null
-                    ? '${widget.entry.requestedVolumeKg!.toStringAsFixed(0)} kg'
+                    ? '${formatQuantity(widget.entry.requestedVolumeKg!)} kg'
                     : '—',
                 cs: cs,
               ),
@@ -1345,9 +1367,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                ],
+                inputFormatters: const [DecimalInputFormatter()],
                 decoration: InputDecoration(
                   prefixText: '₱ ',
                   hintText: '0.00',
@@ -1369,9 +1389,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                ],
+                inputFormatters: const [DecimalInputFormatter()],
                 decoration: InputDecoration(
                   hintText: '0.00',
                   hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
@@ -1447,8 +1465,8 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
                         Expanded(
                           child: Text(
                             l10n.marketLinkBatchAvailableLine(
-                              '${batch['batch_number']}',
-                              (batch['available_kg'] as num).toStringAsFixed(0),
+                              formatBatchNumber(batch['batch_number'] as String?),
+                              formatQuantity(batch['available_kg'] as num),
                             ),
                             style: GoogleFonts.inter(
                               fontSize: 13,
@@ -1470,7 +1488,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
               _ReadOnlyRow(
                 label: l10n.marketLinkConfirmedVolumeLabel,
                 value: _computedConfirmedVolumeKg != null
-                    ? '${_computedConfirmedVolumeKg!.toStringAsFixed(0)} kg'
+                    ? '${formatQuantity(_computedConfirmedVolumeKg!)} kg'
                     : '—',
                 cs: cs,
               ),

@@ -1,3 +1,5 @@
+import '../../core/utils/quantity_utils.dart';
+
 class InventoryBatchModel {
   final String id;
   final String farmerId;
@@ -9,6 +11,10 @@ class InventoryBatchModel {
   final double availableKg;
   final double reservedKg;
   final double soldKg;
+
+  /// The unit every quantity on this batch is measured in (the *Kg fields keep
+  /// their old names). Chosen at harvest and never changed.
+  final String unit;
   final String
   status; // available | reserved | sold_out | withdrawn | low_stock
   final bool isCoopEligible;
@@ -41,6 +47,7 @@ class InventoryBatchModel {
     required this.availableKg,
     required this.reservedKg,
     required this.soldKg,
+    this.unit = kDefaultUnit,
     required this.status,
     this.isCoopEligible = false,
     this.cropType,
@@ -89,6 +96,7 @@ class InventoryBatchModel {
       availableKg: (map['available_kg'] as num).toDouble(),
       reservedKg: (map['reserved_kg'] as num).toDouble(),
       soldKg: (map['sold_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       status: map['status'] as String? ?? 'available',
       isCoopEligible: map['is_coop_eligible'] as bool? ?? false,
       cropType: map['crop_type'] as String?,

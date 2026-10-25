@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
+import '../../core/utils/order_reference.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/farmer_crop_model.dart' show marketTypeLabelFor;
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
@@ -10,6 +12,10 @@ import '../models/admin_log_message.dart';
 
 class AdminOrderModel {
   final String id;
+
+  /// The database-issued ORD-YYYYMMDD-XXXX number. Null for an order placed
+  /// before order numbers existed (it keeps its old reference).
+  final String? orderNumber;
   final String listingId;
   final String buyerId;
   final String buyerName;
@@ -20,6 +26,10 @@ class AdminOrderModel {
   final String? listingPhotoUrl;
   final double quantityKg;
   final double pricePerKg;
+
+  /// The unit quantityKg and pricePerKg are measured in (copied from the
+  /// listing by the database; the fields keep their old names).
+  final String unit;
   final double totalPrice;
   final String status; // pending | approved | completed | cancelled
   final String? notes;
@@ -57,6 +67,7 @@ class AdminOrderModel {
     required this.id,
     required this.listingId,
     required this.buyerId,
+    this.orderNumber,
     required this.buyerName,
     this.buyerPhone,
     this.buyerPhotoUrl,
@@ -65,6 +76,7 @@ class AdminOrderModel {
     this.listingPhotoUrl,
     required this.quantityKg,
     required this.pricePerKg,
+    this.unit = kDefaultUnit,
     required this.totalPrice,
     required this.status,
     this.notes,
@@ -121,7 +133,7 @@ class AdminOrderModel {
     }
   }
 
-  String get orderReference => 'ORD-${id.substring(0, 8).toUpperCase()}';
+  String get orderReference => orderReferenceOf(id, orderNumber);
 
   String get harvestedLabel {
     if (harvestDate == null) return '';
@@ -136,6 +148,7 @@ class AdminOrderModel {
   factory AdminOrderModel.fromMap(Map<String, dynamic> map) {
     return AdminOrderModel(
       id: map['id'] as String,
+      orderNumber: map['order_number'] as String?,
       listingId: map['listing_id'] as String,
       buyerId: map['buyer_id'] as String,
       buyerName: map['buyer_name'] as String? ?? 'Buyer',
@@ -146,6 +159,7 @@ class AdminOrderModel {
       listingPhotoUrl: map['photo_url'] as String?,
       quantityKg: (map['quantity_kg'] as num).toDouble(),
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       totalPrice: (map['total_price'] as num).toDouble(),
       status: map['status'] as String? ?? 'pending',
       notes: map['notes'] as String?,
@@ -217,7 +231,7 @@ class AdminOrderRepository {
           var query = _client
               .from('orders')
               .select(
-                'id, listing_id, buyer_id, quantity_kg, price_per_kg, total_price, '
+                'id, order_number, listing_id, buyer_id, quantity_kg, price_per_kg, unit, total_price, '
                 'status, notes, cancelled_by, created_at, updated_at, fulfillment_method',
               );
 
@@ -345,7 +359,7 @@ class AdminOrderRepository {
       final row = await _client
           .from('orders')
           .select(
-            'id, listing_id, buyer_id, quantity_kg, price_per_kg, '
+            'id, order_number, listing_id, buyer_id, quantity_kg, price_per_kg, unit, '
             'total_price, status, notes, cancelled_by, created_at, updated_at, '
             'fulfillment_method, delivery_address, delivery_latitude, '
             'delivery_longitude, delivery_contact_number, delivery_notes, '

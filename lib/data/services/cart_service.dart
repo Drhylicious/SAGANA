@@ -1,4 +1,5 @@
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/cart_item_model.dart';
 import 'encrypted_box.dart';
 import 'hive_service.dart';
@@ -45,6 +46,7 @@ class CartService {
     required String cropName,
     String? variety,
     required double pricePerKg,
+    String unit = kDefaultUnit,
     String? photoUrl,
     String? category,
     String? marketType,
@@ -59,9 +61,8 @@ class CartService {
       final existing = CartItemModel.fromMap(
         Map<String, dynamic>.from(existingRaw as Map),
       );
-      existing.quantityKg = (existing.quantityKg + quantityKg).clamp(
-        0.0,
-        availableKgSnapshot,
+      existing.quantityKg = roundQuantity(
+        (existing.quantityKg + quantityKg).clamp(0.0, availableKgSnapshot),
       );
       await box.put(key, existing.toMap());
     } else {
@@ -70,6 +71,7 @@ class CartService {
         cropName: cropName,
         variety: variety,
         pricePerKg: pricePerKg,
+        unit: unit,
         photoUrl: photoUrl,
         category: category,
         marketType: marketType,
@@ -86,7 +88,7 @@ class CartService {
     final raw = box.get(key);
     if (raw == null) return;
     final item = CartItemModel.fromMap(Map<String, dynamic>.from(raw as Map));
-    item.quantityKg = quantityKg;
+    item.quantityKg = roundQuantity(quantityKg);
     await box.put(key, item.toMap());
   }
 

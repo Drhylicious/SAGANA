@@ -1958,7 +1958,7 @@ class _OfficeDetailDrawer extends StatelessWidget {
           const SizedBox(height: 10),
           _OfficeInfoRow(
             icon: Icons.inventory_2_rounded,
-            text: 'Primary Crops: Palay · Peanut · Ginger · Banana · Copra',
+            text: 'Primary Crops: Palay · Peanut · Ginger · Banana',
             cs: cs,
           ),
           const SizedBox(height: 16),

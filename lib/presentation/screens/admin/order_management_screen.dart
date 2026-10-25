@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -303,7 +304,7 @@ class _OrderRow extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${order.displayName} · ${order.quantityKg.toStringAsFixed(0)} kg',
+                    '${order.displayName} · ${formatQuantityUnit(order.quantityKg, order.unit)}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: cs.onSurfaceVariant,
@@ -342,7 +343,7 @@ class _OrderRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '₱${order.totalPrice.toStringAsFixed(0)}',
+                  formatPesos(order.totalPrice),
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,

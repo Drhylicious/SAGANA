@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../services/offline_cache.dart';
 import '../models/contribution_model.dart';
 import '../models/admin_reports_model.dart';
@@ -215,6 +216,7 @@ class ContributionRepository {
           cropType: row['crop_type'] as String? ?? 'palay',
           cropName: row['crop_name'] as String? ?? '—',
           quantityKg: (row['quantity_kg'] as num).toDouble(),
+          unit: unitOrDefault(row['unit'] as String?),
           amount: (row['amount'] as num).toDouble(),
           saleDate: DateTime.parse(row['sale_date'] as String),
           referenceNo: row['reference_no'] as String?,
@@ -248,7 +250,7 @@ class ContributionRepository {
     try {
       final rows = await _client
           .from('member_sales_transactions')
-          .select('crop_type, quantity_kg, amount')
+          .select('crop_type, quantity_kg, unit, amount')
           .eq('farmer_id', _userId)
           .gte('sale_date', '$year-01-01')
           .lte('sale_date', '$year-12-31');
@@ -261,7 +263,11 @@ class ContributionRepository {
       double palayQtyKg = 0, palayAmount = 0, peanutQtyKg = 0, peanutAmount = 0;
       double otherCropsQtyKg = 0, otherCropsAmount = 0;
       for (final row in rows) {
-        final qty = (row['quantity_kg'] as num).toDouble();
+        // Quantities are kg figures: a sale in another unit adds its amount
+        // but not its quantity.
+        final qty = isKg(row['unit'] as String?)
+            ? (row['quantity_kg'] as num).toDouble()
+            : 0.0;
         final amount = (row['amount'] as num).toDouble();
         final cropType = row['crop_type'] as String?;
         if (cropType == 'palay') {

@@ -91,7 +91,11 @@ void main() {
     await runIgnoringFontErrors(() async {
       await _pump(tester, const CreateOfficerAccountScreen());
       expect(find.text('Position'), findsOneWidget);
-      expect(find.text('Full Name'), findsOneWidget);
+      expect(find.text('Surname *'), findsOneWidget);
+      expect(find.text('First Name *'), findsOneWidget);
+      expect(find.text('M.I.'), findsOneWidget);
+      expect(find.text('Suffix'), findsOneWidget);
+      expect(find.text('Full Name'), findsNothing);
       expect(find.text('Email'), findsOneWidget);
       expect(find.text('Phone Number'), findsOneWidget);
       expect(find.text('Date of Birth *'), findsOneWidget);
@@ -182,7 +186,8 @@ void main() {
         // The old combined message must not appear under Gender (or anywhere).
         expect(find.text('Date of birth and gender are required.'), findsNothing);
         // Other required fields show theirs too.
-        expect(find.text('Full name is required'), findsOneWidget);
+        expect(find.text('Surname is required'), findsOneWidget);
+        expect(find.text('First name is required'), findsOneWidget);
       });
     });
 
@@ -199,12 +204,8 @@ void main() {
           ),
           'Abcdefg234',
         );
-        await tester.enterText(
-          find.byWidgetPredicate(
-            (w) => w is TextFormField && w.controller != null && (w.initialValue ?? '').isEmpty,
-          ).at(2),
-          'Maria Santos',
-        );
+        await tester.enterText(find.byKey(const ValueKey('name-surname')), 'Santos');
+        await tester.enterText(find.byKey(const ValueKey('name-first')), 'Maria');
         await tester.tap(find.text(buttonLabel));
         await tester.pump();
 

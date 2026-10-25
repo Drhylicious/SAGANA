@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/harvest_model.dart';
 import '../../../data/models/farmer_crop_model.dart' hide HarvestFilter;
 import '../../../data/repositories/crop_repository.dart';
@@ -639,10 +640,14 @@ class _HarvestTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                // The batch number is long, so it has its own line and
+                // shortens with an ellipsis rather than squeezing the row.
                 Text(
-                  'Batch #${harvest.displayBatch} • ${harvest.displayQty}',
+                  harvest.displayBatch,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: 11,
+                    fontSize: 10.5,
                     color: AppConstants.onSurfaceVariant,
                   ),
                 ),
@@ -654,6 +659,15 @@ class _HarvestTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
+                formatQuantityUnit(harvest.quantityKg, harvest.unit),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
                 harvest.isSynced ? 'Synced' : 'Pending',
                 style: GoogleFonts.inter(
                   fontSize: 9,
@@ -663,7 +677,6 @@ class _HarvestTile extends StatelessWidget {
                       : AppConstants.warningAmber,
                 ),
               ),
-              const SizedBox(height: 2),
               Text(
                 _formatDateTime(harvest.harvestDate),
                 style: GoogleFonts.inter(

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/quantity_utils.dart';
 
 /// A farmer's Offer-to-Cooperative sales-to-SP3 totals for one year, for
 /// ANY crop (as of Phase 9 — "Full financial parity"; previously
@@ -33,7 +34,7 @@ Future<Map<String, MemberSalesTotals>> fetchMemberSalesTotals(
 ) async {
   final rows = await client
       .from('member_sales_transactions')
-      .select('farmer_id, crop_type, quantity_kg, amount')
+      .select('farmer_id, crop_type, quantity_kg, unit, amount')
       .gte('sale_date', '$year-01-01')
       .lt('sale_date', '${year + 1}-01-01');
 
@@ -41,7 +42,11 @@ Future<Map<String, MemberSalesTotals>> fetchMemberSalesTotals(
   for (final row in rows) {
     final farmerId = row['farmer_id'] as String;
     final cropType = row['crop_type'] as String? ?? 'palay';
-    final qty = (row['quantity_kg'] as num).toDouble();
+    // The quantities are kg figures: a sale in another unit adds its AMOUNT
+    // (pesos are pesos) but not its quantity.
+    final qty = isKg(row['unit'] as String?)
+        ? (row['quantity_kg'] as num).toDouble()
+        : 0.0;
     final amount = (row['amount'] as num).toDouble();
 
     final entry = totals.putIfAbsent(farmerId, () => MemberSalesTotals());

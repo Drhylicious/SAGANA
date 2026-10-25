@@ -8,9 +8,10 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
-import '../../widgets/listing_filter_modal.dart'
-    show listingStatusLabel, ListingMarketBadge;
+import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge;
+import '../../widgets/listing_status_badge.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -31,7 +32,8 @@ class ListingReviewScreen extends StatefulWidget {
   State<ListingReviewScreen> createState() => _ListingReviewScreenState();
 }
 
-class _ListingReviewScreenState extends State<ListingReviewScreen> {
+class _ListingReviewScreenState extends State<ListingReviewScreen>
+    with WidgetsBindingObserver {
   final _repo = AdminListingRepository();
 
   AdminListingModel? _listing;
@@ -42,15 +44,34 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // The quantity left on a listing changes whenever an order is placed,
+  // cancelled or completed (possibly on another device), so come back to the
+  // current figures when the app returns to the foreground. Opening the
+  // screen and pulling down to refresh also reload.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted && !_isSaving) {
+      _load(showSpinner: false);
+    }
+  }
+
+  Future<void> _load({bool showSpinner = true}) async {
+    if (showSpinner) setState(() => _isLoading = true);
     final listing = await _repo.fetchListingById(widget.listingId);
     if (!mounted) return;
     setState(() {
-      _listing = listing;
+      // A failed quiet refresh keeps what is on screen instead of blanking it.
+      if (listing != null || showSpinner) _listing = listing;
       _isLoading = false;
     });
   }
@@ -262,9 +283,22 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             children: [
               const SizedBox(height: 64),
               Expanded(
-                child: ListView(
+                child: RefreshIndicator(
+                  color: AppConstants.primaryGreen,
+                  onRefresh: () => _load(showSpinner: false),
+                  child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   children: [
+                    // ── Status (same badge as All Listings) ───────────
+                    ListingStatusHeader(
+                      status: listing.status,
+                      remainingKg: listing.remainingKg,
+                      volumeKg: listing.volumeKg,
+                      unit: listing.unit,
+                    ),
+                    const SizedBox(height: 14),
+
                     // ── Hero / listing overview ───────────────────────
                     _HeroSection(listing: listing, cs: cs, sagana: sagana),
                     const SizedBox(height: 20),
@@ -332,6 +366,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
                       ),
                   ],
                 ),
+                ),
               ),
             ],
           ),
@@ -342,9 +377,12 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
             left: 0,
             right: 0,
             child: _TopAppBar(
-              title: l10n.listingReviewTitle,
-              status: listing.status,
-              statusLabel: listingStatusLabel(l10n, listing.status),
+              // "<Crop> Review", from the listing's own crop (the canonical
+              // crop_master name when it resolved, else the name it was listed
+              // under). No crop names are written in the code.
+              title: l10n.listingReviewCropTitle(
+                listing.canonicalCropName ?? listing.cropName,
+              ),
               onBack: () => context.pop(false),
               sagana: sagana,
               cs: cs,
@@ -362,20 +400,12 @@ class _ListingReviewScreenState extends State<ListingReviewScreen> {
 
 class _TopAppBar extends StatelessWidget {
   final String title;
-  // Raw DB status value (e.g. 'rejected') — drives the badge color via the
-  // shared ListingStatusDisplay mapping, not an ad-hoc pending/not-pending
-  // binary (that binary was why a rejected listing's badge used to render
-  // green instead of red — see M-marketplace-2).
-  final String status;
-  final String statusLabel;
   final VoidCallback onBack;
   final SaganaColors sagana;
   final ColorScheme cs;
 
   const _TopAppBar({
     required this.title,
-    required this.status,
-    required this.statusLabel,
     required this.onBack,
     required this.sagana,
     required this.cs,
@@ -658,6 +688,7 @@ class _PricingAnalysis extends StatelessWidget {
               child: _PriceBox(
                 label: l10n.listingReviewFarmersAsking,
                 price: listing.pricePerKg,
+                unit: listing.unit,
                 cs: cs,
               ),
             ),
@@ -668,6 +699,7 @@ class _PricingAnalysis extends StatelessWidget {
                     ? l10n.listingReviewMarketRefDA
                     : l10n.listingReviewNoMarketRef,
                 price: listing.marketRefPricePerKg,
+                unit: listing.unit,
                 cs: cs,
                 muted: !hasRef,
               ),
@@ -755,11 +787,13 @@ class _PricingAnalysis extends StatelessWidget {
 class _PriceBox extends StatelessWidget {
   final String label;
   final double? price;
+  final String unit;
   final ColorScheme cs;
   final bool muted;
   const _PriceBox({
     required this.label,
     this.price,
+    this.unit = kDefaultUnit,
     required this.cs,
     this.muted = false,
   });
@@ -794,7 +828,7 @@ class _PriceBox extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '/kg',
+                      '/${unitOrDefault(unit)}',
                       style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
                     ),
                   ],
@@ -832,7 +866,7 @@ class _InventoryValidation extends StatelessWidget {
       children: [
         _ValidationRow(
           label: l10n.listingReviewListingQuantity,
-          value: '${listing.volumeKg.toStringAsFixed(0)} kg',
+          value: formatQuantityUnit(listing.volumeKg, listing.unit),
           cs: cs,
           valueColor: cs.onSurface,
         ),
@@ -840,7 +874,7 @@ class _InventoryValidation extends StatelessWidget {
         _ValidationRow(
           label: l10n.listingReviewBatchAvailable,
           value: hasBatch
-              ? '${listing.batchAvailableKg!.toStringAsFixed(0)} kg'
+              ? formatQuantityUnit(listing.batchAvailableKg!, listing.unit)
               : l10n.listingReviewNoBatchLinked,
           cs: cs,
           valueColor: hasWarning
@@ -883,7 +917,7 @@ class _InventoryValidation extends StatelessWidget {
                 Expanded(
                   child: Text(
                     l10n.listingReviewQuantityExceeds(
-                      listing.stockSurplus.toStringAsFixed(0),
+                      formatQuantityUnit(listing.stockSurplus, listing.unit),
                     ),
                     style: GoogleFonts.inter(
                       fontSize: 12,
@@ -1327,10 +1361,9 @@ class _ReviewActions extends StatelessWidget {
 
 class _ReadOnlyStatus extends StatelessWidget {
   final AdminListingModel listing;
-  // True when this is actually a pending listing being shown without
-  // actions because it was opened from All Listings (not because its
-  // status is genuinely terminal/non-actionable) — changes the subtitle
-  // copy so it doesn't misleadingly say "no action needed".
+  // True when this is actually a pending listing being shown without actions
+  // because it was opened from All Listings (not because its status is
+  // genuinely terminal), so the copy does not say "no action needed".
   final bool forcedReadOnly;
   final ColorScheme cs;
 
@@ -1343,74 +1376,36 @@ class _ReadOnlyStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final statusLabel = listingStatusLabel(l10n, listing.status);
-    final color = ListingStatusDisplay.color(context, listing.status);
+    // The status itself is shown at the top of the screen (ListingStatusHeader);
+    // this is only the note about whether anything can be done here.
+    final state = listingStateOf(
+      status: listing.status,
+      remainingKg: listing.remainingKg,
+    );
+    final stateLabel = state == null
+        ? listing.status
+        : listingStateLabel(l10n, state);
     return Container(
       padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: color.withValues(alpha: 0.20)),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              forcedReadOnly
+                  ? l10n.listingReviewOpenFromPending
+                  : l10n.listingReviewStatusNoAction(stateLabel.toLowerCase()),
+              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
           ),
-          child: Row(
-            children: [
-              Flexible(
-                child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                  Icon(_statusIcon(listing.status), size: 16, color: color),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          statusLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                        color: color,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  forcedReadOnly
-                      ? l10n.listingReviewOpenFromPending
-                      : l10n.listingReviewStatusNoAction(statusLabel.toLowerCase()),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        ],
+      ),
     );
-  }
-
-  IconData _statusIcon(String s) {
-    switch (s) {
-      case 'pending_review':
-        return Icons.pending_actions_rounded;
-      case 'approved':
-        return Icons.check_circle_outline_rounded;
-      case 'sold':
-        return Icons.sell_outlined;
-      case 'rejected':
-        return Icons.cancel_outlined;
-      default:
-        return Icons.info_outline_rounded;
-    }
   }
 }

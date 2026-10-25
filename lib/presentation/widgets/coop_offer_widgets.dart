@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../../data/models/cooperative_offer_model.dart';
 import 'management_modal.dart';
 
@@ -17,12 +18,12 @@ final NumberFormat _pesoFormat = NumberFormat('#,##0.00');
 /// 1,234.50 with the peso sign.
 String coopPeso(num amount) => '₱${_pesoFormat.format(amount)}';
 
-String coopPricePerKg(num price) => '${coopPeso(price)}/kg';
+/// A price per unit, `₱12.50/kg`. [unit] is the offer's unit (the batch's).
+String coopPricePerKg(num price, [String? unit]) =>
+    '${coopPeso(price)}/${unitOrDefault(unit)}';
 
-String coopKg(num kg) {
-  final whole = kg == kg.roundToDouble();
-  return '${whole ? kg.toStringAsFixed(0) : kg.toStringAsFixed(2)} kg';
-}
+/// A quantity with its unit, `10.75 sack`. The name is historical.
+String coopKg(num kg, [String? unit]) => formatQuantityUnit(kg, unit);
 
 String coopDateTime(DateTime d) =>
     DateFormat('MMM d, yyyy · h:mm a').format(d.toLocal());
@@ -191,6 +192,26 @@ extension CoopOfferFilterExt on CoopOfferFilter {
   }
 }
 
+/// The offers a list shows: those in [filter], narrowed by the search [query].
+/// The query matches the crop name, and also the Farmer's name when
+/// [matchFarmerName] is set (the Manager's list; a Farmer only sees their own
+/// offers). Case-insensitive; an empty or blank query matches everything. The
+/// filter and the search combine: an offer must satisfy both.
+List<CooperativeOfferModel> filterCoopOffers(
+  Iterable<CooperativeOfferModel> offers, {
+  required CoopOfferFilter filter,
+  String query = '',
+  bool matchFarmerName = false,
+}) {
+  final q = query.trim().toLowerCase();
+  return offers.where((o) {
+    if (!filter.matches(o)) return false;
+    if (q.isEmpty) return true;
+    return o.cropName.toLowerCase().contains(q) ||
+        (matchFarmerName && o.farmerName.toLowerCase().contains(q));
+  }).toList();
+}
+
 // ─── Price summary ───────────────────────────────────────────────────────────
 
 /// The numbers of a negotiation: quantity, the Farmer's asking price, the
@@ -244,13 +265,16 @@ class CoopPriceSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        row(l10n.coopQuantityLabel, coopKg(offer.offeredQuantityKg)),
+        row(l10n.coopQuantityLabel, coopKg(offer.offeredQuantityKg, offer.unit)),
         if (offer.askingPricePerKg != null)
-          row(l10n.coopAskingPriceLabel, coopPricePerKg(offer.askingPricePerKg!)),
+          row(
+            l10n.coopAskingPriceLabel,
+            coopPricePerKg(offer.askingPricePerKg!, offer.unit),
+          ),
         if (price != null) ...[
           row(
             accepted ? l10n.coopAgreedPriceLabel : l10n.coopLatestProposalLabel,
-            coopPricePerKg(price),
+            coopPricePerKg(price, offer.unit),
             strong: true,
           ),
           if (!accepted && offer.isPending)
@@ -282,10 +306,14 @@ class CoopNegotiationTimeline extends StatelessWidget {
   final List<CooperativeOfferEvent> events;
   final bool forFarmer;
 
+  /// The unit the offer's prices are quoted in.
+  final String unit;
+
   const CoopNegotiationTimeline({
     super.key,
     required this.events,
     required this.forFarmer,
+    this.unit = kDefaultUnit,
   });
 
   String _title(AppLocalizations l10n, CooperativeOfferEvent e) {
@@ -353,7 +381,7 @@ class CoopNegotiationTimeline extends StatelessWidget {
             title: _title(l10n, events[i]),
             price: events[i].pricePerKg == null
                 ? null
-                : coopPricePerKg(events[i].pricePerKg!),
+                : coopPricePerKg(events[i].pricePerKg!, unit),
             who: events[i].byFarmer
                 ? (forFarmer ? l10n.coopByYou : l10n.coopByFarmer)
                 : l10n.coopByCooperative,
@@ -527,6 +555,7 @@ Future<CoopCounterInput?> showCoopPriceDialog(
   required String priceLabel,
   required String confirmLabel,
   required double quantityKg,
+  String unit = kDefaultUnit,
   double? currentPrice,
   double? initialPrice,
   bool askNote = true,
@@ -539,6 +568,7 @@ Future<CoopCounterInput?> showCoopPriceDialog(
       priceLabel: priceLabel,
       confirmLabel: confirmLabel,
       quantityKg: quantityKg,
+      unit: unit,
       currentPrice: currentPrice,
       initialPrice: initialPrice,
       askNote: askNote,
@@ -552,6 +582,7 @@ class _CoopPriceDialog extends StatefulWidget {
   final String priceLabel;
   final String confirmLabel;
   final double quantityKg;
+  final String unit;
   final double? currentPrice;
   final double? initialPrice;
   final bool askNote;
@@ -562,6 +593,7 @@ class _CoopPriceDialog extends StatefulWidget {
     required this.priceLabel,
     required this.confirmLabel,
     required this.quantityKg,
+    required this.unit,
     required this.currentPrice,
     required this.initialPrice,
     required this.askNote,
@@ -627,9 +659,7 @@ class _CoopPriceDialogState extends State<_CoopPriceDialog> {
             controller: _price,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}\.?\d{0,2}')),
-            ],
+            inputFormatters: const [DecimalInputFormatter(maxWholeDigits: 6)],
             onChanged: (_) => setState(() => _error = null),
             decoration: InputDecoration(
               prefixText: '₱ ',
@@ -640,7 +670,9 @@ class _CoopPriceDialogState extends State<_CoopPriceDialog> {
           const SizedBox(height: 8),
           if (widget.currentPrice != null)
             Text(
-              l10n.coopCurrentPriceHint(coopPricePerKg(widget.currentPrice!)),
+              l10n.coopCurrentPriceHint(
+                coopPricePerKg(widget.currentPrice!, widget.unit),
+              ),
               style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
             ),
           if (v != null && v > 0)
@@ -648,8 +680,8 @@ class _CoopPriceDialogState extends State<_CoopPriceDialog> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 l10n.coopTotalPreview(
-                  coopKg(widget.quantityKg),
-                  coopPeso(v * widget.quantityKg),
+                  coopKg(widget.quantityKg, widget.unit),
+                  coopPeso(moneyOf(v, widget.quantityKg)),
                 ),
                 style: GoogleFonts.poppins(
                   fontSize: 13,

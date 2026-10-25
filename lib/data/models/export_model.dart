@@ -1,5 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'admin_reports_model.dart';
+
+/// English wording of what an exported file covers, written into the file
+/// itself (the filename alone is not enough once a file is shared on). A year
+/// report names its year, a snapshot report says it is "as of" today, and every
+/// other report names the period and its dates.
+String exportScopeText(
+  ReportModuleType module,
+  ReportPeriod period,
+  int contributionYear, {
+  DateTime? now,
+}) {
+  final today = now ?? DateTime.now();
+  final dayFmt = DateFormat('MMM d, yyyy');
+  if (module.usesYear) return 'Year $contributionYear';
+  if (module.isSnapshot) return 'Current stock as of ${dayFmt.format(today)}';
+  final range = period.range();
+  if (range.startDate == null || range.endDate == null) {
+    return '${period.label} (all dates)';
+  }
+  return '${period.label} (${dayFmt.format(range.startDate!)} to '
+      '${dayFmt.format(range.endDate!)})';
+}
+
+/// English labels for batch and loan status values, shared by the CSV and PDF
+/// exports so a file never shows a raw database value like `low_stock`.
+String batchStatusExportLabel(String status) {
+  switch (status) {
+    case 'available':
+      return 'Available';
+    case 'low_stock':
+      return 'Low Stock';
+    case 'reserved':
+      return 'Committed';
+    case 'sold_out':
+      return 'Sold Out';
+    case 'withdrawn':
+      return 'Withdrawn';
+    default:
+      return status;
+  }
+}
+
+String loanStatusExportLabel(String status) {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'overdue':
+      return 'Overdue';
+    case 'paid':
+      return 'Paid';
+    default:
+      return status;
+  }
+}
 
 /// The report types Export Center can generate. Deliberately mirrors the
 /// six existing report screens exactly — Export Center doesn't fetch or
@@ -52,10 +107,16 @@ extension ReportModuleTypeExt on ReportModuleType {
     }
   }
 
-  /// Member Contribution Report is year-scoped, not ReportPeriod-scoped.
-  bool get usesReportPeriod => this != ReportModuleType.memberContribution;
+  /// Member Patronage Report is year-scoped and Cooperative Stock is a current
+  /// snapshot, so neither is ReportPeriod-scoped.
+  bool get usesReportPeriod =>
+      this != ReportModuleType.memberContribution &&
+      this != ReportModuleType.coopStock;
 
   bool get usesYear => this == ReportModuleType.memberContribution;
+
+  /// True for a report that shows the stock as it is right now.
+  bool get isSnapshot => this == ReportModuleType.coopStock;
 }
 
 enum CompliancePreset { cda, da }

@@ -66,16 +66,12 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
     });
   }
 
-  List<CooperativeOfferModel> get _filtered {
-    Iterable<CooperativeOfferModel> list = _allOffers.where(_filter.matches);
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list.where((o) =>
-          o.cropName.toLowerCase().contains(q) ||
-          o.farmerName.toLowerCase().contains(q));
-    }
-    return list.toList();
-  }
+  List<CooperativeOfferModel> get _filtered => filterCoopOffers(
+    _allOffers,
+    filter: _filter,
+    query: _searchQuery,
+    matchFarmerName: true,
+  );
 
   int _countFor(CoopOfferFilter f) => _allOffers.where(f.matches).length;
 
@@ -245,7 +241,7 @@ class _OfferCard extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                coopKg(offer.offeredQuantityKg),
+                                coopKg(offer.offeredQuantityKg, offer.unit),
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -270,14 +266,17 @@ class _OfferCard extends StatelessWidget {
                           if (offer.askingPricePerKg != null)
                             _line(
                               l10n.coopAskingPriceLabel,
-                              coopPricePerKg(offer.askingPricePerKg!),
+                              coopPricePerKg(
+                                offer.askingPricePerKg!,
+                                offer.unit,
+                              ),
                             ),
                           if (price != null && price != offer.askingPricePerKg)
                             _line(
                               offer.isConfirmed
                                   ? l10n.coopAgreedPriceLabel
                                   : l10n.coopLatestProposalLabel,
-                              coopPricePerKg(price),
+                              coopPricePerKg(price, offer.unit),
                               strong: true,
                             ),
                           if (price == null)

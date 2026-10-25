@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/inventory_batch_model.dart';
@@ -336,7 +337,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           ),
         ),
         Text(
-          '/kg',
+          '/${unitOrDefault(listing.unit)}',
           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.outline),
         ),
       ],
@@ -395,12 +396,12 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
               children: [
                 _DetailRow(
                   label: 'Available Volume',
-                  value: '${listing.remainingKg.toStringAsFixed(0)} kg',
+                  value: formatQuantityUnit(listing.remainingKg, listing.unit),
                 ),
                 const SizedBox(height: 12),
                 _DetailRow(
                   label: 'Original Volume',
-                  value: '${listing.volumeKg.toStringAsFixed(0)} kg',
+                  value: formatQuantityUnit(listing.volumeKg, listing.unit),
                 ),
                 if (_batch != null) ...[
                   const SizedBox(height: 12),
@@ -413,7 +414,10 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                     _DetailRow(label: 'Category', value: _batch!.category!),
                   ],
                   const SizedBox(height: 12),
-                  _DetailRow(label: 'Batch Number', value: _batch!.batchNumber),
+                  _DetailRow(
+                    label: 'Batch Number',
+                    value: formatBatchNumber(_batch!.batchNumber),
+                  ),
                 ],
                 if (listing.submittedAt != null) ...[
                   const SizedBox(height: 12),

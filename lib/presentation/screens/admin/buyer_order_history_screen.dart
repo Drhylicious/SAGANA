@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
@@ -225,7 +226,7 @@ class _OrderRow extends StatelessWidget {
                   Text(order.orderReference,
                       style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
                   Text(order.displayName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                  Text('${order.quantityKg.toStringAsFixed(0)} kg',
+                  Text(formatQuantityUnit(order.quantityKg, order.unit),
                       style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant)),
                 ],
               ),
@@ -233,7 +234,7 @@ class _OrderRow extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('₱${order.totalPrice.toStringAsFixed(0)}',
+                Text(formatPesos(order.totalPrice),
                     style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: AppConstants.primaryGreen)),
                 const SizedBox(height: 4),
                 Container(

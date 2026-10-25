@@ -247,12 +247,7 @@ class AppUtils {
     );
   }
 
-  // ─── Batch Number Generator ──────────────────────────────────────────────────
-
-  static String generateBatchNumber(String cropCode) {
-    final now = DateTime.now();
-    final dateStr = DateFormat('yyyyMMdd').format(now);
-    final random = (1000 + (DateTime.now().millisecondsSinceEpoch % 9000)).toString();
-    return 'BATCH-${cropCode.toUpperCase()}-$dateStr-$random';
-  }
+  // Batch numbers are issued by the database (BATCH-CROP-YYMMDD-X0001, see
+  // supabase_schema_harvest_batch_number_and_units.sql); the app no longer
+  // makes one up. Display formatting lives in quantity_utils.formatBatchNumber.
 }

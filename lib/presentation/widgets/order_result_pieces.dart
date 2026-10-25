@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../core/utils/order_reference.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../../routes/app_routes.dart';
 import 'shared_widgets.dart';
 
@@ -67,21 +69,30 @@ class OrderResultIcon extends StatelessWidget {
 /// two hand-maintained copies that can silently drift apart.
 class OrderReferenceCard extends StatelessWidget {
   final String orderId;
+
+  /// The database-issued ORD-YYYYMMDD-XXXX number, when known. Without it the
+  /// card shows the order's older ORD-xxxxxxxx reference.
+  final String? orderNumber;
   final String status;
   final String? photoUrl;
   final String displayName;
   final double quantityKg;
   final double pricePerKg;
+
+  /// The unit quantityKg and pricePerKg are measured in.
+  final String unit;
   final double totalPrice;
 
   const OrderReferenceCard({
     super.key,
     required this.orderId,
+    this.orderNumber,
     required this.status,
     this.photoUrl,
     required this.displayName,
     required this.quantityKg,
     required this.pricePerKg,
+    this.unit = kDefaultUnit,
     required this.totalPrice,
   });
 
@@ -97,7 +108,7 @@ class OrderReferenceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final reference = 'ORD-${orderId.substring(0, 8).toUpperCase()}';
+    final reference = orderReferenceOf(orderId, orderNumber);
     final color = _statusColor;
 
     return Container(
@@ -133,7 +144,7 @@ class OrderReferenceCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(displayName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
-                    Text('${quantityKg.toStringAsFixed(0)} kg × ₱${pricePerKg.toStringAsFixed(2)}',
+                    Text('${formatQuantityUnit(quantityKg, unit)} × ${formatPricePerUnit(pricePerKg, unit)}',
                         style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
                   ],
                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
@@ -357,7 +358,7 @@ class _OrderCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(l10n.buyerOrdersQuantityLabel, style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
-                          Text('${order.quantityKg.toStringAsFixed(0)} kg', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                          Text(formatQuantityUnit(order.quantityKg, order.unit), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
                         ],
                       ),
                       Column(

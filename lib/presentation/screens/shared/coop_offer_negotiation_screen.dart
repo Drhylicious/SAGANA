@@ -5,6 +5,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/cooperative_offer_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -95,10 +96,10 @@ class _CoopOfferNegotiationScreenState
       context,
       title: l10n.coopAcceptTitle,
       body: l10n.coopAcceptBody(
-        coopPricePerKg(price),
-        coopKg(offer.offeredQuantityKg),
+        coopPricePerKg(price, offer.unit),
+        coopKg(offer.offeredQuantityKg, offer.unit),
         offer.cropName,
-        coopPeso(price * offer.offeredQuantityKg),
+        coopPeso(moneyOf(price, offer.offeredQuantityKg)),
       ),
       confirmLabel: l10n.coopAcceptConfirm,
     );
@@ -109,7 +110,7 @@ class _CoopOfferNegotiationScreenState
         expectedRound: offer.negotiationRound,
         asCooperative: !_forFarmer,
         kg: offer.offeredQuantityKg,
-        amount: price * offer.offeredQuantityKg,
+        amount: moneyOf(price, offer.offeredQuantityKg),
       ),
       l10n.coopToastAccepted,
     );
@@ -122,13 +123,14 @@ class _CoopOfferNegotiationScreenState
       title: offer.hasPrice ? l10n.coopCounterTitle : l10n.coopProposeTitle,
       subtitle: l10n.coopCounterSubtitle(
         offer.cropName,
-        coopKg(offer.offeredQuantityKg),
+        coopKg(offer.offeredQuantityKg, offer.unit),
       ),
-      priceLabel: l10n.coopPriceLabel,
+      priceLabel: l10n.coopPriceLabel(unitOrDefault(offer.unit)),
       confirmLabel: offer.hasPrice
           ? l10n.coopCounterSend
           : l10n.coopActionProposePrice,
       quantityKg: offer.offeredQuantityKg,
+      unit: offer.unit,
       currentPrice: offer.currentPricePerKg,
     );
     if (input == null) return;
@@ -244,6 +246,7 @@ class _CoopOfferNegotiationScreenState
                           child: CoopNegotiationTimeline(
                             events: _events,
                             forFarmer: _forFarmer,
+                            unit: offer.unit,
                           ),
                         ),
                       ],
@@ -253,7 +256,7 @@ class _CoopOfferNegotiationScreenState
         ],
       ),
       bottomNavigationBar: (offer != null && offer.isPending)
-          ? _ActionBar(
+          ? CoopOfferActionBar(
               offer: offer,
               forFarmer: _forFarmer,
               busy: _busy,
@@ -452,7 +455,11 @@ class _BatchCard extends StatelessWidget {
               runSpacing: 10,
               children: [
                 if (offer.batchNumber != null)
-                  _field(l10n.coopBatchLabel, '#${offer.batchNumber}', cs),
+                  _field(
+                    l10n.coopBatchLabel,
+                    formatBatchNumber(offer.batchNumber),
+                    cs,
+                  ),
                 if (offer.harvestDate != null)
                   _field(l10n.coopFreshnessLabel, offer.harvestedLabel, cs),
                 if (offer.category != null)
@@ -470,7 +477,7 @@ class _BatchCard extends StatelessWidget {
 
 /// Pinned to the bottom while the offer is open. Accept and Counteroffer only
 /// appear on this side's turn; ending the negotiation is always available.
-class _ActionBar extends StatelessWidget {
+class CoopOfferActionBar extends StatelessWidget {
   final CooperativeOfferModel offer;
   final bool forFarmer;
   final bool busy;
@@ -479,7 +486,7 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onCounter;
   final VoidCallback onEnd;
 
-  const _ActionBar({
+  const CoopOfferActionBar({
     required this.offer,
     required this.forFarmer,
     required this.busy,
@@ -562,7 +569,10 @@ class _ActionBar extends StatelessWidget {
                                   fit: BoxFit.scaleDown,
                                   child: Text(
                                     l10n.coopActionAccept(
-                                      coopPricePerKg(offer.currentPricePerKg!),
+                                      coopPricePerKg(
+                                        offer.currentPricePerKg!,
+                                        offer.unit,
+                                      ),
                                     ),
                                     maxLines: 1,
                                     style: GoogleFonts.poppins(
@@ -575,14 +585,32 @@ class _ActionBar extends StatelessWidget {
                     ],
                   ],
                 ),
-              TextButton(
-                onPressed: canAct ? onEnd : null,
-                style: TextButton.styleFrom(foregroundColor: cs.error),
-                child: Text(
-                  forFarmer
-                      ? l10n.coopActionCancel
-                      : l10n.coopActionDecline,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+              // Ending the negotiation is a full-width outlined button in the
+              // warning colour: the same shape and height as Counteroffer, so
+              // it reads as one of the actions rather than a stray link.
+              if (myTurn) const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: canAct ? onEnd : null,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: cs.error,
+                    side: BorderSide(
+                      color: canAct
+                          ? cs.error
+                          : cs.outline.withValues(alpha: 0.30),
+                    ),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      forFarmer
+                          ? l10n.coopActionCancel
+                          : l10n.coopActionDecline,
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
               ),
             ],

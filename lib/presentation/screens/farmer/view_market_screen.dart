@@ -10,10 +10,15 @@ import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/price_display_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../../data/services/market_types_service.dart';
 import '../../widgets/shared_widgets.dart';
 
+/// Farmer → Market Rates: the cooperative's reference prices for BOTH markets
+/// (Public and Cooperative). Laid out like Buyer → Prices (summary header, crops
+/// grouped by category, the same card), except that a tap opens the Market Rate
+/// Details screen, which carries the price trend.
 class ViewMarketScreen extends StatefulWidget {
   const ViewMarketScreen({super.key});
 
@@ -30,7 +35,9 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
   bool _isOnline = true;
 
   // ─── Active filters ─────────────────────────────────────────────────────
-  String? _marketType; // price_type chip: All / Cooperative Market / Public Market
+  // Both are applied to the list already loaded, so changing a chip or typing
+  // never waits on the network. null = All markets.
+  String? _marketType;
 
   @override
   void initState() {
@@ -51,12 +58,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final rates = await _ratesRepo.fetchMarketRates(
-      marketType: _marketType,
-      searchQuery: _searchController.text.trim().isEmpty
-          ? null
-          : _searchController.text.trim(),
-    );
+    final rates = await _ratesRepo.fetchMarketRates();
     if (!mounted) return;
     setState(() {
       _rates = rates;
@@ -64,45 +66,61 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
     });
   }
 
-  void _setMarketType(String? type) {
-    setState(() => _marketType = type);
-    _load();
+  List<FarmerMarketRateModel> get _filtered {
+    final query = _searchController.text.trim().toLowerCase();
+    final list = _rates.where((r) {
+      if (_marketType != null && r.priceType != _marketType) return false;
+      if (query.isNotEmpty && !r.cropName.toLowerCase().contains(query)) {
+        return false;
+      }
+      return true;
+    }).toList();
+    list.sort((a, b) {
+      final byName = a.cropName.toLowerCase().compareTo(
+        b.cropName.toLowerCase(),
+      );
+      return byName != 0 ? byName : a.priceType.compareTo(b.priceType);
+    });
+    return list;
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() => _marketType = null);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
-      body: Column(
+      backgroundColor: context.saganaColors.scaffoldBackground,
+      body: Stack(
         children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    const SizedBox(height: 72),
-                    CachedDataNotice(screen: FarmerMarketRatesRepository.cacheScreen(marketType: _marketType), isOnline: _isOnline, offlineMessage: l10n.farmerDashOfflineBanner),
-                    _buildSearchRow(l10n),
-                    _buildMarketTypeChips(l10n),
-                    const SizedBox(height: 8),
-                    Expanded(child: _buildResults(l10n)),
-                  ],
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: FarmerTopBar(
-                    title: l10n.farmerDashMarketRates,
-                    onBack: () => Navigator.of(context).pop(),
-                    hideProfileAvatar: true,
-                    onProfileTap: () {},
-                    onNotificationTap: () {},
-                    showNotificationButton: false,
-                  ),
-                ),
-              ],
+          Column(
+            children: [
+              const SizedBox(height: 72),
+              CachedDataNotice(
+                screen: FarmerMarketRatesRepository.cacheScreen(),
+                isOnline: _isOnline,
+                offlineMessage: l10n.farmerDashOfflineBanner,
+              ),
+              _buildSearchRow(l10n),
+              _buildMarketTypeChips(l10n),
+              const SizedBox(height: 8),
+              Expanded(child: _buildResults(l10n)),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: FarmerTopBar(
+              title: l10n.farmerDashMarketRates,
+              onBack: () => Navigator.of(context).pop(),
+              hideProfileAvatar: true,
+              onProfileTap: () {},
+              onNotificationTap: () {},
+              showNotificationButton: false,
             ),
           ),
         ],
@@ -112,50 +130,54 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
 
   Widget _buildSearchRow(AppLocalizations l10n) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppConstants.spacingSafeH,
+        8,
+        AppConstants.spacingSafeH,
+        0,
+      ),
       child: AppTextField(
         controller: _searchController,
         label: l10n.buyerPriceSearchLabel,
         hint: l10n.buyerPriceSearchHint,
         prefixIcon: Icons.search,
-        onChanged: (_) => _load(),
       ),
     );
   }
 
+  // One row of separate chips that scrolls sideways when they do not all fit.
+  // The side padding is inside the list, so the chips scroll edge to edge
+  // while the first one still lines up with the search field.
   Widget _buildMarketTypeChips(AppLocalizations l10n) {
     final types = <String?>[
       null,
       ...MarketTypes.instance.activeTypes.map((t) => t.code),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      padding: const EdgeInsets.only(top: 12),
       child: SizedBox(
-        height: 34,
+        height: 40,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppConstants.spacingSafeH,
+          ),
           itemCount: types.length,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, index) {
             final type = types[index];
-            final selected = _marketType == type;
-            final label = type == null ? l10n.buyerPriceFilterAll : MarketTypeDisplay.label(l10n, type);
-            final color = type == null
-                ? AppConstants.primaryGreen
-                : MarketTypeDisplay.color(context, type);
-            return ChoiceChip(
-              label: Text(label),
-              selected: selected,
-              onSelected: (_) => _setMarketType(type),
-              labelStyle: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : color,
+            return Center(
+              child: _MarketChip(
+                label: type == null
+                    ? l10n.buyerPriceFilterAll
+                    : MarketTypeDisplay.label(l10n, type),
+                color: type == null
+                    ? AppConstants.primaryGreen
+                    : MarketTypeDisplay.color(context, type),
+                selected: _marketType == type,
+                onTap: () => setState(() => _marketType = type),
               ),
-              selectedColor: color,
-              backgroundColor: color.withValues(alpha: 0.10),
-              side: BorderSide(color: color.withValues(alpha: 0.3)),
-              showCheckmark: false,
             );
           },
         ),
@@ -168,80 +190,203 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         itemCount: 5,
-        itemBuilder: (_, __) => const Padding(
-          padding: EdgeInsets.only(bottom: 12),
-          child: GlassCard(
-            padding: EdgeInsets.all(16),
-            child: SkeletonBlock(width: double.infinity, height: 56),
+        itemBuilder: (_, __) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: flatCardDecoration(context),
+            child: const SkeletonBlock(width: double.infinity, height: 64),
           ),
         ),
       );
     }
 
     if (_rates.isEmpty) {
-      final hasActiveFilter = _marketType != null ||
-          _searchController.text.trim().isNotEmpty;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.storefront_outlined,
-                  size: 40, color: AppConstants.outline),
-              const SizedBox(height: 16),
-              Text(
-                hasActiveFilter
-                    ? l10n.farmerViewMarketNoResults
-                    : l10n.farmerDashNoMarketPrices,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: AppConstants.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return _EmptyState(
+        icon: Icons.trending_up_rounded,
+        message: l10n.farmerDashNoMarketPrices,
       );
     }
+
+    final filtered = _filtered;
+    if (filtered.isEmpty) {
+      return _EmptyState(
+        icon: Icons.search_off_rounded,
+        message: l10n.farmerViewMarketNoResults,
+        actionLabel: l10n.buyerPriceClearFilters,
+        onAction: _clearFilters,
+      );
+    }
+
+    final groups = groupPricesByCategory<FarmerMarketRateModel>(
+      filtered,
+      // The model falls back to the English word 'Other' for a crop with no
+      // category; hand that to the grouping as "no category" so it is
+      // labelled in the app's language and listed last.
+      (r) => r.cropCategory == 'Other' ? null : r.cropCategory,
+      l10n.buyerPriceCategoryOther,
+    );
+    final markets = filtered.map((r) => r.priceType).toSet();
+    final singleMarket = markets.length == 1 ? markets.first : null;
+    final newest = filtered
+        .map((r) => r.recordedAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
 
     return RefreshIndicator(
       color: AppConstants.primaryGreen,
       onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-        itemCount: _rates.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) => _MarketRateListTile(
-          rate: _rates[index],
-          onTap: () => context.pushRoute(
-            AppRoutes.marketRateDetails,
-            extra: _rates[index],
-          ),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppConstants.spacingSafeH,
+          8,
+          AppConstants.spacingSafeH,
+          40,
         ),
+        children: [
+          PriceMarketHeader(
+            title: singleMarket != null
+                ? l10n.buyerPriceHeaderTitle(
+                    MarketTypes.instance.label(singleMarket),
+                  )
+                : l10n.farmerDashMarketRates,
+            subtitle: l10n.buyerPriceHeaderSubtitle,
+            cropCount: filtered.length,
+            updated: AppUtils.formatRelativeTime(newest, l10n),
+            accent: singleMarket != null
+                ? MarketTypeDisplay.color(context, singleMarket)
+                : AppConstants.primaryGreen,
+          ),
+          for (final group in groups) ...[
+            const SizedBox(height: 20),
+            PriceCategoryHeader(title: group.key, count: group.value.length),
+            const SizedBox(height: 10),
+            for (int i = 0; i < group.value.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              _MarketRateCard(
+                rate: group.value[i],
+                // The header already names the market when only one is shown.
+                showMarketBadge: singleMarket == null,
+                onTap: () => context.pushRoute(
+                  AppRoutes.marketRateDetails,
+                  extra: group.value[i],
+                ),
+              ),
+            ],
+          ],
+        ],
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Result row
+// Pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MarketRateListTile extends StatelessWidget {
-  final FarmerMarketRateModel rate;
+class _MarketChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected;
   final VoidCallback onTap;
 
-  const _MarketRateListTile({required this.rate, required this.onTap});
+  const _MarketChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      labelStyle: GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: selected ? Colors.white : color,
+      ),
+      selectedColor: color,
+      backgroundColor: color.withValues(alpha: 0.10),
+      side: BorderSide(color: color.withValues(alpha: 0.3)),
+      showCheckmark: false,
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _EmptyState({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: cs.outline.withValues(alpha: 0.6)),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            if (actionLabel != null) ...[
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: onAction,
+                child: Text(
+                  actionLabel!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.primaryGreen,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Same card as Buyer → Prices (image, name, freshness, price with its change),
+/// plus the market badge when both markets are listed together, and a chevron
+/// because a tap opens the details screen rather than expanding in place.
+class _MarketRateCard extends StatelessWidget {
+  final FarmerMarketRateModel rate;
+  final bool showMarketBadge;
+  final VoidCallback onTap;
+
+  const _MarketRateCard({
+    required this.rate,
+    required this.showMarketBadge,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final color = MarketTypeDisplay.color(context, rate.priceType);
-    final imageUrl = rate.cropImageUrl;
-    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
     return GestureDetector(
       onTap: onTap,
@@ -251,96 +396,69 @@ class _MarketRateListTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Same crop image Crop Management/Price Management show —
-            // referenced only, never uploaded from here. Sized to match
-            // Admin All Listings' thumbnail so the crop is clearly
-            // recognizable, not a cramped icon-sized square.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              child: SizedBox(
-                width: 72,
-                height: 72,
-                child: hasImage
-                    ? Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: color.withValues(alpha: 0.12),
-                          child: Icon(Icons.eco_outlined, size: 28, color: color),
-                        ),
-                      )
-                    : Container(
-                        color: color.withValues(alpha: 0.12),
-                        child: Icon(Icons.eco_outlined, size: 28, color: color),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 14),
+            PriceCropThumb(imageUrl: rate.cropImageUrl, color: color),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          rate.cropName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppConstants.charcoal,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                        ),
-                        child: Text(
-                          MarketTypeDisplay.label(l10n, rate.priceType),
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
                   Text(
-                    l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
+                    rate.cropName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  if (showMarketBadge) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusFull,
+                        ),
+                      ),
+                      child: Text(
+                        MarketTypeDisplay.label(l10n, rate.priceType),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.priceUpdatedPrefix(
+                      AppUtils.formatRelativeTime(rate.recordedAt, l10n),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: AppConstants.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    rate.formattedPrice,
-                    style: GoogleFonts.poppins(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: AppConstants.primaryGreen,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded, color: cs.outline, size: 20),
+            PriceAmountColumn(price: rate.price),
+            const SizedBox(width: 2),
+            Icon(Icons.chevron_right_rounded, color: cs.outline, size: 22),
           ],
         ),
       ),
     );
   }
 }
-
-

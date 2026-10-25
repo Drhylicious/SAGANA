@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
+import '../../core/utils/order_reference.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/admin_reports_model.dart';
 import 'crop_lookup.dart';
 import 'farmer_lookup.dart';
@@ -82,7 +84,7 @@ class AdminReportsRepository {
     DateTime? endDate,
   }) async {
     try {
-      var query = _client.from('harvest_records').select('quantity_kg');
+      var query = _client.from('harvest_records').select('quantity_kg, unit');
       if (startDate != null) {
         query = query.gte('harvest_date', _dateOnly(startDate));
       }
@@ -94,9 +96,12 @@ class AdminReportsRepository {
             'perf_harvest_${startDate?.toIso8601String() ?? 'any'}_${endDate?.toIso8601String() ?? 'any'}',
         fetch: () => query,
       );
+      // A kg total: harvests measured in another unit are not added to it.
       return rows.fold<double>(
         0,
-        (sum, r) => sum + (r['quantity_kg'] as num).toDouble(),
+        (sum, r) => isKg(r['unit'] as String?)
+            ? sum + (r['quantity_kg'] as num).toDouble()
+            : sum,
       );
     } catch (_) {
       return 0;
@@ -427,65 +432,11 @@ class AdminReportsRepository {
       final informalRows = results[2];
       final daAmadRows = results[3];
 
-      final allRows = [
-        ...offerRows,
-        ...marketplaceRows,
-        ...informalRows,
-        ...daAmadRows,
-      ]..sort((a, b) => b.saleDate.compareTo(a.saleDate));
-
-      // Deliberately NOT short-circuiting to SalesReportData.empty() here
-      // when allRows is empty (Phase 12 fix) — that previously made the
-      // four Selling Type channel cards disappear entirely whenever the
-      // selected period had zero activity across every channel, instead of
-      // showing four correctly zero-valued cards. channelTotals below is
-      // built from the four (possibly-empty) row lists regardless, so it's
-      // always populated.
-      double totalRevenue = 0;
-      double totalQtyKg = 0;
-      final monthlyBuckets = <String, double>{};
-
-      for (final row in allRows) {
-        totalRevenue += row.amount;
-        totalQtyKg += row.quantityKg;
-        final bucketKey =
-            '${row.saleDate.year}-${row.saleDate.month.toString().padLeft(2, '0')}';
-        monthlyBuckets[bucketKey] =
-            (monthlyBuckets[bucketKey] ?? 0) + row.amount;
-      }
-
-      final sortedMonthKeys = monthlyBuckets.keys.toList()..sort();
-      final fullTrend = sortedMonthKeys.map((k) => monthlyBuckets[k]!).toList();
-      final trend = fullTrend.length > 6
-          ? fullTrend.sublist(fullTrend.length - 6)
-          : fullTrend;
-
-      final channelTotals = [
-        _buildChannelTotal(
-          'offer_to_cooperative',
-          'Offer to Cooperative',
-          offerRows,
-        ),
-        _buildChannelTotal('marketplace', 'Marketplace', marketplaceRows),
-        _buildChannelTotal(
-          'informal_sale',
-          'Informal Sale (F2F)',
-          informalRows,
-        ),
-        _buildChannelTotal(
-          'da_amad_market_linking',
-          'DA-AMAD Market Linking',
-          daAmadRows,
-        ),
-      ];
-
-      return SalesReportData(
-        totalRevenue: totalRevenue,
-        totalQuantityKg: totalQtyKg,
-        transactionCount: allRows.length,
-        monthlyTrend: trend,
-        transactions: allRows,
-        channelTotals: channelTotals,
+      return buildSalesReportData(
+        offerRows: offerRows,
+        marketplaceRows: marketplaceRows,
+        informalRows: informalRows,
+        daAmadRows: daAmadRows,
       );
     } catch (_) {
       return SalesReportData.empty();
@@ -542,20 +493,6 @@ class AdminReportsRepository {
     } catch (_) {
       return [];
     }
-  }
-
-  SalesChannelTotal _buildChannelTotal(
-    String sellingType,
-    String label,
-    List<SalesTransactionRow> rows,
-  ) {
-    return SalesChannelTotal(
-      sellingType: sellingType,
-      label: label,
-      amount: rows.fold(0.0, (sum, r) => sum + r.amount),
-      quantityKg: rows.fold(0.0, (sum, r) => sum + r.quantityKg),
-      transactionCount: rows.length,
-    );
   }
 
   /// Channel 1/4: Offer to Cooperative — any crop, per Phase 9's widening.
@@ -649,6 +586,7 @@ class AdminReportsRepository {
         cropType: row['crop_type'] as String? ?? 'palay',
         cropName: row['crop_name'] as String,
         quantityKg: (row['quantity_kg'] as num).toDouble(),
+        unit: unitOrDefault(row['unit'] as String?),
         amount: (row['amount'] as num).toDouble(),
         saleDate: DateTime.parse(row['sale_date'] as String),
         referenceNo: row['reference_no'] as String?,
@@ -672,7 +610,7 @@ class AdminReportsRepository {
     var query = _client
         .from('orders')
         .select(
-          'id, listing_id, buyer_id, quantity_kg, total_price, status, created_at',
+          'id, order_number, listing_id, buyer_id, quantity_kg, unit, total_price, status, created_at',
         )
         .eq('status', 'completed');
     if (startDate != null) {
@@ -737,8 +675,10 @@ class AdminReportsRepository {
         cropType: cropName.toLowerCase(),
         cropName: cropName,
         quantityKg: (row['quantity_kg'] as num).toDouble(),
+        unit: unitOrDefault(row['unit'] as String?),
         amount: (row['total_price'] as num).toDouble(),
         saleDate: DateTime.parse(row['created_at'] as String),
+        referenceNo: orderReferenceOf(row['id'] as String, row['order_number'] as String?),
         sellingType: 'marketplace',
         marketType: marketTypeMap[cropName.toLowerCase()],
         buyerName: buyerNameById[row['buyer_id']],
@@ -759,7 +699,7 @@ class AdminReportsRepository {
     var query = _client
         .from('informal_sales')
         .select(
-          'id, farmer_id, crop_name, quantity_kg, amount, buyer_name, sale_date',
+          'id, farmer_id, crop_name, quantity_kg, unit, amount, buyer_name, sale_date',
         );
     if (startDate != null) {
       query = query.gte('sale_date', startDate.toIso8601String());
@@ -784,6 +724,7 @@ class AdminReportsRepository {
         cropType: (row['crop_name'] as String).toLowerCase(),
         cropName: row['crop_name'] as String,
         quantityKg: (row['quantity_kg'] as num).toDouble(),
+        unit: unitOrDefault(row['unit'] as String?),
         amount: (row['amount'] as num?)?.toDouble() ?? 0,
         saleDate: DateTime.parse(row['sale_date'] as String),
         sellingType: 'informal_sale',
@@ -806,7 +747,7 @@ class AdminReportsRepository {
     var query = _client
         .from('market_linking_programs')
         .select(
-          'id, farmer_id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
+          'id, farmer_id, crop_name, volume_kg, requested_volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
         )
         .eq('status', 'completed');
     if (startDate != null) {
@@ -826,8 +767,13 @@ class AdminReportsRepository {
 
     return rows.where((r) => r['completed_at'] != null).map((row) {
       final info = farmerInfo[row['farmer_id']];
+      // The quantity actually sold: the confirmed volume if one was set at
+      // completion, else what the buyer asked for, else what the farmer
+      // enrolled. Farmer Home, Farmer Transaction History and this report all
+      // use the same order, so they cannot disagree.
       final qty =
           (row['confirmed_volume_kg'] as num?)?.toDouble() ??
+          (row['requested_volume_kg'] as num?)?.toDouble() ??
           (row['volume_kg'] as num?)?.toDouble() ??
           0;
       final pricePerKg = (row['price_per_kg'] as num?)?.toDouble() ?? 0;
@@ -838,10 +784,11 @@ class AdminReportsRepository {
         cropType: cropName.toLowerCase(),
         cropName: cropName,
         quantityKg: qty,
-        amount: qty * pricePerKg,
+        amount: moneyOf(qty, pricePerKg),
         saleDate: DateTime.parse(row['completed_at'] as String),
         sellingType: 'da_amad_market_linking',
-        marketType: 'DA-AMAD Market',
+        // DA-AMAD is a selling channel, not a market type.
+        marketType: null,
         buyerName: row['buyer_name'] as String?,
       );
     }).toList();
@@ -936,16 +883,26 @@ class AdminReportsRepository {
 
       for (final row in rows) {
         final available = (row['available_kg'] as num).toDouble();
-        final reserved = (row['reserved_kg'] as num? ?? 0).toDouble();
         final sold = (row['sold_kg'] as num? ?? 0).toDouble();
+        // The stored reserved_kg column is never written by the reservation
+        // model (always 0), so the committed amount is derived instead.
+        final reserved = committedBatchKg(
+          quantityKg: (row['quantity_kg'] as num).toDouble(),
+          availableKg: available,
+          soldKg: sold,
+        );
         final status = row['status'] as String? ?? 'available';
         final cropName = row['_crop_name'] as String;
 
-        totalAvailable += available;
-        totalReserved += reserved;
-        totalSold += sold;
+        // The totals are kg figures: stock held in another unit is listed in
+        // the table but never added to them.
+        if (isKg(row['unit'] as String?)) {
+          totalAvailable += available;
+          totalReserved += reserved;
+          totalSold += sold;
+          cropTotals[cropName] = (cropTotals[cropName] ?? 0) + available;
+        }
         if (status == 'low_stock') lowStockCount++;
-        cropTotals[cropName] = (cropTotals[cropName] ?? 0) + available;
 
         batches.add(
           InventoryReportRow(
@@ -958,6 +915,7 @@ class AdminReportsRepository {
             availableKg: available,
             reservedKg: reserved,
             soldKg: sold,
+            unit: unitOrDefault(row['unit'] as String?),
             status: status,
             createdAt: DateTime.parse(row['created_at'] as String),
           ),
@@ -1062,13 +1020,17 @@ class AdminReportsRepository {
         final harvestDate = DateTime.parse(row['harvest_date'] as String);
         final isSynced = row['is_synced'] as bool? ?? true;
 
-        totalYield += qty;
-        if (!isSynced) unsyncedCount++;
-        cropTotals[cropName] = (cropTotals[cropName] ?? 0) + qty;
+        // The yield, crop breakdown and trend are kg figures: a harvest
+        // measured in another unit is listed in the table but never added.
+        if (isKg(row['unit'] as String?)) {
+          totalYield += qty;
+          cropTotals[cropName] = (cropTotals[cropName] ?? 0) + qty;
 
-        final bucketKey =
-            '${harvestDate.year}-${harvestDate.month.toString().padLeft(2, '0')}';
-        monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + qty;
+          final bucketKey =
+              '${harvestDate.year}-${harvestDate.month.toString().padLeft(2, '0')}';
+          monthlyBuckets[bucketKey] = (monthlyBuckets[bucketKey] ?? 0) + qty;
+        }
+        if (!isSynced) unsyncedCount++;
 
         harvests.add(
           HarvestReportRow(
@@ -1077,6 +1039,7 @@ class AdminReportsRepository {
             farmerName: row['_farmer_name'] as String,
             cropName: cropName,
             quantityKg: qty,
+            unit: unitOrDefault(row['unit'] as String?),
             harvestDate: harvestDate,
             isSynced: isSynced,
             batchNumber: row['batch_number'] as String? ?? '—',
@@ -1112,7 +1075,8 @@ class AdminReportsRepository {
         ]);
         for (final channelRows in salesResults) {
           for (final row in channelRows) {
-            soldKgInPeriod += row.quantityKg;
+            // A kg figure: a sale measured in another unit is not added.
+            if (isKg(row.unit)) soldKgInPeriod += row.quantityKg;
           }
         }
       } catch (_) {
@@ -1160,13 +1124,15 @@ class AdminReportsRepository {
         screen: 'yield_trend_$months',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg, harvest_date')
+            .select('quantity_kg, unit, harvest_date')
             .gte('harvest_date', _dateOnly(cutoff)),
       );
       if (rows.isEmpty) return [];
 
       final buckets = <String, double>{};
       for (final row in rows) {
+        // A kg trend: harvests in another unit are not added to it.
+        if (!isKg(row['unit'] as String?)) continue;
         final date = DateTime.parse(row['harvest_date'] as String);
         final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
         buckets[key] =

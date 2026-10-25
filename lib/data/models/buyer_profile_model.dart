@@ -1,4 +1,6 @@
 import 'package:intl/intl.dart';
+import '../../core/utils/contact_email.dart';
+import '../../core/utils/person_name.dart';
 import '../../core/l10n/app_localizations.dart';
 
 // male/female/prefer_not_to_say → localized label, shared by the Buyer's
@@ -41,10 +43,19 @@ String buyerJoinedLabel(AppLocalizations l10n, DateTime memberSince) {
 class BuyerProfileModel {
   final String userId;
   final String fullName;
+  // The name as entered in parts. Null for an account created before the name
+  // was split.
+  final String? surname;
+  final String? firstName;
+  final String? middleInitial;
+  final String? suffix;
   final String? phoneNumber;
   final String? profilePhotoUrl;
   final String email; // synthetic auth address (username@sagana.local)
   final String? contactEmail; // optional real email, entered by the buyer
+  // The last email address proven with a code; the contact email is Verified
+  // only while it equals this.
+  final String? verifiedContactEmail;
   final DateTime memberSince; // buyer_profiles.created_at
 
   final int totalOrders;
@@ -71,10 +82,15 @@ class BuyerProfileModel {
   const BuyerProfileModel({
     required this.userId,
     required this.fullName,
+    this.surname,
+    this.firstName,
+    this.middleInitial,
+    this.suffix,
     this.phoneNumber,
     this.profilePhotoUrl,
     required this.email,
     this.contactEmail,
+    this.verifiedContactEmail,
     required this.memberSince,
     required this.totalOrders,
     required this.completedOrders,
@@ -94,6 +110,13 @@ class BuyerProfileModel {
   // and the raw active/suspended DB value.
   bool get isActive => accountStatus == 'active';
 
+  /// The contact email has been proven with a code (and has not changed since).
+  bool get isContactEmailVerified => ContactEmail.isVerified(
+    contactEmail: contactEmail,
+    signInEmail: email,
+    verifiedEmail: verifiedContactEmail,
+  );
+
   bool get isInactive =>
       accountStatus == 'active' &&
       lastActiveAt != null &&
@@ -101,12 +124,6 @@ class BuyerProfileModel {
 
   bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
 
-  String get initials {
-    final parts = fullName.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return fullName.isNotEmpty ? fullName[0].toUpperCase() : 'B';
-  }
+  String get initials => PersonName.initials(fullName, fallback: 'B');
 
 }

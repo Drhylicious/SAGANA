@@ -143,11 +143,13 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                   for (int i = 0; i < _orders.length; i++) ...[
                     OrderReferenceCard(
                       orderId: _orders[i].id,
+                      orderNumber: _orders[i].orderNumber,
                       status: _orders[i].status,
                       photoUrl: _orders[i].listingPhotoUrl,
                       displayName: _orders[i].displayName,
                       quantityKg: _orders[i].quantityKg,
                       pricePerKg: _orders[i].pricePerKg,
+                      unit: _orders[i].unit,
                       totalPrice: _orders[i].totalPrice,
                     ),
                     if (i < _orders.length - 1) const SizedBox(height: 10),

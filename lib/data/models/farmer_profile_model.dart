@@ -1,16 +1,32 @@
+import '../../core/utils/contact_email.dart';
 import 'farmer_member_model.dart' show MemberStatus, MemberStatusExt;
 
 class FarmerProfileModel {
   final String userId;
   final String fullName;
+  // The name as entered in separate fields. Null for an account created before
+  // the name was split (those names are not split automatically).
+  final String? surname;
+  final String? firstName;
+  final String? middleInitial;
+  final String? suffix;
   final String? email; // synthetic auth address (username@sagana.local)
   final String? contactEmail; // optional real email, entered by the farmer
+  // The last email address whose ownership was proven with a code. The contact
+  // email is Verified only while it equals this.
+  final String? verifiedContactEmail;
   final String? phoneNumber;
   final String? profilePhotoUrl;
 
   // Farm basics
   final String? farmName;
-  final String? farmAddress;    // human-readable address
+  final String? farmAddress;    // full one-line address (composed on save)
+  // The typed parts of the farm address. Barangay Payanas, Torrijos, Marinduque,
+  // MIMAROPA 4903 are fixed, so they are not stored per farm. Null for a farm
+  // saved before the structured form, which only has [farmAddress].
+  final String? farmStreet;
+  final String? farmBuilding;
+  final String? farmHouseNo;
   final double? landAreaHectares;
   final int? yearsFarming;
 
@@ -44,12 +60,20 @@ class FarmerProfileModel {
   const FarmerProfileModel({
     required this.userId,
     required this.fullName,
+    this.surname,
+    this.firstName,
+    this.middleInitial,
+    this.suffix,
     this.email,
     this.contactEmail,
+    this.verifiedContactEmail,
     this.phoneNumber,
     this.profilePhotoUrl,
     this.farmName,
     this.farmAddress,
+    this.farmStreet,
+    this.farmBuilding,
+    this.farmHouseNo,
     this.landAreaHectares,
     this.yearsFarming,
     this.farmLatitude,
@@ -71,6 +95,13 @@ class FarmerProfileModel {
 
   bool get isActive => accountStatus == 'active';
 
+  /// The contact email has been proven with a code (and has not changed since).
+  bool get isContactEmailVerified => ContactEmail.isVerified(
+    contactEmail: contactEmail,
+    signInEmail: email,
+    verifiedEmail: verifiedContactEmail,
+  );
+
   /// Derived 6-value status (Active/Inactive/Suspended/Pending/Rejected/
   /// Draft) — same derivation the Members list uses (Issue 5 / Phase C).
   MemberStatus get memberStatus =>
@@ -80,6 +111,11 @@ class FarmerProfileModel {
 
   bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
   bool get hasCoordinates => farmLatitude != null && farmLongitude != null;
+
+  /// The farm address was saved through the structured form.
+  bool get hasStructuredFarmAddress =>
+      (farmStreet?.trim().isNotEmpty ?? false) &&
+      (farmHouseNo?.trim().isNotEmpty ?? false);
 
   String? get dateOfBirthLabel {
     if (dateOfBirth == null) return null;
@@ -123,12 +159,20 @@ class FarmerProfileModel {
     return FarmerProfileModel(
       userId:             map['user_id'] as String,
       fullName:           map['full_name'] as String? ?? 'Farmer',
+      surname:            map['surname'] as String?,
+      firstName:          map['first_name'] as String?,
+      middleInitial:      map['middle_initial'] as String?,
+      suffix:             map['suffix'] as String?,
       email:              map['email'] as String? ?? map['user_email'] as String?,
       contactEmail:       map['contact_email'] as String?,
+      verifiedContactEmail: map['verified_contact_email'] as String?,
       phoneNumber:        map['phone_number'] as String?,
       profilePhotoUrl:    map['profile_photo_url'] as String?,
       farmName:           map['farm_name'] as String?,
       farmAddress:        map['farm_address'] as String?,
+      farmStreet:         map['farm_street'] as String?,
+      farmBuilding:       map['farm_building'] as String?,
+      farmHouseNo:        map['farm_house_no'] as String?,
       landAreaHectares:   map['land_area_hectares'] != null
           ? (map['land_area_hectares'] as num).toDouble()
           : null,

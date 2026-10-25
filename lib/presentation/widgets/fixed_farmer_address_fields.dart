@@ -22,7 +22,17 @@ class FixedFarmerAddressFields extends StatelessWidget {
     required this.streetController,
     required this.buildingController,
     required this.houseNoController,
+    this.note,
+    this.allowAllBlank = false,
   });
+
+  /// Replaces the default explanation shown above the locked fields.
+  final String? note;
+
+  /// For an address saved before the structured form: leaving Street, Building
+  /// and House No. all empty is accepted (the saved address is kept). Filling
+  /// any of them makes Street and House No. required again.
+  final bool allowAllBlank;
 
   final TextEditingController streetController;
   final TextEditingController buildingController;
@@ -63,8 +73,14 @@ class FixedFarmerAddressFields extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     String required(String label) => '$label *';
-    String? requiredValidator(String? v) =>
-        (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null;
+    bool allBlank() =>
+        streetController.text.trim().isEmpty &&
+        buildingController.text.trim().isEmpty &&
+        houseNoController.text.trim().isEmpty;
+    String? requiredValidator(String? v) {
+      if (allowAllBlank && allBlank()) return null;
+      return (v == null || v.trim().isEmpty) ? l10n.registerFieldRequired : null;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -72,7 +88,7 @@ class FixedFarmerAddressFields extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: Text(
-            l10n.registerAddressFixedNote,
+            note ?? l10n.registerAddressFixedNote,
             style: GoogleFonts.inter(
               fontSize: 12,
               height: 1.5,

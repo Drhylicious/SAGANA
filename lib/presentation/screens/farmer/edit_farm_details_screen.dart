@@ -1,29 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:ui' as ui;
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
+import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/farmer_registration_address.dart';
 import '../../../core/l10n/app_localizations.dart';
-import '../../widgets/map_attribution_links.dart';
-import '../../../core/constants/osm_config.dart';
+import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/offline_actions.dart';
-import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/address_map_widgets.dart';
+import '../../widgets/fixed_farmer_address_fields.dart';
+import '../../widgets/map_attribution_links.dart';
 import '../../widgets/shared_widgets.dart';
-import 'farm_location_full_map_screen.dart';
 import '../../widgets/skeleton.dart';
+import '../../widgets/sub_page_top_bar.dart';
 
-// ─── Barangay Payanas default center ─────────────────────────────────────────
-const _defaultCenter = LatLng(13.6302, 121.9392);
-const _defaultZoom = 15.0;
-const _pinZoom = 16.5;
+/// A pin farther than this from Barangay Payanas gets a gentle warning. It is
+/// only a hint: a farm near the barangay edge is legitimate, so it never blocks
+/// saving.
+const _farPinWarningKm = 6.0;
 
+/// Farm Details: the farm's own address and its map pin.
+///
+/// Laid out like Add / Edit Address (My Addresses), but for the FARM, not the
+/// home: the farm address first (the five area fields are locked to MIMAROPA
+/// Region / Marinduque / Torrijos / Payanas / 4903, only Street, Building and
+/// House No. are typed), then the farm map with "View Full Map", then the other
+/// farm details.
+///
+/// Everything here is stored on `farmer_profiles` (farm_street, farm_building,
+/// farm_house_no, farm_address, farm_latitude, farm_longitude). The home
+/// addresses in `buyer_addresses` are never read or written by this screen.
 class EditFarmDetailsScreen extends StatefulWidget {
-  const EditFarmDetailsScreen({super.key});
+  const EditFarmDetailsScreen({super.key, this.initialProfile});
+
+  /// A profile that is already loaded. The route does not pass one (the screen
+  /// fetches its own); tests use it to show the form without a database.
+  final FarmerProfileModel? initialProfile;
 
   @override
   State<EditFarmDetailsScreen> createState() => _EditFarmDetailsScreenState();
@@ -32,10 +49,13 @@ class EditFarmDetailsScreen extends StatefulWidget {
 class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   final _repo = FarmerProfileRepository();
   final _formKey = GlobalKey<FormState>();
+  final _mapCtrl = fm.MapController();
 
   // ── Text controllers ──────────────────────────────────────────────────────
   final _farmNameCtrl = TextEditingController();
-  final _farmAddressCtrl = TextEditingController();
+  final _streetCtrl = TextEditingController();
+  final _buildingCtrl = TextEditingController();
+  final _houseNoCtrl = TextEditingController();
   final _landAreaCtrl = TextEditingController();
   final _yearsFarmingCtrl = TextEditingController();
 
@@ -54,6 +74,16 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   bool _loadFailed = false;
   FarmerProfileModel? _profile;
 
+  /// The farm address was saved as one free-text line, before the structured
+  /// form existed. The typed fields are then optional until the farmer fills
+  /// any of them, and the saved line is kept if they leave them empty.
+  bool get _isLegacyAddress {
+    final p = _profile;
+    if (p == null) return false;
+    return !p.hasStructuredFarmAddress &&
+        (p.farmAddress?.trim().isNotEmpty ?? false);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +97,11 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
+    final initial = widget.initialProfile;
+    if (initial != null) {
+      _populateFrom(initial);
+      _isLoading = false;
+    }
     _loadProfile();
     _loadOwnershipOptions();
   }
@@ -121,7 +156,10 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   void _populateFrom(FarmerProfileModel p) {
     _profile = p;
     _farmNameCtrl.text = p.farmName ?? '';
-    _farmAddressCtrl.text = p.farmAddress ?? '';
+    // Only the three typed parts are read back; the area is fixed.
+    _streetCtrl.text = p.farmStreet ?? '';
+    _buildingCtrl.text = p.farmBuilding ?? '';
+    _houseNoCtrl.text = p.farmHouseNo ?? '';
     _landAreaCtrl.text = p.landAreaHectares?.toString() ?? '';
     _yearsFarmingCtrl.text = p.yearsFarming?.toString() ?? '';
     _ownershipType = p.farmOwnershipType;
@@ -133,7 +171,9 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   @override
   void dispose() {
     _farmNameCtrl.dispose();
-    _farmAddressCtrl.dispose();
+    _streetCtrl.dispose();
+    _buildingCtrl.dispose();
+    _houseNoCtrl.dispose();
     _landAreaCtrl.dispose();
     _yearsFarmingCtrl.dispose();
     super.dispose();
@@ -156,6 +196,23 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
+
+    // A farm saved before the structured form keeps its old line when the typed
+    // fields are left empty; otherwise the line is built from the typed parts
+    // and the fixed area, in the same order as My Addresses.
+    final street = _streetCtrl.text.trim();
+    final building = _buildingCtrl.text.trim();
+    final houseNo = _houseNoCtrl.text.trim();
+    final addressTyped =
+        street.isNotEmpty || building.isNotEmpty || houseNo.isNotEmpty;
+    final farmAddress = addressTyped
+        ? FarmerRegistrationAddress.composeLine(
+            houseNo: houseNo,
+            building: building,
+            street: street,
+          )
+        : null;
+
     setState(() => _isSaving = true);
     try {
       if (pinWasCleared) {
@@ -165,9 +222,10 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
         farmName: _farmNameCtrl.text.trim().isEmpty
             ? null
             : _farmNameCtrl.text.trim(),
-        farmAddress: _farmAddressCtrl.text.trim().isEmpty
-            ? null
-            : _farmAddressCtrl.text.trim(),
+        farmAddress: farmAddress,
+        farmStreet: addressTyped ? street : null,
+        farmBuilding: addressTyped && building.isNotEmpty ? building : null,
+        farmHouseNo: addressTyped ? houseNo : null,
         landAreaHectares: double.tryParse(_landAreaCtrl.text),
         yearsFarming: int.tryParse(_yearsFarmingCtrl.text),
         farmLatitude: _pinnedLocation?.latitude,
@@ -198,16 +256,29 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
   }
 
   Future<void> _openFullMap() async {
-    final result = await Navigator.of(context).push<LatLng?>(
+    final result = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
-        builder: (_) =>
-            FarmLocationFullMapScreen(initialLocation: _pinnedLocation),
+        fullscreenDialog: true,
+        builder: (_) => LocationPinPickerScreen(
+          title: AppLocalizations.of(context).farmLocationMapTitle,
+          initialLocation: _pinnedLocation,
+          pinColor: AppConstants.primaryGreen,
+        ),
       ),
     );
-    // Always applied unconditionally — the full-map screen's own back
-    // arrow and "Use This Location" button both pop with its current pin
-    // state, so there's no separate "cancelled" case to special-case here.
-    if (mounted) setState(() => _pinnedLocation = result);
+    // Back without confirming returns nothing, so the current pin stays.
+    if (result != null && mounted) {
+      // The preview was built with a fixed start point, so move its camera too.
+      _mapCtrl.move(result, kAddressMapPinZoom);
+      setState(() => _pinnedLocation = result);
+    }
+  }
+
+  /// Kilometres from the pin to the middle of Barangay Payanas.
+  double? get _pinDistanceKm {
+    final pin = _pinnedLocation;
+    if (pin == null) return null;
+    return const Distance().as(LengthUnit.Kilometer, pin, kAddressMapCenter);
   }
 
   void _showSnack(String msg) {
@@ -224,542 +295,328 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppConstants.offWhite,
-      body: Column(
+  // ── Sections ──────────────────────────────────────────────────────────────
+
+  Widget _addressSection(AppLocalizations l10n) {
+    return AddressSectionCard(
+      title: l10n.farmAddressSectionTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    const SizedBox(height: 64),
-                    if (!_isOnline) OfflineStatusCard(
-              message: AppLocalizations.of(context).offlineSaveNotice,
+          if (_isLegacyAddress) ...[
+            Text(
+              l10n.farmAddressLegacyNotice(_profile!.farmAddress!),
+              key: const ValueKey('farm-address-legacy-notice'),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppConstants.warningAmber,
+              ),
             ),
-                    Expanded(
-                      child: _isLoading
-                          ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
-                          : _loadFailed
-                          ? _FarmDetailsLoadError(
-                              onRetry: _retryLoadProfile,
-                              isOnline: _isOnline,
-                            )
-                          : Form(
-                              key: _formKey,
-                              child: ListView(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  16,
-                                  20,
-                                  24,
-                                ),
-                                children: [
-                                  // ── Section: Basic Information ─────────────────
-                                  const _SectionHeader(
-                                    icon: Icons.agriculture_rounded,
-                                    label: 'Basic Information',
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _FormCard(
-                                    children: [
-                                      const _FieldLabel(label: 'Farm Name'),
-                                      AppTextField(
-                                        controller: _farmNameCtrl,
-                                        hint: 'e.g. Santos Family Farm',
-                                        prefixIcon: Icons.home_work_outlined,
-                                        textCapitalization:
-                                            TextCapitalization.words,
-                                        validator: (v) {
-                                          if (v == null || v.trim().isEmpty) {
-                                            return 'Farm name is required';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                const _FieldLabel(
-                                                  label: 'Land Area (ha)',
-                                                ),
-                                                AppTextField(
-                                                  controller: _landAreaCtrl,
-                                                  hint: '0.00',
-                                                  keyboardType:
-                                                      const TextInputType.numberWithOptions(
-                                                        decimal: true,
-                                                      ),
-                                                  inputFormatters: [
-                                                    FilteringTextInputFormatter.allow(
-                                                      RegExp(r'[0-9.]'),
-                                                    ),
-                                                  ],
-                                                  validator: (v) {
-                                                    if (v != null &&
-                                                        v.isNotEmpty &&
-                                                        double.tryParse(v) ==
-                                                            null) {
-                                                      return 'Invalid number';
-                                                    }
-                                                    return null;
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                const _FieldLabel(
-                                                  label: 'Years Farming',
-                                                ),
-                                                AppTextField(
-                                                  controller: _yearsFarmingCtrl,
-                                                  hint: '0',
-                                                  keyboardType:
-                                                      TextInputType.number,
-                                                  inputFormatters: [
-                                                    FilteringTextInputFormatter
-                                                        .digitsOnly,
-                                                  ],
-                                                  validator: (v) {
-                                                    if (v != null &&
-                                                        v.isNotEmpty &&
-                                                        int.tryParse(v) ==
-                                                            null) {
-                                                      return 'Whole number only';
-                                                    }
-                                                    return null;
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 16),
-                                      const _FieldLabel(
-                                        label: 'Land Ownership',
-                                      ),
-                                      _OptionChips(
-                                        options: _ownershipOptions,
-                                        selected: _ownershipType,
-                                        onSelected: (v) =>
-                                            setState(() => _ownershipType = v),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
+            const SizedBox(height: 10),
+          ],
+          FixedFarmerAddressFields(
+            streetController: _streetCtrl,
+            buildingController: _buildingCtrl,
+            houseNoController: _houseNoCtrl,
+            note: l10n.farmAddressFixedNote,
+            allowAllBlank: _isLegacyAddress,
+          ),
+        ],
+      ),
+    );
+  }
 
-                                  // ── Section: Farm Location ─────────────────────
-                                  const _SectionHeader(
-                                    icon: Icons.location_on_rounded,
-                                    label: 'Farm Location',
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _FormCard(
-                                    children: [
-                                      // Map section first, per the requested field
-                                      // order (map before address).
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          GestureDetector(
-                                            onTap: _openFullMap,
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(
-                                                  Icons.open_in_full_rounded,
-                                                  size: 14,
-                                                  color:
-                                                      AppConstants.primaryGreen,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'View Full Map',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: AppConstants
-                                                        .primaryGreen,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Use "View Full Map" to place or adjust your farm pin.',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          color: AppConstants.onSurfaceVariant,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
+  Widget _mapSection(AppLocalizations l10n) {
+    final far = _pinDistanceKm;
+    return AddressSectionCard(
+      title: l10n.farmLocationSectionTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ViewFullMapLink(
+            onTap: _openFullMap,
+            label: l10n.farmViewFullMap,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.farmMapHint,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (!_isOnline) ...[
+            Text(
+              'Map tiles need internet to load. Pin position is still saved.',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppConstants.warningAmber,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          AddressMapPreview(
+            controller: _mapCtrl,
+            pin: _pinnedLocation,
+            pinColor: AppConstants.primaryGreen,
+          ),
+          const SizedBox(height: 6),
+          const MapAttributionLinks(),
+          if (_pinnedLocation != null) ...[
+            const SizedBox(height: 10),
+            _PinPill(location: _pinnedLocation!, onClear: _clearPin),
+            if (far != null && far > _farPinWarningKm) ...[
+              const SizedBox(height: 6),
+              Text(
+                l10n.farmPinFarFromBarangay,
+                key: const ValueKey('farm-pin-far-warning'),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppConstants.warningAmber,
+                ),
+              ),
+            ],
+          ] else ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.farmPinNotSet,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppConstants.warningAmber,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-                                      // Coordinate display pill
-                                      if (_pinnedLocation != null)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppConstants.primaryGreen
-                                                .withValues(alpha: 0.07),
-                                            borderRadius: BorderRadius.circular(
-                                              AppConstants.radiusMd,
-                                            ),
-                                            border: Border.all(
-                                              color: AppConstants.primaryGreen
-                                                  .withValues(alpha: 0.20),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.my_location_rounded,
-                                                size: 16,
-                                                color:
-                                                    AppConstants.primaryGreen,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      'Pin set',
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                            fontSize: 11,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color: AppConstants
-                                                                .primaryGreen,
-                                                          ),
-                                                    ),
-                                                    Text(
-                                                      '${_pinnedLocation!.latitude.toStringAsFixed(5)}° N, '
-                                                      '${_pinnedLocation!.longitude.toStringAsFixed(5)}° E',
-                                                      style: GoogleFonts.inter(
-                                                        fontSize: 11,
-                                                        color: AppConstants
-                                                            .onSurfaceVariant,
-                                                        fontFeatures: const [
-                                                          FontFeature.tabularFigures(),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              GestureDetector(
-                                                onTap: _clearPin,
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(
-                                                    4,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppConstants.errorRed
-                                                        .withValues(
-                                                          alpha: 0.08,
-                                                        ),
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.close_rounded,
-                                                    size: 14,
-                                                    color:
-                                                        AppConstants.errorRed,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      if (_pinnedLocation != null)
-                                        const SizedBox(height: 10),
-
-                                      // Offline warning
-                                      if (!_isOnline)
-                                        Container(
-                                          margin: const EdgeInsets.only(
-                                            bottom: 10,
-                                          ),
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: AppConstants.warningAmber
-                                                .withValues(alpha: 0.08),
-                                            borderRadius: BorderRadius.circular(
-                                              AppConstants.radiusMd,
-                                            ),
-                                            border: Border.all(
-                                              color: AppConstants.warningAmber
-                                                  .withValues(alpha: 0.25),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.wifi_off_rounded,
-                                                size: 15,
-                                                color:
-                                                    AppConstants.warningAmber,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  'Map tiles need internet to load. '
-                                                  'Pin position is still saved.',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 11,
-                                                    color: AppConstants
-                                                        .warningAmber,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                      // Map preview — static display only (matches
-                                      // the read-only Farm Details section's own
-                                      // "LOCATION PREVIEW" map exactly). No
-                                      // tap-to-expand/collapse affordance: the only
-                                      // way to edit the pin is "View Full Map"
-                                      // above, closing the redundant, overlapping
-                                      // pair of controls the inline collapse/expand
-                                      // toggle used to have alongside it.
-                                      Container(
-                                        height: 160,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            AppConstants.radiusLg,
-                                          ),
-                                          border: Border.all(
-                                            color: AppConstants.primaryGreen
-                                                .withValues(alpha: 0.20),
-                                          ),
-                                        ),
-                                        clipBehavior: Clip.antiAlias,
-                                        child: fm.FlutterMap(
-                                          options: fm.MapOptions(
-                                            initialCenter:
-                                                _pinnedLocation ??
-                                                _defaultCenter,
-                                            initialZoom: _pinnedLocation != null
-                                                ? _pinZoom
-                                                : _defaultZoom,
-                                            interactionOptions:
-                                                const fm.InteractionOptions(
-                                                  flags:
-                                                      fm.InteractiveFlag.none,
-                                                ),
-                                          ),
-                                          children: [
-                                            const OsmMapAttribution(),
-                                            fm.TileLayer(
-                                              urlTemplate:
-                                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                              userAgentPackageName:
-                                                  'com.sp3coop.sagana',
-                                              tileProvider:
-                                                  fm.NetworkTileProvider(
-                                                    headers: {
-                                                      'User-Agent':
-                                                          kOsmTileUserAgent,
-                                                    },
-                                                  ),
-                                              // flutter_map cancels in-flight tile
-                                              // requests for tiles that scroll out
-                                              // of view mid-pan/zoom — expected, not
-                                              // a real failure. Without this it
-                                              // surfaces as a noisy "EXCEPTION
-                                              // CAUGHT BY IMAGE RESOURCE SERVICE" log.
-                                              errorTileCallback:
-                                                  (tile, error, stackTrace) {},
-                                            ),
-                                            if (_pinnedLocation != null)
-                                              fm.MarkerLayer(
-                                                markers: [
-                                                  fm.Marker(
-                                                    point: _pinnedLocation!,
-                                                    width: 48,
-                                                    height: 56,
-                                                    alignment:
-                                                        Alignment.topCenter,
-                                                    child: _MapPin(),
-                                                  ),
-                                                ],
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-
-                                      const _FieldLabel(label: 'Address'),
-                                      AppTextField(
-                                        controller: _farmAddressCtrl,
-                                        hint: 'e.g. Near the old barangay hall',
-                                        prefixIcon: Icons.place_outlined,
-                                        textCapitalization:
-                                            TextCapitalization.sentences,
-                                        maxLines: 2,
-                                        validator: (v) {
-                                          if (v == null || v.trim().isEmpty) {
-                                            return 'Address is required';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                  // ── Section: Primary Crops ─────────────────────
-                                  const _SectionHeader(
-                                    icon: Icons.grass_rounded,
-                                    label: 'Primary Crops',
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _FormCard(
-                                    children: [
-                                      // Primary crops — read-only from farmer_crops
-                                      Text(
-                                        'Managed via the Harvest tab. Add crops there to update this list.',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          color: AppConstants.onSurfaceVariant,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      if (_profile?.primaryCrops.isEmpty ??
-                                          true)
-                                        Text(
-                                          'No crops added yet',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            color: AppConstants.outline,
-                                          ),
-                                        )
-                                      else
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: (_profile?.primaryCrops ?? [])
-                                              .map(
-                                                (crop) => Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(
-                                                      0xFFD5ECF8,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          AppConstants.radiusMd,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    crop,
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: AppConstants
-                                                          .primaryGreen,
-                                                    ),
-                                                  ),
-                                                ),
-                                              )
-                                              .toList(),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                  // ── Info banner ────────────────────────────────
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppConstants.primaryGreen
-                                          .withValues(alpha: 0.06),
-                                      borderRadius: BorderRadius.circular(
-                                        AppConstants.radiusMd,
-                                      ),
-                                      border: Border.all(
-                                        color: AppConstants.primaryGreen
-                                            .withValues(alpha: 0.15),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Icon(
-                                          Icons.info_outline_rounded,
-                                          size: 16,
-                                          color: AppConstants.primaryGreen,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            'Your farm location pin helps SP3 Manager verify your membership '
-                                            'and will be used in future cooperative planning features.',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color:
-                                                  AppConstants.onSurfaceVariant,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+  Widget _basicInfoSection() {
+    return AddressSectionCard(
+      title: 'Basic Information',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _FieldLabel(label: 'Farm Name'),
+          AppTextField(
+            controller: _farmNameCtrl,
+            hint: 'e.g. Santos Family Farm',
+            prefixIcon: Icons.home_work_outlined,
+            textCapitalization: TextCapitalization.words,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) {
+                return 'Farm name is required';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _FieldLabel(label: 'Land Area (ha)'),
+                    AppTextField(
+                      controller: _landAreaCtrl,
+                      hint: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                      ],
+                      validator: (v) {
+                        if (v != null &&
+                            v.isNotEmpty &&
+                            double.tryParse(v) == null) {
+                          return 'Invalid number';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                 ),
-
-                // ── Top App Bar ──────────────────────────────────────────────────
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: FarmerTopBar(
-                    title: AppLocalizations.of(context).editFarmDetails,
-                    onBack: () => context.popRoute(),
-                    hideProfileAvatar: true,
-                    onProfileTap: () {},
-                    onNotificationTap: () {},
-                    showNotificationButton: false,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _FieldLabel(label: 'Years Farming'),
+                    AppTextField(
+                      controller: _yearsFarmingCtrl,
+                      hint: '0',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (v) {
+                        if (v != null &&
+                            v.isNotEmpty &&
+                            int.tryParse(v) == null) {
+                          return 'Whole number only';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _FieldLabel(label: 'Land Ownership'),
+          _OptionChips(
+            options: _ownershipOptions,
+            selected: _ownershipType,
+            onSelected: (v) => setState(() => _ownershipType = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cropsSection() {
+    final crops = _profile?.primaryCrops ?? const <String>[];
+    return AddressSectionCard(
+      title: 'Primary Crops',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Primary crops — read-only from farmer_crops
+          Text(
+            'Managed via the Harvest tab. Add crops there to update this list.',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppConstants.onSurfaceVariant,
             ),
+          ),
+          const SizedBox(height: 8),
+          if (crops.isEmpty)
+            Text(
+              'No crops added yet',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.outline,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: crops
+                  .map(
+                    (crop) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD5ECF8),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
+                      ),
+                      child: Text(
+                        crop,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final sagana = context.saganaColors;
+    return Scaffold(
+      backgroundColor: sagana.scaffoldBackground,
+      body: Column(
+        children: [
+          SubPageTopBar(title: l10n.editFarmDetails, onBack: context.popRoute),
+          if (!_isOnline) OfflineStatusCard(message: l10n.offlineSaveNotice),
+          Expanded(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : _loadFailed
+                ? _FarmDetailsLoadError(
+                    onRetry: _retryLoadProfile,
+                    isOnline: _isOnline,
+                  )
+                : Form(
+                    key: _formKey,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        12,
+                        AppConstants.spacingSafeH,
+                        24,
+                      ),
+                      children: [
+                        // 1. The farm address, then 2. its map.
+                        _addressSection(l10n),
+                        const SizedBox(height: 16),
+                        _mapSection(l10n),
+                        const SizedBox(height: 16),
+                        _basicInfoSection(),
+                        const SizedBox(height: 16),
+                        _cropsSection(),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppConstants.primaryGreen.withValues(
+                              alpha: 0.06,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusMd,
+                            ),
+                            border: Border.all(
+                              color: AppConstants.primaryGreen.withValues(
+                                alpha: 0.15,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.info_outline_rounded,
+                                size: 16,
+                                color: AppConstants.primaryGreen,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Your farm location pin helps SP3 Manager verify your membership '
+                                  'and will be used in future cooperative planning features.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: AppConstants.onSurfaceVariant,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
@@ -793,58 +650,77 @@ class _EditFarmDetailsScreenState extends State<EditFarmDetailsScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Map Pin widget
+// Coordinates pill: the saved/selected farm pin, with a clear button.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MapPin extends StatelessWidget {
+class _PinPill extends StatelessWidget {
+  final LatLng location;
+  final VoidCallback onClear;
+  const _PinPill({required this.location, required this.onClear});
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppConstants.primaryGreen,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.40),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.agriculture_rounded,
-            color: Colors.white,
-            size: 18,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppConstants.primaryGreen.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(
+          color: AppConstants.primaryGreen.withValues(alpha: 0.20),
         ),
-        CustomPaint(size: const Size(12, 10), painter: _PinTailPainter()),
-      ],
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.my_location_rounded,
+            size: 16,
+            color: AppConstants.primaryGreen,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pin set',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.primaryGreen,
+                  ),
+                ),
+                Text(
+                  '${location.latitude.toStringAsFixed(5)}° N, '
+                  '${location.longitude.toStringAsFixed(5)}° E',
+                  key: const ValueKey('farm-pin-coordinates'),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppConstants.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: onClear,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppConstants.errorRed.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                size: 14,
+                color: AppConstants.errorRed,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
-}
-
-class _PinTailPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppConstants.primaryGreen
-      ..style = PaintingStyle.fill;
-    final path = ui.Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width / 2, size.height)
-      ..lineTo(size.width, 0)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -909,58 +785,6 @@ class _FarmDetailsLoadError extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Private layout widgets
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _SectionHeader({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppConstants.primaryGreen),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppConstants.primaryGreen,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FormCard extends StatelessWidget {
-  final List<Widget> children;
-  const _FormCard({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.50)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF455A64).withValues(alpha: 0.05),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
-      ),
-    );
-  }
-}
 
 class _FieldLabel extends StatelessWidget {
   final String label;

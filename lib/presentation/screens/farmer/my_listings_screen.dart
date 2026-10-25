@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/listing_repository.dart';
@@ -134,7 +135,10 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   // full original volume as "sold," which it wasn't.
   double get _totalSold => _allListings
       .where((l) => l.isLive || l.isSold)
-      .fold<double>(0, (sum, l) => sum + ((l.volumeKg - l.remainingKg) * l.pricePerKg));
+      .fold<double>(
+        0,
+        (sum, l) => sum + ((l.volumeKg - l.remainingKg) * l.pricePerKg),
+      );
 
   int get _availableCount => _countFor((l) => l.isAvailable);
 
@@ -146,7 +150,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('This action requires an internet connection. Please try again once you\'re back online.'),
+          content: Text(
+            'This action requires an internet connection. Please try again once you\'re back online.',
+          ),
           backgroundColor: AppConstants.snackbarWarning,
         ),
       );
@@ -191,13 +197,15 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                 // directly instead of a generic failure text, so the
                 // farmer understands this isn't a bug to retry.
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(e.message)),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.message)));
               } catch (_) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Failed to delete. Please try again.')),
+                  const SnackBar(
+                    content: Text('Failed to delete. Please try again.'),
+                  ),
                 );
               }
             },
@@ -263,7 +271,8 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
             },
             onSignOut: () => confirmFarmerSignOut(context),
             onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.pushRoute(AppRoutes.aboutCooperative),
+            onAboutOrganization: () =>
+                context.pushRoute(AppRoutes.aboutCooperative),
             onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
             onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
           );
@@ -277,127 +286,152 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                 Column(
                   children: [
                     const SizedBox(height: 72),
-                    CachedDataNotice(screen: 'my_listings', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineListingActionsSome),
+                    CachedDataNotice(
+                      screen: 'my_listings',
+                      isOnline: _isOnline,
+                      offlineMessage: AppLocalizations.of(
+                        context,
+                      ).offlineListingActionsSome,
+                    ),
                     Expanded(
-                child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
-                  onRefresh: _loadData,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(0, 16, 0, 100),
-                    children: [
-                      // Marketplace / Listing — see _selectedTab's comment
-                      // for why this is in-screen state, not a new route or
-                      // bottom-nav item.
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _ListingTabs(
-                          selected: _selectedTab,
-                          onSelected: (i) => setState(() => _selectedTab = i),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      if (_selectedTab == 1) ...[
-                      // Listing Overview — one consolidated card (stats +
-                      // priority actions) matching Admin Marketplace's own
-                      // Overview card, replacing the separate KPI-tile row
-                      // and standalone Needs Attention card from before.
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _isLoading
-                            ? SkeletonBlock(height: 150)
-                            : _ListingOverviewCard(
-                                availableCount: _availableCount,
-                                totalSold: _totalSold,
-                                pendingCount: _pendingCount,
-                                onPendingTap: () => _setFilter(ListingFilter.pending),
+                      child: RefreshIndicator(
+                        color: AppConstants.primaryGreen,
+                        onRefresh: _loadData,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(0, 16, 0, 100),
+                          children: [
+                            // Marketplace / Listing — see _selectedTab's comment
+                            // for why this is in-screen state, not a new route or
+                            // bottom-nav item.
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
                               ),
-                      ),
+                              child: _ListingTabs(
+                                selected: _selectedTab,
+                                onSelected: (i) =>
+                                    setState(() => _selectedTab = i),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
 
-                      const SizedBox(height: 16),
-
-                      // Search
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _SearchBar(controller: _searchController),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Filter chips
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _FilterChips(
-                          active: _activeFilter,
-                          countFor: _countForFilter,
-                          onSelected: _setFilter,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Listing cards
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _isLoading
-                            ? Column(
-                                children: List.generate(
-                                  3,
-                                  (_) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 14),
-                                    child: SkeletonBlock(height: 140),
-                                  ),
+                            if (_selectedTab == 1) ...[
+                              // Listing Overview — one consolidated card (stats +
+                              // priority actions) matching Admin Marketplace's own
+                              // Overview card, replacing the separate KPI-tile row
+                              // and standalone Needs Attention card from before.
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
                                 ),
-                              )
-                            : _filtered.isEmpty
-                            ? _EmptyState(
-                                hasFilter: _activeFilter != ListingFilter.all ||
-                                    _searchQuery.isNotEmpty,
-                              )
-                            : Column(
-                                children: _filtered
-                                    .map(
-                                      (listing) => Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 14,
-                                        ),
-                                        child: _ListingCard(
-                                          listing: listing,
-                                          onTap: () => _openDetail(listing),
-                                          onDelete: () =>
-                                              _confirmDelete(listing),
-                                        ),
+                                child: _isLoading
+                                    ? SkeletonBlock(height: 150)
+                                    : _ListingOverviewCard(
+                                        availableCount: _availableCount,
+                                        totalSold: _totalSold,
+                                        pendingCount: _pendingCount,
+                                        onPendingTap: () =>
+                                            _setFilter(ListingFilter.pending),
                                       ),
-                                    )
-                                    .toList(),
                               ),
+
+                              const SizedBox(height: 16),
+
+                              // Search
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                child: _SearchBar(
+                                  controller: _searchController,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Filter chips
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                child: _FilterChips(
+                                  active: _activeFilter,
+                                  countFor: _countForFilter,
+                                  onSelected: _setFilter,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Listing cards
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                child: _isLoading
+                                    ? Column(
+                                        children: List.generate(
+                                          3,
+                                          (_) => Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 14,
+                                            ),
+                                            child: SkeletonBlock(height: 140),
+                                          ),
+                                        ),
+                                      )
+                                    : _filtered.isEmpty
+                                    ? _EmptyState(
+                                        hasFilter:
+                                            _activeFilter !=
+                                                ListingFilter.all ||
+                                            _searchQuery.isNotEmpty,
+                                      )
+                                    : Column(
+                                        children: _filtered
+                                            .map(
+                                              (listing) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 14,
+                                                ),
+                                                child: _ListingCard(
+                                                  listing: listing,
+                                                  onTap: () =>
+                                                      _openDetail(listing),
+                                                  onDelete: () =>
+                                                      _confirmDelete(listing),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                              ),
+                            ] else
+                              // Marketplace (Phase 9) — farmer-as-buyer browsing
+                              // of every approved listing on the platform
+                              // (including this farmer's own, shown but not
+                              // purchasable). Replaces the old read-only "Live
+                              // Listings" browse of just this farmer's own
+                              // listings, per the approved redesign proposal.
+                              const FarmerMarketplaceTab(),
+                          ],
+                        ),
                       ),
-                      ] else
-                        // Marketplace (Phase 9) — farmer-as-buyer browsing
-                        // of every approved listing on the platform
-                        // (including this farmer's own, shown but not
-                        // purchasable). Replaces the old read-only "Live
-                        // Listings" browse of just this farmer's own
-                        // listings, per the approved redesign proposal.
-                        const FarmerMarketplaceTab(),
-                    ],
+                    ),
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FarmerTopBar(
+                    title: _selectedTab == 0 ? 'Marketplace' : 'Listings',
+                    unreadCount: _unreadCount,
+                    hideProfileAvatar: true,
+                    onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
+                    onNotificationTap: () =>
+                        context.pushRoute(AppRoutes.farmerNotifications),
+                    enableMenu: true,
                   ),
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: FarmerTopBar(
-              title: _selectedTab == 0 ? 'Marketplace' : 'Listings',
-              unreadCount: _unreadCount,
-              hideProfileAvatar: true,
-              onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-              onNotificationTap: () =>
-                  context.pushRoute(AppRoutes.farmerNotifications),
-              enableMenu: true,
-            ),
-          ),
               ],
             ),
           ),
@@ -456,29 +490,66 @@ class _ListingOverviewCard extends StatelessWidget {
               Container(
                 width: 4,
                 height: 20,
-                decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(
+                  color: cs.primary,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
               const SizedBox(width: 10),
-              Text('Listing Overview', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
+              Text(
+                'Listing Overview',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
               const Spacer(),
               if (_priorityCount > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppConstants.warningAmber.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
+                    ),
                   ),
-                  child: Text('$_priorityCount',
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppConstants.warningAmber)),
+                  child: Text(
+                    '$_priorityCount',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.warningAmber,
+                    ),
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _statMini(icon: Icons.storefront_outlined, label: 'Available Listings', value: '$availableCount')),
-              Container(width: 1, height: 34, color: cs.outline.withValues(alpha: 0.15)),
-              Expanded(child: _statMini(icon: Icons.payments_outlined, label: 'Total Sold', value: '₱${_formatCurrency(totalSold)}')),
+              Expanded(
+                child: _statMini(
+                  icon: Icons.storefront_outlined,
+                  label: 'Available Listings',
+                  value: '$availableCount',
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 34,
+                color: cs.outline.withValues(alpha: 0.15),
+              ),
+              Expanded(
+                child: _statMini(
+                  icon: Icons.payments_outlined,
+                  label: 'Total Sold',
+                  value: '₱${_formatCurrency(totalSold)}',
+                ),
+              ),
             ],
           ),
           if (_priorityCount > 0) ...[
@@ -489,7 +560,8 @@ class _ListingOverviewCard extends StatelessWidget {
               _PriorityRow(
                 icon: Icons.pending_actions_rounded,
                 color: AppConstants.warningAmber,
-                title: '$pendingCount listing${pendingCount == 1 ? '' : 's'} pending approval',
+                title:
+                    '$pendingCount listing${pendingCount == 1 ? '' : 's'} pending approval',
                 subtitle: 'Awaiting Manager decision',
                 onTap: onPendingTap,
               ),
@@ -499,7 +571,11 @@ class _ListingOverviewCard extends StatelessWidget {
     );
   }
 
-  Widget _statMini({required IconData icon, required String label, required String value}) {
+  Widget _statMini({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
@@ -509,11 +585,25 @@ class _ListingOverviewCard extends StatelessWidget {
             children: [
               Icon(icon, size: 13, color: AppConstants.primaryGreen),
               const SizedBox(width: 5),
-              Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.onSurfaceVariant)),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(value, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.primaryGreen,
+            ),
+          ),
         ],
       ),
     );
@@ -548,7 +638,10 @@ class _PriorityRow extends StatelessWidget {
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
               child: Icon(icon, size: 16, color: color),
             ),
             const SizedBox(width: 12),
@@ -556,17 +649,34 @@ class _PriorityRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.charcoal),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.charcoal,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, size: 18, color: AppConstants.outline),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppConstants.outline,
+            ),
           ],
         ),
       ),
@@ -583,17 +693,16 @@ class _ListingTabs extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelected;
 
-  const _ListingTabs({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _ListingTabs({required this.selected, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.50),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.50),
         borderRadius: BorderRadius.circular(AppConstants.radiusFull),
       ),
       child: Row(
@@ -613,7 +722,9 @@ class _ListingTabs extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isActive ? Theme.of(context).colorScheme.primary : Colors.transparent,
+          color: isActive
+              ? Theme.of(context).colorScheme.primary
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(AppConstants.radiusFull),
         ),
         alignment: Alignment.center,
@@ -728,8 +839,8 @@ class _FilterChips extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive
                       ? (isAll
-                          ? Theme.of(context).colorScheme.primary
-                          : statusColor.withValues(alpha: 0.15))
+                            ? Theme.of(context).colorScheme.primary
+                            : statusColor.withValues(alpha: 0.15))
                       : Theme.of(context).colorScheme.surfaceContainerHighest
                             .withValues(alpha: 0.70),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
@@ -749,8 +860,8 @@ class _FilterChips extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: isActive
                         ? (isAll
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : statusColor)
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : statusColor)
                         : Theme.of(context).colorScheme.outline,
                   ),
                 ),
@@ -780,32 +891,38 @@ class _ListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = listing.isPending ? AppConstants.warningAmber : null;
+    final borderColor = listingAccentColor(
+      context,
+      listingStateOf(status: listing.status, remainingKg: listing.remainingKg),
+    );
 
     return SoldOutGrey(
       active: listing.isSoldOut,
       child: Opacity(
-      opacity: listing.isWithdrawn ? 0.65 : 1.0,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: flatCardDecoration(context),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (borderColor != null)
-                Container(width: 4, color: borderColor),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: _StandardContent(listing: listing, onDelete: onDelete),
+        opacity: listing.isWithdrawn ? 0.65 : 1.0,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: flatCardDecoration(context),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (borderColor != null)
+                  Container(width: 4, color: borderColor),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: _StandardContent(
+                      listing: listing,
+                      onDelete: onDelete,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -815,10 +932,7 @@ class _StandardContent extends StatelessWidget {
   final MarketplaceListingModel listing;
   final VoidCallback onDelete;
 
-  const _StandardContent({
-    required this.listing,
-    required this.onDelete,
-  });
+  const _StandardContent({required this.listing, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -842,29 +956,44 @@ class _StandardContent extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ListingStatusBadge.forListing(
-                    context,
-                    status: listing.status,
-                    remainingKg: listing.remainingKg,
+                  // Flexible so a long label (Tagalog, or Pending Approval on a
+                  // narrow phone) wraps inside the pill instead of overflowing.
+                  Flexible(
+                    child: ListingStatusBadge.forListing(
+                      context,
+                      status: listing.status,
+                      remainingKg: listing.remainingKg,
+                    ),
                   ),
                   if (showMenu)
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppConstants.outline),
+                      icon: const Icon(
+                        Icons.more_vert_rounded,
+                        size: 20,
+                        color: AppConstants.outline,
+                      ),
                       onSelected: (value) {
                         if (value == 'delete') onDelete();
                       },
                       itemBuilder: (context) => [
                         PopupMenuItem(
                           value: 'delete',
-                          child: _menuRow(Icons.delete_outline_rounded, 'Delete Listing', AppConstants.errorRed),
+                          child: _menuRow(
+                            Icons.delete_outline_rounded,
+                            'Delete Listing',
+                            AppConstants.errorRed,
+                          ),
                         ),
                       ],
                     )
                   else
                     Text(
                       DateFormat('MMM d, yyyy').format(listing.createdAt),
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppConstants.outline,
+                      ),
                     ),
                 ],
               ),
@@ -874,7 +1003,9 @@ class _StandardContent extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: listing.isWithdrawn ? AppConstants.outline : AppConstants.charcoal,
+                  color: listing.isWithdrawn
+                      ? AppConstants.outline
+                      : AppConstants.charcoal,
                 ),
               ),
               const SizedBox(height: 4),
@@ -887,30 +1018,48 @@ class _StandardContent extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: listing.isWithdrawn ? AppConstants.outline : AppConstants.primaryGreen,
+                      color: listing.isWithdrawn
+                          ? AppConstants.outline
+                          : AppConstants.primaryGreen,
                     ),
                   ),
-                  Text('/kg', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
+                  Text(
+                    '/${unitOrDefault(listing.unit)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.outline,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 2),
               Text(
                 listing.isLive && listing.submittedAt != null
-                    ? 'Volume: ${listing.volumeKg.toStringAsFixed(0)} kg • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
+                    ? 'Volume: ${formatQuantityUnit(listing.volumeKg, listing.unit)} • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
                     : listing.isWithdrawn
-                    ? '₱${listing.pricePerKg.toStringAsFixed(2)}/kg • ${listing.volumeKg.toStringAsFixed(0)} kg'
-                    : 'Volume: ${listing.volumeKg.toStringAsFixed(0)} kg',
-                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
+                    ? '${formatPricePerUnit(listing.pricePerKg, listing.unit)} • ${formatQuantityUnit(listing.volumeKg, listing.unit)}'
+                    : 'Volume: ${formatQuantityUnit(listing.volumeKg, listing.unit)}',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppConstants.outline,
+                ),
               ),
               if (listing.isWithdrawn && listing.updatedAt != null) ...[
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.history_rounded, size: 13, color: AppConstants.outline),
+                    const Icon(
+                      Icons.history_rounded,
+                      size: 13,
+                      color: AppConstants.outline,
+                    ),
                     const SizedBox(width: 5),
                     Text(
                       'Removed on ${DateFormat('MMM d, yyyy').format(listing.updatedAt!)}',
-                      style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppConstants.outline,
+                      ),
                     ),
                   ],
                 ),
@@ -920,7 +1069,11 @@ class _StandardContent extends StatelessWidget {
         ),
         const Padding(
           padding: EdgeInsets.only(top: 4, left: 4),
-          child: Icon(Icons.chevron_right_rounded, size: 18, color: AppConstants.outline),
+          child: Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: AppConstants.outline,
+          ),
         ),
       ],
     );
@@ -1006,9 +1159,7 @@ class _EmptyState extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              hasFilter
-                  ? Icons.search_off_rounded
-                  : Icons.storefront_outlined,
+              hasFilter ? Icons.search_off_rounded : Icons.storefront_outlined,
               size: 38,
               color: AppConstants.outline.withValues(alpha: 0.60),
             ),
@@ -1043,12 +1194,9 @@ class _EmptyState extends StatelessWidget {
 // Small shimmer block (KPI loading state)
 // ─────────────────────────────────────────────────────────────────────────────
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Shimmer (listing card)
 // ─────────────────────────────────────────────────────────────────────────────
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FAB

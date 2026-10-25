@@ -42,7 +42,11 @@ class PdfExportService implements ReportExportService {
     for (final module in modules) {
       final doc = await _buildDocument(module, period, contributionYear);
       final bytes = await doc.save();
-      final periodLabel = module.usesYear ? '$contributionYear' : period.label;
+      final periodLabel = module.usesYear
+          ? '$contributionYear'
+          : module.isSnapshot
+          ? 'Current'
+          : period.label;
       final fileName = _fileNameFor(module, periodLabel);
       final file = File('${exportsDir.path}/$fileName');
       await file.writeAsBytes(bytes);
@@ -69,10 +73,14 @@ class PdfExportService implements ReportExportService {
     ReportPeriod period,
     int contributionYear,
   ) async {
+    // What the file covers, printed under the title. The Member Patronage
+    // Report keeps its original subtitle, so it gets none.
+    final scope = exportScopeText(module, period, contributionYear);
     switch (module) {
       case ReportModuleType.sales:
         return buildSalesReportPdf(
           await _reportsRepo.fetchSalesReport(period),
+          scopeText: scope,
         );
       case ReportModuleType.harvest:
         final results = await Future.wait([
@@ -82,17 +90,19 @@ class PdfExportService implements ReportExportService {
         return buildHarvestReportPdf(
           results[0] as HarvestReportData,
           results[1] as InventoryReportData,
+          scopeText: scope,
         );
       case ReportModuleType.expense:
         return buildExpenseReportPdf(
           await _reportsRepo.fetchExpenseReport(period),
+          scopeText: scope,
         );
       case ReportModuleType.loan:
         final loans = await _loanRepo.fetchAllLoans(
           issuedAfter: period.startDate,
           issuedBefore: period.range().endDate,
         );
-        return buildLoanReportPdf(loans);
+        return buildLoanReportPdf(loans, scopeText: scope);
       case ReportModuleType.memberContribution:
         return buildMemberContributionReportPdf(
           await _reportsRepo.fetchMemberContributionReport(contributionYear),
@@ -100,6 +110,7 @@ class PdfExportService implements ReportExportService {
       case ReportModuleType.coopStock:
         return buildCoopStockReportPdf(
           await _reportsRepo.fetchCoopStockReport(),
+          scopeText: scope,
         );
     }
   }

@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/farmer_transaction_model.dart';
 import '../services/offline_cache.dart';
+import '../../core/utils/order_reference.dart';
+import '../../core/utils/quantity_utils.dart';
 
 /// Farmer's own completed sales across all 4 selling channels — the data
 /// source behind Farmer Transaction History. Each channel query mirrors
@@ -112,7 +114,9 @@ class FarmerTransactionRepository {
         screen: 'transactions_offer_to_coop',
         fetch: () => _client
             .from('member_sales_transactions')
-            .select('id, crop_name, quantity_kg, amount, sale_date, reference_no')
+            .select(
+              'id, crop_name, quantity_kg, unit, amount, sale_date, reference_no',
+            )
             .eq('farmer_id', _userId),
       );
       return rows
@@ -122,6 +126,7 @@ class FarmerTransactionRepository {
               sellingType: 'offer_to_cooperative',
               cropName: r['crop_name'] as String,
               quantityKg: (r['quantity_kg'] as num).toDouble(),
+              unit: unitOrDefault(r['unit'] as String?),
               amount: (r['amount'] as num).toDouble(),
               transactionDate: DateTime.parse(r['sale_date'] as String),
               referenceNo: r['reference_no'] as String?,
@@ -149,7 +154,7 @@ class FarmerTransactionRepository {
           final orders = await _client
               .from('orders')
               .select(
-                'id, quantity_kg, total_price, status, created_at, marketplace_listings(crop_name)',
+                'id, order_number, quantity_kg, unit, total_price, status, created_at, marketplace_listings(crop_name)',
               )
               .eq('farmer_id', _userId)
               .eq('status', 'completed');
@@ -188,8 +193,10 @@ class FarmerTransactionRepository {
         return FarmerTransactionModel(
           id: r['id'] as String,
           sellingType: 'marketplace',
+          referenceNo: orderReferenceOf(r['id'] as String, r['order_number'] as String?),
           cropName: cropName,
           quantityKg: (r['quantity_kg'] as num).toDouble(),
+          unit: unitOrDefault(r['unit'] as String?),
           amount: (r['total_price'] as num).toDouble(),
           transactionDate: DateTime.parse(r['created_at'] as String),
           orderStatus: r['status'] as String?,
@@ -210,7 +217,9 @@ class FarmerTransactionRepository {
         screen: 'transactions_informal_sales',
         fetch: () => _client
             .from('informal_sales')
-            .select('id, crop_name, quantity_kg, amount, buyer_name, sale_date')
+            .select(
+              'id, crop_name, quantity_kg, unit, amount, buyer_name, sale_date',
+            )
             .eq('farmer_id', _userId),
       );
       return rows
@@ -220,6 +229,7 @@ class FarmerTransactionRepository {
               sellingType: 'informal_sale',
               cropName: r['crop_name'] as String,
               quantityKg: (r['quantity_kg'] as num).toDouble(),
+              unit: unitOrDefault(r['unit'] as String?),
               amount: (r['amount'] as num?)?.toDouble() ?? 0,
               transactionDate: DateTime.parse(r['sale_date'] as String),
               buyerName: r['buyer_name'] as String?,
@@ -244,14 +254,18 @@ class FarmerTransactionRepository {
         fetch: () => _client
             .from('market_linking_programs')
             .select(
-              'id, crop_name, volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
+              'id, crop_name, volume_kg, requested_volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
             )
             .eq('farmer_id', _userId)
             .eq('status', 'completed'),
       );
       return rows.where((r) => r['completed_at'] != null).map((r) {
+        // Same order as the dashboard and the Manager's Sales Report: the
+        // confirmed volume, else what the buyer asked for, else the enrolled
+        // volume.
         final qty =
             (r['confirmed_volume_kg'] as num?)?.toDouble() ??
+            (r['requested_volume_kg'] as num?)?.toDouble() ??
             (r['volume_kg'] as num?)?.toDouble() ??
             0;
         final pricePerKg = (r['price_per_kg'] as num?)?.toDouble() ?? 0;
@@ -261,7 +275,7 @@ class FarmerTransactionRepository {
           sellingType: 'da_amad_market_linking',
           cropName: cropName,
           quantityKg: qty,
-          amount: qty * pricePerKg,
+          amount: moneyOf(qty, pricePerKg),
           transactionDate: DateTime.parse(r['completed_at'] as String),
           buyerName: r['buyer_name'] as String?,
           cropImageUrl: imageByCropName[cropName.toLowerCase()],

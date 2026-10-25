@@ -1,3 +1,5 @@
+import '../../core/utils/quantity_utils.dart';
+
 class HarvestModel {
   final String id;
   final String farmerId;
@@ -5,6 +7,9 @@ class HarvestModel {
   final String cropName;
   final String cropCategory;
   final double quantityKg;
+
+  /// The unit [quantityKg] is measured in (the field keeps its old name).
+  final String unit;
   final String? variety;
   final String? batchNumber;
   final String? storageLocation;
@@ -19,6 +24,7 @@ class HarvestModel {
     required this.cropName,
     required this.cropCategory,
     required this.quantityKg,
+    this.unit = kDefaultUnit,
     this.variety,
     this.batchNumber,
     this.storageLocation,
@@ -29,13 +35,17 @@ class HarvestModel {
 
   bool get isPending => !isSynced;
 
-  String get displayBatch => batchNumber ?? '—';
+  /// The batch number with its leading #, or a note when the database has not
+  /// issued one yet (a harvest saved offline is numbered when it syncs).
+  String get displayBatch => formatBatchNumber(batchNumber).isEmpty
+      ? 'Assigned when synced'
+      : formatBatchNumber(batchNumber);
 
   String get displayQty {
-    if (quantityKg >= 1000) {
-      return '${(quantityKg / 1000).toStringAsFixed(1)}t';
+    if (unit == kDefaultUnit && quantityKg >= 1000) {
+      return '${formatQuantity(quantityKg / 1000)}t';
     }
-    return '${quantityKg.toStringAsFixed(0)}kg';
+    return formatQuantityUnit(quantityKg, unit);
   }
 
   factory HarvestModel.fromMap(Map<String, dynamic> map) {
@@ -46,6 +56,7 @@ class HarvestModel {
       cropName: map['crop_name'] as String,
       cropCategory: map['crop_category'] as String? ?? 'Other',
       quantityKg: (map['quantity_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       variety: map['variety'] as String?,
       batchNumber: map['batch_number'] as String?,
       storageLocation: map['storage_location'] as String?,
@@ -63,6 +74,7 @@ class HarvestModel {
       'crop_name': cropName,
       'crop_category': cropCategory,
       'quantity_kg': quantityKg,
+      'unit': unit,
       'variety': variety,
       'batch_number': batchNumber,
       'storage_location': storageLocation,

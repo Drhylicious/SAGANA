@@ -46,7 +46,7 @@ class BuyerOrderRepository {
     final orders = await _client
         .from('orders')
         .select(
-          'id, listing_id, quantity_kg, price_per_kg, total_price, '
+          'id, order_number, listing_id, quantity_kg, price_per_kg, unit, total_price, '
           'status, notes, created_at, updated_at, fulfillment_method',
         )
         .eq('buyer_id', _userId)
@@ -89,6 +89,29 @@ class BuyerOrderRepository {
     }).toList();
   }
 
+  // ─── Order numbers for freshly placed orders ───────────────────────────────
+  //
+  // place_order() returns only ids; the order number is issued by the database
+  // as the order is saved. The checkout result screens use this to show the
+  // real number. An order with no number (or a failed lookup) is simply left
+  // out, and the screen falls back to the order's older reference.
+
+  Future<Map<String, String>> fetchOrderNumbers(List<String> orderIds) async {
+    if (orderIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('orders')
+          .select('id, order_number')
+          .inFilter('id', orderIds);
+      return {
+        for (final r in rows)
+          if (r['order_number'] != null) r['id'] as String: r['order_number'] as String,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
   // ─── Single order, full detail ─────────────────────────────────────────────
 
   Future<BuyerOrderModel?> fetchOrderById(String orderId) async {
@@ -98,7 +121,7 @@ class BuyerOrderRepository {
         fetch: () => _client
             .from('orders')
             .select(
-              'id, listing_id, quantity_kg, price_per_kg, total_price, '
+              'id, order_number, listing_id, quantity_kg, price_per_kg, unit, total_price, '
               'status, notes, created_at, updated_at, '
               'fulfillment_method, delivery_address, delivery_latitude, '
               'delivery_longitude, delivery_contact_number, delivery_notes, '

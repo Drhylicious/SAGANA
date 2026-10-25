@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/buyer_listing_model.dart';
 import '../../../data/models/cart_item_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
@@ -25,22 +26,10 @@ import '../../widgets/sub_page_top_bar.dart';
 // it silently clamped once the field lost focus. This rejects the
 // keystroke outright once the parsed value would exceed max, so the
 // field itself never shows more than what's actually available.
-class _MaxQuantityInputFormatter extends TextInputFormatter {
-  final double max;
-  const _MaxQuantityInputFormatter(this.max);
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) return newValue;
-    if (!RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)) return oldValue;
-    final parsed = double.tryParse(newValue.text);
-    if (parsed != null && parsed > max) return oldValue;
-    return newValue;
-  }
-}
+// The order quantity accepts up to 2 decimals and never more than the stock
+// left; the shared DecimalInputFormatter checks the whole value on every edit.
+DecimalInputFormatter _maxQuantityFormatter(double max) =>
+    DecimalInputFormatter(max: max);
 
 // A visibly deeper card treatment than the shared flatCardDecoration()
 // (alpha 0.04 / blur 8 — reads as almost no shadow at all) for this
@@ -166,6 +155,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       cropName: listing.cropName,
       variety: listing.variety,
       pricePerKg: listing.pricePerKg,
+      unit: listing.unit,
       photoUrl: listing.listingPhotoUrl,
       category: listing.category,
       marketType: listing.marketType,
@@ -323,7 +313,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              '₱${listing.pricePerKg.toStringAsFixed(0)}',
+                              formatPesos(listing.pricePerKg),
                               style: GoogleFonts.poppins(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w800,
@@ -333,7 +323,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                               ),
                             ),
                             Text(
-                              '/kg',
+                              '/${unitOrDefault(listing.unit)}',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: AppConstants.onSurfaceVariant,
@@ -353,7 +343,10 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                               const SizedBox(width: 4),
                               Text(
                                 l10n.buyerBrowseUnitsSold(
-                                  listing.soldKg.toStringAsFixed(0),
+                                  formatQuantityUnit(
+                                    listing.soldKg,
+                                    listing.unit,
+                                  ),
                                 ),
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
@@ -525,7 +518,10 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
                                             ),
                                           ),
                                           Text(
-                                            '₱${r.pricePerKg.toStringAsFixed(0)}/kg',
+                                            formatPricePerUnit(
+                                              r.pricePerKg,
+                                              r.unit,
+                                            ),
                                             style: GoogleFonts.poppins(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w700,
@@ -718,8 +714,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   }
 }
 
-String _fmtQtyStatic(double q) =>
-    q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(2);
+String _fmtQtyStatic(double q) => formatQuantity(q);
 
 // Buyer Browse-tab rework, Phase 6 — repackages the quantity-picking logic
 // that used to live inline on ListingDetailsScreen into a bottom sheet,
@@ -799,6 +794,7 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
       cropName: _listing.cropName,
       variety: _listing.variety,
       pricePerKg: _listing.pricePerKg,
+      unit: _listing.unit,
       photoUrl: _listing.listingPhotoUrl,
       category: _listing.category,
       marketType: _listing.marketType,
@@ -913,7 +909,7 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              '₱${_listing.pricePerKg.toStringAsFixed(0)}',
+                              formatPesos(_listing.pricePerKg),
                               style: GoogleFonts.poppins(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
@@ -921,7 +917,7 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                               ),
                             ),
                             Text(
-                              '/kg',
+                              '/${unitOrDefault(_listing.unit)}',
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AppConstants.onSurfaceVariant,
@@ -932,7 +928,10 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                         const SizedBox(height: 6),
                         Text(
                           l10n.buyerListingMaxAvailable(
-                            _listing.displayAvailableKg.toStringAsFixed(0),
+                            formatQuantityUnit(
+                              _listing.displayAvailableKg,
+                              _listing.unit,
+                            ),
                           ),
                           style: GoogleFonts.inter(
                             fontSize: 12,
@@ -961,7 +960,7 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    l10n.buyerListingOrderQty,
+                    l10n.buyerListingOrderQty(unitOrDefault(_listing.unit)),
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -988,7 +987,7 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                       children: [
                         _stepperButton(Icons.remove, () => _adjustQuantity(-1)),
                         SizedBox(
-                          width: 32,
+                          width: 56,
                           child: TextField(
                             controller: _qtyController,
                             focusNode: _qtyFocusNode,
@@ -997,7 +996,7 @@ class _BuyNowSheetState extends State<_BuyNowSheet> {
                               decimal: true,
                             ),
                             inputFormatters: [
-                              _MaxQuantityInputFormatter(
+                              _maxQuantityFormatter(
                                 _listing.displayAvailableKg,
                               ),
                             ],

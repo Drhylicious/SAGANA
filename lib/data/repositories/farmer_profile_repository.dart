@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../core/utils/person_name.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../models/farmer_profile_model.dart';
@@ -129,7 +130,9 @@ class FarmerProfileRepository {
   // user_information + farmer_profiles; RLS still scopes every write to
   // auth.uid(). 18+ is enforced here too.
   Future<void> updateApplicantDetails({
-    required String fullName,
+    // The name in parts. Null leaves the name as it is (an account that has
+    // not been split yet and whose owner left the name fields empty).
+    NameParts? name,
     String? phoneNumber,
     String? contactEmail,
     DateTime? dateOfBirth,
@@ -183,7 +186,9 @@ class FarmerProfileRepository {
     await _client
         .from('user_information')
         .update({
-          'full_name': fullName.trim(),
+          // surname / first_name / middle_initial / suffix: the database
+          // rebuilds full_name from them.
+          if (name != null) ...name.toColumns(),
           'phone_number': newPhone,
           'contact_email': newEmail,
         })
@@ -196,7 +201,8 @@ class FarmerProfileRepository {
 
     final changes = <String>[];
     if (beforeUserInfo != null) {
-      if ((beforeUserInfo['full_name'] as String?) != fullName.trim()) {
+      if (name != null &&
+          (beforeUserInfo['full_name'] as String?) != name.fullName) {
         changes.add('name');
       }
       if ((beforeUserInfo['phone_number'] as String?) != newPhone) {
@@ -232,7 +238,7 @@ class FarmerProfileRepository {
 
   /// Saves now, or keeps the change on this device when offline.
   Future<SaveOutcome> updateBasicInfo({
-    String? fullName,
+    NameParts? name,
     String? phoneNumber,
     String? contactEmail,
     DateTime? dateOfBirth, // farmer personal info (Phase B) — 18+ enforced
@@ -243,7 +249,7 @@ class FarmerProfileRepository {
     return OfflineActions.run(
       kind: 'farmer_basic_info',
       payload: {
-        'fullName': fullName,
+        'name': name?.toColumns(),
         'phoneNumber': phoneNumber,
         'contactEmail': contactEmail,
         'dateOfBirth': encodeDate(dateOfBirth),
@@ -252,7 +258,7 @@ class FarmerProfileRepository {
         'clearGender': clearGender,
       },
       online: () => updateBasicInfoOnline(
-        fullName: fullName,
+        name: name,
         phoneNumber: phoneNumber,
         contactEmail: contactEmail,
         dateOfBirth: dateOfBirth,
@@ -265,6 +271,9 @@ class FarmerProfileRepository {
 
   /// The server write behind updateBasicInfo(). Also run by offline replay.
   Future<void> updateBasicInfoOnline({
+    NameParts? name,
+    // A one-line name queued by an earlier version of the app, before the name
+    // was split into parts. Screens now send [name].
     String? fullName,
     String? phoneNumber,
     String? contactEmail,
@@ -330,11 +339,13 @@ class FarmerProfileRepository {
           .eq('user_id', _userId);
     }
 
-    if (fullName != null || phoneNumber != null) {
+    if (name != null || fullName != null || phoneNumber != null) {
       await _client
           .from('user_information')
           .update({
-            if (fullName != null) 'full_name': fullName,
+            // The parts; the database rebuilds full_name from them.
+            if (name != null) ...name.toColumns()
+            else if (fullName != null) 'full_name': fullName,
             if (phoneNumber != null) 'phone_number': phoneNumber,
           })
           .eq('user_id', _userId);
@@ -356,7 +367,7 @@ class FarmerProfileRepository {
     await _logBasicInfoActivity(
       beforeUserInfo: beforeUserInfo,
       beforeFarmerProfile: beforeFarmerProfile,
-      newName: fullName,
+      newName: name?.fullName ?? fullName,
       newPhone: phoneNumber,
       newEmail: contactEmail,
       newDateOfBirth: dateOfBirth,
@@ -447,6 +458,9 @@ class FarmerProfileRepository {
   Future<SaveOutcome> updateFarmDetails({
     String? farmName,
     String? farmAddress,
+    String? farmStreet,
+    String? farmBuilding,
+    String? farmHouseNo,
     double? landAreaHectares,
     int? yearsFarming,
     double? farmLatitude,
@@ -460,6 +474,9 @@ class FarmerProfileRepository {
       payload: {
         'farmName': farmName,
         'farmAddress': farmAddress,
+        'farmStreet': farmStreet,
+        'farmBuilding': farmBuilding,
+        'farmHouseNo': farmHouseNo,
         'landAreaHectares': landAreaHectares,
         'yearsFarming': yearsFarming,
         'farmLatitude': farmLatitude,
@@ -471,6 +488,9 @@ class FarmerProfileRepository {
       online: () => updateFarmDetailsOnline(
         farmName: farmName,
         farmAddress: farmAddress,
+        farmStreet: farmStreet,
+        farmBuilding: farmBuilding,
+        farmHouseNo: farmHouseNo,
         landAreaHectares: landAreaHectares,
         yearsFarming: yearsFarming,
         farmLatitude: farmLatitude,
@@ -486,6 +506,9 @@ class FarmerProfileRepository {
   Future<void> updateFarmDetailsOnline({
     String? farmName,
     String? farmAddress,
+    String? farmStreet,
+    String? farmBuilding,
+    String? farmHouseNo,
     double? landAreaHectares,
     int? yearsFarming,
     double? farmLatitude,
@@ -529,6 +552,13 @@ class FarmerProfileRepository {
         .update({
           if (farmName != null) 'farm_name': farmName,
           if (farmAddress != null) 'farm_address': farmAddress,
+          // The typed parts are replaced together, so a cleared Building is
+          // saved as NULL instead of keeping the old value.
+          if (farmStreet != null) ...{
+            'farm_street': farmStreet,
+            'farm_building': farmBuilding,
+            'farm_house_no': farmHouseNo,
+          },
           if (landAreaHectares != null) 'land_area_hectares': landAreaHectares,
           if (yearsFarming != null) 'years_farming': yearsFarming,
           if (farmLatitude != null) 'farm_latitude': farmLatitude,

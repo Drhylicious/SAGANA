@@ -1,3 +1,5 @@
+import '../../core/utils/quantity_utils.dart';
+
 class MarketplaceListingModel {
   final String id;
   final String farmerId;
@@ -7,6 +9,10 @@ class MarketplaceListingModel {
   final double pricePerKg;
   final double volumeKg;
   final double remainingKg;
+
+  /// The unit [volumeKg], [remainingKg] and [pricePerKg] are measured in. The
+  /// fields keep their old names; the database copies it from the batch.
+  final String unit;
   final String
   status; // pending_review | approved | withdrawn | sold | rejected
   final String? photoUrl;
@@ -33,6 +39,7 @@ class MarketplaceListingModel {
     required this.pricePerKg,
     required this.volumeKg,
     required this.remainingKg,
+    this.unit = kDefaultUnit,
     required this.status,
     this.photoUrl,
     this.description,
@@ -88,6 +95,7 @@ class MarketplaceListingModel {
       remainingKg:
           (map['remaining_kg'] as num?)?.toDouble() ??
           (map['volume_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       status: map['status'] as String? ?? 'pending_review',
       photoUrl: map['photo_url'] as String?,
       description: map['description'] as String?,

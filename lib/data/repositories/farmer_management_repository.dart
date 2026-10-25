@@ -337,7 +337,7 @@ class FarmerManagementRepository {
       final rows = await _client.from('farmer_crops').select('crop_name');
       return rows.map((r) => r['crop_name'] as String).toSet().toList()..sort();
     } catch (_) {
-      return ['Peanut', 'Ginger', 'Palay', 'Banana', 'Copra'];
+      return ['Peanut', 'Ginger', 'Palay', 'Banana'];
     }
   }
 }

@@ -361,16 +361,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminProfileDefaultRole => 'Cooperative Manager';
 
   @override
-  String get adminProfileFullName => 'Full Name';
-
-  @override
   String get adminProfilePhoneNumber => 'Phone Number';
 
   @override
   String get adminProfileSaveChanges => 'Save Changes';
-
-  @override
-  String get adminProfileNameRequired => 'Full name is required.';
 
   @override
   String get adminProfileUpdated => 'Profile updated successfully.';
@@ -950,12 +944,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportFileMissing => 'This file no longer exists on this device.';
 
   @override
-  String get exportSummaryEmpty =>
-      'Select one or more reports to export as CSV.';
+  String get exportSummaryEmpty => 'Select one or more reports to export.';
 
   @override
-  String exportSummary(int count) {
-    return '$count report(s) will be exported as separate CSV files.';
+  String exportSummary(int count, String format) {
+    return '$count report(s) will be exported as separate $format files.';
   }
 
   @override
@@ -978,12 +971,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get analyticsInactive => 'Inactive';
-
-  @override
-  String get analyticsLoanHealth => 'Loan Collection Health';
-
-  @override
-  String get analyticsCollectionRate => 'collection rate';
 
   @override
   String get analyticsPriceSnapshot => 'Price Snapshot';
@@ -1654,7 +1641,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String buyerBrowseUnitsSold(String count) {
-    return '$count kg sold';
+    return '$count sold';
   }
 
   @override
@@ -1802,7 +1789,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminDashStatFarmerStock => 'Farmer Stock';
 
   @override
-  String get adminDashStatListings => 'Listings';
+  String get adminDashStatListings => 'Available Listings';
 
   @override
   String get adminDashStatSalesAllTime => 'Sales (all-time)';
@@ -2502,7 +2489,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String buyerCartAdjustedReduced(String name, String qty) {
-    return '$name was reduced to ${qty}kg — only that much remains.';
+    return '$name was reduced to $qty — only that much remains.';
   }
 
   @override
@@ -2555,9 +2542,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoUploadFailed => 'Photo upload failed. Please try again.';
 
   @override
-  String get fullNameEmpty => 'Full name is required.';
-
-  @override
   String get profileUpdated => 'Profile updated.';
 
   @override
@@ -2599,7 +2583,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutCooperativeBody =>
-      'SP3 Agriculture Cooperative (Samahan ng Pagkakaisa sa Pag-unlad ng Payanas) serves farmer-members in Barangay Payanas, Torrijos, Marinduque. It was officially registered with the Cooperative Development Authority (CDA) on February 1, 2017 (Registration No. 9520-1040000000036899), and is classified as a Micro cooperative.\n\nMembers share in the cooperative\'s income through two mechanisms recognized in its by-laws: Balik-Tangkilik (a patronage refund based on how much of their produce a member sells to the cooperative) and Interest on Share Capital (based on each member\'s accumulated capital-share contributions). The cooperative\'s main lines of business include Copra Buy and Sell, Peanut Cookies Production, and Rice and Feeds Retailing, and its members primarily grow peanut, ginger, banana, palay (rice), and copra.\n\nTo become a member, a resident of Barangay Payanas must be at least 18 years old and contribute a minimum of ₱100 a month toward capital build-up, along with an annual capital share of ₱2,000.\n\nEmail Address\n(placeholder — to be provided)\n\nContact Number\n(placeholder — to be provided)';
+      'SP3 Agriculture Cooperative (Samahan ng Pagkakaisa sa Pag-unlad ng Payanas) serves farmer-members in Barangay Payanas, Torrijos, Marinduque. It was officially registered with the Cooperative Development Authority (CDA) on February 1, 2017 (Registration No. 9520-1040000000036899), and is classified as a Micro cooperative.\n\nMembers share in the cooperative\'s income through two mechanisms recognized in its by-laws: Balik-Tangkilik (a patronage refund based on how much of their produce a member sells to the cooperative) and Interest on Share Capital (based on each member\'s accumulated capital-share contributions). The cooperative\'s main lines of business include Copra Buy and Sell, Peanut Cookies Production, and Rice and Feeds Retailing, and its members primarily grow peanut, ginger, banana, and palay (rice).\n\nTo become a member, a resident of Barangay Payanas must be at least 18 years old and contribute a minimum of ₱100 a month toward capital build-up, along with an annual capital share of ₱2,000.\n\nEmail Address\n(placeholder — to be provided)\n\nContact Number\n(placeholder — to be provided)';
 
   @override
   String get privacyPolicy => 'Privacy Policy';
@@ -2819,7 +2803,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String checkoutItemsSummary(int count, String weight) {
-    return '$count item(s) • $weight kg total';
+    return '$count item(s) • $weight total';
   }
 
   @override
@@ -2837,15 +2821,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'This is your own listing — you can manage it from the Listing tab.';
 
   @override
-  String get buyerListingOrderQty => 'Order Quantity (kg)';
-
-  @override
-  String buyerListingMaxAvailable(String kg) {
-    return 'Max: $kg kg available';
+  String buyerListingOrderQty(String unit) {
+    return 'Order Quantity ($unit)';
   }
 
   @override
-  String get buyerPricePerKg => 'Price per kg';
+  String buyerListingMaxAvailable(String qty) {
+    return 'Max: $qty available';
+  }
+
+  @override
+  String buyerPricePerKg(String unit) {
+    return 'Price per $unit';
+  }
 
   @override
   String buyerOrderDetailTitle(String ref) {
@@ -2959,15 +2947,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brandingPartner => 'Partner: SP3 Agriculture Cooperative';
-
-  @override
-  String get registerFullNameHintFarmer => 'Your full name';
-
-  @override
-  String get registerFullNameHintBuyer => 'Your full name';
-
-  @override
-  String get registerEnterFullName => 'Enter your full name';
 
   @override
   String get registerPhoneLabel => 'Phone Number';
@@ -3193,15 +3172,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addMemberSectionPersonal => 'Personal Information';
-
-  @override
-  String get addMemberFullNameLabel => 'Full Name';
-
-  @override
-  String get addMemberFullNameHint => 'Full name of the member';
-
-  @override
-  String get addMemberFullNameRequired => 'Full name is required';
 
   @override
   String get addMemberPhoneLabel => 'Phone Number';
@@ -3479,16 +3449,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pendingFullNameLabel => 'Full Name';
 
   @override
-  String get pendingFullNameRequired => 'Enter your full name';
-
-  @override
-  String get pendingPhoneOptionalLabel => 'Phone Number (optional)';
+  String get pendingPhoneFieldLabel => 'Phone Number';
 
   @override
   String get pendingPhoneInvalid => 'Invalid PH number';
 
   @override
-  String get pendingEmailOptionalLabel => 'Email (optional)';
+  String get pendingEmailFieldLabel => 'Email';
 
   @override
   String get pendingDobLabel => 'Date of Birth';
@@ -3497,7 +3464,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pendingSelectHint => 'Select';
 
   @override
-  String get pendingGenderOptionalLabel => 'Gender (optional)';
+  String get pendingGenderFieldLabel => 'Gender';
 
   @override
   String get pendingAgeError => 'You must be at least 18 years old.';
@@ -3514,15 +3481,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createOfficerSectionOfficer => 'Officer';
-
-  @override
-  String get createOfficerFullNameLabel => 'Full Name';
-
-  @override
-  String get createOfficerFullNameHint => 'Officer\'s full name';
-
-  @override
-  String get createOfficerFullNameRequired => 'Full name is required';
 
   @override
   String get createOfficerEmailLabel => 'Email';
@@ -4350,7 +4308,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminOrderDetailQuantity => 'Quantity';
 
   @override
-  String get adminOrderDetailPricePerKg => 'Price per kg';
+  String adminOrderDetailPricePerKg(String unit) {
+    return 'Price per $unit';
+  }
 
   @override
   String get adminOrderDetailTotalAmount => 'Total Amount';
@@ -4393,6 +4353,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get listingFilterPending => 'Pending';
+
+  @override
+  String get coopMyOffersSearchHint => 'Search crop...';
+
+  @override
+  String listingReviewCropTitle(String crop) {
+    return '$crop Review';
+  }
+
+  @override
+  String listingReviewKgLeft(String remaining, String total) {
+    return '$remaining of $total left';
+  }
+
+  @override
+  String listingReviewKgListed(String total) {
+    return '$total listed';
+  }
 
   @override
   String get listingApprovalsViewDetails => 'View Details';
@@ -5228,7 +5206,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String listingReviewQuantityExceeds(String amount) {
-    return 'Listing quantity exceeds batch stock by $amount kg';
+    return 'Listing quantity exceeds batch stock by $amount';
   }
 
   @override
@@ -5289,7 +5267,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String marketLinkLinkedToBatch(String number) {
-    return 'Linked to Batch #$number';
+    return 'Linked to $number';
   }
 
   @override
@@ -5339,6 +5317,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get marketLinkUpdateFailed => 'Failed to update. Please try again.';
 
   @override
+  String get marketLinkPriceRequired =>
+      'Enter the agreed price per kg, greater than 0 (for example 45.50).';
+
+  @override
+  String get marketLinkVolumeRequired =>
+      'Enter the quantity the buyer wants, greater than 0 (for example 3.45).';
+
+  @override
   String get marketLinkTitleCompleteSale => 'Complete Sale';
 
   @override
@@ -5369,7 +5355,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String marketLinkBatchAvailableLine(String number, String amount) {
-    return 'Batch #$number — $amount kg available';
+    return '$number — $amount kg available';
   }
 
   @override
@@ -6280,13 +6266,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get farmerAnalyticsPeriodCaption =>
-      'Applies to Farm Performance and Price History only.';
+      'Applies to Farm Performance, Recent Transactions and Price History only.';
 
   @override
   String get farmerAnalyticsPeriodThisMonth => 'This Month';
 
   @override
-  String get farmerAnalyticsPeriodThisSeason => 'This Season';
+  String get farmerAnalyticsPeriodThisQuarter => 'This Quarter';
 
   @override
   String get farmerAnalyticsPeriodThisYear => 'This Year';
@@ -6327,7 +6313,7 @@ class AppLocalizationsEn extends AppLocalizations {
     String qty,
     String reference,
   ) {
-    return '$date • $qty kg • REF: #$reference';
+    return '$date • $qty • REF: #$reference';
   }
 
   @override
@@ -6358,6 +6344,39 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get farmerAnalyticsTopHarvestedCropsTitle =>
       'Top Harvested Crops (Coop-wide, 90 days)';
+
+  @override
+  String get farmerAnalyticsLoadError =>
+      'Some figures could not be loaded, so the totals below may be incomplete.';
+
+  @override
+  String get farmerAnalyticsRetry => 'Try again';
+
+  @override
+  String farmerAnalyticsOtherUnitsNote(int count) {
+    return '$count harvest(s) recorded in other units (such as sacks) are not counted in the kg totals.';
+  }
+
+  @override
+  String farmerAnalyticsShareOfYield(String percent) {
+    return '$percent% of total yield';
+  }
+
+  @override
+  String get farmerAnalyticsViewAllTransactions => 'View all transactions';
+
+  @override
+  String get farmerAnalyticsPriceLow => 'Low';
+
+  @override
+  String get farmerAnalyticsPriceHigh => 'High';
+
+  @override
+  String get farmerAnalyticsPriceLatest => 'Latest';
+
+  @override
+  String get farmerAnalyticsFarmPerformanceHint =>
+      'Revenue counts completed sales only: Marketplace, Offer to Cooperative, Informal Sale and DA-AMAD Market Linking. Expenses leave out subsidized items.';
 
   @override
   String adminLogAccountOfficerCreated(String fullName) {
@@ -7036,11 +7055,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coopClosedDeclined =>
-      'The Cooperative declined this offer. The kg went back to the batch.';
+      'The Cooperative declined this offer. The quantity went back to the batch.';
 
   @override
   String get coopClosedCancelled =>
-      'The Farmer cancelled this offer. The kg went back to the batch.';
+      'The Farmer cancelled this offer. The quantity went back to the batch.';
 
   @override
   String coopActionAccept(String price) {
@@ -7086,7 +7105,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get coopPriceLabel => 'Your price per kg';
+  String coopPriceLabel(String unit) {
+    return 'Your price per $unit';
+  }
 
   @override
   String get coopCounterSend => 'Send Counteroffer';
@@ -7115,7 +7136,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coopDeclineBody =>
-      'The reserved kg go back to the Farmer\'s inventory. The Farmer will be notified.';
+      'The reserved quantity goes back to the Farmer\'s inventory. The Farmer will be notified.';
 
   @override
   String get coopDeclineConfirm => 'Decline Offer';
@@ -7128,7 +7149,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coopCancelBody =>
-      'The reserved kg go back to your inventory. The Cooperative will be notified.';
+      'The reserved quantity goes back to your inventory. The Cooperative will be notified.';
 
   @override
   String get coopCancelConfirm => 'Cancel Offer';
@@ -7165,11 +7186,646 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coopOfferDialogSubtitle =>
-      'Name your price per kg. SP3 can accept it or send a counteroffer, and you can negotiate until you agree.';
+      'Name your price per unit. SP3 can accept it or send a counteroffer, and you can negotiate until you agree.';
 
   @override
-  String get coopOfferAskingLabel => 'Your asking price per kg';
+  String coopOfferAskingLabel(String unit) {
+    return 'Your asking price per $unit';
+  }
 
   @override
-  String get coopOfferAskingRequired => 'Enter your asking price per kg.';
+  String coopOfferAskingRequired(String unit) {
+    return 'Enter your asking price per $unit.';
+  }
+
+  @override
+  String get loanHistoryFilterTitle => 'Filter Loans';
+
+  @override
+  String get loanHistoryFilterSubtitle =>
+      'Show only loans issued within a period';
+
+  @override
+  String get loanHistoryFilterIssued => 'DATE ISSUED';
+
+  @override
+  String get loanHistoryFilterTooltip => 'Filter by date issued';
+
+  @override
+  String loanHistoryIssuedPeriodTag(String period) {
+    return 'Issued: $period';
+  }
+
+  @override
+  String get paymentLoanValue => 'Loan Value';
+
+  @override
+  String get paymentPaidSoFar => 'Paid So Far';
+
+  @override
+  String paymentRepaidPercent(String percent) {
+    return '$percent% repaid';
+  }
+
+  @override
+  String get paymentAmountLabel => 'Amount Received *';
+
+  @override
+  String get paymentChipMonthly => 'Monthly';
+
+  @override
+  String get paymentChipFullBalance => 'Full Balance';
+
+  @override
+  String get paymentSettlesLoan => 'This payment settles the loan in full.';
+
+  @override
+  String get paymentNotesHint => 'e.g. receipt number or a remark';
+
+  @override
+  String get issueLoanSectionBorrower => 'Borrower';
+
+  @override
+  String get issueLoanSectionTerms => 'Repayment Terms';
+
+  @override
+  String issueLoanItemsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get issueLoanMonthlyPaymentLabel => 'Monthly Payment *';
+
+  @override
+  String get issueLoanMonthlyHelp =>
+      'What the farmer pays each month at the BOD meeting.';
+
+  @override
+  String issueLoanMonthlyEstimate(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count monthly payments',
+      one: '1 monthly payment',
+    );
+    return 'About $_temp0 to repay this loan.';
+  }
+
+  @override
+  String get issueLoanMonthlyRequired => 'Enter the monthly payment.';
+
+  @override
+  String get issueLoanErrorSelectItem => 'Select an item.';
+
+  @override
+  String get issueLoanErrorQuantityRequired => 'Enter the quantity.';
+
+  @override
+  String get issueLoanErrorQuantityInvalid =>
+      'Quantity must be greater than zero.';
+
+  @override
+  String get issueLoanAllItemsAdded =>
+      'Every loanable item is already in this loan.';
+
+  @override
+  String get issueLoanLineTotal => 'Item Total';
+
+  @override
+  String paymentActiveLoansCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count active loans',
+      one: '1 active loan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String paymentOverdueCount(int count) {
+    return '$count overdue';
+  }
+
+  @override
+  String paymentNoLoanFarmersToggle(int count) {
+    return 'No active loans ($count)';
+  }
+
+  @override
+  String issueLoanFarmerCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count farmers',
+      one: '1 farmer',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanFormNotes => 'Notes';
+
+  @override
+  String get rptAllDates => 'All dates';
+
+  @override
+  String get rptNoActivity => 'No Activity';
+
+  @override
+  String get rptNoMatches => 'Nothing matches your search or filter.';
+
+  @override
+  String rptShowingCount(int shown, int total) {
+    return 'Showing $shown of $total';
+  }
+
+  @override
+  String get rptViewFarmerProfile => 'View Farmer Profile';
+
+  @override
+  String get rptFarmer => 'Farmer';
+
+  @override
+  String get rptCrop => 'Crop';
+
+  @override
+  String get rptQuantity => 'Quantity';
+
+  @override
+  String get rptAmount => 'Amount';
+
+  @override
+  String get rptDate => 'Date';
+
+  @override
+  String get rptCategory => 'Category';
+
+  @override
+  String get rptDescription => 'Description';
+
+  @override
+  String get rptReferenceNo => 'Reference No.';
+
+  @override
+  String get rptOrderStatus => 'Order Status';
+
+  @override
+  String get rptSoldTo => 'Sold To';
+
+  @override
+  String get rptSellingChannel => 'Selling Channel';
+
+  @override
+  String get rptMarketType => 'Market Type';
+
+  @override
+  String get rptStatusCompleted => 'Completed';
+
+  @override
+  String rptItemsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get rptTrendCaption =>
+      'Last 6 months. Not affected by the period filter.';
+
+  @override
+  String get rptSalesEmpty => 'No sales recorded for this period.';
+
+  @override
+  String get rptSalesBySellingChannel => 'Sales by Selling Channel';
+
+  @override
+  String rptSalesChannelShare(String percent) {
+    return '$percent% of sales';
+  }
+
+  @override
+  String get rptAllChannels => 'All Channels';
+
+  @override
+  String get rptSalesOverviewHint =>
+      'Completed sales from every selling channel.';
+
+  @override
+  String get rptAverageSale => 'Average Sale';
+
+  @override
+  String get rptHarvestEntriesStat => 'Harvest Entries';
+
+  @override
+  String get rptContributingFarmers => 'Contributing Farmers';
+
+  @override
+  String get rptCommitted => 'Committed';
+
+  @override
+  String rptBatchNumber(String number) {
+    return '$number';
+  }
+
+  @override
+  String get rptStatusAvailable => 'Available';
+
+  @override
+  String get rptStatusLowStock => 'Low Stock';
+
+  @override
+  String get rptStatusCommitted => 'Committed';
+
+  @override
+  String get rptStatusSoldOut => 'Sold Out';
+
+  @override
+  String get rptStatusWithdrawn => 'Withdrawn';
+
+  @override
+  String get rptLoanSummaryTitle => 'Loan Summary';
+
+  @override
+  String get rptLoansIssued => 'Loans Issued';
+
+  @override
+  String get rptTotalValueIssued => 'Total Value Issued';
+
+  @override
+  String get rptOverdueBalance => 'Overdue Balance';
+
+  @override
+  String get rptRepaymentRate => 'Repayment Rate';
+
+  @override
+  String get rptLoanStatusTitle => 'Loans by Status';
+
+  @override
+  String get rptStatusActive => 'Active';
+
+  @override
+  String get rptStatusOverdue => 'Overdue';
+
+  @override
+  String get rptStatusPaid => 'Paid';
+
+  @override
+  String rptNextDue(String date) {
+    return 'Next due $date';
+  }
+
+  @override
+  String get rptNoLoansInPeriod => 'No loans were issued in this period.';
+
+  @override
+  String rptRepaidPercent(String percent) {
+    return '$percent% repaid';
+  }
+
+  @override
+  String get rptPaidByFarmers => 'Paid by Farmers';
+
+  @override
+  String get rptSubsidizedEntries => 'Subsidized Entries';
+
+  @override
+  String get rptExpenseNote =>
+      'Subsidized entries are counted but carry no peso amount.';
+
+  @override
+  String rptShareOfTotal(String percent) {
+    return '$percent% of total';
+  }
+
+  @override
+  String get rptSubsidizedNoAmount => 'Subsidized (no amount)';
+
+  @override
+  String get rptParticipationHint =>
+      'Active members who recorded a harvest or created a listing in the selected period.';
+
+  @override
+  String get rptPriceSnapshotHint =>
+      'Latest recorded prices. Crops with recent changes are shown first.';
+
+  @override
+  String rptActiveMembersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count active members',
+      one: '1 active member',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get rptExportSelectAll => 'Select all';
+
+  @override
+  String get rptExportClear => 'Clear';
+
+  @override
+  String get rptExportQuickSelect => 'Quick Select';
+
+  @override
+  String get rptExportDescSales => 'Completed sales from every selling channel';
+
+  @override
+  String get rptExportDescHarvest => 'Harvest records, plus batches and stock';
+
+  @override
+  String get rptExportDescExpense => 'Farmer expenses by category';
+
+  @override
+  String get rptExportDescLoan => 'Loans issued, payments and balances';
+
+  @override
+  String get rptExportDescPatronage => 'Member sales and patronage shares';
+
+  @override
+  String get rptExportDescCoopStock => 'Cooperative stock levels right now';
+
+  @override
+  String get rptExportScopePeriod => 'Uses period';
+
+  @override
+  String get rptExportScopeYear => 'Uses year';
+
+  @override
+  String get rptExportScopeSnapshot => 'Current snapshot';
+
+  @override
+  String get rptExportSnapshotNote =>
+      'Cooperative Stock is a current snapshot, so the period does not apply to it.';
+
+  @override
+  String get rptExportNoPeriodNeeded =>
+      'The selected reports do not use a period.';
+
+  @override
+  String get rptExportFormatPdfDesc => 'Print-ready document';
+
+  @override
+  String get rptExportFormatCsvDesc => 'Spreadsheet for Excel or Sheets';
+
+  @override
+  String rptExportSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get rptExportReady => 'Export ready';
+
+  @override
+  String get rptExportShareAgain => 'Share again';
+
+  @override
+  String get rptExportGenerating => 'Generating…';
+
+  @override
+  String get priceStatAverage => 'Average';
+
+  @override
+  String get farmerMarketRateTrendTitle => 'PRICE TREND';
+
+  @override
+  String get farmAddressSectionTitle => 'Farm Address';
+
+  @override
+  String get farmAddressFixedNote =>
+      'Your farm is in the cooperative\'s service area. Enter the street, building and house number of the farm.';
+
+  @override
+  String farmAddressLegacyNotice(String address) {
+    return 'Your farm address was saved as plain text: \"$address\". Fill in the fields below to update it, or leave them empty to keep it.';
+  }
+
+  @override
+  String get farmLocationSectionTitle => 'Farm Location';
+
+  @override
+  String get farmLocationMapTitle => 'Farm Location';
+
+  @override
+  String get farmViewFullMap => 'View Full Map';
+
+  @override
+  String get farmMapHint =>
+      'Tap View Full Map to place your farm pin. This marks your farm, not your home address.';
+
+  @override
+  String get farmPinNotSet => 'No farm pin yet. Use View Full Map to place it.';
+
+  @override
+  String get farmPinFarFromBarangay =>
+      'This pin is far from Barangay Payanas. Check that it marks your farm.';
+
+  @override
+  String get nameSurnameLabel => 'Surname';
+
+  @override
+  String get nameFirstNameLabel => 'First Name';
+
+  @override
+  String get nameMiddleInitialLabel => 'M.I.';
+
+  @override
+  String get nameSuffixLabel => 'Suffix';
+
+  @override
+  String get nameSuffixNone => 'None';
+
+  @override
+  String get nameSurnameHint => 'e.g. Dela Cruz';
+
+  @override
+  String get nameFirstNameHint => 'e.g. Juan or Marc Louie';
+
+  @override
+  String get nameSurnameRequired => 'Surname is required';
+
+  @override
+  String get nameFirstNameRequired => 'First name is required';
+
+  @override
+  String get nameLengthError => 'Must be 2 to 60 characters';
+
+  @override
+  String get nameCharactersError =>
+      'Use letters, spaces, hyphens, apostrophes and periods only';
+
+  @override
+  String get nameInitialError => 'Enter one letter only';
+
+  @override
+  String nameFullNamePreview(String name) {
+    return 'Full name: $name';
+  }
+
+  @override
+  String get memberProfilePersonalTitle => 'Personal Information';
+
+  @override
+  String get memberProfileFullName => 'Full Name';
+
+  @override
+  String get memberProfileMemberSince => 'Member Since';
+
+  @override
+  String get memberProfileResidentialTitle => 'Residential Address';
+
+  @override
+  String get memberProfileNoMapPin => 'No map pin saved for this address.';
+
+  @override
+  String get memberProfileFarmInfoTitle => 'Farm Information';
+
+  @override
+  String get memberProfileFarmName => 'Farm Name';
+
+  @override
+  String get memberProfileOwnership => 'Land Ownership';
+
+  @override
+  String get memberProfileSoilType => 'Soil Type';
+
+  @override
+  String get memberProfileWaterSource => 'Water Source';
+
+  @override
+  String get memberProfileCropsTitle => 'Primary Crops';
+
+  @override
+  String get memberProfileNoFarmAddress => 'No farm address saved yet.';
+
+  @override
+  String get memberProfileNoFarmPin =>
+      'The farmer has not pinned the farm on the map yet.';
+
+  @override
+  String get memberProfileCoordinates => 'Coordinates';
+
+  @override
+  String get memberContributionPatronageSection => 'Patronage';
+
+  @override
+  String get memberContributionCapitalSection => 'Capital';
+
+  @override
+  String nameLegacyNotice(String name) {
+    return 'Your name is saved as one line: \"$name\". Enter it in the fields above to complete your profile, or leave them empty to keep it as it is.';
+  }
+
+  @override
+  String get farmerDetailsTitle => 'Farmer Details';
+
+  @override
+  String get emailStatusVerified => 'Verified';
+
+  @override
+  String get emailStatusUnverified => 'Unverified';
+
+  @override
+  String get emailVerifyAction => 'Verify Email';
+
+  @override
+  String emailVerifyCodeSent(String email) {
+    return 'We sent a 6-digit code to $email. It expires in 10 minutes.';
+  }
+
+  @override
+  String get emailVerifyCodeLabel => 'Verification code';
+
+  @override
+  String get emailVerifyConfirm => 'Verify';
+
+  @override
+  String get emailVerifyResend => 'Resend code';
+
+  @override
+  String emailVerifyResendIn(int seconds) {
+    return 'Resend in ${seconds}s';
+  }
+
+  @override
+  String get emailVerifySuccess => 'Your email address is verified.';
+
+  @override
+  String emailVerifyInvalidCode(int left) {
+    return 'That code is not correct. Attempts left: $left.';
+  }
+
+  @override
+  String get emailVerifyInvalidCodeNoCount => 'That code is not correct.';
+
+  @override
+  String get emailVerifyEnterCode => 'Enter the 6-digit code.';
+
+  @override
+  String get emailVerifyExpired => 'This code has expired. Request a new one.';
+
+  @override
+  String get emailVerifyTooMany =>
+      'Too many incorrect attempts. Request a new code.';
+
+  @override
+  String get emailVerifyNoCode => 'No code is waiting. Request a new one.';
+
+  @override
+  String get emailVerifyEmailChanged =>
+      'Your email address changed. Request a new code.';
+
+  @override
+  String emailVerifyCooldown(int seconds) {
+    return 'Please wait $seconds seconds before requesting another code.';
+  }
+
+  @override
+  String get emailVerifyLimit =>
+      'Too many codes requested. Please try again later.';
+
+  @override
+  String get emailVerifySendFailed =>
+      'We couldn\'t send the email. Please try again in a moment.';
+
+  @override
+  String get emailVerifyOffline =>
+      'You\'re offline. Connect to the internet to verify your email.';
+
+  @override
+  String get emailVerifyUnauthorized =>
+      'Your session has expired. Please sign in again.';
+
+  @override
+  String get emailVerifyGenericError =>
+      'Something went wrong. Please try again.';
+
+  @override
+  String get emailVerifyAlready => 'This email address is already verified.';
+
+  @override
+  String get emailVerifyNoEmail => 'Add an email address first.';
+
+  @override
+  String get recoveryEmailVerifiedOnlyTitle =>
+      'Email recovery needs a verified email';
+
+  @override
+  String get recoveryEmailVerifiedOnlyBody =>
+      'A reset code is only sent to an email address that has been verified in Edit Profile. Enter your username below to ask the Manager for a temporary password instead.';
+
+  @override
+  String get recoveryUsernameLabel => 'Username';
 }

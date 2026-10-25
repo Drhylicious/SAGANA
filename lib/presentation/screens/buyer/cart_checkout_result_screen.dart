@@ -4,15 +4,16 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cart_item_model.dart';
+import '../../../data/repositories/buyer_order_repository.dart';
 import '../../widgets/fulfillment_info_card.dart';
 import '../../widgets/order_result_pieces.dart';
 import '../../widgets/shared_widgets.dart';
 
 class CartCheckoutResultScreen extends StatelessWidget {
   // Each succeeded item carries the orderId place_order() returned — fed
-  // straight into the same OrderReferenceCard Buy Now's Order Success
-  // uses, with no extra fetch needed: status is always freshly 'pending'
-  // right after placement.
+  // straight into the same OrderReferenceCard Buy Now's Order Success uses.
+  // Status is always freshly 'pending' right after placement. The order
+  // number the database issued is looked up once by _SucceededOrderCards.
   final List<(CartItemModel, String)> succeeded;
   final List<(CartItemModel, String)> failed;
   // Shared by the whole batch (Checkout only offers one fulfillment
@@ -95,21 +96,7 @@ class CartCheckoutResultScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
               ],
-              for (int i = 0; i < succeeded.length; i++) ...[
-                OrderReferenceCard(
-                  orderId: succeeded[i].$2,
-                  status: 'pending',
-                  photoUrl: succeeded[i].$1.photoUrl,
-                  displayName: succeeded[i].$1.displayName,
-                  quantityKg: succeeded[i].$1.quantityKg,
-                  pricePerKg: succeeded[i].$1.pricePerKg,
-                  totalPrice: succeeded[i].$1.subtotal,
-                ),
-                // Only *between* cards, not after the last one — a
-                // trailing gap here would leave a bigger space before the
-                // buttons than Buy Now's single-card screen has.
-                if (i < succeeded.length - 1) const SizedBox(height: 10),
-              ],
+              _SucceededOrderCards(succeeded: succeeded),
             ],
             if (failed.isNotEmpty) ...[
               const SizedBox(height: 18),
@@ -136,6 +123,57 @@ class CartCheckoutResultScreen extends StatelessWidget {
           Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: color)),
         ],
       ),
+    );
+  }
+}
+
+/// One OrderReferenceCard per placed order. The real order number
+/// (ORD-YYYYMMDD-XXXX) is read back from the database once; until it arrives,
+/// or if it cannot be read, a card shows the order's older reference.
+class _SucceededOrderCards extends StatefulWidget {
+  final List<(CartItemModel, String)> succeeded;
+  const _SucceededOrderCards({required this.succeeded});
+
+  @override
+  State<_SucceededOrderCards> createState() => _SucceededOrderCardsState();
+}
+
+class _SucceededOrderCardsState extends State<_SucceededOrderCards> {
+  Map<String, String> _numbers = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    BuyerOrderRepository()
+        .fetchOrderNumbers(widget.succeeded.map((s) => s.$2).toList())
+        .then((n) {
+          if (mounted) setState(() => _numbers = n);
+        });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final succeeded = widget.succeeded;
+    return Column(
+      children: [
+        for (int i = 0; i < succeeded.length; i++) ...[
+          OrderReferenceCard(
+            orderId: succeeded[i].$2,
+            orderNumber: _numbers[succeeded[i].$2],
+            status: 'pending',
+            photoUrl: succeeded[i].$1.photoUrl,
+            displayName: succeeded[i].$1.displayName,
+            quantityKg: succeeded[i].$1.quantityKg,
+            pricePerKg: succeeded[i].$1.pricePerKg,
+            unit: succeeded[i].$1.unit,
+            totalPrice: succeeded[i].$1.subtotal,
+          ),
+          // Only *between* cards, not after the last one — a trailing gap
+          // would leave a bigger space before the buttons than Buy Now's
+          // single-card screen has.
+          if (i < succeeded.length - 1) const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 }

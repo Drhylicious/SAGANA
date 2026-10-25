@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/quantity_utils.dart';
+import '../../core/utils/person_name.dart';
 import '../../core/constants/app_constants.dart';
 import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
@@ -183,15 +185,11 @@ class MarketLinkingModel {
       status == MarketLinkingStatus.buyerFound;
 
   double? get totalValue =>
-      volumeKg != null && pricePerKg != null ? volumeKg! * pricePerKg! : null;
+      volumeKg != null && pricePerKg != null
+      ? moneyOf(volumeKg!, pricePerKg!)
+      : null;
 
-  String get initials {
-    final parts = farmerName.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return farmerName.isNotEmpty ? farmerName[0].toUpperCase() : 'F';
-  }
+  String get initials => PersonName.initials(farmerName, fallback: 'F');
 
   factory MarketLinkingModel.fromMap(Map<String, dynamic> map) {
     return MarketLinkingModel(

@@ -6,6 +6,7 @@ import '../services/offline_actions.dart';
 import '../services/profile_photo_service.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
+import '../../core/utils/person_name.dart';
 
 /// Repository for the logged-in admin's own profile — user_information +
 /// admin_profiles, joined at this layer. Every method operates on the
@@ -18,7 +19,9 @@ class AdminProfileRepository {
     try {
       final infoRow = await _client
           .from('user_information')
-          .select('full_name, phone_number, profile_photo_url, contact_email')
+          // All columns, so the name parts come with it (an older database
+          // without them still loads).
+          .select()
           .eq('user_id', _userId)
           .maybeSingle();
       if (infoRow == null) return null;
@@ -52,9 +55,14 @@ class AdminProfileRepository {
         userId: _userId,
         email: _client.auth.currentUser?.email ?? '',
         fullName: infoRow['full_name'] as String? ?? 'Manager',
+        surname: infoRow['surname'] as String?,
+        firstName: infoRow['first_name'] as String?,
+        middleInitial: infoRow['middle_initial'] as String?,
+        suffix: infoRow['suffix'] as String?,
         phoneNumber: infoRow['phone_number'] as String?,
         profilePhotoUrl: infoRow['profile_photo_url'] as String?,
         contactEmail: infoRow['contact_email'] as String?,
+        verifiedContactEmail: infoRow['verified_contact_email'] as String?,
         position:
             (adminRow?['position'] as String?) ??
             (officerRow?['position'] as String?),
@@ -191,22 +199,28 @@ class AdminProfileRepository {
   /// so existing callers are unaffected.
   /// Saves now, or keeps the change on this device when offline.
   Future<SaveOutcome> updateBasicInfo({
-    required String fullName,
+    // The name in parts. Null leaves the name as it is.
+    NameParts? name,
     String? phoneNumber,
+    // Officer only: the contact email (the sign-in address is a generated
+    // username and is never touched). Null leaves it; blank clears it.
+    String? contactEmail,
     DateTime? dateOfBirth,
     String? gender,
   }) {
     return OfflineActions.run(
       kind: 'admin_basic_info',
       payload: {
-        'fullName': fullName,
+        'name': name?.toColumns(),
         'phoneNumber': phoneNumber,
+        'contactEmail': contactEmail,
         'dateOfBirth': encodeDate(dateOfBirth),
         'gender': gender,
       },
       online: () => updateBasicInfoOnline(
-        fullName: fullName,
+        name: name,
         phoneNumber: phoneNumber,
+        contactEmail: contactEmail,
         dateOfBirth: dateOfBirth,
         gender: gender,
       ),
@@ -215,23 +229,33 @@ class AdminProfileRepository {
 
   /// The server write behind updateBasicInfo(). Also run by offline replay.
   Future<void> updateBasicInfoOnline({
-    required String fullName,
+    NameParts? name,
+    // A one-line name queued by an earlier version of the app. Screens now send
+    // [name].
+    String? fullName,
     String? phoneNumber,
+    String? contactEmail,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
     await _client
         .from('user_information')
         .update({
-      'full_name': fullName.trim(),
+      // The parts; the database rebuilds full_name from them.
+      if (name != null) ...name.toColumns()
+      else if (fullName != null) 'full_name': fullName.trim(),
       'phone_number': phoneNumber?.trim(),
         })
         .eq('user_id', _userId);
 
+    if (contactEmail != null) await updateContactEmail(contactEmail);
+
     AdminActivityRepository().log(
       module: 'profile',
       actionType: 'updated',
-      message: AdminLogMessage('adminLogProfileUpdated', {'fullName': fullName}),
+      message: AdminLogMessage('adminLogProfileUpdated', {
+        'fullName': name?.fullName ?? fullName ?? '',
+      }),
     );
 
     if (dateOfBirth == null && gender == null) return;
@@ -247,6 +271,17 @@ class AdminProfileRepository {
       if (dateOfBirth != null) 'date_of_birth': dobValue,
       if (gender != null) 'gender': gender,
         })
+        .eq('user_id', _userId);
+  }
+
+  /// Saves the contact email now (online only; Verify Email needs it saved).
+  /// Blank clears it. The database checks the format and that no other account
+  /// uses it, and the email is Unverified until it is verified again.
+  Future<void> updateContactEmail(String? email) async {
+    final v = email?.trim() ?? '';
+    await _client
+        .from('user_information')
+        .update({'contact_email': v.isEmpty ? null : v})
         .eq('user_id', _userId);
   }
 

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/harvest_model.dart';
 import '../models/admin_reports_model.dart';
 import '../services/hive_service.dart';
@@ -28,8 +29,12 @@ class HarvestRepository {
         cropName: p['crop_name'] as String,
         cropCategory: p['crop_category'] as String? ?? 'Other',
         quantityKg: (p['quantity_kg'] as num).toDouble(),
+        unit: unitOrDefault(p['unit'] as String?),
         variety: p['variety'] as String?,
-        batchNumber: p['batch_number'] as String?,
+        // Not numbered yet: the database issues the number when it syncs. (A
+        // number in an older queued record was made on the device and is
+        // replaced then.)
+        batchNumber: null,
         storageLocation: p['storage_location'] as String?,
         harvestDate: DateTime.parse(p['harvest_date'] as String),
         isSynced: false,
@@ -82,13 +87,18 @@ class HarvestRepository {
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
       final response = await _client
           .from('harvest_records')
-          .select('quantity_kg, is_synced, harvest_date')
+          .select('quantity_kg, unit, is_synced, harvest_date')
           .eq('farmer_id', farmerId)
           .gte('harvest_date', cutoff.toIso8601String().split('T').first);
 
       total = response.length;
       for (final row in response) {
-        totalYield += (row['quantity_kg'] as num).toDouble();
+        // The yield is a total in kg. A harvest measured in another unit
+        // (sacks, pieces ...) is still counted as a harvest, but is not added
+        // to a kg figure: units are never added together.
+        if (isKg(row['unit'] as String?)) {
+          totalYield += (row['quantity_kg'] as num).toDouble();
+        }
         if (row['is_synced'] as bool? ?? false) syncedCount++;
       }
     } catch (_) {
@@ -101,7 +111,7 @@ class HarvestRepository {
         (h) => h.harvestDate.isAfter(cutoff),
       );
       for (final h in pending) {
-        totalYield += h.quantityKg;
+        if (isKg(h.unit)) totalYield += h.quantityKg;
         total += 1; // unsynced, so it doesn't add to syncedCount
       }
     }
@@ -254,6 +264,7 @@ extension HarvestHistoryFetch on HarvestRepository {
         farmerName: info?.fullName ?? 'Unknown Farmer',
         cropName: h.cropName,
         quantityKg: h.quantityKg,
+        unit: h.unit,
         harvestDate: h.harvestDate,
         isSynced: h.isSynced,
         batchNumber: h.batchNumber ?? '—',

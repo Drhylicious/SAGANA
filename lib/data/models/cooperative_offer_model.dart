@@ -1,3 +1,5 @@
+import '../../core/utils/quantity_utils.dart';
+
 /// Dedicated model for cooperative_purchase_offers.
 ///
 /// An offer is a negotiation over the PRICE PER KG of a fixed quantity. The
@@ -12,6 +14,10 @@ class CooperativeOfferModel {
   final String farmerName;
   final String cropName;
   final double offeredQuantityKg;
+
+  /// The unit every quantity and per-unit price on this offer is measured in
+  /// (copied from the batch by the database; the fields keep their old names).
+  final String unit;
   final DateTime offeredAt;
   final String? inventoryBatchId;
   final String status; // pending | confirmed | declined | cancelled
@@ -50,6 +56,7 @@ class CooperativeOfferModel {
     required this.farmerName,
     required this.cropName,
     required this.offeredQuantityKg,
+    this.unit = kDefaultUnit,
     required this.offeredAt,
     this.inventoryBatchId,
     required this.status,
@@ -83,8 +90,9 @@ class CooperativeOfferModel {
   bool get hasPrice => currentPricePerKg != null;
 
   /// The latest price times the fixed quantity.
-  double? get currentTotal =>
-      currentPricePerKg == null ? null : currentPricePerKg! * offeredQuantityKg;
+  double? get currentTotal => currentPricePerKg == null
+      ? null
+      : moneyOf(currentPricePerKg!, offeredQuantityKg);
 
   /// The settled amount once accepted, else null.
   double? get settledAmount => isConfirmed ? confirmedAmount : null;
@@ -106,7 +114,7 @@ class CooperativeOfferModel {
 
   /// Columns every offer query selects.
   static const String selectColumns =
-      'id, farmer_id, crop_name, offered_quantity_kg, offered_at, '
+      'id, farmer_id, crop_name, offered_quantity_kg, unit, offered_at, '
       'inventory_batch_id, status, confirmed_quantity_kg, confirmed_amount, '
       'admin_notes, confirmed_at, asking_price_per_kg, current_price_per_kg, '
       'agreed_price_per_kg, last_proposed_by, negotiation_round';
@@ -120,6 +128,7 @@ class CooperativeOfferModel {
       farmerName: map['farmer_name'] as String? ?? 'Farmer',
       cropName: map['crop_name'] as String? ?? 'Produce',
       offeredQuantityKg: (map['offered_quantity_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       offeredAt: DateTime.parse(map['offered_at'] as String),
       inventoryBatchId: map['inventory_batch_id'] as String?,
       status: map['status'] as String? ?? 'pending',

@@ -1,24 +1,23 @@
+import '../../core/utils/quantity_utils.dart';
+
 // ─── Period Filter ────────────────────────────────────────────────────────────
 //
-// Note on "season": AnalyticsPeriod.thisSeason is a 90-day rolling window
-// (see startDate below), independent of calendar boundaries. This is a
-// different definition from HarvestRepository's own "season" stat
-// (fetchStats()), which counts calendar-year-to-date despite its internal
-// variable being named startOfSeason. Both are intentionally correct for
-// what each screen shows — this isn't a bug — but a farmer could see two
-// different "season" totals on two different screens. Flagging here so
-// the collision is documented rather than silently repeated if either
-// definition is touched again.
+// Note on "quarter": AnalyticsPeriod.thisQuarter is the calendar quarter
+// (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec), the same period the Manager's reports
+// use (ReportPeriod.thisQuarter), so a farmer's figures for a period match
+// what the Manager sees. SAGANA stores no crop seasons, so there is no
+// "season" period. It was a rolling 90 days before, which no other screen
+// used.
 
-enum AnalyticsPeriod { thisMonth, thisSeason, thisYear, allTime }
+enum AnalyticsPeriod { thisMonth, thisQuarter, thisYear, allTime }
 
 extension AnalyticsPeriodExt on AnalyticsPeriod {
   String get label {
     switch (this) {
       case AnalyticsPeriod.thisMonth:
         return 'This Month';
-      case AnalyticsPeriod.thisSeason:
-        return 'This Season';
+      case AnalyticsPeriod.thisQuarter:
+        return 'This Quarter';
       case AnalyticsPeriod.thisYear:
         return 'This Year';
       case AnalyticsPeriod.allTime:
@@ -31,8 +30,10 @@ extension AnalyticsPeriodExt on AnalyticsPeriod {
     switch (this) {
       case AnalyticsPeriod.thisMonth:
         return DateTime(now.year, now.month, 1);
-      case AnalyticsPeriod.thisSeason:
-        return now.subtract(const Duration(days: 90));
+      case AnalyticsPeriod.thisQuarter:
+        // First day of the calendar quarter, at midnight, so the offline-cache
+        // keys built from it stay the same for the whole quarter.
+        return DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1, 1);
       case AnalyticsPeriod.thisYear:
         return DateTime(now.year, 1, 1);
       case AnalyticsPeriod.allTime:
@@ -42,7 +43,7 @@ extension AnalyticsPeriodExt on AnalyticsPeriod {
 }
 
 /// Display order for the period chips — deliberately independent of
-/// AnalyticsPeriod's declared enum order (thisMonth, thisSeason, thisYear,
+/// AnalyticsPeriod's declared enum order (thisMonth, thisQuarter, thisYear,
 /// allTime), matching the same reasoning reportPeriodChipOrder documents
 /// for ReportPeriod (admin_reports_model.dart): other logic (startDate
 /// above) relies on the declaration order and shouldn't be touched, so the
@@ -51,7 +52,7 @@ extension AnalyticsPeriodExt on AnalyticsPeriod {
 const analyticsPeriodChipOrder = [
   AnalyticsPeriod.allTime,
   AnalyticsPeriod.thisMonth,
-  AnalyticsPeriod.thisSeason,
+  AnalyticsPeriod.thisQuarter,
   AnalyticsPeriod.thisYear,
 ];
 
@@ -63,14 +64,26 @@ class FarmPerformanceSummary {
   final double totalExpenses;
   final List<CropYieldBreakdown> cropBreakdown;
 
+  /// Harvests in the period recorded in a unit other than kg. They are left
+  /// out of the kg totals (units are never mixed), so the screen says so.
+  final int otherUnitHarvestCount;
+
+  /// True when at least one figure could not be loaded and had no saved
+  /// copy to fall back on, so the totals above may be missing a source. An
+  /// empty period is not an error; this is only set on a failed read.
+  final bool hasLoadError;
+
   const FarmPerformanceSummary({
     required this.totalYieldKg,
     required this.totalRevenue,
     required this.totalExpenses,
     required this.cropBreakdown,
+    this.otherUnitHarvestCount = 0,
+    this.hasLoadError = false,
   });
 
-  double get netProfit => totalRevenue - totalExpenses;
+  /// Revenue minus expenses, to the centavo (no binary-float tail).
+  double get netProfit => roundQuantity(totalRevenue - totalExpenses);
 
   static const empty = FarmPerformanceSummary(
     totalYieldKg: 0,
@@ -94,21 +107,31 @@ class CropYieldBreakdown {
 
 // ─── Transaction (sold inventory) ─────────────────────────────────────────────
 
+/// Which of the four selling channels a [TransactionRecord] came from. The
+/// same four channels Home's earnings and Transaction History count.
+enum TransactionSource { marketplace, cooperative, informal, marketLinking }
+
 class TransactionRecord {
   final String id;
   final String cropName;
   final double quantityKg;
+
+  /// The unit quantityKg is measured in (the field keeps its old name).
+  final String unit;
   final double totalAmount;
   final DateTime date;
   final String reference;
+  final TransactionSource source;
 
   const TransactionRecord({
     required this.id,
     required this.cropName,
     required this.quantityKg,
+    this.unit = 'kg',
     required this.totalAmount,
     required this.date,
     required this.reference,
+    required this.source,
   });
 }
 

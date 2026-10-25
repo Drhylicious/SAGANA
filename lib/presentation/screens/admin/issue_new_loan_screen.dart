@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -15,10 +14,11 @@ import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/account_form_widgets.dart';
+import '../../widgets/farmer_pick_tile.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/management_modal.dart';
-import '../../widgets/material_list_tile.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -40,13 +40,17 @@ class IssueNewLoanScreen extends StatefulWidget {
 
 class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   final _repo = AdminLoanRepository();
+  final _formKey = GlobalKey<FormState>();
   final _notesController = TextEditingController();
   final _monthlyPaymentController = TextEditingController();
 
   bool _isOnline = true;
   bool _isLoadingRoster = true;
   bool _isSubmitting = false;
-  bool _monthlyPaymentManuallyEdited = false;
+
+  /// Set when the Manager taps Issue Loan: only then do the farmer and items
+  /// show their "required" errors, so an untouched form is not covered in red.
+  bool _submitAttempted = false;
 
   List<FarmerPickerResult> _farmerRoster = [];
   FarmerPickerResult? _selectedFarmer;
@@ -54,7 +58,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   bool _standingCheckedOnline = false;
 
   DateTime _issuedDate = DateTime.now();
-  final List<_LoanItemDraft> _items = [];
+  final List<LoanItemDraft> _items = [];
   List<LoanCatalogItem> _loanCatalog = [];
 
   @override
@@ -135,27 +139,29 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     return standing.meetsCapitalEligibility;
   }
 
+  /// Sum of the line totals, each already rounded to centavos, so the total
+  /// shown is exactly what the lines add up to and what is saved.
   double get _totalValue =>
-      _items.fold<double>(0, (sum, i) => sum + i.lineTotal);
+      _roundCents(_items.fold<double>(0, (sum, i) => sum + i.lineTotal));
 
-  double get _suggestedMonthlyPayment =>
-      _totalValue > 0 ? (_totalValue / 12) : 0;
-
-  void _recalculateSuggestedMonthlyPayment() {
-    if (_monthlyPaymentManuallyEdited) return;
-    _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(
-      0,
-    );
-  }
+  double get _enteredMonthlyPayment =>
+      double.tryParse(_monthlyPaymentController.text.trim()) ?? 0;
 
   // ─── Item CRUD ──────────────────────────────────────────────────────────
 
-  void _openAddItemSheet({_LoanItemDraft? existing}) {
+  void _openAddItemSheet({LoanItemDraft? existing}) {
     showManagementModal(
       context: context,
-      builder: (_) => _AddLoanItemModalBody(
+      builder: (_) => AddLoanItemModalBody(
         existing: existing,
+        // An item can be on a loan only once: the picker offers the loanable
+        // items this loan does not have yet (plus the one being edited).
         loanCatalog: _loanCatalog,
+        takenInventoryIds: {
+          for (final i in _items)
+            if (i.id != existing?.id && i.inventoryItemId != null)
+              i.inventoryItemId!,
+        },
         onSave: (draft) {
           setState(() {
             if (existing != null) {
@@ -164,7 +170,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             } else {
               _items.add(draft);
             }
-            _recalculateSuggestedMonthlyPayment();
           });
         },
       ),
@@ -172,10 +177,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   }
 
   void _deleteItem(String id) {
-    setState(() {
-      _items.removeWhere((i) => i.id == id);
-      _recalculateSuggestedMonthlyPayment();
-    });
+    setState(() => _items.removeWhere((i) => i.id == id));
   }
 
   // ─── Submit ─────────────────────────────────────────────────────────────
@@ -193,20 +195,14 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   Future<void> _submit() async {
     final l10n = AppLocalizations.of(context);
 
-    if (_selectedFarmer == null) {
-      _showSnack(l10n.issueLoanErrorNoFarmer, isError: true);
-      return;
-    }
-    if (_items.isEmpty) {
-      _showSnack(l10n.issueLoanErrorNoItems, isError: true);
-      return;
-    }
-    final monthlyPayment =
-        double.tryParse(_monthlyPaymentController.text.trim()) ?? 0;
-    if (monthlyPayment <= 0) {
-      _showSnack(l10n.issueLoanErrorInvalidMonthly, isError: true);
-      return;
-    }
+    // Missing farmer / items / monthly payment are shown inline, on the field
+    // that needs fixing (issueLoanErrorNoFarmer, ...NoItems, ...InvalidMonthly),
+    // not as a Snackbar. The monthly field reports through the form.
+    setState(() => _submitAttempted = true);
+    final formValid = _formKey.currentState?.validate() ?? true;
+    if (_selectedFarmer == null || _items.isEmpty || !formValid) return;
+    final monthlyPayment = _enteredMonthlyPayment;
+    if (monthlyPayment <= 0) return;
 
     // Capital-share eligibility — UI hard-stop (Issue 4d). Only enforced
     // when we actually have a fresh online standing read; issue_loan()
@@ -320,62 +316,34 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          _buildTopBar(context, l10n, cs, sagana),
+          SubPageTopBar(
+            title: l10n.issueLoanTitle,
+            onBack: () => context.pop(),
+          ),
           if (!_isOnline) const OfflineStatusCard(),
           Expanded(
             child: _isLoadingRoster
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppConstants.spacingSafeH,
-                      AppConstants.spacingGutter,
-                      AppConstants.spacingSafeH,
-                      AppConstants.spacingSafeH,
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
+                : Form(
+                    key: _formKey,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppConstants.spacingSafeH,
+                        AppConstants.spacingGutter,
+                        AppConstants.spacingSafeH,
+                        AppConstants.spacingSectionV,
+                      ),
+                      children: [
+                        _buildBorrowerSection(context, l10n, cs, sagana),
+                        const SizedBox(height: AppConstants.spacingGutter),
+                        _buildItemsSection(context, l10n, cs, sagana),
+                        const SizedBox(height: AppConstants.spacingGutter),
+                        _buildTermsSection(context, l10n, cs, sagana),
+                      ],
                     ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          0,
-                          0,
-                          0,
-                          AppConstants.spacingGutter,
-                        ),
-                        child: _buildFarmerSection(context, l10n, cs, sagana),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          0,
-                          0,
-                          0,
-                          AppConstants.spacingGutter,
-                        ),
-                        child: _buildItemsSection(context, l10n, cs, sagana),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          0,
-                          0,
-                          0,
-                          AppConstants.spacingGutter,
-                        ),
-                        child: _buildTotalCard(context, l10n, cs),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          0,
-                          0,
-                          0,
-                          AppConstants.spacingGutter,
-                        ),
-                        child: _buildPaymentScheduleSection(
-                          context,
-                          l10n,
-                          cs,
-                          sagana,
-                        ),
-                      ),
-                      _buildNotesSection(context, l10n, cs, sagana),
-                    ],
                   ),
           ),
         ],
@@ -384,95 +352,81 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     );
   }
 
-  // ─── Top bar ────────────────────────────────────────────────────────────
+  // ─── Shared field pieces ────────────────────────────────────────────────
 
-  Widget _buildTopBar(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return SubPageTopBar(title: l10n.issueLoanTitle, onBack: () => context.pop());
+  /// A tappable field that looks like the form's text inputs (a picker for a
+  /// farmer or a date): same border, fill, error style and label spacing.
+  Widget _pickerField({
+    required VoidCallback onTap,
+    required Widget child,
+    required Widget suffix,
+    String? errorText,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          errorText: errorText,
+          errorMaxLines: 2,
+          suffixIcon: suffix,
+        ),
+        child: child,
+      ),
+    );
   }
 
-  // ─── Farmer section ─────────────────────────────────────────────────────
+  // ─── Borrower section ───────────────────────────────────────────────────
 
-  Widget _buildFarmerSection(
+  Widget _buildBorrowerSection(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final farmer = _selectedFarmer;
+    return AccountFormSection(
+      icon: Icons.person_rounded,
+      title: l10n.issueLoanSectionBorrower,
+      cs: cs,
+      sagana: sagana,
       children: [
-        Text(
-          l10n.issueLoanSelectFarmer,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-            color: cs.onSurface,
-          ),
-        ),
-        const SizedBox(height: AppConstants.spacingSm),
-        GestureDetector(
+        AccountFieldLabel(label: '${l10n.issueLoanSelectFarmer} *', cs: cs),
+        _pickerField(
           onTap: () => _openFarmerPicker(context, l10n, cs, sagana),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppConstants.spacingMd),
-            decoration: BoxDecoration(
-              color: sagana.cardBackground,
-              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                _selectedFarmer == null
-                    ? const CircleAvatar(
-                        radius: 18,
-                        backgroundColor: AppConstants.primaryContainer,
-                        child: Icon(
-                          Icons.person_search_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      )
-                    : ProfileAvatar(
-                        photoUrl: _selectedFarmer!.profilePhotoUrl,
-                        displayName: _selectedFarmer!.fullName,
-                        radius: 18,
-                      ),
-                const SizedBox(width: AppConstants.spacingMd),
-                Expanded(
-                  child: _selectedFarmer == null
-                      ? Text(
-                          l10n.issueLoanNoFarmerSelected,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedFarmer!.fullName,
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                          ],
+          errorText: (_submitAttempted && farmer == null)
+              ? l10n.issueLoanErrorNoFarmer
+              : null,
+          suffix: Icon(Icons.unfold_more_rounded, color: cs.onSurfaceVariant),
+          child: Row(
+            children: [
+              if (farmer != null) ...[
+                ProfileAvatar(
+                  photoUrl: farmer.profilePhotoUrl,
+                  displayName: farmer.fullName,
+                  radius: 12,
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Text(
+                  farmer?.fullName ?? l10n.issueLoanNoFarmerSelected,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: farmer == null
+                      ? GoogleFonts.inter(fontSize: 13, color: cs.outline)
+                      : GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: cs.onSurface,
                         ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-        if (_selectedFarmer != null) ...[
-          const SizedBox(height: AppConstants.spacingSm),
+        if (farmer != null) ...[
+          const SizedBox(height: AppConstants.spacingMd),
           _buildStandingBanner(context, l10n, cs),
         ],
       ],
@@ -624,6 +578,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
       context: context,
       builder: (_) => _FarmerPickerModalBody(
         roster: _farmerRoster,
+        selectedId: _selectedFarmer?.id,
         l10n: l10n,
         onSelected: (farmer) {
           Navigator.of(context).pop();
@@ -641,93 +596,120 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
+    final showItemsError = _submitAttempted && _items.isEmpty;
+    return AccountFormSection(
+      icon: Icons.inventory_2_rounded,
+      title: l10n.issueLoanInputItems,
+      cs: cs,
+      sagana: sagana,
+      trailing: _items.isEmpty
+          ? null
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+              ),
               child: Text(
-                l10n.issueLoanInputItems,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                l10n.issueLoanItemsCount(_items.length),
                 style: GoogleFonts.poppins(
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: cs.onSurface,
+                  color: cs.primary,
                 ),
               ),
             ),
-            TextButton.icon(
-              onPressed: () => _openAddItemSheet(),
-              icon: const Icon(
-                Icons.add_rounded,
-                size: 18,
-                color: AppConstants.primaryGreen,
-              ),
-              label: Text(
-                l10n.issueLoanAddItem,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                  color: AppConstants.primaryGreen,
-                ),
-              ),
-            ),
-          ],
-        ),
+      children: [
         if (_items.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppConstants.spacingGutter),
             decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: showItemsError
+                  ? Border.all(color: AppConstants.errorRed)
+                  : null,
             ),
-            child: Text(
-              l10n.issueLoanNoItemsYet,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: cs.onSurfaceVariant,
-              ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 28,
+                  color: showItemsError
+                      ? AppConstants.errorRed
+                      : cs.onSurfaceVariant,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  showItemsError
+                      ? l10n.issueLoanErrorNoItems
+                      : l10n.issueLoanNoItemsYet,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: showItemsError
+                        ? AppConstants.errorRed
+                        : cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           )
         else
-          ..._items.map(
-            (item) => _buildItemRow(context, item, l10n, cs, sagana),
+          for (final item in _items) _buildItemRow(context, item, l10n, cs),
+        const SizedBox(height: AppConstants.spacingMd),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _openAddItemSheet(),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(
+              l10n.issueLoanAddItem,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
           ),
+        ),
       ],
     );
   }
 
   Widget _buildItemRow(
     BuildContext context,
-    _LoanItemDraft item,
+    LoanItemDraft item,
     AppLocalizations l10n,
     ColorScheme cs,
-    SaganaColors sagana,
   ) {
     final currency = NumberFormat.currency(
       locale: 'en_PH',
       symbol: '₱',
       decimalDigits: 2,
     );
-    final qtyLabel = item.quantity % 1 == 0
-        ? item.quantity.toStringAsFixed(0)
-        : item.quantity.toStringAsFixed(1);
+    final qtyLabel = _quantityText(item.quantity);
+
+    Widget photoPlaceholder() => Container(
+      color: cs.surfaceContainerHighest,
+      child: Icon(
+        Icons.inventory_2_outlined,
+        size: 20,
+        color: cs.outline.withValues(alpha: 0.4),
+      ),
+    );
 
     return Container(
-      margin: const EdgeInsets.only(top: AppConstants.spacingMd),
+      margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       decoration: BoxDecoration(
-        color: sagana.cardBackground,
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // The item's own Inventory Management photo — selected from the
           // Loan Item Catalog, never uploaded here directly.
@@ -740,23 +722,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                   ? Image.network(
                       item.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: cs.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          size: 20,
-                          color: cs.outline.withValues(alpha: 0.4),
-                        ),
-                      ),
+                      errorBuilder: (_, __, ___) => photoPlaceholder(),
                     )
-                  : Container(
-                      color: cs.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        size: 20,
-                        color: cs.outline.withValues(alpha: 0.4),
-                      ),
-                    ),
+                  : photoPlaceholder(),
             ),
           ),
           const SizedBox(width: 10),
@@ -766,6 +734,8 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
               children: [
                 Text(
                   item.itemName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
@@ -783,11 +753,8 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Price above the two actions, not alongside them — reverted per
-          // your correction. The two icons are just brought closer to each
-          // other than before: visualDensity.compact trims IconButton's own
-          // default hit-target padding, which was the actual source of the
-          // gap (the explicit 32x32 constraints alone didn't remove it).
+          // Price above the two actions; visualDensity.compact trims the
+          // IconButtons' own hit-target padding so they sit close together.
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
@@ -834,232 +801,133 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     );
   }
 
-  Widget _buildTotalCard(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 2,
-    );
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        gradient: AppConstants.primaryButtonGradient,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Flexible + ellipsis: "Kabuuang Halaga ng Pautang" is much
-          // longer than "Total Loan Value" and this banner has no other
-          // slack next to the peso total.
-          Flexible(
-            child: Text(
-              l10n.issueLoanTotalValue,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            currency.format(_totalValue),
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 20,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ─── Repayment terms section ────────────────────────────────────────────
 
-  // ─── Payment schedule section ───────────────────────────────────────────
-
-  Widget _buildPaymentScheduleSection(
+  Widget _buildTermsSection(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
   ) {
-    final nextPayment = BodSchedule.upcoming();
-    if (_monthlyPaymentController.text.isEmpty &&
-        !_monthlyPaymentManuallyEdited) {
-      _monthlyPaymentController.text = _suggestedMonthlyPayment.toStringAsFixed(
-        0,
-      );
-    }
+    // The date shown is the one that will be sent: the first BOD Saturday on
+    // or after the chosen issue date (see _submit).
+    final nextPayment = BodSchedule.upcoming(_issuedDate);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.issueLoanPaymentSchedule,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          GestureDetector(
-            onTap: _pickIssuedDate,
-            child: _fieldRow(
-              label: l10n.issueLoanIssuedDate,
-              value: DateFormat('MMMM d, yyyy').format(_issuedDate),
-              cs: cs,
-              trailing: Icon(
-                Icons.calendar_today_rounded,
-                size: 16,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Divider(
-            height: AppConstants.spacingGutter,
-            color: cs.outline.withValues(alpha: 0.15),
-          ),
-          Text(
-            l10n.issueLoanMonthlyPayment,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _monthlyPaymentController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-            ],
-            onChanged: (_) =>
-                setState(() => _monthlyPaymentManuallyEdited = true),
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-              color: cs.onSurface,
-            ),
-            decoration: InputDecoration(
-              prefixText: '₱ ',
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          _fieldRow(
-            label: l10n.issueLoanNextPaymentDue,
-            value: DateFormat('MMMM d, yyyy').format(nextPayment),
-            cs: cs,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.issueLoanFrequency,
-            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
-          Text(
-            l10n.issueLoanVenue,
-            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _fieldRow({
-    required String label,
-    required String value,
-    required ColorScheme cs,
-    Widget? trailing,
-  }) {
-    // Flexible + ellipsis on both sides: labels like "Susunod na Takdang
-    // Bayad" / "Petsa ng Pagbibigay" run noticeably longer than their
-    // English source ("Next Payment Due" / "Issue Date"), and this Row
-    // has no other slack between the label and the formatted date value
-    // — without this the two sides overflow past the available width.
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return AccountFormSection(
+      icon: Icons.event_note_rounded,
+      title: l10n.issueLoanSectionTerms,
+      cs: cs,
+      sagana: sagana,
       children: [
-        Flexible(
+        AccountFieldLabel(label: l10n.issueLoanIssuedDate, cs: cs),
+        _pickerField(
+          onTap: _pickIssuedDate,
+          suffix: Icon(
+            Icons.calendar_today_rounded,
+            size: 18,
+            color: cs.onSurfaceVariant,
+          ),
           child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+            DateFormat('MMMM d, yyyy').format(_issuedDate),
+            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
           ),
         ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 6), trailing],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ─── Notes section ──────────────────────────────────────────────────────
-
-  Widget _buildNotesSection(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.issueLoanNotes,
+        const SizedBox(height: AppConstants.spacingGutter),
+        AccountFieldLabel(label: l10n.issueLoanMonthlyPaymentLabel, cs: cs),
+        TextFormField(
+          controller: _monthlyPaymentController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            // Pesos and centavos only: the amount is stored to 2 decimals.
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          ],
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          onChanged: (_) => setState(() {}),
           style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             fontSize: 15,
             color: cs.onSurface,
           ),
-        ),
-        const SizedBox(height: AppConstants.spacingSm),
-        TextField(
-          controller: _notesController,
-          maxLines: 2,
-          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
           decoration: InputDecoration(
-            filled: true,
-            fillColor: sagana.cardBackground,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            ),
+            prefixText: '₱ ',
+            hintText: '0.00',
+            // No loan term is set anywhere in SAGANA: the Manager sets the
+            // monthly amount and the loan runs until the balance is paid. So
+            // this only states what follows from the numbers entered, instead
+            // of assuming a repayment period.
+            helperText: (_totalValue > 0 && _enteredMonthlyPayment > 0)
+                ? l10n.issueLoanMonthlyEstimate(
+                    (_totalValue / _enteredMonthlyPayment).ceil(),
+                  )
+                : l10n.issueLoanMonthlyHelp,
+            helperMaxLines: 2,
+            errorMaxLines: 2,
           ),
+          validator: (v) {
+            final text = (v ?? '').trim();
+            if (text.isEmpty) return l10n.issueLoanMonthlyRequired;
+            if ((double.tryParse(text) ?? 0) <= 0) {
+              return l10n.issueLoanErrorInvalidMonthly;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: AppConstants.spacingGutter),
+        AccountFieldLabel(label: l10n.issueLoanNextPaymentDue, cs: cs),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppConstants.spacingMd),
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.event_available_rounded, size: 18, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      DateFormat('MMMM d, yyyy').format(nextPayment),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.issueLoanFrequency,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                l10n.issueLoanVenue,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Notes is the last field of the loan's terms, so it sits with them in
+        // the same card instead of in a card of its own.
+        const SizedBox(height: AppConstants.spacingGutter),
+        AccountFieldLabel(label: l10n.loanFormNotes, cs: cs),
+        TextFormField(
+          controller: _notesController,
+          maxLines: 3,
+          textCapitalization: TextCapitalization.sentences,
+          style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
         ),
       ],
     );
@@ -1067,54 +935,67 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
   // ─── Bottom bar ─────────────────────────────────────────────────────────
 
+  /// The loan total stays in view next to the action, instead of a banner at
+  /// the end of a long form.
   Widget _buildBottomBar(BuildContext context, AppLocalizations l10n) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.of(context).padding.bottom + 12,
-          ),
-          decoration: BoxDecoration(
-            color: context.saganaColors.glassBackground,
-            border: Border(
-              top: BorderSide(color: context.saganaColors.glassBorder),
-            ),
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: (_isSubmitting || !_capitalEligible || !_isOnline)
-                  ? null
-                  : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.primaryGreen,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      l10n.issueLoanSubmit,
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
+    final cs = Theme.of(context).colorScheme;
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        border: Border(
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.issueLoanTotalValue,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
-            ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        currency.format(_totalValue),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppConstants.spacingMd),
+              PrimaryButton(
+                label: l10n.issueLoanSubmit,
+                expand: false,
+                isLoading: _isSubmitting,
+                onPressed: (_isSubmitting || !_capitalEligible || !_isOnline)
+                    ? null
+                    : _submit,
+              ),
+            ],
           ),
         ),
       ),
@@ -1122,9 +1003,23 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
   }
 }
 
+// ─── Money and quantity helpers ─────────────────────────────────────────────
+
+/// Rounds to centavos. Line totals and the loan total are kept at 2 decimals,
+/// the way the database stores them, so what is shown, what is added up and what
+/// is saved are the same number (0.1 x 3 is 0.3, not 0.30000000000000004).
+double _roundCents(double value) => (value * 100).round() / 100;
+
+/// A quantity as typed: up to 2 decimals, no trailing zeros (2, 2.5, 2.25).
+String _quantityText(double quantity) {
+  final text = quantity.toStringAsFixed(2);
+  return text.replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
 // ─── Local draft model (form state only, not persisted directly) ──────────
 
-class _LoanItemDraft {
+/// One item line on the loan being built (form state only).
+class LoanItemDraft {
   final String id;
   final String? inventoryItemId;
   String itemName;
@@ -1133,7 +1028,7 @@ class _LoanItemDraft {
   double unitPrice;
   String? imageUrl;
 
-  _LoanItemDraft({
+  LoanItemDraft({
     required this.id,
     this.inventoryItemId,
     required this.itemName,
@@ -1143,18 +1038,20 @@ class _LoanItemDraft {
     this.imageUrl,
   });
 
-  double get lineTotal => quantity * unitPrice;
+  double get lineTotal => _roundCents(quantity * unitPrice);
 }
 
 // ─── Farmer picker modal ────────────────────────────────────────────────────
 
 class _FarmerPickerModalBody extends StatefulWidget {
   final List<FarmerPickerResult> roster;
+  final String? selectedId;
   final AppLocalizations l10n;
   final ValueChanged<FarmerPickerResult> onSelected;
 
   const _FarmerPickerModalBody({
     required this.roster,
+    required this.selectedId,
     required this.l10n,
     required this.onSelected,
   });
@@ -1166,24 +1063,36 @@ class _FarmerPickerModalBody extends StatefulWidget {
 class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
   String _query = '';
 
+  // A to Z, so a farmer is where the Manager expects to find them.
+  late final List<FarmerPickerResult> _sorted = [...widget.roster]
+    ..sort(
+      (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+    );
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final filtered = _query.isEmpty
-        ? widget.roster
-        : widget.roster
-              .where(
-                (f) => f.fullName.toLowerCase().contains(_query.toLowerCase()),
-              )
-              .toList();
+    final query = _query.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? _sorted
+        : _sorted.where((f) => f.fullName.toLowerCase().contains(query)).toList();
+
+    // The dialog hugs the list instead of always filling most of the screen,
+    // up to the shell's usual 62%. It is sized from the whole roster, not the
+    // search result, so it does not change size while the Manager types.
+    final screenHeight = MediaQuery.of(context).size.height;
+    final fraction = ((170 + 64 * widget.roster.length.clamp(1, 8)) / screenHeight)
+        .clamp(0.30, 0.62)
+        .toDouble();
 
     return ManagementModalShell(
       title: widget.l10n.issueLoanSelectFarmer,
       bodyIsScrollable: true,
+      listHeightFraction: fraction,
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
             child: TextField(
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
@@ -1197,36 +1106,51 @@ class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 6, 20, 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                widget.l10n.issueLoanFarmerCount(filtered.length),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
           Expanded(
             child: filtered.isEmpty
                 ? Center(
-                    child: Text(
-                      widget.l10n.issueLoanNoFarmerResults,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final farmer = filtered[index];
-                      return MaterialListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: ProfileAvatar(
-                          photoUrl: farmer.profilePhotoUrl,
-                          displayName: farmer.fullName,
-                          radius: 20,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.person_search_rounded,
+                          size: 36,
+                          color: cs.onSurfaceVariant,
                         ),
-                        title: Text(
-                          farmer.fullName,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.l10n.issueLoanNoFarmerResults,
+                          style: GoogleFonts.inter(
                             fontSize: 13,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final farmer = filtered[index];
+                      return FarmerPickTile(
+                        name: farmer.fullName,
+                        photoUrl: farmer.profilePhotoUrl,
+                        selected: farmer.id == widget.selectedId,
                         onTap: () => widget.onSelected(farmer),
                       );
                     },
@@ -1244,40 +1168,51 @@ class _FarmerPickerModalBodyState extends State<_FarmerPickerModalBody> {
 // catalog (published via Inventory Management), never typed in freehand.
 // This keeps itemName/unit/unitPrice always in sync with cooperative_inventory
 // and lets us show live stock-on-hand + an insufficient-stock warning.
+//
+// A loan holds several different items, each at most once: [takenInventoryIds]
+// are the items already on the loan, which the picker leaves out. To change an
+// item's quantity, edit its line.
 
-class _AddLoanItemModalBody extends StatefulWidget {
-  final _LoanItemDraft? existing;
+class AddLoanItemModalBody extends StatefulWidget {
+  final LoanItemDraft? existing;
   final List<LoanCatalogItem> loanCatalog;
-  final ValueChanged<_LoanItemDraft> onSave;
+  final Set<String> takenInventoryIds;
+  final ValueChanged<LoanItemDraft> onSave;
 
-  const _AddLoanItemModalBody({
+  const AddLoanItemModalBody({
+    super.key,
     this.existing,
     required this.loanCatalog,
+    this.takenInventoryIds = const {},
     required this.onSave,
   });
 
   @override
-  State<_AddLoanItemModalBody> createState() => _AddLoanItemModalBodyState();
+  State<AddLoanItemModalBody> createState() => _AddLoanItemModalBodyState();
 }
 
-class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
+class _AddLoanItemModalBodyState extends State<AddLoanItemModalBody> {
+  final _formKey = GlobalKey<FormState>();
   LoanCatalogItem? _selected;
   late final TextEditingController _qtyController;
+
+  /// The loanable items this loan does not have yet (plus the one being edited).
+  late final List<LoanCatalogItem> _available = widget.loanCatalog
+      .where((c) => !widget.takenInventoryIds.contains(c.inventoryItemId))
+      .toList();
 
   @override
   void initState() {
     super.initState();
     _qtyController = TextEditingController(
       text: widget.existing != null
-          ? (widget.existing!.quantity % 1 == 0
-                ? widget.existing!.quantity.toStringAsFixed(0)
-                : widget.existing!.quantity.toString())
+          ? _quantityText(widget.existing!.quantity)
           : '',
     );
     // When editing an existing line item, pre-select the matching catalog
     // entry (if it's still in the catalog — it may have been unpublished).
     if (widget.existing?.inventoryItemId != null) {
-      for (final item in widget.loanCatalog) {
+      for (final item in _available) {
         if (item.inventoryItemId == widget.existing!.inventoryItemId) {
           _selected = item;
           break;
@@ -1293,25 +1228,67 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
   }
 
   double get _quantity => double.tryParse(_qtyController.text.trim()) ?? 0;
-  bool get _insufficientStock =>
-      _selected != null && _quantity > _selected!.quantityOnHand;
 
   void _confirm() {
-    if (_selected == null || _quantity <= 0 || _insufficientStock) return;
+    // The item and the quantity show their own inline errors.
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     widget.onSave(
-      _LoanItemDraft(
+      LoanItemDraft(
         id:
             widget.existing?.id ??
             'item_${DateTime.now().millisecondsSinceEpoch}',
         inventoryItemId: _selected!.inventoryItemId,
         itemName: _selected!.itemName,
-        quantity: _quantity,
+        quantity: _roundCents(_quantity),
         unit: _selected!.unit,
         unitPrice: _selected!.unitPrice,
         imageUrl: _selected!.imageUrl,
       ),
     );
     Navigator.of(context).pop();
+  }
+
+  /// A message-only state: nothing to add (an empty catalog, or every loanable
+  /// item is already on this loan).
+  Widget _messageState(
+    AppLocalizations l10n,
+    ColorScheme cs, {
+    required String title,
+    required String hint,
+    required Widget footer,
+  }) {
+    return ManagementModalShell(
+      title: l10n.issueLoanAddItem,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 40, color: cs.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: cs.onSurface,
+            ),
+          ),
+          if (hint.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              hint,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+      footer: footer,
+    );
   }
 
   @override
@@ -1327,37 +1304,11 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
     // Empty-catalog state — no loanable items exist yet. Without this, the
     // dropdown below would just sit there empty with no explanation.
     if (widget.loanCatalog.isEmpty) {
-      return ManagementModalShell(
-        title: l10n.issueLoanAddItem,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 40,
-              color: cs.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.loanItemNoItemsYet,
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: cs.onSurface,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.issueLoanPublishFirstHint,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+      return _messageState(
+        l10n,
+        cs,
+        title: l10n.loanItemNoItemsYet,
+        hint: l10n.issueLoanPublishFirstHint,
         footer: ManagementModalActions(
           cancelLabel: l10n.close,
           primaryLabel: l10n.issueLoanGoToInventory,
@@ -1369,126 +1320,171 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
       );
     }
 
+    // Every loanable item is already on this loan.
+    if (_available.isEmpty) {
+      return _messageState(
+        l10n,
+        cs,
+        title: l10n.issueLoanAllItemsAdded,
+        hint: '',
+        footer: SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              l10n.close,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return ManagementModalShell(
       title: l10n.issueLoanAddItem,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            l10n.issueLoanSelectItem,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 6),
-          AppDropdownField<LoanCatalogItem>(
-            value: _selected,
-            hintText: l10n.issueLoanSelectItemHint,
-            items: widget.loanCatalog,
-            itemLabel: (c) => '${c.itemName} (${c.unit})',
-            onChanged: (v) => setState(() => _selected = v),
-          ),
-          if (_selected != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    l10n.issueLoanUnitPrice,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
+      body: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AccountFieldLabel(label: '${l10n.issueLoanSelectItem} *', cs: cs),
+            AppDropdownField<LoanCatalogItem>(
+              value: _selected,
+              hintText: l10n.issueLoanSelectItemHint,
+              items: _available,
+              itemLabel: (c) => '${c.itemName} (${c.unit})',
+              validator: (v) => v == null ? l10n.issueLoanErrorSelectItem : null,
+              onChanged: (v) {
+                setState(() => _selected = v);
+                // The stock limit depends on the item: re-check a quantity
+                // that is already typed.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _qtyController.text.isNotEmpty) {
+                    _formKey.currentState?.validate();
+                  }
+                });
+              },
+            ),
+            if (_selected != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      l10n.issueLoanUnitPrice,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  currency.format(_selected!.unitPrice),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    l10n.loanItemAvailableInStock,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
+                  const SizedBox(width: 8),
+                  Text(
+                    currency.format(_selected!.unitPrice),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      l10n.loanItemAvailableInStock,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${_selected!.quantityOnHand.toStringAsFixed(0)} ${_selected!.unit}',
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_quantityText(_selected!.quantityOnHand)} ${_selected!.unit}',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 14),
+            AccountFieldLabel(label: '${l10n.issueLoanQuantity} *', cs: cs),
+            TextFormField(
               controller: _qtyController,
               decoration: InputDecoration(
-                labelText: l10n.issueLoanQuantity,
-                suffixText: _selected!.unit,
+                hintText: '0',
+                suffixText: _selected?.unit,
+                errorMaxLines: 4,
               ),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                // Quantities are stored to 2 decimals.
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
               ],
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               onChanged: (_) => setState(() {}),
+              validator: (v) {
+                final text = (v ?? '').trim();
+                if (text.isEmpty) return l10n.issueLoanErrorQuantityRequired;
+                final quantity = double.tryParse(text) ?? 0;
+                if (quantity <= 0) return l10n.issueLoanErrorQuantityInvalid;
+                final item = _selected;
+                if (item != null && quantity > item.quantityOnHand) {
+                  return l10n.issueLoanInsufficientStock(
+                    _quantityText(quantity),
+                    _quantityText(item.quantityOnHand),
+                    item.unit,
+                  );
+                }
+                return null;
+              },
             ),
-            if (_insufficientStock) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppConstants.errorRed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.error_outline_rounded,
-                      size: 16,
-                      color: AppConstants.errorRed,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        l10n.issueLoanInsufficientStock(
-                          _quantity.toStringAsFixed(0),
-                          _selected!.quantityOnHand.toStringAsFixed(0),
-                          _selected!.unit,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: cs.onSurface,
-                        ),
+            if (_selected != null && _quantity > 0) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      l10n.issueLoanLineTotal,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    currency.format(_roundCents(_quantity * _selected!.unitPrice)),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
-        ],
+        ),
       ),
       // Local footer, not ManagementModalActions — that shared widget's
       // Cancel button sits in a narrower flex:1 box than its flex:2 Confirm
       // button and both use FittedBox(fit: scaleDown), so "Cancel" shrinks
       // more than the longer Confirm label does at this dialog's width.
       // Fixed here to both buttons' text at an explicit, equal size instead
-      // of leaving it to that scaling — scoped to this dialog only, per
-      // your decision not to touch the shared widget everywhere else uses.
+      // of leaving it to that scaling — scoped to this dialog only.
       footer: Row(
         children: [
           Expanded(
@@ -1509,7 +1505,7 @@ class _AddLoanItemModalBodyState extends State<_AddLoanItemModalBody> {
           Expanded(
             flex: 2,
             child: ElevatedButton(
-              onPressed: _insufficientStock ? null : _confirm,
+              onPressed: _confirm,
               child: Text(
                 l10n.issueLoanConfirmItem,
                 maxLines: 1,

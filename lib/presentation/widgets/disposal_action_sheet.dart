@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/quantity_utils.dart';
 import 'management_modal.dart';
 import 'material_list_tile.dart';
 
@@ -22,6 +23,7 @@ Future<DisposalAction?> showDisposalActionSheet(
   BuildContext context, {
   required String cropName,
   required double availableKg,
+  String unit = kDefaultUnit,
   required bool isCoopEligible,
   required String? exclusiveChannel,
 }) {
@@ -30,6 +32,7 @@ Future<DisposalAction?> showDisposalActionSheet(
     builder: (_) => _DisposalActionSheet(
       cropName: cropName,
       availableKg: availableKg,
+      unit: unit,
       isCoopEligible: isCoopEligible,
       exclusiveChannel: exclusiveChannel,
     ),
@@ -39,12 +42,14 @@ Future<DisposalAction?> showDisposalActionSheet(
 class _DisposalActionSheet extends StatelessWidget {
   final String cropName;
   final double availableKg;
+  final String unit;
   final bool isCoopEligible;
   final String? exclusiveChannel;
 
   const _DisposalActionSheet({
     required this.cropName,
     required this.availableKg,
+    required this.unit,
     required this.isCoopEligible,
     required this.exclusiveChannel,
   });
@@ -62,7 +67,7 @@ class _DisposalActionSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     if (_isDaAmadExclusive) {
       return ManagementModalShell(
-        title: '$cropName • ${availableKg.toStringAsFixed(0)} kg available',
+        title: '$cropName • ${formatQuantityUnit(availableKg, unit)} available',
         subtitle: 'What would you like to do with this batch?',
         body: const Column(
           mainAxisSize: MainAxisSize.min,
@@ -80,7 +85,7 @@ class _DisposalActionSheet extends StatelessWidget {
     }
 
     return ManagementModalShell(
-      title: '$cropName • ${availableKg.toStringAsFixed(0)} kg available',
+      title: '$cropName • ${formatQuantityUnit(availableKg, unit)} available',
       subtitle: 'What would you like to do with this batch?',
       body: Column(
         mainAxisSize: MainAxisSize.min,

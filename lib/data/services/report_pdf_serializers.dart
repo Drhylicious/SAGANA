@@ -2,8 +2,10 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../core/utils/quantity_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/admin_reports_model.dart';
+import '../models/export_model.dart';
 
 /// PDF serialization for each report type — the PDF counterpart to
 /// report_csv_serializers.dart (Phase 15). Deliberately mirrors that
@@ -26,6 +28,12 @@ final _dateFmt = DateFormat('yyyy-MM-dd');
 String _safe(String s) => s.replaceAll('—', '-').replaceAll('–', '-');
 
 List<String> _safeRow(List<String> row) => row.map(_safe).toList();
+
+/// Puts what the file covers (period, year or "as of" date) in front of the
+/// headline totals. Null for the Member Patronage Report, whose export keeps
+/// its original subtitle.
+String _withScope(String? scopeText, String text) =>
+    scopeText == null ? text : '$scopeText — $text';
 
 pw.Document _buildDocument({
   required String title,
@@ -71,7 +79,7 @@ pw.Widget _table(List<String> headers, List<List<String>> rows) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 12),
       child: pw.Text(
-        'No records for this period.',
+        'No records to show.',
         style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
       ),
     );
@@ -97,15 +105,18 @@ pw.Widget _table(List<String> headers, List<List<String>> rows) {
   );
 }
 
-Future<pw.Document> buildSalesReportPdf(SalesReportData data) async {
+Future<pw.Document> buildSalesReportPdf(
+  SalesReportData data, {
+  String? scopeText,
+}) async {
   final rows = data.transactions
       .map(
         (t) => [
-            t.sellingType,
+            sellingChannelLabel(t.sellingType),
             t.marketType ?? '',
             t.farmerName,
             t.cropName,
-            t.quantityKg.toStringAsFixed(2),
+            exportQuantity(t.quantityKg, t.unit),
             t.amount.toStringAsFixed(2),
             _dateFmt.format(t.saleDate),
             t.referenceNo ?? '',
@@ -114,11 +125,13 @@ Future<pw.Document> buildSalesReportPdf(SalesReportData data) async {
       .toList();
   return _buildDocument(
     title: 'Sales Report',
-    subtitle:
-        'Total Revenue: PHP ${data.totalRevenue.toStringAsFixed(2)} — ${data.transactionCount} transactions',
+    subtitle: _withScope(
+      scopeText,
+      'Total Revenue: PHP ${data.totalRevenue.toStringAsFixed(2)} — ${data.transactionCount} transactions',
+    ),
     sections: [
       _table([
-        'Selling Type',
+        'Selling Channel',
         'Market Type',
         'Farmer',
         'Crop',
@@ -133,16 +146,17 @@ Future<pw.Document> buildSalesReportPdf(SalesReportData data) async {
 
 Future<pw.Document> buildHarvestReportPdf(
   HarvestReportData data,
-  InventoryReportData batches,
-) async {
+  InventoryReportData batches, {
+  String? scopeText,
+}) async {
   final harvestRows = data.harvests
       .map(
         (h) => [
             _dateFmt.format(h.harvestDate),
             h.farmerName,
             h.cropName,
-            h.quantityKg.toStringAsFixed(2),
-            h.isSynced ? 'Yes' : 'No',
+            exportQuantity(h.quantityKg, h.unit),
+            formatBatchNumber(h.batchNumber),
         ],
       )
       .toList();
@@ -151,25 +165,28 @@ Future<pw.Document> buildHarvestReportPdf(
         (b) => [
             b.farmerName,
             b.cropName,
-            b.batchNumber,
-            b.availableKg.toStringAsFixed(2),
-            b.reservedKg.toStringAsFixed(2),
-            b.soldKg.toStringAsFixed(2),
-            b.status,
+            formatBatchNumber(b.batchNumber),
+            exportQuantity(b.quantityKg, b.unit),
+            exportQuantity(b.availableKg, b.unit),
+            exportQuantity(b.reservedKg, b.unit),
+            exportQuantity(b.soldKg, b.unit),
+            batchStatusExportLabel(b.status),
         ],
       )
       .toList();
   return _buildDocument(
     title: 'Harvest Report',
-    subtitle:
-        'Total Yield: ${data.totalYieldKg.toStringAsFixed(2)} kg — ${data.harvestCount} harvests',
+    subtitle: _withScope(
+      scopeText,
+      'Total Yield: ${data.totalYieldKg.toStringAsFixed(2)} kg — ${data.harvestCount} harvests',
+    ),
     sections: [
       pw.Text(
         'Harvest Activity',
         style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
       ),
       pw.SizedBox(height: 6),
-      _table(['Date', 'Farmer', 'Crop', 'Qty (kg)', 'Synced'], harvestRows),
+      _table(['Date', 'Farmer', 'Crop', 'Qty (kg)', 'Batch #'], harvestRows),
       pw.SizedBox(height: 16),
       pw.Text(
         'Batches & Stock',
@@ -180,8 +197,9 @@ Future<pw.Document> buildHarvestReportPdf(
         'Farmer',
         'Crop',
         'Batch #',
+        'Harvested (kg)',
         'Available (kg)',
-        'Reserved (kg)',
+        'Committed (kg)',
         'Sold (kg)',
         'Status',
       ], batchRows),
@@ -189,7 +207,10 @@ Future<pw.Document> buildHarvestReportPdf(
   );
 }
 
-Future<pw.Document> buildExpenseReportPdf(ExpenseReportData data) async {
+Future<pw.Document> buildExpenseReportPdf(
+  ExpenseReportData data, {
+  String? scopeText,
+}) async {
   final rows = data.expenses
       .map(
         (e) => [
@@ -204,8 +225,10 @@ Future<pw.Document> buildExpenseReportPdf(ExpenseReportData data) async {
       .toList();
   return _buildDocument(
     title: 'Expense Report',
-    subtitle:
-        'Farmer-Funded Total: PHP ${data.totalFarmerFundedAmount.toStringAsFixed(2)} — ${data.totalEntryCount} entries',
+    subtitle: _withScope(
+      scopeText,
+      'Paid by Farmers: PHP ${data.totalFarmerFundedAmount.toStringAsFixed(2)} — ${data.totalEntryCount} entries',
+    ),
     sections: [
       _table([
         'Date',
@@ -219,7 +242,11 @@ Future<pw.Document> buildExpenseReportPdf(ExpenseReportData data) async {
   );
 }
 
-Future<pw.Document> buildLoanReportPdf(List<AdminLoanSummary> loans) async {
+Future<pw.Document> buildLoanReportPdf(
+  List<AdminLoanSummary> loans, {
+  String? scopeText,
+}) async {
+  final summary = LoanPeriodSummary.fromLoans(loans);
   final rows = loans
       .map(
         (l) => [
@@ -230,14 +257,18 @@ Future<pw.Document> buildLoanReportPdf(List<AdminLoanSummary> loans) async {
             l.totalValue.toStringAsFixed(2),
             l.amountPaid.toStringAsFixed(2),
             l.remainingBalance.toStringAsFixed(2),
-            l.status,
+            loanStatusExportLabel(l.status),
         ],
       )
       .toList();
   return _buildDocument(
     title: 'Loan Report',
-    subtitle:
-        '${loans.length} loans in this period (status-agnostic — a complete financial record)',
+    subtitle: _withScope(
+      scopeText,
+      '${loans.length} loans issued — Total PHP ${summary.totalIssued.toStringAsFixed(2)}, '
+      'Paid PHP ${summary.totalCollected.toStringAsFixed(2)}, '
+      'Balance PHP ${summary.totalOutstanding.toStringAsFixed(2)}',
+    ),
     sections: [
       _table([
         'Reference',
@@ -291,7 +322,10 @@ Future<pw.Document> buildMemberContributionReportPdf(
   );
 }
 
-Future<pw.Document> buildCoopStockReportPdf(CoopStockReportData data) async {
+Future<pw.Document> buildCoopStockReportPdf(
+  CoopStockReportData data, {
+  String? scopeText,
+}) async {
   final rows = data.items
       .map(
         (i) => [
@@ -305,7 +339,10 @@ Future<pw.Document> buildCoopStockReportPdf(CoopStockReportData data) async {
       .toList();
   return _buildDocument(
     title: 'Cooperative Stock Report',
-    subtitle: '${data.totalItems} items — ${data.lowStockCount} low stock',
+    subtitle: _withScope(
+      scopeText,
+      '${data.totalItems} items — ${data.lowStockCount} low stock',
+    ),
     sections: [
       _table(['Item', 'Category', 'On Hand', 'Unit', 'Low Stock'], rows),
     ],

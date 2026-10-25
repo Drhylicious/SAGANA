@@ -6,11 +6,16 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
+import '../../../data/models/price_record_model.dart';
 import '../../../data/repositories/farmer_market_rates_repository.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/price_display_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 
+/// One crop's reference price in one market: the current price, its price
+/// trend, the effective date and source, and the crop's price in the other
+/// market (tap it to switch the whole screen, trend included, to that market).
 class MarketRateDetailsScreen extends StatefulWidget {
   final FarmerMarketRateModel? rate;
 
@@ -23,41 +28,94 @@ class MarketRateDetailsScreen extends StatefulWidget {
 
 class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   final _ratesRepo = FarmerMarketRatesRepository();
+
+  // The market currently shown. Starts as the rate that was tapped; tapping the
+  // crop's price in another market switches it.
+  FarmerMarketRateModel? _rate;
+
+  // Every market this crop is priced in (the current one included), read once,
+  // so switching markets needs no second read.
+  List<FarmerMarketRateModel> _allRates = [];
   List<FarmerMarketRateModel> _otherRates = [];
+
+  List<PriceRecordModel> _trend = [];
+  bool _isTrendLoading = true;
+  int _trendRequest = 0;
+
   bool _isOnline = true;
 
   @override
   void initState() {
     super.initState();
+    _rate = widget.rate;
     _isOnline = ConnectivityService.instance.isOnline;
     ConnectivityService.instance.onConnectivityChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
-    if (widget.rate != null) _loadOtherRates(widget.rate!);
+    final rate = _rate;
+    if (rate != null) {
+      _loadOtherRates(rate);
+      _loadTrend(rate);
+    }
   }
 
   Future<void> _loadOtherRates(FarmerMarketRateModel rate) async {
     final rows = await _ratesRepo.fetchMarketRates(cropId: rate.cropId);
     if (!mounted) return;
+    _allRates = rows;
+    _syncOtherRates();
+  }
+
+  void _syncOtherRates() {
+    final current = _rate;
+    if (current == null) return;
     setState(() {
-      _otherRates =
-          rows.where((r) => r.priceType != rate.priceType).toList();
+      _otherRates = _allRates
+          .where((r) => r.priceType != current.priceType)
+          .toList();
     });
+  }
+
+  Future<void> _loadTrend(FarmerMarketRateModel rate) async {
+    final request = ++_trendRequest;
+    setState(() {
+      _isTrendLoading = true;
+      _trend = [];
+    });
+    final trend = await _ratesRepo.fetchTrend(rate.cropId, rate.priceType);
+    // A different market may have been picked while this one was loading.
+    if (!mounted || request != _trendRequest) return;
+    setState(() {
+      _trend = trend;
+      _isTrendLoading = false;
+    });
+  }
+
+  void _switchTo(FarmerMarketRateModel other) {
+    setState(() => _rate = other);
+    _syncOtherRates();
+    _loadTrend(other);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final rate = widget.rate;
+    final rate = _rate;
     return Scaffold(
-      backgroundColor: AppConstants.offWhite,
+      backgroundColor: context.saganaColors.scaffoldBackground,
       body: Stack(
         children: [
           if (rate != null) _buildHeroBackground(context) else const SizedBox(),
           Column(
             children: [
               SizedBox(height: 64 + MediaQuery.of(context).padding.top),
-              CachedDataNotice(screen: FarmerMarketRatesRepository.cacheScreen(cropId: rate?.cropId), isOnline: _isOnline, offlineMessage: l10n.farmerMarketRateOfflineBanner),
+              CachedDataNotice(
+                screen: FarmerMarketRatesRepository.cacheScreen(
+                  cropId: rate?.cropId,
+                ),
+                isOnline: _isOnline,
+                offlineMessage: l10n.farmerMarketRateOfflineBanner,
+              ),
               Expanded(
                 child: rate == null
                     ? _buildMissingState(context)
@@ -103,20 +161,22 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
 
   Widget _buildMissingState(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.storefront_outlined,
-                size: 40, color: AppConstants.outline),
+            Icon(Icons.storefront_outlined, size: 40, color: cs.outline),
             const SizedBox(height: 16),
             Text(
               l10n.farmerMarketRateNotLoaded,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                  fontSize: 13, color: AppConstants.onSurfaceVariant),
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 20),
             OutlinedButton(
@@ -131,6 +191,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
 
   Widget _buildDetails(BuildContext context, FarmerMarketRateModel rate) {
     final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final icon = FarmerCropModel.iconForCategory(rate.cropCategory);
 
     return SingleChildScrollView(
@@ -139,13 +200,10 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ─── Hero content (badge, icon, crop name) ─────────────────
-          // Lives directly in the green hero itself now, matching the
-          // reference layout, instead of being merged into a floating
-          // white card. Stays solid AppConstants.primaryGreen (not a
-          // gradient) so it exactly matches the fixed strip behind the
-          // top bar — a gradient here would reintroduce the scroll seam
-          // described in _buildHeroBackground's comment above, since the
-          // fixed strip can only ever show one flat color.
+          // Stays solid AppConstants.primaryGreen (not a gradient) so it
+          // exactly matches the fixed strip behind the top bar — a gradient
+          // here would reintroduce the scroll seam described in
+          // _buildHeroBackground's comment above.
           _buildHeroContent(context, rate, icon),
 
           Transform.translate(
@@ -157,30 +215,47 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 children: [
                   const SizedBox(height: 16),
 
-                  // ─── Pricing card ───────────────────────────────────
+                  // ─── Current price ──────────────────────────────────
                   _buildPricingCard(context, rate),
                   const SizedBox(height: 16),
 
-                  // ─── Details card (effective date, source) ─────────
+                  // ─── Price trend (this crop, this market) ───────────
+                  _buildTrendCard(context, rate),
+                  const SizedBox(height: 16),
+
+                  // ─── Effective date, source ─────────────────────────
                   _buildDetailsCard(context, rate),
 
                   if (_otherRates.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     _SectionLabel(
-                      text: l10n.farmerMarketRateOtherPricesFor(rate.cropName.toUpperCase()),
+                      text: l10n.farmerMarketRateOtherPricesFor(
+                        rate.cropName.toUpperCase(),
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    ..._otherRates.map((other) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _OtherPriceRow(rate: other),
-                        )),
+                    ..._otherRates.map(
+                      (other) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _OtherPriceRow(
+                          rate: other,
+                          onTap: () => _switchTo(other),
+                        ),
+                      ),
+                    ),
                   ],
 
                   const SizedBox(height: 20),
-                  _SectionLabel(text: l10n.farmerMarketRateAboutCrop(rate.cropName.toUpperCase())),
+                  _SectionLabel(
+                    text: l10n.farmerMarketRateAboutCrop(
+                      rate.cropName.toUpperCase(),
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  GlassCard(
+                  Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(16),
+                    decoration: flatCardDecoration(context),
                     child: Text(
                       rate.cropDescription?.trim().isNotEmpty == true
                           ? rate.cropDescription!
@@ -188,7 +263,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         height: 1.5,
-                        color: AppConstants.charcoal,
+                        color: cs.onSurface,
                       ),
                     ),
                   ),
@@ -199,18 +274,23 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: AppConstants.primaryGreen.withValues(alpha: 0.06),
-                      borderRadius:
-                          BorderRadius.circular(AppConstants.radiusLg),
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusLg,
+                      ),
                       border: Border.all(
-                        color:
-                            AppConstants.primaryGreen.withValues(alpha: 0.12),
+                        color: AppConstants.primaryGreen.withValues(
+                          alpha: 0.12,
+                        ),
                       ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline_rounded,
-                            color: AppConstants.primaryGreen, size: 18),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: AppConstants.primaryGreen,
+                          size: 18,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -220,28 +300,10 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                               fontStyle: FontStyle.italic,
                               fontWeight: FontWeight.w500,
                               height: 1.5,
-                              color: AppConstants.primaryGreen
-                                  .withValues(alpha: 0.9),
+                              color: AppConstants.primaryGreen.withValues(
+                                alpha: 0.9,
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.schedule_rounded,
-                            size: 14, color: AppConstants.outline),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.priceUpdatedPrefix(AppUtils.formatRelativeTime(rate.recordedAt, l10n)),
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppConstants.outline,
                           ),
                         ),
                       ],
@@ -258,9 +320,12 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
   }
 
   // ─── Hero content: badge + icon + crop name, living directly in the
-  // green hero (matches the reference's icon-and-title block inside the
-  // gradient header) instead of a separate floating card. ───────────────
-  Widget _buildHeroContent(BuildContext context, FarmerMarketRateModel rate, IconData icon) {
+  // green hero instead of a separate floating card. ───────────────────────
+  Widget _buildHeroContent(
+    BuildContext context,
+    FarmerMarketRateModel rate,
+    IconData icon,
+  ) {
     final l10n = AppLocalizations.of(context);
     final imageUrl = rate.cropImageUrl;
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
@@ -300,7 +365,9 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
@@ -342,9 +409,10 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
     );
   }
 
-  // ─── Pricing card: label, big price, trend pill ──────────────────────
+  // ─── Pricing card: label, big price, change since the previous entry ──
   Widget _buildPricingCard(BuildContext context, FarmerMarketRateModel rate) {
     final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final hasPreviousPrice = rate.price.previousPrice != null;
     // "Stable trend" means we compared against a previous price and it
     // didn't move. When there's no previous price at all, that's not the
@@ -352,27 +420,29 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
     final trendColor = !hasPreviousPrice
         ? AppConstants.outline
         : rate.isUp
-            ? AppConstants.primaryGreen
-            : rate.isDown
-                ? AppConstants.errorRed
-                : AppConstants.outline;
+        ? AppConstants.successGreen
+        : rate.isDown
+        ? AppConstants.errorRed
+        : AppConstants.outline;
     final trendIcon = !hasPreviousPrice
         ? Icons.fiber_new_rounded
         : rate.isUp
-            ? Icons.trending_up_rounded
-            : rate.isDown
-                ? Icons.trending_down_rounded
-                : Icons.trending_flat_rounded;
+        ? Icons.trending_up_rounded
+        : rate.isDown
+        ? Icons.trending_down_rounded
+        : Icons.trending_flat_rounded;
     final trendLabel = !hasPreviousPrice
         ? l10n.farmerMarketRateTrendNew
         : rate.isUp
-            ? l10n.farmerMarketRateTrendUp
-            : rate.isDown
-                ? l10n.farmerMarketRateTrendDown
-                : l10n.farmerMarketRateTrendStable;
+        ? l10n.farmerMarketRateTrendUp
+        : rate.isDown
+        ? l10n.farmerMarketRateTrendDown
+        : l10n.farmerMarketRateTrendStable;
 
-    return GlassCard(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
+      decoration: flatCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -381,7 +451,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppConstants.onSurfaceVariant,
+              color: cs.onSurfaceVariant,
               letterSpacing: 0.8,
             ),
           ),
@@ -395,7 +465,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
-                  color: AppConstants.charcoal,
+                  color: cs.onSurface,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -405,7 +475,7 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
             ],
@@ -426,22 +496,28 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
               children: [
                 Icon(trendIcon, size: 16, color: trendColor),
                 const SizedBox(width: 6),
-                Text(
-                  trendLabel,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: trendColor,
+                Flexible(
+                  child: Text(
+                    trendLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: trendColor,
+                    ),
                   ),
                 ),
                 if (hasPreviousPrice) ...[
                   const SizedBox(width: 6),
-                  Text(
-                    l10n.farmerMarketRateVsPrevious(rate.price.priceDifference!.abs().toStringAsFixed(2)),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: trendColor.withValues(alpha: 0.85),
+                  Flexible(
+                    child: Text(
+                      l10n.farmerMarketRateVsPrevious(
+                        rate.price.priceDifference!.abs().toStringAsFixed(2),
+                      ),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: trendColor.withValues(alpha: 0.85),
+                      ),
                     ),
                   ),
                 ],
@@ -453,11 +529,73 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
     );
   }
 
+  // ─── Trend card: this crop's price history in THIS market only ─────────
+  Widget _buildTrendCard(BuildContext context, FarmerMarketRateModel rate) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final marketColor = MarketTypeDisplay.color(context, rate.priceType);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: flatCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.farmerMarketRateTrendTitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurfaceVariant,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: marketColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                child: Text(
+                  MarketTypeDisplay.label(l10n, rate.priceType),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: marketColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          PriceTrendPanel(
+            trend: _trend,
+            isLoading: _isTrendLoading,
+            current: rate.price,
+            // The current price is the big figure above, so the third figure
+            // here is the average, and nothing is repeated when there is no
+            // history to chart yet.
+            showAverage: true,
+            showStatsWithoutHistory: false,
+          ),
+        ],
+      ),
+    );
+  }
+
   // ─── Details card: effective date + source, in matching icon-tile rows
   Widget _buildDetailsCard(BuildContext context, FarmerMarketRateModel rate) {
     final l10n = AppLocalizations.of(context);
-    return GlassCard(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: flatCardDecoration(context),
       child: Column(
         children: [
           _DetailRow(
@@ -467,7 +605,9 @@ class _MarketRateDetailsScreenState extends State<MarketRateDetailsScreen> {
           ),
           Divider(
             height: 1,
-            color: AppConstants.outline.withValues(alpha: 0.15),
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.15),
           ),
           _DetailRow(
             icon: Icons.description_outlined,
@@ -499,12 +639,14 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          text,
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            color: AppConstants.outline,
-            letterSpacing: 1.2,
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: Theme.of(context).colorScheme.outline,
+              letterSpacing: 1.2,
+            ),
           ),
         ),
       ],
@@ -517,11 +659,15 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _DetailRow(
-      {required this.icon, required this.label, required this.value});
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -545,7 +691,7 @@ class _DetailRow extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppConstants.onSurfaceVariant,
+                    color: cs.onSurfaceVariant,
                     letterSpacing: 0.6,
                   ),
                 ),
@@ -555,7 +701,7 @@ class _DetailRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppConstants.charcoal,
+                    color: cs.onSurface,
                   ),
                 ),
               ],
@@ -567,43 +713,53 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
+/// The crop's price in another market. Tapping it switches this screen to that
+/// market.
 class _OtherPriceRow extends StatelessWidget {
   final FarmerMarketRateModel rate;
-  const _OtherPriceRow({required this.rate});
+  final VoidCallback onTap;
+  const _OtherPriceRow({required this.rate, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final color = MarketTypeDisplay.color(context, rate.priceType);
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              MarketTypeDisplay.label(l10n, rate.priceType),
-              style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: color,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: flatCardDecoration(context),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                MarketTypeDisplay.label(l10n, rate.priceType),
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ),
-          ),
-          const Spacer(),
-          Text(
-            rate.formattedPrice,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.primaryGreen,
+            const Spacer(),
+            Text(
+              rate.formattedPrice,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.primaryGreen,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, color: cs.outline, size: 20),
+          ],
+        ),
       ),
     );
   }

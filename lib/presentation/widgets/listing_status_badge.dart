@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../../data/models/marketplace_listing_model.dart';
 
 /// What a Marketplace listing is, in the words Farmers and Managers read.
@@ -156,6 +157,20 @@ Color listingFilterColor(BuildContext context, ListingFilter filter) {
   }
 }
 
+/// The thin accent bar on a listing card. Only the two states that call for
+/// attention get one: Pending Approval (amber) and Disapproved (red). Available
+/// and Sold Out cards have none, so the colour always means the same thing.
+/// Same colours as the badge, so a card can never contradict its own pill.
+Color? listingAccentColor(BuildContext context, ListingState? state) {
+  switch (state) {
+    case ListingState.pendingApproval:
+    case ListingState.disapproved:
+      return listingStateColor(context, state!);
+    default:
+      return null;
+  }
+}
+
 /// Status pill used on every Marketplace listing card, Manager and Farmer.
 class ListingStatusBadge extends StatelessWidget {
   final String label;
@@ -247,6 +262,78 @@ class SoldOutGrey extends StatelessWidget {
     return Opacity(
       opacity: 0.6,
       child: ColorFiltered(colorFilter: _grayscale, child: child),
+    );
+  }
+}
+
+/// A listing's state as a banner: the same badge as every listing card, with
+/// the quantity behind it. Used at the top of the Manager's Listing Review so
+/// that screen can never disagree with All Listings: both decide the state
+/// from the stored status and the quantity actually left ([listingStateOf]).
+class ListingStatusHeader extends StatelessWidget {
+  final String status;
+  final double remainingKg;
+  final double volumeKg;
+
+  /// The unit remainingKg and volumeKg are measured in.
+  final String unit;
+
+  const ListingStatusHeader({
+    super.key,
+    required this.status,
+    required this.remainingKg,
+    required this.volumeKg,
+    this.unit = kDefaultUnit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final state = listingStateOf(status: status, remainingKg: remainingKg);
+    final color = state == null ? cs.outline : listingStateColor(context, state);
+
+    // Stock left only means something once the listing has been approved.
+    final showLeft =
+        state == ListingState.available || state == ListingState.soldOut;
+    final detail = showLeft
+        ? l10n.listingReviewKgLeft(
+            formatQuantity(remainingKg),
+            formatQuantityUnit(volumeKg, unit),
+          )
+        : l10n.listingReviewKgListed(formatQuantityUnit(volumeKg, unit));
+
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: color.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        children: [
+          Flexible(
+            child: ListingStatusBadge.forListing(
+              context,
+              status: status,
+              remainingKg: remainingKg,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              detail,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

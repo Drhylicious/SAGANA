@@ -8,6 +8,7 @@ import 'admin_activity_repository.dart';
 import '../services/offline_actions.dart';
 import '../models/admin_log_message.dart';
 import '../models/activity_text.dart';
+import '../../core/utils/person_name.dart';
 
 class BuyerProfileRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -19,7 +20,9 @@ class BuyerProfileRepository {
         screen: 'buyer_profile_info',
         fetch: () => _client
             .from('user_information')
-            .select('full_name, phone_number, profile_photo_url, contact_email')
+            // All columns, so the name parts come with it (an older database
+            // without them still loads).
+            .select()
             .eq('user_id', _userId)
             .limit(1),
       );
@@ -90,10 +93,15 @@ class BuyerProfileRepository {
       return BuyerProfileModel(
         userId: _userId,
         fullName: info?['full_name'] as String? ?? 'Buyer',
+        surname: info?['surname'] as String?,
+        firstName: info?['first_name'] as String?,
+        middleInitial: info?['middle_initial'] as String?,
+        suffix: info?['suffix'] as String?,
         phoneNumber: info?['phone_number'] as String?,
         profilePhotoUrl: info?['profile_photo_url'] as String?,
         email: _client.auth.currentUser?.email ?? '',
         contactEmail: info?['contact_email'] as String?,
+        verifiedContactEmail: info?['verified_contact_email'] as String?,
         memberSince: memberSince,
         totalOrders: totalOrders,
         completedOrders: completedOrders,
@@ -113,7 +121,8 @@ class BuyerProfileRepository {
 
   /// Saves now, or keeps the change on this device when offline.
   Future<SaveOutcome> updateProfile({
-    required String fullName,
+    // The name in parts. Null leaves the name as it is.
+    NameParts? name,
     String? phoneNumber,
     String? photoUrl,
     String? contactEmail,
@@ -123,7 +132,7 @@ class BuyerProfileRepository {
     return OfflineActions.run(
       kind: 'buyer_profile',
       payload: {
-        'fullName': fullName,
+        'name': name?.toColumns(),
         'phoneNumber': phoneNumber,
         'photoUrl': photoUrl,
         'contactEmail': contactEmail,
@@ -132,7 +141,7 @@ class BuyerProfileRepository {
       },
       queueWhenOffline: false,
       online: () => updateProfileOnline(
-        fullName: fullName,
+        name: name,
         phoneNumber: phoneNumber,
         photoUrl: photoUrl,
         contactEmail: contactEmail,
@@ -144,7 +153,10 @@ class BuyerProfileRepository {
 
   /// The server write behind updateProfile(). Also run by offline replay.
   Future<void> updateProfileOnline({
-    required String fullName,
+    NameParts? name,
+    // A one-line name queued by an earlier version of the app. Screens now send
+    // [name].
+    String? fullName,
     String? phoneNumber,
     String? photoUrl,
     String? contactEmail,
@@ -181,14 +193,20 @@ class BuyerProfileRepository {
       );
     }
 
-    await _client
-        .from('user_information')
-        .update({
-          'full_name': fullName.trim(),
-          if (phoneNumber != null) 'phone_number': phoneNumber.trim(),
-          if (photoUrl != null) 'profile_photo_url': photoUrl,
-        })
-        .eq('user_id', _userId);
+    final infoUpdate = <String, dynamic>{
+      // The parts; the database rebuilds full_name from them.
+      if (name != null) ...name.toColumns()
+      else if (fullName != null) 'full_name': fullName.trim(),
+      if (phoneNumber != null) 'phone_number': phoneNumber.trim(),
+      if (photoUrl != null) 'profile_photo_url': photoUrl,
+    };
+    // An email-only save (Verify Email) has nothing to write here.
+    if (infoUpdate.isNotEmpty) {
+      await _client
+          .from('user_information')
+          .update(infoUpdate)
+          .eq('user_id', _userId);
+    }
 
     if (contactEmail != null) {
       try {
@@ -218,7 +236,7 @@ class BuyerProfileRepository {
     await _logProfileActivity(
       beforeInfo: beforeInfo,
       beforeBuyer: beforeBuyer,
-      newName: fullName,
+      newName: name?.fullName ?? fullName,
       newPhone: phoneNumber,
       newPhotoUrl: photoUrl,
       newContactEmail: contactEmail,
@@ -234,7 +252,7 @@ class BuyerProfileRepository {
   Future<void> _logProfileActivity({
     required Map<String, dynamic>? beforeInfo,
     required Map<String, dynamic>? beforeBuyer,
-    required String newName,
+    required String? newName,
     String? newPhone,
     String? newPhotoUrl,
     String? newContactEmail,
@@ -243,8 +261,10 @@ class BuyerProfileRepository {
   }) async {
     final changes = <String>[];
     if (beforeInfo != null) {
-      if ((beforeInfo['full_name'] as String?) != newName.trim())
+      if (newName != null &&
+          (beforeInfo['full_name'] as String?) != newName.trim()) {
         changes.add('name');
+      }
       if (newPhone != null &&
           (beforeInfo['phone_number'] as String?) != newPhone.trim()) {
         changes.add('phone');

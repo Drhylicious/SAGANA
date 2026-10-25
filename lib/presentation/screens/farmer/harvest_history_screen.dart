@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/crop_repository.dart';
@@ -90,7 +91,8 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
     });
   }
 
-  // Calendar-year-to-date kg total, computed from the same already-fetched
+  // Calendar-year-to-date KG total (harvests measured in another unit are not
+  // added to it: units are never mixed), computed from the same already-fetched
   // _allHarvests every other stat here uses — replaces the previous rolling
   // 30-day figure, which was hard to explain (an arbitrary window tied to
   // nothing in the business) and didn't pair naturally with "Total Harvest"
@@ -98,7 +100,7 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
   double get _thisYearYieldKg {
     final year = DateTime.now().year;
     return _allHarvests
-        .where((h) => h.harvestDate.year == year)
+        .where((h) => h.harvestDate.year == year && isKg(h.unit))
         .fold(0.0, (sum, h) => sum + h.quantityKg);
   }
 
@@ -267,9 +269,7 @@ class _HistoryStatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final yieldLabel = thisYearYieldKg % 1 == 0
-        ? thisYearYieldKg.toStringAsFixed(0)
-        : thisYearYieldKg.toStringAsFixed(1);
+    final yieldLabel = formatQuantity(thisYearYieldKg);
     final hasUnsynced = unsyncedCount > 0;
 
     return Row(
@@ -356,9 +356,12 @@ class _HarvestDetailsSheet extends StatelessWidget {
                 : _imagePlaceholder(),
           ),
           const SizedBox(height: 14),
-          _DetailRow(label: 'Quantity', value: '${harvest.quantityKg.toStringAsFixed(0)} kg'),
+          _DetailRow(
+            label: 'Quantity',
+            value: formatQuantityUnit(harvest.quantityKg, harvest.unit),
+          ),
           _DetailRow(label: 'Category', value: harvest.cropCategory),
-          _DetailRow(label: 'Batch Number', value: harvest.batchNumber ?? '—'),
+          _DetailRow(label: 'Batch Number', value: harvest.displayBatch),
           _DetailRow(label: 'Storage Location', value: harvest.storageLocation ?? '—'),
           _DetailRow(
             label: 'Harvest Date',

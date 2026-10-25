@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/input_validation_utils.dart';
 import '../models/admin_log_message.dart';
+import '../services/hive_service.dart';
 import 'admin_activity_repository.dart';
 
 /// What happened when a unit was added.
@@ -65,11 +66,17 @@ class UnitRepository {
           .select('name')
           .single();
       final added = row['name'] as String;
-      AdminActivityRepository().log(
-        module: 'inventory',
-        actionType: 'unit_added',
-        message: AdminLogMessage('adminLogUnitAdded', {'name': added}),
-      );
+      // The Manager's activity log is for staff actions. A Farmer adding a
+      // unit from Record New Harvest is not logged there (and could not write
+      // to it).
+      final role = HiveService.getUserRole();
+      if (role == 'admin' || role == 'officer') {
+        AdminActivityRepository().log(
+          module: 'inventory',
+          actionType: 'unit_added',
+          message: AdminLogMessage('adminLogUnitAdded', {'name': added}),
+        );
+      }
       return AddUnitResult(AddUnitOutcome.added, added);
     } on PostgrestException catch (e) {
       if (e.code == '23505') {

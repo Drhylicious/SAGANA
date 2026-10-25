@@ -4,15 +4,18 @@ import 'package:flutter/material.dart';
 
 // Declaration order is the display order of the filter chips
 // (ExpensePeriod.values, used directly by _PeriodFilter) — All Time first.
-enum ExpensePeriod { allTime, thisMonth, thisSeason, thisYear }
+// "This Quarter" is the calendar quarter, the same period the Manager's
+// reports and Farmer Analytics use, so a farmer's expense total matches what
+// the Manager sees for the same period.
+enum ExpensePeriod { allTime, thisMonth, thisQuarter, thisYear }
 
 extension ExpensePeriodExt on ExpensePeriod {
   String get label {
     switch (this) {
       case ExpensePeriod.thisMonth:
         return 'This Month';
-      case ExpensePeriod.thisSeason:
-        return 'This Season';
+      case ExpensePeriod.thisQuarter:
+        return 'This Quarter';
       case ExpensePeriod.thisYear:
         return 'This Year';
       case ExpensePeriod.allTime:
@@ -25,8 +28,8 @@ extension ExpensePeriodExt on ExpensePeriod {
     switch (this) {
       case ExpensePeriod.thisMonth:
         return DateTime(now.year, now.month, 1);
-      case ExpensePeriod.thisSeason:
-        return now.subtract(const Duration(days: 90));
+      case ExpensePeriod.thisQuarter:
+        return DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1, 1);
       case ExpensePeriod.thisYear:
         return DateTime(now.year, 1, 1);
       case ExpensePeriod.allTime:

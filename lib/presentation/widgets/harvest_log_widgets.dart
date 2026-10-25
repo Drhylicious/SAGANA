@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../../data/models/harvest_model.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -275,12 +276,26 @@ class HarvestLogEntry extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 3),
+                // The quantity is the first thing a farmer looks for in a log
+                // row, so it leads, in the brand colour, with its own unit.
                 Text(
-                  harvest.batchNumber != null
-                      ? 'Batch #${harvest.batchNumber} • ${harvest.quantityKg.toStringAsFixed(0)}kg'
-                      : '${harvest.quantityKg.toStringAsFixed(0)}kg',
+                  formatQuantityUnit(harvest.quantityKg, harvest.unit),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.primaryGreen,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                // The batch number is long (#BATCH-POTATO-261025-A0001), so it
+                // gets its own line and shortens with an ellipsis instead of
+                // pushing the status badge off the row.
+                Text(
+                  harvest.displayBatch,
+                  maxLines: 1,
                   style: GoogleFonts.inter(
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                     color: cs.onSurfaceVariant,
                   ),
                   overflow: TextOverflow.ellipsis,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/listing_repository.dart';
@@ -379,9 +380,9 @@ class _SummaryCard extends StatelessWidget {
 
           // Full recap of what was entered/selected in Create Listing, so
           // the farmer can verify the submission before moving on.
-          _SummaryRow(label: 'Quantity', value: '${listing.volumeKg.toStringAsFixed(0)} kg'),
+          _SummaryRow(label: 'Quantity', value: formatQuantityUnit(listing.volumeKg, listing.unit)),
           const SizedBox(height: 12),
-          _SummaryRow(label: 'Price per Unit', value: '₱${listing.pricePerKg.toStringAsFixed(2)}/kg'),
+          _SummaryRow(label: 'Price per Unit', value: formatPricePerUnit(listing.pricePerKg, listing.unit)),
           if (marketType != null) ...[
             const SizedBox(height: 12),
             _SummaryRow(label: 'Market Type', value: marketTypeLabelFor(marketType)),
@@ -392,7 +393,7 @@ class _SummaryCard extends StatelessWidget {
           ],
           if (batchNumber != null && batchNumber!.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _SummaryRow(label: 'Batch Number', value: batchNumber!),
+            _SummaryRow(label: 'Batch Number', value: formatBatchNumber(batchNumber)),
           ],
           if (listing.description != null && listing.description!.isNotEmpty) ...[
             const SizedBox(height: 16),

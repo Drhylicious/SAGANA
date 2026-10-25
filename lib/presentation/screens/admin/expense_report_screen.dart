@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,14 +5,14 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
-import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/trend_chart_painter.dart';
+import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/report_ui_widgets.dart';
 import '../../../core/utils/member_access.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -23,10 +22,10 @@ import '../../../data/services/connectivity_service.dart';
 /// Expense Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/expenses
 ///
-/// Subsidized vs. Farmer-Funded split per the agreed simplification — the
-/// schema only supports a boolean is_subsidy flag, not a funding-source
-/// breakdown. Subsidized entries carry no peso total by design (see
-/// ExpenseReportData's doc comment), so only a count is shown for them.
+/// Subsidized vs. farmer-paid split — the schema only supports a boolean
+/// is_subsidy flag, not a funding-source breakdown. Subsidized entries carry
+/// no peso total by design (see ExpenseReportData's doc comment), so only a
+/// count is shown for them.
 class ExpenseReportScreen extends StatefulWidget {
   const ExpenseReportScreen({super.key});
 
@@ -42,8 +41,20 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   bool _isLoading = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
   String _searchQuery = '';
+  String? _categoryFilter; // null = All
   ExpenseReportData _data = ExpenseReportData.empty();
   List<double> _spendingTrend = [];
+
+  static final _money0 = NumberFormat.currency(
+    locale: 'en_PH',
+    symbol: '₱',
+    decimalDigits: 0,
+  );
+  static final _money2 = NumberFormat.currency(
+    locale: 'en_PH',
+    symbol: '₱',
+    decimalDigits: 2,
+  );
 
   @override
   void initState() {
@@ -73,6 +84,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     if (!mounted) return;
     setState(() {
       _data = data;
+      // A category that has no entries in the new period no longer has a chip.
+      if (_categoryFilter != null &&
+          !data.categoryBreakdown.any((c) => c.category == _categoryFilter)) {
+        _categoryFilter = null;
+      }
       _isLoading = false;
     });
   }
@@ -82,27 +98,18 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     _load();
   }
 
-  /// Month abbreviations for fetchExpenseTrend()'s trailing window — safe
-  /// to compute client-side, since that method always returns a fixed
-  /// "last N months ending at the current month" window, independent of
-  /// the on-screen period filter.
-  List<String> _trailingMonthLabels(int count) {
-    final now = DateTime.now();
-    return List.generate(count, (i) {
-      final offset = count - 1 - i;
-      final date = DateTime(now.year, now.month - offset, 1);
-      return DateFormat('MMM').format(date);
-    });
-  }
-
   List<ExpenseReportRow> get _filteredExpenses {
-    if (_searchQuery.isEmpty) return _data.expenses;
+    var list = _categoryFilter == null
+        ? _data.expenses
+        : _data.expenses.where((e) => e.category == _categoryFilter).toList();
+    if (_searchQuery.isEmpty) return list;
     final q = _searchQuery.toLowerCase();
-    return _data.expenses
+    return list
         .where(
           (e) =>
-            e.farmerName.toLowerCase().contains(q) ||
-            e.category.toLowerCase().contains(q) ||
+              e.farmerName.toLowerCase().contains(q) ||
+              e.category.toLowerCase().contains(q) ||
+              e.name.toLowerCase().contains(q) ||
               e.description.toLowerCase().contains(q),
         )
         .toList();
@@ -112,13 +119,26 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          _buildTopBar(context, l10n, cs, sagana),
+          SubPageTopBar(
+            title: l10n.reportsExpenseReport,
+            onBack: () => context.pop(),
+            trailing: IconButton(
+              icon: Icon(Icons.file_download_outlined, color: cs.primary),
+              onPressed: () => context.push(
+                AppRoutes.exportCenter,
+                extra: ExportCenterArgs(
+                  preselectedModule: ReportModuleType.expense,
+                  period: _period,
+                ),
+              ),
+              tooltip: l10n.reportsExportCenter,
+            ),
+          ),
           CachedDataNotice(
             screen: AdminReportsRepository.expenseCacheScreen(_period),
             isOnline: _isOnline,
@@ -135,21 +155,26 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                   32,
                 ),
                 children: [
-                  _buildPeriodChips(l10n, cs),
+                  ReportPeriodFilter(period: _period, onSelected: _setPeriod),
                   const SizedBox(height: AppConstants.spacingGutter),
                   if (_isLoading)
                     const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 60),
-                      child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: SkeletonList(),
                     )
                   else ...[
-                    _buildOverviewCard(context, l10n, cs, sagana),
+                    _buildOverviewCard(l10n),
                     const SizedBox(height: AppConstants.spacingSectionV),
-                    _buildCategoryBreakdown(context, l10n, cs, sagana),
+                    _buildCategoryBreakdown(l10n),
+                    if (_data.categoryBreakdown.isNotEmpty)
+                      const SizedBox(height: AppConstants.spacingSectionV),
+                    ReportTrendCard(
+                      title: l10n.reportsSpendingTrend,
+                      values: _spendingTrend,
+                      valueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
+                    ),
                     const SizedBox(height: AppConstants.spacingSectionV),
-                    _buildTrendChart(context, l10n, cs, sagana),
-                    const SizedBox(height: AppConstants.spacingSectionV),
-                    _buildExpensesSection(context, l10n, cs, sagana),
+                    _buildExpensesSection(context, l10n, cs),
                   ],
                 ],
               ),
@@ -160,286 +185,148 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return SubPageTopBar(title: l10n.reportsExpenseReport, onBack: () => context.pop(), trailing: IconButton( icon: Icon(Icons.file_download_outlined, color: cs.primary), onPressed: () => context.push( AppRoutes.exportCenter, extra: ExportCenterArgs( preselectedModule: ReportModuleType.expense, period: _period, ), ), tooltip: l10n.reportsExportCenter, ));
-  }
-
-  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: reportPeriodChipOrder.map((p) {
-          final active = _period == p;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(
-                reportPeriodLabel(l10n, p),
-                style: GoogleFonts.inter(fontSize: 12),
-              ),
-              selected: active,
-              onSelected: (_) => _setPeriod(p),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(
-                color: active ? Colors.white : cs.onSurface,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  /// Header + KPI cards together in one bordered, padded card — matching
-  /// the breathing room Harvest/Loan/Member Patronage's ReportHeroCard-
-  /// based headers already have, rather than a bare header row sitting
-  /// directly on the page background with only a small gap to the cards.
-  Widget _buildOverviewCard(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingGutter),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
+  Widget _buildOverviewCard(AppLocalizations l10n) {
+    // The peso total gets a full-width tile, because it is the headline figure
+    // and its label is long. The two counts share the row below it. Each row
+    // is as tall as its content (no fixed height), so nothing is cut off on a
+    // narrow phone and there is no empty space on a wide one.
+    return ReportSectionCard(
+      title: l10n.reportsExpenseOverview,
+      icon: Icons.account_balance_wallet_rounded,
+      subtitle: l10n.rptExpenseNote,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ReportSectionHeader(
-            icon: Icons.account_balance_wallet_rounded,
-            title: l10n.reportsExpenseOverview,
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          _buildSummaryStats(context, l10n, cs, sagana),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryStats(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 0,
-    );
-    // A fixed absolute height, NOT a GridView childAspectRatio — aspect
-    // ratio ties cell height to cell width, but this card's content
-    // (icon badge + up-to-2-line label + value) needs roughly the same
-    // height regardless of how narrow the device is. On a narrow phone a
-    // 3-column aspect-ratio cell shrinks its height right when a 2-line
-    // label like "Farmer-Funded Total" needs MORE height, causing a
-    // bottom overflow. A fixed height sidesteps that mismatch entirely.
-    return SizedBox(
-      height: 140,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: ReportIconStatCard(
-              icon: Icons.payments_rounded,
-              label: l10n.reportsFarmerFundedTotal,
-              value: currency.format(_data.totalFarmerFundedAmount),
-              accent: AppConstants.primaryGreen,
-            ),
-          ),
-          const SizedBox(width: AppConstants.spacingSm),
-          Expanded(
-            child: ReportIconStatCard(
-              icon: Icons.volunteer_activism_rounded,
-              label: l10n.reportsSubsidizedItems,
-              value: '${_data.subsidizedCount}',
-              accent: AppConstants.buyerBlue,
-            ),
-          ),
-          const SizedBox(width: AppConstants.spacingSm),
-          Expanded(
-            child: ReportIconStatCard(
-              icon: Icons.receipt_long_rounded,
-              label: l10n.reportsTotalEntries,
-              value: '${_data.totalEntryCount}',
-              accent: AppConstants.amber,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryBreakdown(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    if (_data.categoryBreakdown.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.reportsExpensesByCategory,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: AppConstants.spacingMd),
-          ..._data.categoryBreakdown.map((c) {
-            final currency = NumberFormat.currency(
-              locale: 'en_PH',
-              symbol: '₱',
-              decimalDigits: 0,
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        categoryIcon(c.category),
-                        size: 14,
-                        color: categoryColor(c.category),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          c.category,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ),
-                      if (c.hasSubsidy)
-                        Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppConstants.buyerBlue.withValues(
-                              alpha: 0.12,
-                            ),
-                            borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull,
-                            ),
-                          ),
-                          child: Text(
-                            l10n.reportsSubsidizedTag,
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              color: AppConstants.buyerBlue,
-                            ),
-                          ),
-                        ),
-                      Text(
-                        currency.format(c.total),
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          color: cs.onSurface,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                      AppConstants.radiusFull,
-                    ),
-                    child: LinearProgressIndicator(
-                      value: c.percentOfMax,
-                      minHeight: 6,
-                      backgroundColor: cs.outline.withValues(alpha: 0.12),
-                      valueColor: AlwaysStoppedAnimation(
-                        categoryColor(c.category),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrendChart(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.reportsSpendingTrend,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
-            ),
+          _kpiTile(
+            icon: Icons.payments_rounded,
+            accent: AppConstants.primaryGreen,
+            label: l10n.rptPaidByFarmers,
+            value: _money0.format(_data.totalFarmerFundedAmount),
+            large: true,
           ),
           const SizedBox(height: AppConstants.spacingSm),
-          SizedBox(
-            height: 120,
-            child: _spendingTrend.length < 2
-                ? Center(
-                    child: Text(
-                      l10n.reportsNotEnoughTrendData,
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
-                    ),
-                  )
-                : CustomPaint(
-                    size: const Size(double.infinity, 120),
-                    painter: TrendChartPainter(
-                      values: _spendingTrend,
-                      lineColor: cs.primary,
-                      gradientColor: cs.primary,
-                      xLabels: _trailingMonthLabels(_spendingTrend.length),
-                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
-                    ),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _kpiTile(
+                    icon: Icons.volunteer_activism_rounded,
+                    accent: AppConstants.buyerBlue,
+                    label: l10n.rptSubsidizedEntries,
+                    value: '${_data.subsidizedCount}',
                   ),
+                ),
+                const SizedBox(width: AppConstants.spacingSm),
+                Expanded(
+                  child: _kpiTile(
+                    icon: Icons.receipt_long_rounded,
+                    accent: AppConstants.amber,
+                    label: l10n.reportsTotalEntries,
+                    value: '${_data.totalEntryCount}',
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// A compact KPI tile: icon badge on the left, label above the value.
+  Widget _kpiTile({
+    required IconData icon,
+    required Color accent,
+    required String label,
+    required String value,
+    bool large = false,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppConstants.spacingMd,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+            ),
+            child: Icon(icon, size: 16, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800,
+                    fontSize: large ? 20 : 17,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryBreakdown(AppLocalizations l10n) {
+    if (_data.categoryBreakdown.isEmpty) return const SizedBox.shrink();
+    final total = _data.totalFarmerFundedAmount;
+
+    return ReportSectionCard(
+      title: l10n.reportsExpensesByCategory,
+      icon: Icons.pie_chart_rounded,
+      child: Column(
+        children: _data.categoryBreakdown.map((c) {
+          final share = total > 0 ? c.total / total * 100 : null;
+          return ReportBarRow(
+            label: c.category,
+            valueText: _money0.format(c.total),
+            fraction: c.percentOfMax,
+            color: categoryColor(c.category),
+            leading: Icon(
+              categoryIcon(c.category),
+              size: 14,
+              color: categoryColor(c.category),
+            ),
+            tag: c.hasSubsidy
+                ? ReportStatusPill(
+                    label: l10n.reportsSubsidizedTag,
+                    color: AppConstants.buyerBlue,
+                  )
+                : null,
+            caption: share == null
+                ? null
+                : l10n.rptShareOfTotal(share.toStringAsFixed(0)),
+          );
+        }).toList(),
       ),
     );
   }
@@ -448,51 +335,60 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
-    SaganaColors sagana,
   ) {
     final filtered = _filteredExpenses;
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 2,
-    );
+    final categoryOptions = <ReportFilterOption<String?>>[
+      ReportFilterOption<String?>(null, l10n.reportsAll),
+      for (final c in _data.categoryBreakdown)
+        ReportFilterOption<String?>(c.category, c.category),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.reportsExpenseEntries,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-            color: cs.onSurface,
-          ),
-        ),
-        const SizedBox(height: AppConstants.spacingSm),
-        if (_data.expenses.isNotEmpty)
-          TextField(
-            controller: _searchController,
-            onChanged: (v) => setState(() => _searchQuery = v),
-            decoration: InputDecoration(
-              hintText: l10n.reportsSearchExpenses,
-              hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: cs.outline,
-                size: 20,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.reportsExpenseEntries,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
               ),
             ),
-            style: GoogleFonts.inter(fontSize: 13, color: cs.onSurface),
-          ),
+            if (_data.expenses.isNotEmpty)
+              Text(
+                l10n.rptShowingCount(filtered.length, _data.expenses.length),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
         const SizedBox(height: AppConstants.spacingSm),
+        if (_data.expenses.isNotEmpty) ...[
+          ReportSearchField(
+            controller: _searchController,
+            hint: l10n.reportsSearchExpenses,
+            onChanged: (v) => setState(() => _searchQuery = v),
+          ),
+          const SizedBox(height: AppConstants.spacingSm),
+          ReportFilterChips<String?>(
+            options: categoryOptions,
+            selected: _categoryFilter,
+            onSelected: (v) => setState(() => _categoryFilter = v),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+        ],
         if (_data.expenses.isEmpty)
           ReportEmptyState(message: l10n.reportsNoExpensesRecorded)
         else if (filtered.isEmpty)
-          ReportEmptyState(message: l10n.reportsNoSearchResults)
+          ReportEmptyState(message: l10n.rptNoMatches)
         else
-          ...filtered.map(
-            (e) => _buildExpenseRow(context, e, currency, l10n, cs, sagana),
-          ),
+          ...filtered.map((e) => _buildExpenseRow(context, e, l10n, cs)),
       ],
     );
   }
@@ -500,106 +396,77 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   Widget _buildExpenseRow(
     BuildContext context,
     ExpenseReportRow expense,
-    NumberFormat currency,
     AppLocalizations l10n,
     ColorScheme cs,
-    SaganaColors sagana,
   ) {
-    return GestureDetector(
-      onTap: membersAccessAllowed ? () => pushFarmerDetails(context, expense.farmerId) : null,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-        padding: const EdgeInsets.all(AppConstants.spacingMd),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: categoryBgColor(expense.category),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                categoryIcon(expense.category),
-                size: 16,
-                color: categoryColor(expense.category),
-              ),
+    // Tapping the row opens the expense's details for everyone; the Manager
+    // can go on to the farmer's profile from there.
+    return ReportRecordCard(
+      onTap: () => _showExpenseDetail(context, expense, l10n),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: categoryBgColor(expense.category),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: AppConstants.spacingMd),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    expense.description,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: cs.onSurface,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '${expense.farmerName} • ${DateFormat('MMM d, yyyy').format(expense.expenseDate)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+            child: Icon(
+              categoryIcon(expense.category),
+              size: 17,
+              color: categoryColor(expense.category),
             ),
-            expense.isSubsidy
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.buyerBlue.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      l10n.reportsSubsidizedTag,
-                      style: GoogleFonts.poppins(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: AppConstants.buyerBlue,
-                      ),
-                    ),
-                  )
-                : Text(
-                    currency.format(expense.amount),
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: cs.onSurface,
-                    ),
+          ),
+          const SizedBox(width: AppConstants.spacingMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expense.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
                   ),
-            const SizedBox(width: 4),
-            // Separate tap target from the row's own onTap (which goes to
-            // Farmer Details) — this opens a per-transaction detail
-            // instead, closing the gap where an admin could see a farmer's
-            // full profile from this row but not this specific expense's
-            // own details.
-            GestureDetector(
-              onTap: () => _showExpenseDetail(context, expense, currency),
-              child: Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: cs.onSurfaceVariant,
-              ),
+                ),
+                Text(
+                  '${expense.category} • ${expense.farmerName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
                   ),
-          ],
-        ),
+                ),
+                Text(
+                  DateFormat('MMM d, yyyy').format(expense.expenseDate),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          expense.isSubsidy
+              ? ReportStatusPill(
+                  label: l10n.reportsSubsidizedTag,
+                  color: AppConstants.buyerBlue,
+                )
+              : Text(
+                  _money2.format(expense.amount),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
+                ),
+        ],
       ),
     );
   }
@@ -607,80 +474,50 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
   void _showExpenseDetail(
     BuildContext context,
     ExpenseReportRow expense,
-    NumberFormat currency,
+    AppLocalizations l10n,
   ) {
-    showDialog(
+    showManagementModal<void>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        title: Text(
-          expense.name,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17),
-        ),
-        content: Column(
+      builder: (sheetContext) => ManagementModalShell(
+        title: expense.name,
+        subtitle: expense.category,
+        body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ExpenseDetailRow(label: 'Farmer', value: expense.farmerName),
-            _ExpenseDetailRow(label: 'Category', value: expense.category),
-            _ExpenseDetailRow(label: 'Description', value: expense.description),
-            _ExpenseDetailRow(
-              label: 'Amount',
+            ReportDetailRow(label: l10n.rptFarmer, value: expense.farmerName),
+            ReportDetailRow(label: l10n.rptCategory, value: expense.category),
+            if (expense.description.isNotEmpty)
+              ReportDetailRow(
+                label: l10n.rptDescription,
+                value: expense.description,
+              ),
+            ReportDetailRow(
+              label: l10n.rptAmount,
               value: expense.isSubsidy
-                  ? 'Subsidized (₱0.00)'
-                  : currency.format(expense.amount),
+                  ? l10n.rptSubsidizedNoAmount
+                  : _money2.format(expense.amount),
             ),
-            _ExpenseDetailRow(
-              label: 'Date',
+            ReportDetailRow(
+              label: l10n.rptDate,
               value: DateFormat('MMM d, yyyy').format(expense.expenseDate),
+              isLast: true,
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExpenseDetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _ExpenseDetailRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppConstants.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+        footer: membersAccessAllowed
+            ? Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    pushFarmerDetails(context, expense.farmerId);
+                  },
+                  icon: const Icon(Icons.person_outline_rounded, size: 18),
+                  label: Text(l10n.rptViewFarmerProfile),
+                ),
+              )
+            : null,
       ),
     );
   }

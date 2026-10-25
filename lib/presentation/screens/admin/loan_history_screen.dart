@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,6 +11,9 @@ import '../../../data/models/admin_reports_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/listing_filter_modal.dart';
+import '../../widgets/loan_choice_chip.dart';
+import '../../widgets/management_modal.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -179,11 +181,13 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         children: [
           _buildStatCard(context, l10n, cs, sagana),
           const SizedBox(height: AppConstants.spacingGutter),
-          _buildSearchField(context, l10n, cs),
+          _buildSearchRow(context, l10n, cs),
           const SizedBox(height: AppConstants.spacingMd),
-          _buildPeriodChips(l10n, cs),
-          const SizedBox(height: AppConstants.spacingSm),
           _buildStatusChips(l10n, cs),
+          if (_period != ReportPeriod.allTime) ...[
+            const SizedBox(height: AppConstants.spacingSm),
+            _buildActivePeriodTag(l10n, cs),
+          ],
           const SizedBox(height: AppConstants.spacingGutter),
           if (_isLoading)
             const Padding(
@@ -382,39 +386,58 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     );
   }
 
-  /// Period chips — same shared reportPeriodChipOrder and visual treatment
-  /// as Loan Report's own period chips, so the two screens' filtering feels
-  /// like one consistent pattern rather than two different mechanisms.
-  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: reportPeriodChipOrder.map((p) {
-          final active = _period == p;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(
-                reportPeriodLabel(l10n, p),
-                style: GoogleFonts.inter(fontSize: 12),
-              ),
-              selected: active,
-              onSelected: (_) => _setPeriod(p),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(
-                color: active ? Colors.white : cs.onSurface,
+  /// Row 1: the search box with the Filter button beside it. The button is as
+  /// tall as the box and drawn like it; it turns green while a date period is
+  /// applied.
+  Widget _buildSearchRow(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+  ) {
+    final periodActive = _period != ReportPeriod.allTime;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _buildSearchField(context, l10n, cs)),
+          const SizedBox(width: AppConstants.spacingSm),
+          Tooltip(
+            message: l10n.loanHistoryFilterTooltip,
+            child: Material(
+              color: periodActive
+                  ? AppConstants.primaryGreen
+                  : context.saganaColors.cardBackground,
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: InkWell(
+                onTap: _openPeriodFilter,
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                child: Container(
+                  width: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    border: Border.all(
+                      color: periodActive
+                          ? AppConstants.primaryGreen
+                          : cs.outline.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.tune_rounded,
+                    size: 22,
+                    color: periodActive ? Colors.white : cs.onSurfaceVariant,
+                  ),
+                ),
               ),
             ),
-          );
-        }).toList(),
+          ),
+        ],
       ),
     );
   }
 
-  /// Status chips — same shape as Loan Report's own status chips, replacing
-  /// the previous segmented control so both filter rows read as one
-  /// consistent chip-based filtering pattern.
+  /// Row 2: the status chips (All / Active Loans / Overdue Loans / Paid), each
+  /// its own selectable chip, in a row that scrolls sideways when the screen is
+  /// too narrow to show all four.
   Widget _buildStatusChips(AppLocalizations l10n, ColorScheme cs) {
     final options = <String?, String>{
       null: l10n.loanHistoryFilterAll,
@@ -424,26 +447,75 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
     };
 
     return SizedBox(
-      height: 34,
-      child: ListView(
+      height: 38,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        children: options.entries.map((entry) {
-          final active = _statusFilter == entry.key;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(entry.value, style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setStatusFilter(entry.key),
+        // The platform's own scrolling feel (bounce on iOS, glow on Android).
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final entry = options.entries.elementAt(index);
+          // Center keeps each chip at its own natural height, whatever the
+          // row's height is.
+          return Center(
+            child: LoanChoiceChip(
+              label: entry.value,
+              selected: _statusFilter == entry.key,
+              onTap: () => _setStatusFilter(entry.key),
               selectedColor: AppConstants.buyerBlue,
-              labelStyle: TextStyle(
-                color: active ? Colors.white : cs.onSurface,
-              ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
+  }
+
+  /// The applied date period, shown as a removable tag under the status chips.
+  Widget _buildActivePeriodTag(AppLocalizations l10n, ColorScheme cs) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: () => _setPeriod(ReportPeriod.allTime),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  l10n.loanHistoryIssuedPeriodTag(
+                    reportPeriodLabel(l10n, _period),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cs.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.close_rounded, size: 14, color: cs.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPeriodFilter() async {
+    final picked = await showManagementModal<ReportPeriod>(
+      context: context,
+      builder: (_) => LoanPeriodFilterModal(initial: _period),
+    );
+    if (picked != null && picked != _period) _setPeriod(picked);
   }
 
   Widget _buildSearchField(
@@ -668,6 +740,99 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Date issued" filter for Loan History: the same card as the Listings and
+/// Members filters (title and subtitle, one labelled group of options, Reset
+/// All / Apply Filters). Pops with the chosen [ReportPeriod]; Reset pops
+/// [ReportPeriod.allTime].
+class LoanPeriodFilterModal extends StatefulWidget {
+  final ReportPeriod initial;
+
+  const LoanPeriodFilterModal({super.key, required this.initial});
+
+  @override
+  State<LoanPeriodFilterModal> createState() => _LoanPeriodFilterModalState();
+}
+
+class _LoanPeriodFilterModalState extends State<LoanPeriodFilterModal> {
+  late ReportPeriod _period = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return ManagementModalShell(
+      title: l10n.loanHistoryFilterTitle,
+      subtitle: l10n.loanHistoryFilterSubtitle,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.loanHistoryFilterIssued,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: cs.outline,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final p in reportPeriodChipOrder)
+                ListingCropFilterChip(
+                  label: reportPeriodLabel(l10n, p),
+                  active: _period == p,
+                  onTap: () => setState(() => _period = p),
+                  cs: cs,
+                ),
+            ],
+          ),
+        ],
+      ),
+      footer: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: cs.outline.withValues(alpha: 0.30)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context, ReportPeriod.allTime),
+              child: Text(
+                l10n.farmerMgmtResetAll,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, _period),
+              child: Text(
+                l10n.farmerMgmtApplyFilters,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

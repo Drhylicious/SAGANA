@@ -370,14 +370,21 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                loan.referenceNo as String,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: Colors.white,
+              // Flexible + ellipsis: the LRN-YYYYMMDD-XXXX reference is longer
+              // than the old LN-YYYY-### one and shares this row with a badge.
+              Flexible(
+                child: Text(
+                  loan.referenceNo as String,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,

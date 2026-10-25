@@ -98,7 +98,6 @@ class SupplyChainRepository {
       ('Ginger', 'GGR'),
       ('Palay', 'PLY'),
       ('Banana', 'BNA'),
-      ('Copra', 'CPR'),
     ];
 
     final stats = primaryCrops.map((pair) {

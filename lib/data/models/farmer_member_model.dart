@@ -1,3 +1,5 @@
+import '../../core/utils/person_name.dart';
+
 // ─── Member Status (Issue 5 — 5-status model) ─────────────────────────────────
 //
 // The Manager's approval of a Farmer's registration has three outcomes, shown
@@ -264,13 +266,7 @@ class FarmerMemberModel {
   bool get isOverdue => loanStatus == LoanStatusSummary.overdue;
 
   /// Two-letter initials for avatar fallback
-  String get initials {
-    final parts = fullName.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
-  }
+  String get initials => PersonName.initials(fullName);
 
   String get lastHarvestLabel {
     if (lastHarvestDate == null) return 'No records';

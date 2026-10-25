@@ -7,6 +7,7 @@ import '../models/buyer_listing_model.dart';
 import '../models/price_record_model.dart';
 import 'price_management_repository.dart';
 import '../services/auth_service.dart';
+import '../../core/utils/quantity_utils.dart';
 import 'crop_lookup.dart';
 
 /// Read-only, buyer-scoped access to the marketplace. Only ever returns
@@ -91,7 +92,7 @@ class BuyerMarketplaceRepository {
       final query = _client
           .from('marketplace_listings')
           .select(
-            'id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, '
+            'id, crop_name, crop_id, variety, volume_kg, remaining_kg, price_per_kg, unit, '
             'inventory_batch_id, photo_url, created_at, farmer_id, crop_type',
           )
           .eq('status', 'approved');
@@ -233,7 +234,7 @@ class BuyerMarketplaceRepository {
         fetch: () => _client
             .from('marketplace_listings')
             .select(
-              'id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, '
+              'id, crop_name, variety, volume_kg, remaining_kg, price_per_kg, unit, '
               'inventory_batch_id, photo_url, description, created_at, farmer_id, crop_type',
             )
             .eq('id', listingId)
@@ -442,7 +443,9 @@ class BuyerMarketplaceRepository {
         'place_order',
         params: {
           'p_listing_id': listingId,
-          'p_quantity_kg': quantityKg,
+          // Rounded to the 2 decimals the database stores (a cart total built
+          // from 0.1 + 0.2 must not travel as 0.30000000000000004).
+          'p_quantity_kg': roundQuantity(quantityKg),
           'p_fulfillment_method': fulfillmentMethod,
           'p_delivery_address': deliveryAddress,
           'p_delivery_latitude': deliveryLatitude,

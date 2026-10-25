@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../core/utils/listing_order.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge, ListingMarketFilterRow;
 import '../../widgets/listing_status_badge.dart';
 import '../../widgets/skeleton.dart';
@@ -22,8 +25,10 @@ class AllListingsScreen extends StatefulWidget {
   State<AllListingsScreen> createState() => _AllListingsScreenState();
 }
 
-class _AllListingsScreenState extends State<AllListingsScreen> {
+class _AllListingsScreenState extends State<AllListingsScreen>
+    with WidgetsBindingObserver {
   final _repo = AdminListingRepository();
+  StreamSubscription<bool>? _connectivitySub;
   final _searchCtrl = TextEditingController();
 
   List<AdminListingModel> _allListings = [];
@@ -39,8 +44,14 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     super.initState();
     AppTheme.applySystemOverlay(context);
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
+    WidgetsBinding.instance.addObserver(this);
+    // Coming back online reloads, so Available / Sold Out catch up with orders
+    // placed while this device was offline.
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged.listen((v) {
+      if (!mounted) return;
+      final cameOnline = v && !_isOnline;
+      setState(() => _isOnline = v);
+      if (cameOnline) _loadAll();
     });
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text),
@@ -48,8 +59,19 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
     _loadAll();
   }
 
+  // Available / Sold Out come from the quantity left on each listing, which
+  // moves whenever an order is placed, cancelled or completed (maybe on
+  // another device). Reload when the app returns to the foreground; pulling
+  // down and coming back from a listing review also reload.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _loadAll();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _connectivitySub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -81,7 +103,10 @@ class _AllListingsScreenState extends State<AllListingsScreen> {
             (l.variety?.toLowerCase().contains(q) ?? false),
       );
     }
-    return list.toList();
+    // Sold Out listings go to the very bottom; everything else keeps its
+    // newest-first order. Applied after the filters, so every market chip and
+    // every search is ordered the same way.
+    return orderForAllListings(list);
   }
 
   Future<void> _quickApprove(AdminListingModel listing) async {
@@ -304,7 +329,15 @@ class _AllListingCard extends StatelessWidget {
               width: 3,
               margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
-                color: listing.isPending ? AppConstants.warningAmber : Colors.transparent,
+                color:
+                    listingAccentColor(
+                      context,
+                      listingStateOf(
+                        status: listing.status,
+                        remainingKg: listing.remainingKg,
+                      ),
+                    ) ??
+                    Colors.transparent,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(AppConstants.radiusLg),
                   bottomLeft: Radius.circular(AppConstants.radiusLg),
@@ -376,7 +409,10 @@ class _AllListingCard extends StatelessWidget {
                             children: [
                               TextSpan(
                                 text:
-                                    '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
+                                    formatPricePerUnit(
+                                      listing.pricePerKg,
+                                      listing.unit,
+                                    ),
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -385,7 +421,7 @@ class _AllListingCard extends StatelessWidget {
                             ),
                             TextSpan(
                                 text:
-                                    '  •  ${listing.volumeKg.toStringAsFixed(0)} kg',
+                                    '  •  ${formatQuantityUnit(listing.volumeKg, listing.unit)}',
                                 style: GoogleFonts.inter(
                                   fontSize: 11,
                                   color: cs.onSurfaceVariant,

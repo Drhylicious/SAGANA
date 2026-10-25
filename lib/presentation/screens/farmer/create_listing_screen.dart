@@ -10,6 +10,7 @@ import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/shared_widgets.dart';
@@ -17,36 +18,11 @@ import 'listing_success_screen.dart' show ListingSuccessArgs;
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
 
-// FilteringTextInputFormatter.allow with an anchored (^) pattern only ever
-// re-validates from the start of the string, via allMatches() — once a
-// field already holds a 2-decimal value like "20.00" (as Asking Price does
-// immediately after the market-price auto-fill), any further keystroke
-// appended after that silently fails to match and gets dropped, even
-// though the field is genuinely focused and the cursor blinks normally.
-// This formatter instead validates the WHOLE new value on every edit and
-// simply rejects the edit (keeping the old value) if it doesn't match —
-// the correct pattern for a bounded-decimal field.
-class _DecimalInputFormatter extends TextInputFormatter {
-  // Optional upper bound — when set (Quantity, bounded by the batch's real
-  // available stock), any edit whose parsed value would exceed it is
-  // rejected outright instead of being typeable and only clamped later on
-  // blur/submit. Price has no such ceiling, so it omits this and keeps its
-  // original format-only behavior.
-  final double? max;
-  const _DecimalInputFormatter({this.max});
-
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) return newValue;
-    if (!RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)) return oldValue;
-    final ceiling = max;
-    if (ceiling != null) {
-      final parsed = double.tryParse(newValue.text);
-      if (parsed != null && parsed > ceiling) return oldValue;
-    }
-    return newValue;
-  }
-}
+// Quantity and price are typed with the shared DecimalInputFormatter
+// (quantity_utils.dart): it validates the WHOLE new value on every edit — at
+// most 2 decimals, and for the quantity never more than the stock left — and
+// refuses the edit otherwise. (A per-character
+// FilteringTextInputFormatter.allow with an anchored pattern cannot do this.)
 
 class CreateListingScreen extends StatefulWidget {
   // An InventoryBatchModel (preselected from Manage Inventory's disposal
@@ -84,6 +60,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   InventoryBatchModel? _selectedBatch;
 
   double? _marketPrice;
+
+  // The listing is measured in the batch's own unit. A reference price is only
+  // suggested when it is quoted in that same unit.
+  String get _unit => unitOrDefault(_selectedBatch?.unit);
   bool _isLoadingBatches = true;
   bool _isSubmitting = false;
   bool _isOnline = true;
@@ -148,11 +128,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Future<void> _onBatchSelected(InventoryBatchModel batch) async {
     setState(() {
       _selectedBatch = batch;
-      _quantityController.text = batch.availableKg.toStringAsFixed(0);
+      // The whole stock, exactly: 0.45 stays 0.45 (it used to be rounded to a
+      // whole number, which made a small batch show "0").
+      _quantityController.text = formatQuantity(batch.availableKg);
+      _marketPrice = null;
     });
     final price = await _dashboardRepo.fetchLatestPriceForCrop(
       batch.cropName,
       priceType: batch.cropType,
+      unit: batch.unit,
     );
     if (!mounted) return;
     setState(() {
@@ -173,26 +157,36 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       return;
     }
 
-    final qty = double.tryParse(_quantityController.text.trim());
-    final price = double.tryParse(_priceController.text.trim());
+    final available = _selectedBatch!.availableKg;
+    final qty = parseDecimal(_quantityController.text, max: available);
+    final price = parseDecimal(_priceController.text);
 
-    if (qty == null || qty <= 0) {
+    if (qty == null) {
+      // The reason is specific: empty, not a number, zero, too many decimals,
+      // or more than the stock left.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid quantity.')),
+        SnackBar(
+          content: Text(
+            quantityErrorText(
+                  _quantityController.text,
+                  max: available,
+                  unit: _selectedBatch!.unit,
+                ) ??
+                'Enter a valid quantity.',
+          ),
+        ),
       );
       return;
     }
 
-    if (qty > _selectedBatch!.availableKg) {
+    if (price == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Quantity cannot exceed available stock (${_selectedBatch!.availableKg.toStringAsFixed(0)} kg).')),
-      );
-      return;
-    }
-
-    if (price == null || price <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid asking price.')),
+        SnackBar(
+          content: Text(
+            priceErrorText(_priceController.text, label: 'Asking price') ??
+                'Enter a valid asking price.',
+          ),
+        ),
       );
       return;
     }
@@ -261,7 +255,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   double get _estimatedRevenue {
     final qty = double.tryParse(_quantityController.text.trim()) ?? 0;
     final price = double.tryParse(_priceController.text.trim()) ?? 0;
-    return qty * price;
+    return moneyOf(qty, price);
   }
 
   @override
@@ -329,6 +323,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         quantityFocusNode: _quantityFocusNode,
                         priceFocusNode: _priceFocusNode,
                         maxQty: _selectedBatch?.availableKg,
+                        unit: _unit,
                         marketPrice: _marketPrice,
                         onChanged: () => setState(() {}),
                       ),
@@ -342,6 +337,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         photoUrl: _selectedBatch?.displayImageUrl,
                         quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
                         price: double.tryParse(_priceController.text.trim()) ?? 0,
+                        unit: _unit,
                         estimatedRevenue: _estimatedRevenue,
                       ),
                       const SizedBox(height: 20),
@@ -496,7 +492,7 @@ class _PreselectedBatchBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '${batch.cropName} • ${batch.availableKg.toStringAsFixed(0)} kg from Batch #${batch.batchNumber}',
+              '${batch.cropName} • ${formatQuantityUnit(batch.availableKg, batch.unit)} from ${formatBatchNumber(batch.batchNumber)}',
               style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppConstants.primaryGreen),
             ),
           ),
@@ -552,9 +548,16 @@ class _BatchSelector extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(batch.batchNumber,
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                              color: isActive ? AppConstants.primaryGreen : AppConstants.outline)),
+                      // The number is long (#BATCH-POTATO-261025-A0001): it may take
+                      // two lines, and keeps clear of the selected-check icon.
+                      Padding(
+                        padding: const EdgeInsets.only(right: 22),
+                        child: Text(formatBatchNumber(batch.batchNumber),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                                color: isActive ? AppConstants.primaryGreen : AppConstants.outline)),
+                      ),
                       const SizedBox(height: 3),
                       Text(batch.cropName,
                           style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
@@ -566,7 +569,7 @@ class _BatchSelector extends StatelessWidget {
                           const Icon(Icons.inventory_2_outlined, size: 12, color: AppConstants.outline),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text('${batch.availableKg.toStringAsFixed(0)}kg',
+                            child: Text(formatQuantityUnit(batch.availableKg, batch.unit),
                                 style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant),
                                 overflow: TextOverflow.ellipsis),
                           ),
@@ -634,8 +637,8 @@ class _AutoFilledGrid extends StatelessWidget {
       _DetailChip(label: 'Crop Name', value: batch.cropName),
       if (batch.category != null) _DetailChip(label: 'Category', value: batch.category!),
       _DetailChip(label: 'Market Type', value: marketTypeLabelFor(batch.cropType)),
-      _DetailChip(label: 'Batch Number', value: batch.batchNumber),
-      _DetailChip(label: 'Available Stock', value: '${batch.availableKg.toStringAsFixed(0)} kg'),
+      _DetailChip(label: 'Batch Number', value: formatBatchNumber(batch.batchNumber)),
+      _DetailChip(label: 'Available Stock', value: formatQuantityUnit(batch.availableKg, batch.unit)),
     ];
     return SizedBox(
       // 64 clipped the two-line chip content by ~1px on some font metrics
@@ -698,6 +701,7 @@ class _FormCard extends StatelessWidget {
   final FocusNode quantityFocusNode;
   final FocusNode priceFocusNode;
   final double? maxQty;
+  final String unit;
   final double? marketPrice;
   final VoidCallback onChanged;
 
@@ -710,6 +714,7 @@ class _FormCard extends StatelessWidget {
     required this.quantityFocusNode,
     required this.priceFocusNode,
     required this.maxQty,
+    required this.unit,
     required this.marketPrice,
     required this.onChanged,
   });
@@ -748,20 +753,20 @@ class _FormCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _FieldLabel('Quantity (kg)'),
+                        _FieldLabel('Quantity ($unit)'),
                         const SizedBox(height: 8),
                         TextField(
                           controller: quantityController,
                           focusNode: quantityFocusNode,
                           onChanged: (_) => onChanged(),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [_DecimalInputFormatter(max: maxQty)],
+                          inputFormatters: [DecimalInputFormatter(max: maxQty)],
                           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                          decoration: _inputDecoration(hint: '0.00', suffix: 'kg'),
+                          decoration: _inputDecoration(hint: '0.00', suffix: unit),
                         ),
                         if (maxQty != null) Padding(
                           padding: const EdgeInsets.only(top: 4, left: 2),
-                          child: Text('Max: ${maxQty!.toStringAsFixed(0)} kg',
+                          child: Text('Max: ${formatQuantityUnit(maxQty!, unit)}',
                               style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.outline)),
                         ),
                       ],
@@ -779,9 +784,9 @@ class _FormCard extends StatelessWidget {
                           focusNode: priceFocusNode,
                           onChanged: (_) => onChanged(),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [_DecimalInputFormatter()],
+                          inputFormatters: const [DecimalInputFormatter()],
                           style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
-                          decoration: _inputDecoration(hint: '0.00', prefix: '₱', suffix: '/kg'),
+                          decoration: _inputDecoration(hint: '0.00', prefix: '₱', suffix: '/$unit'),
                         ),
                         if (marketPrice != null) Padding(
                           padding: const EdgeInsets.only(top: 4, left: 2),
@@ -789,7 +794,7 @@ class _FormCard extends StatelessWidget {
                             children: [
                               const Icon(Icons.trending_up_rounded, size: 11, color: AppConstants.warningAmber),
                               const SizedBox(width: 3),
-                              Text('Market: ₱${marketPrice!.toStringAsFixed(2)}/kg',
+                              Text('Market: ${formatPricePerUnit(marketPrice!, unit)}',
                                   style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.warningAmber)),
                             ],
                           ),
@@ -974,6 +979,7 @@ class _LivePreviewCard extends StatelessWidget {
   final String? photoUrl;
   final double quantity;
   final double price;
+  final String unit;
   final double estimatedRevenue;
 
   const _LivePreviewCard({
@@ -981,6 +987,7 @@ class _LivePreviewCard extends StatelessWidget {
     required this.photoUrl,
     required this.quantity,
     required this.price,
+    required this.unit,
     required this.estimatedRevenue,
   });
 
@@ -1031,7 +1038,7 @@ class _LivePreviewCard extends StatelessWidget {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Qty: ${quantity.toStringAsFixed(0)} kg',
+                                  Text('Qty: ${formatQuantityUnit(quantity, unit)}',
                                       style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppConstants.outline)),
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -1039,7 +1046,7 @@ class _LivePreviewCard extends StatelessWidget {
                                     children: [
                                       Text('₱${price.toStringAsFixed(2)}',
                                           style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: AppConstants.primaryGreen)),
-                                      Text(' /kg', style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
+                                      Text(' /$unit', style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant)),
                                     ],
                                   ),
                                 ],

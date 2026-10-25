@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/input_validation_utils.dart';
+import '../../core/utils/person_name.dart';
 import '../models/suspension_notice.dart';
 import '../models/user_model.dart';
 import 'account_status_watcher.dart';
@@ -202,7 +203,10 @@ class AuthService {
   static Future<UserModel> register({
     required String username,
     required String password,
-    required String fullName,
+    required String surname,
+    required String firstName,
+    String? middleInitial, // optional; one letter
+    String? suffix, // optional; Jr., Sr., II, III, IV or V
     required String role, // 'farmer' | 'buyer'
     String? phoneNumber, // optional; Philippine mobile
     String? contactEmail, // optional; stored as a contact address, not verified
@@ -214,14 +218,34 @@ class AuthService {
     String? building,
     String? houseNo,
   }) async {
-    final trimmedName = fullName.trim();
+    final cleanSurname = PersonName.clean(surname);
+    final cleanFirstName = PersonName.clean(firstName);
+    final cleanInitial = PersonName.cleanInitial(middleInitial);
+    final cleanSuffix = PersonName.cleanSuffix(suffix);
     final normalizedUsername = normalizeUsername(username);
     final trimmedContactEmail = contactEmail?.trim();
     final trimmedPhone = phoneNumber?.trim();
 
-    if (trimmedName.length < 2) {
-      throw const AuthException('Please enter your full name.');
+    // Checked before any sign-in identity exists, so a mistyped name never
+    // creates (and then has to roll back) an account.
+    if (PersonName.checkPart(cleanSurname, required: true) != null) {
+      throw const AuthException('Please enter a valid surname.');
     }
+    if (PersonName.checkPart(cleanFirstName, required: true) != null) {
+      throw const AuthException('Please enter a valid first name.');
+    }
+    if (!PersonName.isValidInitial(middleInitial)) {
+      throw const AuthException('Middle initial must be a single letter.');
+    }
+    if ((suffix ?? '').trim().isNotEmpty && cleanSuffix == null) {
+      throw const AuthException('Please choose a valid suffix.');
+    }
+    final fullName = PersonName.compose(
+      firstName: cleanFirstName,
+      middleInitial: cleanInitial,
+      surname: cleanSurname,
+      suffix: cleanSuffix,
+    );
     if (!isValidUsernameFormat(normalizedUsername)) {
       throw const AuthException(
         'Username must be 3 to 30 characters: letters, numbers, dots, '
@@ -305,7 +329,10 @@ class AuthService {
         'register_account',
         params: {
           'p_role': role,
-          'p_full_name': trimmedName,
+          'p_surname': cleanSurname,
+          'p_first_name': cleanFirstName,
+          'p_middle_initial': cleanInitial,
+          'p_suffix': cleanSuffix,
           'p_username': normalizedUsername,
           'p_phone_number': normalizedPhone,
           'p_contact_email':
@@ -332,7 +359,7 @@ class AuthService {
         email: authEmail,
         role: role,
         status: data['status'] as String? ?? 'pending',
-        fullName: trimmedName,
+        fullName: fullName,
         phoneNumber: normalizedPhone,
       );
     } catch (e) {

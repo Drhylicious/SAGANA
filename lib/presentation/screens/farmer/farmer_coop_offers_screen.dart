@@ -29,15 +29,27 @@ class FarmerCoopOffersScreen extends StatefulWidget {
 class _FarmerCoopOffersScreenState extends State<FarmerCoopOffersScreen> {
   final _repo = CooperativeOfferRepository();
 
+  final _searchCtrl = TextEditingController();
+
   List<CooperativeOfferModel> _offers = [];
   bool _isLoading = true;
+  String _searchQuery = '';
   CoopOfferFilter _filter = CoopOfferFilter.all;
 
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text),
+    );
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -49,8 +61,10 @@ class _FarmerCoopOffersScreenState extends State<FarmerCoopOffersScreen> {
     });
   }
 
+  // The chip and the search combine; the chip counts stay the totals for each
+  // status, as on the Manager's list.
   List<CooperativeOfferModel> get _filtered =>
-      _offers.where(_filter.matches).toList();
+      filterCoopOffers(_offers, filter: _filter, query: _searchQuery);
 
   int _countFor(CoopOfferFilter f) => _offers.where(f.matches).length;
 
@@ -86,6 +100,20 @@ class _FarmerCoopOffersScreenState extends State<FarmerCoopOffersScreen> {
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
+                        TextField(
+                          controller: _searchCtrl,
+                          decoration: InputDecoration(
+                            hintText: l10n.coopMyOffersSearchHint,
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.close_rounded, size: 18),
+                                    onPressed: () => _searchCtrl.clear(),
+                                  )
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         SizedBox(
                           height: 34,
                           child: ListView(
@@ -106,7 +134,7 @@ class _FarmerCoopOffersScreenState extends State<FarmerCoopOffersScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                         if (list.isEmpty)
                           _Empty(
                             filtered: _offers.isNotEmpty,
@@ -225,7 +253,7 @@ class _OfferCard extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                coopKg(offer.offeredQuantityKg),
+                                coopKg(offer.offeredQuantityKg, offer.unit),
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -248,14 +276,17 @@ class _OfferCard extends StatelessWidget {
                           if (offer.askingPricePerKg != null)
                             _line(
                               l10n.coopYourAskingLabel,
-                              coopPricePerKg(offer.askingPricePerKg!),
+                              coopPricePerKg(
+                                offer.askingPricePerKg!,
+                                offer.unit,
+                              ),
                             ),
                           if (price != null && price != offer.askingPricePerKg)
                             _line(
                               offer.isConfirmed
                                   ? l10n.coopAgreedPriceLabel
                                   : l10n.coopLatestProposalLabel,
-                              coopPricePerKg(price),
+                              coopPricePerKg(price, offer.unit),
                               strong: true,
                             ),
                           if (offer.isConfirmed && offer.confirmedAmount != null)

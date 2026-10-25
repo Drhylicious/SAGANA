@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/client_id.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/harvest_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/hive_service.dart';
@@ -8,13 +9,22 @@ class HarvestEntryRepository {
   final SupabaseClient _client = Supabase.instance.client;
   String get _userId => _client.auth.currentUser!.id;
 
+  /// Records a harvest.
+  ///
+  /// The batch number is NOT chosen here: the database issues it when the
+  /// harvest row is saved (BATCH-CROP-YYMMDD-X0001, see
+  /// supabase_schema_harvest_batch_number_and_units.sql). A harvest saved
+  /// offline therefore has no number until it syncs; the returned model's
+  /// [HarvestModel.batchNumber] is null in that case.
+  ///
+  /// [quantityKg] is the quantity in [unit] (the name is historical).
   Future<HarvestModel> submitHarvest({
     required String cropId,
     required String cropName,
     required String cropCategory,
     required double quantityKg,
+    required String unit,
     required DateTime harvestDate,
-    required String batchNumber,
     String? variety,
     String? storageLocation,
   }) async {
@@ -30,8 +40,8 @@ class HarvestEntryRepository {
         'crop_name': cropName,
         'crop_category': cropCategory,
         'quantity_kg': quantityKg,
+        'unit': unit,
         'harvest_date': harvestDate.toIso8601String().split('T').first,
-        'batch_number': batchNumber,
         'variety': variety,
         'storage_location': storageLocation,
       });
@@ -45,8 +55,9 @@ class HarvestEntryRepository {
         cropName: cropName,
         cropCategory: cropCategory,
         quantityKg: quantityKg,
+        unit: unit,
         variety: variety,
-        batchNumber: batchNumber,
+        batchNumber: null,
         storageLocation: storageLocation,
         harvestDate: harvestDate,
         isSynced: false,
@@ -60,8 +71,8 @@ class HarvestEntryRepository {
       cropName: cropName,
       cropCategory: cropCategory,
       quantityKg: quantityKg,
+      unit: unit,
       harvestDate: harvestDate,
-      batchNumber: batchNumber,
       variety: variety,
       storageLocation: storageLocation,
     );
@@ -81,17 +92,27 @@ class HarvestEntryRepository {
     required String cropName,
     required String cropCategory,
     required double quantityKg,
+    required String unit,
     required DateTime harvestDate,
-    required String batchNumber,
     String? variety,
     String? storageLocation,
   }) async {
+    // The quantity is checked again here, not only in the form: a queued
+    // offline record is replayed through this path too. The database refuses
+    // zero and negative values as well; this keeps the message readable.
+    if (quantityKg.isNaN || quantityKg <= 0 || quantityKg > kMaxQuantity) {
+      throw Exception('The harvest quantity must be greater than 0.');
+    }
+    final quantity = roundQuantity(quantityKg);
+
     var harvestRow = await _client
         .from('harvest_records')
         .select()
         .eq('id', clientId)
         .maybeSingle();
 
+    // No batch_number is sent: the database issues it (and ignores a value
+    // sent by anyone). The row comes back with the number it was given.
     harvestRow ??= await _client
         .from('harvest_records')
         .insert({
@@ -100,9 +121,9 @@ class HarvestEntryRepository {
           'crop_id': cropId,
           'crop_name': cropName,
           'crop_category': cropCategory,
-          'quantity_kg': quantityKg,
+          'quantity_kg': quantity,
+          'unit': unit,
           'harvest_date': harvestDate.toIso8601String().split('T').first,
-          'batch_number': batchNumber,
           'variety': variety,
           'storage_location': storageLocation,
           'is_synced': true,
@@ -153,14 +174,17 @@ class HarvestEntryRepository {
           .eq('harvest_record_id', harvest.id)
           .maybeSingle();
       if (existingBatch == null) {
+        // The batch takes its number and unit from the harvest row in the
+        // database; they are sent here only so the row is complete.
         await _client.from('inventory_batches').insert({
           'farmer_id': _userId,
           'harvest_record_id': harvest.id,
           'crop_id': cropId,
           'crop_name': cropName,
-          'batch_number': batchNumber,
-          'quantity_kg': quantityKg,
-          'available_kg': quantityKg,
+          'batch_number': harvest.batchNumber,
+          'unit': harvest.unit,
+          'quantity_kg': harvest.quantityKg,
+          'available_kg': harvest.quantityKg,
           'reserved_kg': 0,
           'sold_kg': 0,
           'status': 'available',
@@ -194,8 +218,11 @@ class HarvestEntryRepository {
       cropName: payload['crop_name'] as String,
       cropCategory: payload['crop_category'] as String? ?? 'Other',
       quantityKg: (payload['quantity_kg'] as num).toDouble(),
+      // Records queued before units existed were all in kg. A client-made
+      // 'batch_number' in an old queued record is ignored: the database
+      // issues the number.
+      unit: unitOrDefault(payload['unit'] as String?),
       harvestDate: DateTime.parse(payload['harvest_date'] as String),
-      batchNumber: payload['batch_number'] as String,
       variety: payload['variety'] as String?,
       storageLocation: payload['storage_location'] as String?,
     );

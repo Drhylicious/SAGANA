@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../widgets/fulfillment_info_card.dart';
@@ -681,7 +682,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     Expanded(
                       child: _miniField(
                         l10n.adminOrderDetailBatchReference,
-                        '#${order.batchNumber}',
+                        formatBatchNumber(order.batchNumber),
                         cs,
                       ),
                     ),
@@ -759,12 +760,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           const SizedBox(height: 12),
           _summaryRow(
             l10n.adminOrderDetailQuantity,
-            '${order.quantityKg.toStringAsFixed(0)} kg',
+            formatQuantityUnit(order.quantityKg, order.unit),
             cs,
           ),
           _summaryRow(
-            l10n.adminOrderDetailPricePerKg,
-            '₱${order.pricePerKg.toStringAsFixed(2)}',
+            l10n.adminOrderDetailPricePerKg(unitOrDefault(order.unit)),
+            formatPesos(order.pricePerKg),
             cs,
           ),
           Divider(height: 20, color: cs.outline.withValues(alpha: 0.10)),

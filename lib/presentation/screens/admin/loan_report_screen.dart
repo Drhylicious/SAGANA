@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,14 +5,13 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
-import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/trend_chart_painter.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/report_ui_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/cached_data_notice.dart';
@@ -22,12 +20,12 @@ import '../../../data/services/connectivity_service.dart';
 /// Loan Report — Admin.
 /// Pushed above the shell. Route: /admin/reports/loans
 ///
-/// Deliberately thin — reuses AdminLoanRepository's fetchAllLoans(),
-/// fetchAllTimeLoanSummary(), and the AdminLoanListFilter search extension
-/// directly, plus one new small method (fetchMonthlyCollectionTrend). No
-/// new row model: the table reuses AdminLoanSummary as-is, since Loan
-/// Report's mockup columns (reference, farmer, issue date, items, total,
-/// paid, remaining, status) are already exactly what that model carries.
+/// A report by reporting period: it lists the loans ISSUED in the selected
+/// period and summarises exactly those loans. Status filtering is left to Loan
+/// Management; here each loan simply shows its status. Reuses
+/// AdminLoanRepository's fetchAllLoans() and the AdminLoanListFilter search
+/// extension — the summary is computed from the same list by
+/// [LoanPeriodSummary], so the headline figures always agree with the rows.
 class LoanReportScreen extends StatefulWidget {
   const LoanReportScreen({super.key});
 
@@ -40,14 +38,18 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
   final _searchController = TextEditingController();
 
   ReportPeriod _period = ReportPeriod.thisMonth;
-  String? _statusFilter;
   String _searchQuery = '';
   bool _isLoading = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
 
-  AllTimeLoanSummary _allTimeSummary = AllTimeLoanSummary.empty();
   List<double> _collectionTrend = [];
   List<AdminLoanSummary> _loans = [];
+
+  static final _money0 = NumberFormat.currency(
+    locale: 'en_PH',
+    symbol: '₱',
+    decimalDigits: 0,
+  );
 
   @override
   void initState() {
@@ -67,19 +69,16 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
-      _repo.fetchAllTimeLoanSummary(),
       _repo.fetchMonthlyCollectionTrend(),
       _repo.fetchAllLoans(
-        statusFilter: _statusFilter,
         issuedAfter: _period.startDate,
         issuedBefore: _period.range().endDate,
       ),
     ]);
     if (!mounted) return;
     setState(() {
-      _allTimeSummary = results[0] as AllTimeLoanSummary;
-      _collectionTrend = results[1] as List<double>;
-      _loans = results[2] as List<AdminLoanSummary>;
+      _collectionTrend = results[0] as List<double>;
+      _loans = results[1] as List<AdminLoanSummary>;
       _isLoading = false;
     });
   }
@@ -89,43 +88,32 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     _load();
   }
 
-  void _setStatus(String? status) {
-    setState(() => _statusFilter = status);
-    _load();
-  }
-
-  /// Month abbreviations for fetchMonthlyCollectionTrend()'s trailing
-  /// window — safe to compute client-side, since that method always
-  /// returns a fixed "last N months ending at the current month" window,
-  /// independent of the on-screen period filter.
-  List<String> _trailingMonthLabels(int count) {
-    final now = DateTime.now();
-    return List.generate(count, (i) {
-      final offset = count - 1 - i;
-      final date = DateTime(now.year, now.month - offset, 1);
-      return DateFormat('MMM').format(date);
-    });
-  }
-
-  Map<String, int> get _statusDistribution {
-    final counts = {'active': 0, 'overdue': 0, 'paid': 0};
-    for (final loan in _loans) {
-      counts[loan.status] = (counts[loan.status] ?? 0) + 1;
-    }
-    return counts;
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
+    final summary = LoanPeriodSummary.fromLoans(_loans);
+    final visible = _loans.applySearch(_searchQuery);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          _buildTopBar(context, l10n, cs, sagana),
+          SubPageTopBar(
+            title: l10n.reportsLoanReport,
+            onBack: () => context.pop(),
+            trailing: IconButton(
+              icon: Icon(Icons.file_download_outlined, color: cs.primary),
+              onPressed: () => context.push(
+                AppRoutes.exportCenter,
+                extra: ExportCenterArgs(
+                  preselectedModule: ReportModuleType.loan,
+                  period: _period,
+                ),
+              ),
+              tooltip: l10n.reportsExportCenter,
+            ),
+          ),
           CachedDataNotice(
             screen: _repo.allLoansCacheScreen(
               issuedAfter: _period.startDate,
@@ -142,40 +130,24 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
                   AppConstants.spacingSafeH,
                   AppConstants.spacingGutter,
                   AppConstants.spacingSafeH,
-                  AppConstants.spacingSafeH,
+                  32,
                 ),
                 children: [
-                  _buildAllTimeHealthCard(context, l10n, cs),
+                  ReportPeriodFilter(period: _period, onSelected: _setPeriod),
+                  const SizedBox(height: AppConstants.spacingGutter),
+                  _buildSummaryCard(l10n, cs, summary),
+                  if (!_isLoading) ...[
+                    const SizedBox(height: AppConstants.spacingSectionV),
+                    _buildStatusCard(l10n, summary),
+                  ],
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildTrendChart(context, l10n, cs, sagana),
+                  ReportTrendCard(
+                    title: l10n.reportsCollectionTrend,
+                    values: _collectionTrend,
+                    valueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
+                  ),
                   const SizedBox(height: AppConstants.spacingSectionV),
-                  _buildPeriodChips(l10n, cs),
-                  const SizedBox(height: AppConstants.spacingSm),
-                  _buildStatusChips(context, l10n, cs),
-                  const SizedBox(height: AppConstants.spacingGutter),
-                  if (!_isLoading && _statusFilter == null)
-                    _buildStatusDistribution(context, l10n, cs),
-                  const SizedBox(height: AppConstants.spacingGutter),
-                  _buildSearchField(context, l10n, cs),
-                  const SizedBox(height: AppConstants.spacingGutter),
-                  if (_isLoading)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: SkeletonList(),
-                      ),
-                    )
-                  else if (_loans.applySearch(_searchQuery).isEmpty)
-                    ReportEmptyState(
-                      message: l10n.reportsNoSearchResultsOrLoans,
-                    )
-                  else
-                    ..._loans
-                        .applySearch(_searchQuery)
-                        .map(
-                          (loan) => _buildLoanRow(context, loan, cs, sagana),
-                        ),
+                  _buildLoansSection(context, l10n, cs, visible),
                 ],
               ),
             ),
@@ -185,263 +157,111 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
+  Widget _buildSummaryCard(
     AppLocalizations l10n,
     ColorScheme cs,
-    SaganaColors sagana,
+    LoanPeriodSummary summary,
   ) {
-    return SubPageTopBar(
-      title: l10n.reportsLoanReport,
-      onBack: () => context.pop(),
-      trailing: IconButton(
-        icon: Icon(Icons.file_download_outlined, color: cs.primary),
-        onPressed: () => context.push(
-          AppRoutes.exportCenter,
-          extra: ExportCenterArgs(
-            preselectedModule: ReportModuleType.loan,
-            period: _period,
-          ),
-        ),
-        tooltip: l10n.reportsExportCenter,
-      ),
-    );
-  }
-
-  // Migrated onto the shared ReportHeroCard (Phase 16) — this screen
-  // previously hand-built its own copy of the same gradient Container
-  // Executive Snapshot/Harvest Report used, rather than sharing the
-  // widget. The health badge moves into ReportHeroCard's trailing slot.
-  Widget _buildAllTimeHealthCard(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 0,
-    );
-    // A cooperative that has never issued a loan and one that has fully
-    // collected on every loan it issued both reach isHealthy == true (see
-    // AdminLoanRepository.fetchAllTimeLoanSummary — outstandingCount == 0
-    // in both cases). Only the second is actually "Healthy"; the first has
-    // no collection activity to evaluate at all, so it needs its own
-    // neutral state rather than borrowing the green "Healthy" label.
-    final hasLoanActivity = _allTimeSummary.totalLoanCount > 0;
-    final healthColor = !hasLoanActivity
+    // A period with no loans has no repayments to judge, so it gets a neutral
+    // badge rather than a green "Healthy".
+    final healthColor = !summary.hasActivity
         ? cs.outline
-        : _allTimeSummary.isHealthy
+        : summary.isHealthy
         ? AppConstants.successGreen
         : AppConstants.warningAmber;
-    final healthLabel = !hasLoanActivity
+    final healthLabel = !summary.hasActivity
         ? l10n.loanHistoryNoActivity
-        : _allTimeSummary.isHealthy
+        : summary.isHealthy
         ? l10n.loanHistoryHealthy
         : l10n.loanHistoryNeedsAttention;
 
     return ReportHeroCard(
-      title: l10n.loanHistoryAllTimeSummary,
-      period: ReportPeriod.allTime,
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: healthColor.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-        ),
-        child: Text(
-          healthLabel,
-          style: GoogleFonts.poppins(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            color: healthColor,
-          ),
-        ),
-      ),
+      title: l10n.rptLoanSummaryTitle,
+      period: _period,
+      isLoading: _isLoading,
+      trailing: _isLoading
+          ? null
+          : ReportStatusPill(label: healthLabel, color: healthColor),
       primaryStats: [
         ReportHeroStat(
-          label: l10n.issueLoanTotalValue,
-          value: currency.format(_allTimeSummary.totalIssued),
+          label: l10n.rptTotalValueIssued,
+          value: _money0.format(summary.totalIssued),
           icon: Icons.account_balance_wallet_rounded,
           accent: AppConstants.primaryGreen,
+        ),
+        ReportHeroStat(
+          label: l10n.rptLoansIssued,
+          value: '${summary.loanCount}',
+          icon: Icons.request_page_rounded,
+          accent: AppConstants.buyerBlue,
         ),
       ],
       secondaryStats: [
         ReportHeroStat(
           label: l10n.loanHistoryTotalCollected,
-          value: currency.format(_allTimeSummary.totalCollected),
+          value: _money0.format(summary.totalCollected),
           icon: Icons.check_circle_rounded,
           accent: AppConstants.successGreen,
         ),
         ReportHeroStat(
           label: l10n.loanDashTotalOutstanding,
-          value: currency.format(_allTimeSummary.totalOutstanding),
+          value: _money0.format(summary.totalOutstanding),
           icon: Icons.pending_actions_rounded,
           accent: AppConstants.warningAmber,
         ),
         ReportHeroStat(
-          label: l10n.loanHistoryRate,
-          value: '${_allTimeSummary.repaymentRatePercent.toStringAsFixed(0)}%',
+          label: l10n.rptOverdueBalance,
+          value: _money0.format(summary.overdueBalance),
+          icon: Icons.warning_amber_rounded,
+          accent: AppConstants.errorRed,
+        ),
+        ReportHeroStat(
+          label: l10n.rptRepaymentRate,
+          value: '${summary.repaymentRatePercent.toStringAsFixed(0)}%',
           icon: Icons.percent_rounded,
-          accent: AppConstants.buyerBlue,
+          accent: AppConstants.amber,
         ),
       ],
     );
   }
 
-  Widget _buildTrendChart(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-    SaganaColors sagana,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
-      decoration: BoxDecoration(
-        color: sagana.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildStatusCard(AppLocalizations l10n, LoanPeriodSummary summary) {
+    return ReportSectionCard(
+      title: l10n.rptLoanStatusTitle,
+      icon: Icons.donut_small_rounded,
+      child: Row(
         children: [
-          Text(
-            l10n.reportsCollectionTrend,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: cs.onSurface,
+          Expanded(
+            child: _statusTile(
+              l10n.rptStatusActive,
+              summary.activeCount,
+              AppConstants.successGreen,
             ),
           ),
-          const SizedBox(height: AppConstants.spacingSm),
-          SizedBox(
-            height: 120,
-            child: _collectionTrend.length < 2
-                ? Center(
-                    child: Text(
-                      l10n.reportsNotEnoughTrendData,
-                      style: GoogleFonts.inter(fontSize: 12, color: cs.outline),
-                    ),
-                  )
-                : CustomPaint(
-                    size: const Size(double.infinity, 120),
-                    painter: TrendChartPainter(
-                      values: _collectionTrend,
-                      lineColor: cs.primary,
-                      gradientColor: cs.primary,
-                      xLabels: _trailingMonthLabels(_collectionTrend.length),
-                      yValueFormatter: (v) => '₱${v.toStringAsFixed(0)}',
-                    ),
-                  ),
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(
+            child: _statusTile(
+              l10n.rptStatusOverdue,
+              summary.overdueCount,
+              AppConstants.errorRed,
+            ),
+          ),
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(
+            child: _statusTile(
+              l10n.rptStatusPaid,
+              summary.paidCount,
+              AppConstants.buyerBlue,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPeriodChips(AppLocalizations l10n, ColorScheme cs) {
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: reportPeriodChipOrder.map((p) {
-          final active = _period == p;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(
-                reportPeriodLabel(l10n, p),
-                style: GoogleFonts.inter(fontSize: 12),
-              ),
-              selected: active,
-              onSelected: (_) => _setPeriod(p),
-              selectedColor: AppConstants.primaryGreen,
-              labelStyle: TextStyle(
-                color: active ? Colors.white : cs.onSurface,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildStatusChips(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    final options = <String?, String>{
-      null: l10n.loanHistoryFilterAll,
-      'active': l10n.loanDashActiveLoans,
-      'overdue': l10n.loanDashOverdueLoans,
-      'paid': l10n.loanHistoryFilterPaid,
-    };
-
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: options.entries.map((entry) {
-          final active = _statusFilter == entry.key;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(entry.value, style: GoogleFonts.inter(fontSize: 12)),
-              selected: active,
-              onSelected: (_) => _setStatus(entry.key),
-              selectedColor: AppConstants.buyerBlue,
-              labelStyle: TextStyle(
-                color: active ? Colors.white : cs.onSurface,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildStatusDistribution(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    final dist = _statusDistribution;
-    final total = _loans.length;
-    if (total == 0) return const SizedBox.shrink();
-
-    return Row(
-      children: [
-        Expanded(
-          child: _distributionChip(
-            l10n.loanDashActiveLoans,
-            dist['active'] ?? 0,
-            AppConstants.successGreen,
-          ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: _distributionChip(
-            l10n.loanDashOverdueLoans,
-            dist['overdue'] ?? 0,
-            AppConstants.errorRed,
-          ),
-        ),
-        const SizedBox(width: AppConstants.spacingSm),
-        Expanded(
-          child: _distributionChip(
-            l10n.loanHistoryFilterPaid,
-            dist['paid'] ?? 0,
-            AppConstants.buyerBlue,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _distributionChip(String label, int count, Color color) {
+  Widget _statusTile(String label, int count, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
@@ -453,157 +273,197 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
             '$count',
             style: GoogleFonts.poppins(
               fontWeight: FontWeight.w700,
-              fontSize: 15,
+              fontSize: 17,
               color: color,
             ),
           ),
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 9, color: color),
             textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 10, color: color),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSearchField(
+  Widget _buildLoansSection(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
+    List<AdminLoanSummary> visible,
   ) {
-    return TextField(
-      controller: _searchController,
-      onChanged: (v) => setState(() => _searchQuery = v),
-      decoration: InputDecoration(
-        hintText: l10n.loanHistorySearchHint,
-        hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-        prefixIcon: Icon(Icons.search_rounded, color: cs.outline, size: 22),
-        suffixIcon: _searchQuery.isNotEmpty
-            ? IconButton(
-                icon: Icon(Icons.close_rounded, color: cs.outline, size: 18),
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() => _searchQuery = '');
-                },
-              )
-            : null,
-      ),
-      style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.rptLoansIssued,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            if (!_isLoading && _loans.isNotEmpty)
+              Text(
+                l10n.rptShowingCount(visible.length, _loans.length),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingSm),
+        if (_loans.isNotEmpty) ...[
+          ReportSearchField(
+            controller: _searchController,
+            hint: l10n.loanHistorySearchHint,
+            onChanged: (v) => setState(() => _searchQuery = v),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+        ],
+        if (_isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: SkeletonList(),
+          )
+        else if (_loans.isEmpty)
+          ReportEmptyState(message: l10n.rptNoLoansInPeriod)
+        else if (visible.isEmpty)
+          ReportEmptyState(message: l10n.rptNoMatches)
+        else
+          ...visible.map((loan) => _buildLoanRow(context, loan, l10n, cs)),
+      ],
     );
   }
 
   Widget _buildLoanRow(
     BuildContext context,
     AdminLoanSummary loan,
+    AppLocalizations l10n,
     ColorScheme cs,
-    SaganaColors sagana,
   ) {
-    final currency = NumberFormat.currency(
-      locale: 'en_PH',
-      symbol: '₱',
-      decimalDigits: 0,
-    );
     final statusColor = loan.isPaid
         ? AppConstants.buyerBlue
         : loan.isOverdue
         ? AppConstants.errorRed
         : AppConstants.successGreen;
     final statusLabel = loan.isPaid
-        ? 'PAID'
+        ? l10n.rptStatusPaid
         : loan.isOverdue
-        ? 'OVERDUE'
-        : 'ACTIVE';
+        ? l10n.rptStatusOverdue
+        : l10n.rptStatusActive;
     final itemsSummary = loan.itemNames.isEmpty
         ? '—'
         : loan.itemNames.join(', ');
+    final showDue = !loan.isPaid && loan.nextPaymentDate != null;
 
-    return GestureDetector(
+    return ReportRecordCard(
       onTap: () => context.push(AppRoutes.loanDetails, extra: loan.id),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-        padding: const EdgeInsets.all(AppConstants.spacingMd),
-        decoration: BoxDecoration(
-          color: sagana.cardBackground,
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    loan.farmerName,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: cs.onSurface,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  loan.farmerName,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: cs.onSurface,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(
-                      AppConstants.radiusFull,
-                    ),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Text(
-              '${loan.referenceNo} • ${DateFormat('MMM d, yyyy').format(loan.issuedDate)}',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: cs.onSurfaceVariant,
               ),
+              const SizedBox(width: 8),
+              ReportStatusPill(label: statusLabel, color: statusColor),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${loan.referenceNo} • '
+            '${DateFormat('MMM d, yyyy').format(loan.issuedDate)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+          Text(
+            itemsSummary,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: cs.onSurfaceVariant,
             ),
-            Text(
-              itemsSummary,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: cs.onSurfaceVariant,
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          Row(
+            children: [
+              _loanStat(
+                l10n.issueLoanTotalValue,
+                _money0.format(loan.totalValue),
+                cs,
               ),
-              overflow: TextOverflow.ellipsis,
+              _loanStat(
+                l10n.loanDashPaid,
+                _money0.format(loan.amountPaid),
+                cs,
+              ),
+              _loanStat(
+                l10n.loanDashBalance,
+                _money0.format(loan.remainingBalance),
+                cs,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppConstants.spacingSm),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            child: LinearProgressIndicator(
+              value: loan.repaidPercent,
+              minHeight: 5,
+              backgroundColor: cs.outline.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation(statusColor),
             ),
-            const SizedBox(height: AppConstants.spacingSm),
-            Row(
-              children: [
-                _loanStat(
-                  l10n(context).issueLoanTotalValue,
-                  currency.format(loan.totalValue),
-                  cs,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                l10n.rptRepaidPercent(
+                  (loan.repaidPercent * 100).toStringAsFixed(0),
                 ),
-                _loanStat(
-                  l10n(context).loanDashPaid,
-                  currency.format(loan.amountPaid),
-                  cs,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  color: cs.onSurfaceVariant,
                 ),
-                _loanStat(
-                  l10n(context).loanDashBalance,
-                  currency.format(loan.remainingBalance),
-                  cs,
+              ),
+              const Spacer(),
+              if (showDue)
+                Text(
+                  l10n.rptNextDue(
+                    DateFormat('MMM d, yyyy').format(loan.nextPaymentDate!),
+                  ),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: loan.isOverdue
+                        ? FontWeight.w700
+                        : FontWeight.w400,
+                    color: loan.isOverdue
+                        ? AppConstants.errorRed
+                        : cs.onSurfaceVariant,
+                  ),
                 ),
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -615,10 +475,14 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
         children: [
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
           ),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
               fontWeight: FontWeight.w600,
               fontSize: 12,
@@ -629,6 +493,4 @@ class _LoanReportScreenState extends State<LoanReportScreen> {
       ),
     );
   }
-
-  AppLocalizations l10n(BuildContext context) => AppLocalizations.of(context);
 }

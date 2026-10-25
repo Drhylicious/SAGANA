@@ -1,3 +1,4 @@
+import '../../core/utils/quantity_utils.dart';
 import 'farmer_crop_model.dart' show marketTypeLabelFor;
 
 /// Buyer-facing view of a marketplace listing. Deliberately separate from
@@ -14,6 +15,10 @@ class BuyerListingModel {
   final double
   remainingKg; // real-time unclaimed balance, per-order source of truth
   final double pricePerKg;
+
+  /// The unit volumeKg, remainingKg and pricePerKg are measured in (the fields
+  /// keep their old names). A price is "per this unit".
+  final String unit;
   final String? listingPhotoUrl;
   final String? description;
   final DateTime createdAt;
@@ -57,6 +62,7 @@ class BuyerListingModel {
     required this.volumeKg,
     required this.remainingKg,
     required this.pricePerKg,
+    this.unit = kDefaultUnit,
     this.listingPhotoUrl,
     this.description,
     required this.createdAt,
@@ -121,7 +127,7 @@ class BuyerListingModel {
     return pct.abs() <= 20.0;
   }
 
-  double get totalValueAtFullStock => remainingKg * pricePerKg;
+  double get totalValueAtFullStock => moneyOf(remainingKg, pricePerKg);
 
   String get marketTypeLabel => marketTypeLabelFor(marketType);
 
@@ -144,6 +150,7 @@ class BuyerListingModel {
           (map['remaining_kg'] as num?)?.toDouble() ??
           (map['volume_kg'] as num).toDouble(),
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       listingPhotoUrl: map['photo_url'] as String?,
       description: map['description'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),

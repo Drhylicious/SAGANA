@@ -9,27 +9,6 @@ import '../../data/services/market_types_service.dart';
 import 'management_modal.dart';
 import 'skeleton.dart';
 
-/// Localized label for an [AdminListingModel] status — kept here rather
-/// than on the repository model (which has no BuildContext) so every
-/// screen that shows a listing's status shares one translation instead of
-/// AdminListingModel.statusLabel's hardcoded English.
-String listingStatusLabel(AppLocalizations l10n, String status) {
-  switch (status) {
-    case 'pending_review':
-      return l10n.listingStatePendingApproval;
-    case 'approved':
-      return l10n.listingStateAvailable;
-    case 'sold':
-      return l10n.listingStateSoldOut;
-    case 'rejected':
-      return l10n.listingStateDisapproved;
-    case 'withdrawn':
-      return l10n.listingStateWithdrawn;
-    default:
-      return status;
-  }
-}
-
 /// Small pill naming a listing's market: Public Market (also open to Buyers)
 /// or Cooperative Market (farmers and staff only). Renders nothing when the
 /// market type is unknown (an offline snapshot from before it was fetched).

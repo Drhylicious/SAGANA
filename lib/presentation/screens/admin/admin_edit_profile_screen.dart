@@ -9,6 +9,11 @@ import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../core/utils/contact_email.dart';
+import '../../../data/services/auth_service.dart';
+import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/hive_service.dart';
+import '../../../data/models/admin_profile_model.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_profile_repository.dart';
 import '../../../data/services/offline_actions.dart';
@@ -16,6 +21,8 @@ import '../../../data/services/admin_profile_state_service.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/change_password_dialog.dart';
+import '../../widgets/contact_email_verification.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
@@ -27,7 +34,11 @@ import '../../widgets/sub_page_top_bar.dart';
 /// dedicated screen with a Save action, avatar tap-to-change, and a
 /// Security section linking out to the shared ChangePasswordDialog.
 class AdminEditProfileScreen extends StatefulWidget {
-  const AdminEditProfileScreen({super.key});
+  const AdminEditProfileScreen({super.key, this.initialProfile});
+
+  /// Tests: shown instead of loading the profile from the server.
+  @visibleForTesting
+  final AdminProfileModel? initialProfile;
 
   @override
   State<AdminEditProfileScreen> createState() => _AdminEditProfileScreenState();
@@ -35,10 +46,23 @@ class AdminEditProfileScreen extends StatefulWidget {
 
 class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   final _repo = AdminProfileRepository();
-  final _nameController = TextEditingController();
+  final _name = PersonNameInput();
+  final _nameFormKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _dobController = TextEditingController();
   final _emailController = TextEditingController();
+
+  // The Officer's contact email is editable (their sign-in address is a
+  // generated username). The Manager's email is their sign-in address: shown
+  // locked, and verified in place.
+  bool get _isOfficer => HiveService.isOfficer;
+  String _originalEmail = '';
+  // What the account has on record, so the Verified / Unverified line shows the
+  // saved state (a typed-but-unsaved address is always Unverified).
+  String? _savedEmail;
+  String? _verifiedEmail;
+  bool get _emailVerified =>
+      ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -61,7 +85,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _name.dispose();
     _phoneController.dispose();
     _dobController.dispose();
     _emailController.dispose();
@@ -69,13 +93,24 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   }
 
   Future<void> _load() async {
-    final profile = await _repo.fetchProfile();
+    final profile = widget.initialProfile ?? await _repo.fetchProfile();
     if (!mounted) return;
     setState(() {
-      _nameController.text = profile?.fullName ?? '';
+      _name.load(
+        fullName: profile?.fullName,
+        surnameValue: profile?.surname,
+        firstNameValue: profile?.firstName,
+        middleInitialValue: profile?.middleInitial,
+        suffixValue: profile?.suffix,
+      );
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
-      _emailController.text = profile?.email ?? '';
+      _emailController.text = _isOfficer
+          ? (profile?.contactEmail ?? '')
+          : (profile?.verifiableEmail ?? profile?.email ?? '');
+      _originalEmail = _emailController.text.trim();
+      _savedEmail = profile?.verifiableEmail;
+      _verifiedEmail = profile?.verifiedContactEmail;
       _dateOfBirth = profile?.dateOfBirth;
       _dobController.text = _dateOfBirth == null
           ? ''
@@ -152,16 +187,75 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
     );
   }
 
+  // Verify Email saves an Officer's address first (same checks as Save), then
+  // sends the code. The Manager's address is their sign-in email: nothing to save.
+  Future<bool> _saveEmailForVerification() async {
+    if (!_isOfficer) return true;
+    final l10n = AppLocalizations.of(context);
+    void fail(String message) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+      );
+    }
+
+    final email = _emailController.text.trim();
+    if (!isValidEmailFormat(email)) {
+      fail(l10n.registerInvalidEmail);
+      return false;
+    }
+    if (email.toLowerCase() != _originalEmail.toLowerCase()) {
+      final domain = await AuthService.checkEmailDomain(email);
+      if (!mounted) return false;
+      if (domain == EmailDomainStatus.noMailServer) {
+        fail(l10n.registerEmailDomainInvalid);
+        return false;
+      }
+    }
+    try {
+      await _repo.updateContactEmail(email);
+      if (!mounted) return false;
+      setState(() {
+        _originalEmail = email;
+        _savedEmail = email.toLowerCase();
+      });
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      fail(readableDatabaseMessage(e) ?? l10n.adminProfileSaveError);
+      return false;
+    }
+  }
+
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.adminProfileNameRequired),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
-      return;
+    // Surname and first name are checked on the fields themselves.
+    if (!(_nameFormKey.currentState?.validate() ?? false)) return;
+
+    // An Officer's contact email: format first, and the domain when it changed.
+    final email = _emailController.text.trim();
+    if (_isOfficer && email.isNotEmpty) {
+      if (!isValidEmailFormat(email)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.registerInvalidEmail),
+            backgroundColor: AppConstants.errorRed,
+          ),
+        );
+        return;
+      }
+      if (email.toLowerCase() != _originalEmail.toLowerCase()) {
+        final domain = await AuthService.checkEmailDomain(email);
+        if (!mounted) return;
+        if (domain == EmailDomainStatus.noMailServer) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.registerEmailDomainInvalid),
+              backgroundColor: AppConstants.errorRed,
+            ),
+          );
+          return;
+        }
+      }
     }
 
     final phoneText = _phoneController.text.trim();
@@ -178,8 +272,11 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
     setState(() => _isSaving = true);
     try {
       final outcome = await _repo.updateBasicInfo(
-        fullName: _nameController.text.trim(),
+        name: _name.parts,
         phoneNumber: _phoneController.text.trim(),
+        // Only an Officer's contact email is saved here; the Manager's is the
+        // sign-in address and is not editable.
+        contactEmail: _isOfficer ? email : null,
         dateOfBirth: _dateOfBirth,
         gender: _gender,
       );
@@ -235,9 +332,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                     children: [
                       ProfileAvatar(
                         photoUrl: _photoUrl,
-                        displayName: _nameController.text.isNotEmpty
-                            ? _nameController.text
-                            : 'Admin',
+                        displayName: _name.displayName('Admin'),
                         radius: 56,
                       ),
                       if (_isUploadingPhoto)
@@ -295,30 +390,52 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                 const SizedBox(height: 20),
                 SectionLabel(label: l10n.sectionPersonalInformation),
                 const SizedBox(height: 8),
-                AppTextField(
-                  controller: _nameController,
-                  label: l10n.adminProfileFullName,
-                  prefixIcon: Icons.person_outline_rounded,
-                  textCapitalization: TextCapitalization.words,
+                Form(
+                  key: _nameFormKey,
+                  child: PersonNameFields(
+                    style: PersonNameFieldsStyle.profile,
+                    surnameController: _name.surname,
+                    firstNameController: _name.firstName,
+                    middleInitialController: _name.middleInitial,
+                    suffix: _name.suffix,
+                    onSuffixChanged: (v) => setState(() => _name.suffix = v),
+                    allowAllBlank: _name.legacyFullName != null,
+                    legacyFullName: _name.legacyFullName,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 AppTextField(
                   controller: _emailController,
                   label: l10n.emailAddress,
                   prefixIcon: Icons.email_outlined,
-                  // Locked: not editable, with the lock icon (same as Harvest Entry).
-                  locked: true,
+                  keyboardType: TextInputType.emailAddress,
+                  // The Manager's email is the sign-in address: locked, with the
+                  // lock icon (same as Harvest Entry). An Officer's is editable.
+                  locked: !_isOfficer,
                 ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    l10n.emailCannotBeChanged,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                if (!_isOfficer) ...[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      l10n.emailCannotBeChanged,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
+                ],
+                ContactEmailVerification(
+                  emailController: _emailController,
+                  savedEmail: _savedEmail,
+                  verified: _emailVerified,
+                  isOnline: ConnectivityService.instance.isOnline,
+                  saveEmail: _saveEmailForVerification,
+                  onVerified: () {
+                    setState(() => _verifiedEmail = _savedEmail);
+                    AdminProfileStateService.instance.refresh();
+                  },
                 ),
                 const SizedBox(height: 16),
                 AppTextField(

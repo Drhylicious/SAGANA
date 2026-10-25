@@ -140,35 +140,3 @@ class MarketTypeDisplay {
   static String label(AppLocalizations l10n, String? marketType) =>
       MarketTypes.instance.label(marketType);
 }
-
-/// Shared color lookup for marketplace_listings.status, mirroring
-/// MarketTypeDisplay's pattern above — one place the color lives, so
-/// Farmer's My Listings and Admin's Listing Review can never disagree on
-/// a status's color again.
-///
-/// Labels are intentionally NOT unified here — Farmer's badge uses
-/// descriptive text ("LIVE ON MARKET") while Admin's uses compact text
-/// ("Live") for a denser review list. That's a deliberate difference
-/// between two UI densities, not accidental duplication.
-class ListingStatusDisplay {
-  ListingStatusDisplay._();
-
-  static Color color(BuildContext context, String status) {
-    final cs = Theme.of(context).colorScheme;
-    switch (status) {
-      case 'pending_review':
-        return AppConstants.warningAmber;
-      case 'approved':
-        return AppConstants.successGreen;
-      case 'sold':
-        // Same grey as the Sold Out badge (listing_status_badge.dart).
-        return cs.onSurfaceVariant;
-      case 'rejected':
-        return cs.error;
-      case 'withdrawn':
-        return AppConstants.mutedSlate;
-      default:
-        return cs.outline;
-    }
-  }
-}

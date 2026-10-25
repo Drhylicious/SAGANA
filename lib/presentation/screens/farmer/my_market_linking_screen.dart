@@ -13,6 +13,7 @@ import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 
 /// Farmer's own DA-AMAD Market Linking screen. Gated on Enrollment (see
 /// DaAmadEnrollmentModel in market_linking_repository.dart) — a farmer
@@ -872,7 +873,7 @@ class _EnrollmentCard extends StatelessWidget {
                 Icon(Icons.scale_outlined, size: 13, color: cs.outline),
                 const SizedBox(width: 4),
                 Text(
-                  '${entry.volumeKg!.toStringAsFixed(0)} kg committed',
+                  '${formatQuantity(entry.volumeKg!)} kg committed',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onSurfaceVariant,
@@ -912,7 +913,7 @@ class _EnrollmentCard extends StatelessWidget {
                 Icon(Icons.shopping_bag_outlined, size: 13, color: cs.outline),
                 const SizedBox(width: 4),
                 Text(
-                  'Buyer wants ${entry.requestedVolumeKg!.toStringAsFixed(0)} kg',
+                  'Buyer wants ${formatQuantity(entry.requestedVolumeKg!)} kg',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: cs.onSurfaceVariant,

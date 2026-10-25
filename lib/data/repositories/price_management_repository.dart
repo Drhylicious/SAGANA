@@ -26,7 +26,7 @@ class PriceManagementRepository {
         screen: 'latest_prices',
         fetch: () => _client
             .from('price_records')
-            .select('*, crop_master(image_url, category)')
+            .select('*, crop_master(image_url, category, is_active)')
             .order('recorded_at', ascending: false),
       );
       // Live rows are already limited by the database (a Buyer is never sent a
@@ -44,6 +44,10 @@ class PriceManagementRepository {
 
       final Map<String, PriceRecordModel> latest = {};
       for (final row in rows) {
+        // An archived crop (retired from the catalog, e.g. Copra) no longer
+        // shows a current price. Its records stay in the database.
+        final master = row['crop_master'];
+        if (master is Map && master['is_active'] == false) continue;
         final key = '${row['crop_id']}_${row['price_type']}';
         if (!latest.containsKey(key)) {
           latest[key] = PriceRecordModel.fromMap(row);
@@ -61,45 +65,55 @@ class PriceManagementRepository {
 
   // ─── Fetch 30-day trend for a specific crop (for mini chart) ──────────────
   // Keyed on crop_id instead of an ilike match against crop_name.
+  //
+  // [priceType] limits the trend to ONE market. A crop can be priced in both
+  // markets, and each market has its own price list, so a chart that mixed them
+  // would zig-zag between two different prices. Pass it whenever the screen
+  // shows a single market's price. Each (crop, market) keeps its own offline
+  // copy. The database still decides which markets the signed-in user can read.
 
   Future<List<PriceRecordModel>> fetchTrendForCrop(
     String cropId, {
     int days = 30,
+    String? priceType,
   }) async {
     try {
-      final cutoff = DateTime.now()
-          .subtract(Duration(days: days))
-          .toIso8601String();
-      final rows = await _client
-          .from('price_records')
-          .select()
-          .eq('crop_id', cropId)
-          .gte('recorded_at', cutoff)
-          .order('recorded_at', ascending: true);
-
-      if (rows.isNotEmpty) {
-        return rows.map((r) => PriceRecordModel.fromMap(r)).toList();
-      }
-
-      // Nothing in the last `days` — the crop still has price history,
-      // just not recently updated. Fall back to the most recent 10
-      // records regardless of age, rather than showing "no history" for
-      // a crop that genuinely has data, just outside this window.
-      final fallbackRows = await _client
-          .from('price_records')
-          .select()
-          .eq('crop_id', cropId)
-          .order('recorded_at', ascending: false)
-          .limit(10);
-
-      final fallback = fallbackRows
-          .map((r) => PriceRecordModel.fromMap(r))
-          .toList();
-      return fallback.reversed.toList();
+      final rows = await OfflineCache.load(
+        screen: 'price_trend_${cropId}_${priceType ?? 'all'}_$days',
+        fetch: () => _fetchTrendRows(cropId, days, priceType),
+      );
+      return rows.map((r) => PriceRecordModel.fromMap(r)).toList();
     } catch (e) {
       debugPrint('PriceManagementRepository.fetchTrendForCrop failed: $e');
       return [];
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTrendRows(
+    String cropId,
+    int days,
+    String? priceType,
+  ) async {
+    final cutoff = DateTime.now()
+        .subtract(Duration(days: days))
+        .toIso8601String();
+    var recent = _client.from('price_records').select().eq('crop_id', cropId);
+    if (priceType != null) recent = recent.eq('price_type', priceType);
+    final rows = await recent
+        .gte('recorded_at', cutoff)
+        .order('recorded_at', ascending: true);
+    if (rows.isNotEmpty) return List<Map<String, dynamic>>.from(rows);
+
+    // Nothing in the last `days` — the crop still has price history,
+    // just not recently updated. Fall back to the most recent 10
+    // records regardless of age, rather than showing "no history" for
+    // a crop that genuinely has data, just outside this window.
+    var older = _client.from('price_records').select().eq('crop_id', cropId);
+    if (priceType != null) older = older.eq('price_type', priceType);
+    final fallbackRows = await older
+        .order('recorded_at', ascending: false)
+        .limit(10);
+    return List<Map<String, dynamic>>.from(fallbackRows.reversed);
   }
 
   // ─── Insert new price record ───────────────────────────────────────────────

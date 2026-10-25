@@ -7,6 +7,7 @@ import '../repositories/capital_contribution_repository.dart';
 import '../repositories/crop_repository.dart';
 import '../repositories/farmer_profile_repository.dart';
 import '../repositories/notification_repository.dart';
+import '../../core/utils/person_name.dart';
 import 'offline_actions.dart';
 
 /// Sends one queued action to the server. Called only by SyncService.
@@ -22,6 +23,7 @@ class OfflineActionReplay {
     switch (kind) {
       case 'farmer_basic_info':
         await FarmerProfileRepository().updateBasicInfoOnline(
+          name: NameParts.fromRow(p['name'] as Map?),
           fullName: p['fullName'] as String?,
           phoneNumber: p['phoneNumber'] as String?,
           contactEmail: p['contactEmail'] as String?,
@@ -34,6 +36,9 @@ class OfflineActionReplay {
         await FarmerProfileRepository().updateFarmDetailsOnline(
           farmName: p['farmName'] as String?,
           farmAddress: p['farmAddress'] as String?,
+          farmStreet: p['farmStreet'] as String?,
+          farmBuilding: p['farmBuilding'] as String?,
+          farmHouseNo: p['farmHouseNo'] as String?,
           landAreaHectares: (p['landAreaHectares'] as num?)?.toDouble(),
           yearsFarming: p['yearsFarming'] as int?,
           farmLatitude: (p['farmLatitude'] as num?)?.toDouble(),
@@ -49,7 +54,8 @@ class OfflineActionReplay {
         );
       case 'buyer_profile':
         await BuyerProfileRepository().updateProfileOnline(
-          fullName: p['fullName'] as String,
+          name: NameParts.fromRow(p['name'] as Map?),
+          fullName: p['fullName'] as String?,
           phoneNumber: p['phoneNumber'] as String?,
           photoUrl: p['photoUrl'] as String?,
           contactEmail: p['contactEmail'] as String?,
@@ -58,8 +64,10 @@ class OfflineActionReplay {
         );
       case 'admin_basic_info':
         await AdminProfileRepository().updateBasicInfoOnline(
-          fullName: p['fullName'] as String,
+          name: NameParts.fromRow(p['name'] as Map?),
+          fullName: p['fullName'] as String?,
           phoneNumber: p['phoneNumber'] as String?,
+          contactEmail: p['contactEmail'] as String?,
           dateOfBirth: decodeDate(p['dateOfBirth']),
           gender: p['gender'] as String?,
         );

@@ -1,6 +1,8 @@
 import 'package:intl/intl.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/admin_reports_model.dart';
+import '../models/export_model.dart';
 
 /// Pure CSV serialization for each report type — no fetching, no file
 /// I/O, no dependencies beyond the report models themselves. Kept
@@ -23,29 +25,34 @@ String _row(List<Object?> values) => values.map(_escape).join(',');
 
 final _dateFmt = DateFormat('yyyy-MM-dd');
 
-/// Selling Type raw values -> export-friendly labels — mirrors the labels
-/// used on screen (sales_report_screen.dart), kept here since this file
-/// has no UI dependency of its own.
-String _sellingTypeLabel(String sellingType) {
-  switch (sellingType) {
-    case 'offer_to_cooperative':
-      return 'Offer to Cooperative';
-    case 'marketplace':
-      return 'Marketplace';
-    case 'informal_sale':
-      return 'Informal Sale (F2F)';
-    case 'da_amad_market_linking':
-      return 'DA-AMAD Market Linking';
-    default:
-      return sellingType;
+/// A short block placed above the table of every exported file (except the
+/// Member Patronage Report, whose export is left as it was): the report name,
+/// what it covers, when it was generated, and its headline totals. Without it a
+/// shared file does not say which period it describes.
+String csvExportHeader({
+  required String reportName,
+  required String scopeText,
+  required DateTime generatedAt,
+  List<(String, String)> summary = const [],
+}) {
+  final buffer = StringBuffer();
+  buffer.writeln(_row(['Report', reportName]));
+  buffer.writeln(_row(['Covers', scopeText]));
+  buffer.writeln(
+    _row(['Generated', DateFormat('yyyy-MM-dd HH:mm').format(generatedAt)]),
+  );
+  for (final (label, value) in summary) {
+    buffer.writeln(_row([label, value]));
   }
+  buffer.writeln();
+  return buffer.toString();
 }
 
 String serializeSalesReportCsv(SalesReportData data) {
   final buffer = StringBuffer();
   buffer.writeln(
     _row([
-      'Selling Type',
+      'Selling Channel',
       'Market Type',
       'Farmer Name',
       'Crop Type',
@@ -59,12 +66,12 @@ String serializeSalesReportCsv(SalesReportData data) {
   for (final t in data.transactions) {
     buffer.writeln(
       _row([
-        _sellingTypeLabel(t.sellingType),
+        sellingChannelLabel(t.sellingType),
         t.marketType ?? '',
         t.farmerName,
         t.cropType,
         t.cropName,
-        t.quantityKg.toStringAsFixed(2),
+        exportQuantity(t.quantityKg, t.unit),
         t.amount.toStringAsFixed(2),
         _dateFmt.format(t.saleDate),
         t.referenceNo ?? '',
@@ -81,8 +88,9 @@ String _serializeInventoryBatchesCsv(InventoryReportData data) {
       'Farmer Name',
       'Crop',
       'Batch Number',
+      'Harvested (kg)',
       'Available (kg)',
-      'Reserved (kg)',
+      'Committed (kg)',
       'Sold (kg)',
       'Status',
     ]),
@@ -92,11 +100,12 @@ String _serializeInventoryBatchesCsv(InventoryReportData data) {
       _row([
         b.farmerName,
         b.cropName,
-        b.batchNumber,
-        b.availableKg.toStringAsFixed(2),
-        b.reservedKg.toStringAsFixed(2),
-        b.soldKg.toStringAsFixed(2),
-        b.status,
+        formatBatchNumber(b.batchNumber),
+        exportQuantity(b.quantityKg, b.unit),
+        exportQuantity(b.availableKg, b.unit),
+        exportQuantity(b.reservedKg, b.unit),
+        exportQuantity(b.soldKg, b.unit),
+        batchStatusExportLabel(b.status),
       ]),
     );
   }
@@ -116,7 +125,7 @@ String serializeHarvestReportCsv(
   final buffer = StringBuffer();
   buffer.writeln(_row(['Harvest Activity']));
   buffer.writeln(
-    _row(['Date', 'Farmer Name', 'Crop', 'Quantity (kg)', 'Synced']),
+    _row(['Date', 'Farmer Name', 'Crop', 'Quantity (kg)', 'Batch Number']),
   );
   for (final h in data.harvests) {
     buffer.writeln(
@@ -124,8 +133,8 @@ String serializeHarvestReportCsv(
         _dateFmt.format(h.harvestDate),
         h.farmerName,
         h.cropName,
-        h.quantityKg.toStringAsFixed(2),
-        h.isSynced ? 'Yes' : 'No',
+        exportQuantity(h.quantityKg, h.unit),
+        formatBatchNumber(h.batchNumber),
       ]),
     );
   }
@@ -186,7 +195,7 @@ String serializeLoanReportCsv(List<AdminLoanSummary> loans) {
         l.totalValue.toStringAsFixed(2),
         l.amountPaid.toStringAsFixed(2),
         l.remainingBalance.toStringAsFixed(2),
-        l.status,
+        loanStatusExportLabel(l.status),
       ]),
     );
   }

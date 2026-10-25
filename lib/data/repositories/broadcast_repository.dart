@@ -177,7 +177,7 @@ Future<List<BroadcastModel>> fetchBroadcastHistory({int limit = 100}) async {
     } catch (e) {
       debugPrint('BroadcastRepository.fetchCropNames failed: $e');
       // Fallback to SP3's known primary crops
-      return ['Peanut', 'Ginger', 'Palay', 'Banana', 'Copra'];
+      return ['Peanut', 'Ginger', 'Palay', 'Banana'];
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../core/utils/person_name.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -29,14 +30,7 @@ class ProfileAvatar extends StatelessWidget {
     this.badge,
   });
 
-  String get _initials {
-    final trimmed = displayName.trim();
-    if (trimmed.isEmpty) return '?';
-    final parts = trimmed.split(RegExp(r'\s+'));
-    final first = parts.first.isNotEmpty ? parts.first[0] : '';
-    final last = parts.length > 1 && parts.last.isNotEmpty ? parts.last[0] : '';
-    return (first + last).toUpperCase();
-  }
+  String get _initials => PersonName.initials(displayName);
 
   @override
   Widget build(BuildContext context) {

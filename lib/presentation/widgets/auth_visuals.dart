@@ -106,7 +106,7 @@ class AuthGlassCard extends StatelessWidget {
 InputDecoration authFieldDecoration({
   String? label,
   String? hint,
-  required IconData icon,
+  IconData? icon,
   Widget? suffix,
 }) {
   return InputDecoration(
@@ -123,7 +123,9 @@ InputDecoration authFieldDecoration({
     ),
     filled: true,
     fillColor: Colors.white.withValues(alpha: 0.55),
-    prefixIcon: Icon(icon, size: 20, color: AppConstants.outline),
+    prefixIcon: icon == null
+        ? null
+        : Icon(icon, size: 20, color: AppConstants.outline),
     suffixIcon: suffix,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppConstants.radiusLg),

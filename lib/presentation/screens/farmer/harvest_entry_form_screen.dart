@@ -4,14 +4,18 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/app_utils.dart';
+import '../../../core/utils/db_error_utils.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_entry_repository.dart';
+import '../../../data/repositories/unit_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/add_unit_dialog.dart';
+import '../../widgets/quantity_unit_field.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/channel_only_badge.dart';
@@ -32,12 +36,19 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
   final _quantityController = TextEditingController();
   final _repo = HarvestEntryRepository();
   final _cropRepo = CropRepository();
+  final _unitRepo = UnitRepository();
 
   List<FarmerCropModel> _myCrops = [];
   FarmerCropModel? _selectedCrop;
   FarmerCropModel? _blockedCrop;
   bool _isLoadingCrops = true;
-  String? _previewBatchNumber;
+
+  // The units come from the same public.units list Inventory Management and
+  // Price Management use, so a unit the Manager adds there appears here with no
+  // app change. The farmer must choose one (no default), except for a crop
+  // reserved for one selling channel, which is measured in kg.
+  List<String> _units = [];
+  String? _selectedUnit;
   final String _selectedStorageLocation = AppConstants.harvestStorageLocations.first;
 
   DateTime _harvestDate = DateTime.now();
@@ -67,10 +78,16 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       _loadFailed = false;
     });
     List<FarmerCropModel> crops;
+    List<String> units;
     try {
-      crops = await _cropRepo
-          .fetchCrops(approvedOnly: true)
-          .timeout(const Duration(seconds: 15));
+      final results = await Future.wait([
+        _cropRepo
+            .fetchCrops(approvedOnly: true)
+            .timeout(const Duration(seconds: 15)),
+        _unitRepo.fetchUnits(),
+      ]);
+      crops = results[0] as List<FarmerCropModel>;
+      units = results[1] as List<String>;
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -109,17 +126,35 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       } else {
         _selectedCrop = null;
       }
-      _previewBatchNumber =
-          _selectedCrop != null ? _generateBatchNumber(_selectedCrop!) : null;
+      _units = units;
+      // A crop reserved for one selling channel (Ginger: DA-AMAD Market
+      // Linking) is measured in kg end to end, so its unit is fixed.
+      _selectedUnit = _selectedCrop?.exclusiveChannel != null
+          ? kDefaultUnit
+          : null;
+      if (_selectedUnit != null && !_units.contains(_selectedUnit)) {
+        _units = [..._units, _selectedUnit!];
+      }
       _isLoadingCrops = false;
     });
   }
 
-  String _generateBatchNumber(FarmerCropModel crop) {
-    final code = crop.cropName.length >= 4
-        ? crop.cropName.substring(0, 4).toUpperCase()
-        : crop.cropName.toUpperCase();
-    return AppUtils.generateBatchNumber(code);
+  bool get _unitLocked => _selectedCrop?.exclusiveChannel != null;
+
+  // "+ Unit": the same dialog, validation and save Price Management and
+  // Inventory Management use. The new unit joins the list at once and is
+  // selected (the dropdown selects whatever this returns), no reload needed.
+  Future<String?> _addUnit() async {
+    final added = await promptAddUnit(
+      context,
+      repo: _unitRepo,
+      existing: _units,
+    );
+    if (added == null || !mounted) return null;
+    setState(() {
+      if (!_units.contains(added)) _units = [..._units, added];
+    });
+    return added;
   }
 
   @override
@@ -137,7 +172,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _harvestDate,
-      firstDate: DateTime(1900),
+      // The database numbers a batch with a 2-digit year and refuses a harvest
+      // date outside 2000-2099, so the picker starts at 2000.
+      firstDate: DateTime(2000),
       lastDate: DateTime.now(),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
@@ -164,30 +201,27 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
       setState(() => _errorMessage = 'This crop is still awaiting Manager approval and can\'t be harvested yet.');
       return;
     }
+    // Quantity and Unit show their own message under their own field.
     if (!_formKey.currentState!.validate()) return;
 
-    final qty = double.tryParse(_quantityController.text.trim());
-    if (qty == null || qty <= 0) {
-      setState(() => _errorMessage = 'Please enter a valid quantity.');
-      return;
-    }
+    final qty = parseDecimal(_quantityController.text);
+    final unit = _selectedUnit;
+    if (qty == null || unit == null) return; // validate() already said why
 
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
     try {
-      // Reuse the number already shown in the form's read-only Batch
-      // Number field instead of regenerating — AppUtils.generateBatchNumber()
-      // embeds a millisecond-based random suffix, so a second call here
-      // produced a different value than what the farmer saw and confirmed.
-      final batchNumber = _previewBatchNumber!;
+      // The batch number is issued by the database when the harvest is saved,
+      // so it is read back from the saved row. A harvest saved offline has
+      // none yet: it is numbered when it syncs.
       final harvest = await _repo.submitHarvest(
         cropId: _selectedCrop!.id,
         cropName: _selectedCrop!.cropName,
         cropCategory: _selectedCrop!.category,
         quantityKg: qty,
+        unit: unit,
         harvestDate: _harvestDate,
-        batchNumber: batchNumber,
         storageLocation: _selectedStorageLocation,
       );
 
@@ -200,19 +234,33 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
       await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) {
-        _showSuccessDialog(qty, batchNumber, wasQueuedOffline: !harvest.isSynced);
+        _showSuccessDialog(
+          qty,
+          unit,
+          formatBatchNumber(harvest.batchNumber),
+          wasQueuedOffline: !harvest.isSynced,
+        );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
+        // The database's own sentence when it wrote one for people (for
+        // example an unknown unit or a harvest date it refuses); otherwise
+        // the generic connection message.
         _errorMessage =
+            readableDatabaseMessage(e) ??
             'Failed to submit harvest. Please check your connection and try again.';
       });
     }
   }
 
-  void _showSuccessDialog(double qty, String batchNumber, {required bool wasQueuedOffline}) {
+  void _showSuccessDialog(
+    double qty,
+    String unit,
+    String batchNumber, {
+    required bool wasQueuedOffline,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -247,11 +295,11 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
             const SizedBox(height: 8),
             Text(
               wasQueuedOffline
-                  ? '${qty.toStringAsFixed(0)} kg of ${_selectedCrop!.cropName} recorded '
-                    '(Batch #$batchNumber).\n\nNo connection right now — this will sync '
-                    'automatically once you\'re back online.'
-                  : '${qty.toStringAsFixed(0)} kg of ${_selectedCrop!.cropName} recorded '
-                    '(Batch #$batchNumber).\n\nCheck Inventory to sell, offer it '
+                  ? '${formatQuantityUnit(qty, unit)} of ${_selectedCrop!.cropName} recorded.\n\n'
+                    'No connection right now — this will sync automatically once '
+                    'you\'re back online, and its batch number is issued then.'
+                  : '${formatQuantityUnit(qty, unit)} of ${_selectedCrop!.cropName} recorded '
+                    '($batchNumber).\n\nCheck Inventory to sell, offer it '
                     'to the cooperative, or record a sale.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
@@ -389,7 +437,29 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         const SizedBox(height: 20),
 
                         // ── Quantity ──────────────────────────────────────
-                        _QuantityField(controller: _quantityController),
+                        QuantityUnitField(
+                          controller: _quantityController,
+                          units: _units,
+                          selectedUnit: _selectedUnit,
+                          unitLocked: _unitLocked,
+                          onUnitChanged: (u) =>
+                              setState(() => _selectedUnit = u),
+                          onAddUnit: _addUnit,
+                          addUnitLabel: AppLocalizations.of(context).unitAddCompact,
+                        ),
+                        if (_unitLocked) ...[
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              '${selectedCrop.cropName} is measured in kg for its selling channel.',
+                              style: GoogleFonts.inter(
+                                fontSize: 11.5,
+                                color: AppConstants.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 20),
 
                         // ── Market Type ───────────────────────────────────
@@ -414,7 +484,10 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                         // ── Batch Number ──────────────────────────────────
                         const _FieldLabel('Batch Number'),
                         const SizedBox(height: 8),
-                        _LockedField(value: _previewBatchNumber ?? '—'),
+                        // Issued by the database when the harvest is saved
+                        // (BATCH-CROP-YYMMDD-X0001), so it cannot be shown
+                        // before then without risking a different number.
+                        const _LockedField(value: 'Assigned when you submit'),
                         const SizedBox(height: 16),
 
                         // ── Harvest Date ──────────────────────────────────
@@ -733,80 +806,6 @@ class _PendingCropBanner extends StatelessWidget {
 // Quantity Field
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _QuantityField extends StatelessWidget {
-  final TextEditingController controller;
-  const _QuantityField({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _FieldLabel('Quantity (kg)*'),
-        const SizedBox(height: 8),
-        Stack(
-          alignment: Alignment.centerRight,
-          children: [
-            TextFormField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              textAlign: TextAlign.center,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-              ],
-              style: GoogleFonts.poppins(
-                  fontSize: 24, fontWeight: FontWeight.w700,
-                  color: AppConstants.primaryGreen),
-              decoration: InputDecoration(
-                hintText: '0.00',
-                hintStyle: GoogleFonts.poppins(
-                    fontSize: 24, fontWeight: FontWeight.w700,
-                    color: AppConstants.outline.withValues(alpha: 0.30)),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 16, horizontal: 48),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: BorderSide(
-                      color: AppConstants.outline.withValues(alpha: 0.20), width: 2),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: BorderSide(
-                      color: AppConstants.outline.withValues(alpha: 0.20), width: 2),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: const BorderSide(
-                      color: AppConstants.primaryContainer, width: 2),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: const BorderSide(
-                      color: AppConstants.errorRed, width: 2),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Quantity is required';
-                final qty = double.tryParse(v);
-                if (qty == null || qty <= 0) return 'Enter a valid quantity';
-                return null;
-              },
-            ),
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Text('KG',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700,
-                      color: AppConstants.outline)),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Locked Field — read-only display styled to look and behave locked

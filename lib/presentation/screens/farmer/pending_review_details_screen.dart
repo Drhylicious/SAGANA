@@ -17,6 +17,7 @@ import '../../../data/services/auth_service.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/auth_visuals.dart';
 import '../../widgets/fixed_farmer_address_fields.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
@@ -38,7 +39,7 @@ class _PendingReviewDetailsScreenState
 
   // Personal information
   final _personalKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
+  final _name = PersonNameInput();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   DateTime? _dob;
@@ -70,7 +71,7 @@ class _PendingReviewDetailsScreenState
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
+    _name.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _streetCtrl.dispose();
@@ -114,7 +115,13 @@ class _PendingReviewDetailsScreenState
 
   void _startPersonalEdit() {
     final p = _profile;
-    _nameCtrl.text = p?.fullName ?? '';
+    _name.load(
+      fullName: p?.fullName,
+      surnameValue: p?.surname,
+      firstNameValue: p?.firstName,
+      middleInitialValue: p?.middleInitial,
+      suffixValue: p?.suffix,
+    );
     _phoneCtrl.text = p?.phoneNumber ?? '';
     _emailCtrl.text = p?.contactEmail ?? '';
     setState(() {
@@ -162,7 +169,7 @@ class _PendingReviewDetailsScreenState
     });
     try {
       await _profileRepo.updateApplicantDetails(
-        fullName: _nameCtrl.text.trim(),
+        name: _name.parts,
         phoneNumber: normalizePhilippineMobile(_phoneCtrl.text) ?? '',
         contactEmail: _emailCtrl.text.trim(),
         dateOfBirth: _dob,
@@ -453,23 +460,22 @@ class _PendingReviewDetailsScreenState
       key: _personalKey,
       child: Column(
         children: [
-          TextFormField(
-            controller: _nameCtrl,
-            textCapitalization: TextCapitalization.words,
-            decoration: authFieldDecoration(
-              label: l10n.pendingFullNameLabel,
-              icon: Icons.person_outline_rounded,
-            ),
-            validator: (v) => (v == null || v.trim().length < 2)
-                ? l10n.pendingFullNameRequired
-                : null,
+          // The same name fields as sign-up. Never a single Full Name input.
+          PersonNameFields(
+            surnameController: _name.surname,
+            firstNameController: _name.firstName,
+            middleInitialController: _name.middleInitial,
+            suffix: _name.suffix,
+            onSuffixChanged: (v) => setState(() => _name.suffix = v),
+            allowAllBlank: _name.legacyFullName != null,
+            legacyFullName: _name.legacyFullName,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _phoneCtrl,
             keyboardType: TextInputType.phone,
             decoration: authFieldDecoration(
-              label: l10n.pendingPhoneOptionalLabel,
+              label: l10n.pendingPhoneFieldLabel,
               icon: Icons.phone_outlined,
             ),
             validator: (v) {
@@ -485,7 +491,7 @@ class _PendingReviewDetailsScreenState
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             decoration: authFieldDecoration(
-              label: l10n.pendingEmailOptionalLabel,
+              label: l10n.pendingEmailFieldLabel,
               icon: Icons.mail_outline_rounded,
             ),
             validator: (v) {
@@ -524,7 +530,7 @@ class _PendingReviewDetailsScreenState
           AppDropdownField<String>(
             value: _gender,
             hintText: l10n.pendingSelectHint,
-            labelText: l10n.pendingGenderOptionalLabel,
+            labelText: l10n.pendingGenderFieldLabel,
             items: _genders(l10n).keys.toList(),
             itemLabel: (key) => _genders(l10n)[key]!,
             onChanged: (v) => setState(() => _gender = v),

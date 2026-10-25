@@ -1,11 +1,9 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/farmer_registration_address.dart';
-import '../../../core/constants/osm_config.dart';
 import '../../../core/utils/db_error_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -14,18 +12,12 @@ import '../../../data/repositories/buyer_address_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/services/device_location_service.dart';
 import '../../../data/services/nominatim_service.dart';
+import '../../widgets/address_map_widgets.dart';
 import '../../widgets/fixed_farmer_address_fields.dart';
 import '../../widgets/map_attribution_links.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
-
-// Same Barangay Payanas default center/zoom, same OpenStreetMap tile
-// source, as the farmer Edit Farm Details map picker — reusing that exact
-// configuration rather than a second one.
-const _defaultCenter = LatLng(13.6302, 121.9392);
-const _defaultZoom = 15.0;
-const _pinZoom = 16.5;
 
 /// Add/Edit Address — one screen for Farmers and Buyers (nullable `existing`).
 ///
@@ -130,13 +122,16 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
     final result = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => _AddressFullMapScreen(initialLocation: _pinnedLocation),
+        builder: (_) => LocationPinPickerScreen(
+          title: AppLocalizations.of(context).buyerAddressMapSection,
+          initialLocation: _pinnedLocation,
+        ),
       ),
     );
     if (result != null && mounted) {
       // The inline preview was built with a fixed start point, so move its camera
       // too. Otherwise a pin placed elsewhere stays off screen.
-      _mapCtrl.move(result, _pinZoom);
+      _mapCtrl.move(result, kAddressMapPinZoom);
       setState(() => _pinnedLocation = result);
     }
   }
@@ -176,7 +171,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
       _pinnedLocation = point;
       _locating = false;
     });
-    _mapCtrl.move(point, _pinZoom);
+    _mapCtrl.move(point, kAddressMapPinZoom);
 
     // A hint only. The pin is already set, and the PSGC fields are never
     // filled automatically from a map match.
@@ -306,7 +301,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 32,
               ),
               children: [
-                _SectionCard(
+                AddressSectionCard(
                   title: l10n.buyerAddressLineField,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -331,7 +326,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                _SectionCard(
+                AddressSectionCard(
                   title: l10n.buyerAddressContactInfoSection,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,7 +352,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                _SectionCard(
+                AddressSectionCard(
                   title: l10n.buyerAddressMapSection,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,79 +421,14 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                         ),
                       ],
                       const SizedBox(height: 10),
-                      GestureDetector(
+                      ViewFullMapLink(
                         onTap: _openFullMap,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.open_in_full_rounded,
-                              size: 14,
-                              color: AppConstants.primaryGreen,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              l10n.buyerAddressViewFullMap,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppConstants.primaryGreen,
-                              ),
-                            ),
-                          ],
-                        ),
+                        label: l10n.buyerAddressViewFullMap,
                       ),
                       const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.radiusMd,
-                        ),
-                        child: SizedBox(
-                          height: 180,
-                          child: fm.FlutterMap(
-                            mapController: _mapCtrl,
-                            // Static preview, not a picker — dragging,
-                            // pinching, or tapping this small inline map
-                            // could accidentally move an already-confirmed
-                            // pin. Current location and "View Full
-                            // Map" are the ways to set or change the pin.
-                            options: fm.MapOptions(
-                              initialCenter: _pinnedLocation ?? _defaultCenter,
-                              initialZoom: _pinnedLocation != null
-                                  ? _pinZoom
-                                  : _defaultZoom,
-                              interactionOptions: const fm.InteractionOptions(
-                                flags: fm.InteractiveFlag.none,
-                              ),
-                            ),
-                            children: [
-                              fm.TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.sp3coop.sagana',
-                                tileProvider: fm.NetworkTileProvider(
-                                  headers: {'User-Agent': kOsmTileUserAgent},
-                                ),
-                              ),
-                              if (_pinnedLocation != null)
-                                fm.MarkerLayer(
-                                  markers: [
-                                    fm.Marker(
-                                      point: _pinnedLocation!,
-                                      width: 40,
-                                      height: 40,
-                                      alignment: Alignment.topCenter,
-                                      child: const Icon(
-                                        Icons.location_on_rounded,
-                                        color: AppConstants.errorRed,
-                                        size: 36,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
+                      AddressMapPreview(
+                        controller: _mapCtrl,
+                        pin: _pinnedLocation,
                       ),
                       const SizedBox(height: 6),
                       const MapAttributionLinks(),
@@ -517,7 +447,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                _SectionCard(
+                AddressSectionCard(
                   title: l10n.buyerAddressLabelSection,
                   child: Wrap(
                     spacing: 10,
@@ -534,7 +464,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                _SectionCard(
+                AddressSectionCard(
                   title: l10n.buyerAddressNotesField,
                   child: TextField(
                     controller: _notesCtrl,
@@ -670,41 +600,6 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-  const _SectionCard({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.saganaColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: AppConstants.cardBorder,
-        boxShadow: AppConstants.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
 class _LabelChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -764,183 +659,6 @@ class _LabelChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Full-screen map picker — same black-background/back-button-overlay/zoom-
-// controls treatment previously used by the buyer checkout flow's own
-// delivery map picker, before Checkout replaced post-approval fulfillment;
-// rebuilt here since My Addresses is now the map-pin entry point instead.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AddressFullMapScreen extends StatefulWidget {
-  final LatLng? initialLocation;
-  const _AddressFullMapScreen({this.initialLocation});
-
-  @override
-  State<_AddressFullMapScreen> createState() => _AddressFullMapScreenState();
-}
-
-class _AddressFullMapScreenState extends State<_AddressFullMapScreen> {
-  final _mapCtrl = fm.MapController();
-  LatLng? _pinnedLocation;
-
-  @override
-  void initState() {
-    super.initState();
-    _pinnedLocation = widget.initialLocation;
-  }
-
-  void _onMapTap(fm.TapPosition _, LatLng point) {
-    setState(() => _pinnedLocation = point);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: fm.FlutterMap(
-              mapController: _mapCtrl,
-              options: fm.MapOptions(
-                initialCenter: _pinnedLocation ?? _defaultCenter,
-                initialZoom: _pinnedLocation != null ? _pinZoom : _defaultZoom,
-                onTap: _onMapTap,
-              ),
-              children: [
-                fm.TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.sp3coop.sagana',
-                  tileProvider: fm.NetworkTileProvider(
-                    headers: {'User-Agent': kOsmTileUserAgent},
-                  ),
-                  errorTileCallback: (tile, error, stackTrace) {},
-                ),
-                if (_pinnedLocation != null)
-                  fm.MarkerLayer(
-                    markers: [
-                      fm.Marker(
-                        point: _pinnedLocation!,
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.topCenter,
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: AppConstants.errorRed,
-                          size: 36,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: SubPageTopBar(title: l10n.buyerAddressMapSection, onBack: () => Navigator.of(context).pop()),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 12,
-            bottom: 100,
-            child: Column(
-              children: [
-                _FullMapButton(
-                  icon: Icons.add_rounded,
-                  onTap: () => _mapCtrl.move(
-                    _mapCtrl.camera.center,
-                    _mapCtrl.camera.zoom + 1,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                _FullMapButton(
-                  icon: Icons.remove_rounded,
-                  onTap: () => _mapCtrl.move(
-                    _mapCtrl.camera.center,
-                    _mapCtrl.camera.zoom - 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Right edge stops short of the zoom buttons (about 48 px wide plus
-          // margin), so the credit wraps instead of running underneath them.
-          Positioned(
-            left: 12,
-            right: 72,
-            bottom: 96,
-            child: SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                color: Colors.white.withValues(alpha: 0.75),
-                child: const MapAttributionLinks(color: Colors.black87),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 24,
-            child: SafeArea(
-              top: false,
-              child: PrimaryButton(
-                label: _pinnedLocation != null
-                    ? l10n.buyerAddressConfirmLocation
-                    : l10n.buyerAddressTapToPlacePin,
-                onPressed: _pinnedLocation != null
-                    ? () => Navigator.of(context).pop(_pinnedLocation)
-                    : null,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FullMapButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _FullMapButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: context.saganaColors.cardBackground,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 6,
-            ),
-          ],
-        ),
-        child: Icon(icon, size: 20, color: AppConstants.primaryGreen),
       ),
     );
   }

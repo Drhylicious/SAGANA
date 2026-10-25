@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/farmer_transaction_model.dart';
 import '../../../data/repositories/farmer_transaction_repository.dart';
@@ -374,7 +375,7 @@ class _TransactionTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${sellingTypeLabel(transaction.sellingType)} • ${transaction.quantityKg.toStringAsFixed(0)}kg',
+                  '${sellingTypeLabel(transaction.sellingType)} • ${formatQuantityUnit(transaction.quantityKg, transaction.unit)}',
                   style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -437,7 +438,7 @@ class _TransactionDetailsSheet extends StatelessWidget {
             ),
             const SizedBox(height: 14),
           ],
-          _DetailRow(label: 'Quantity', value: '${transaction.quantityKg.toStringAsFixed(0)} kg'),
+          _DetailRow(label: 'Quantity', value: formatQuantityUnit(transaction.quantityKg, transaction.unit)),
           _DetailRow(label: 'Amount', value: '₱${transaction.amount.toStringAsFixed(2)}'),
           _DetailRow(
             label: 'Date',

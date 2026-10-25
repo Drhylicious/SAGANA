@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/analytics_model.dart';
@@ -19,10 +19,23 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/planting_forecast_card.dart';
 import '../../widgets/report_summary_widgets.dart';
+import '../../widgets/report_ui_widgets.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/top_harvested_crops_chart.dart';
 import '../../widgets/trend_chart_painter.dart';
+
+/// Farmer → Analytics tab.
+///
+/// Visually follows the Manager's Analytics Dashboard: the same flat
+/// [ReportSectionCard] sections, the same segmented period selector, the same
+/// icon-badged stat tiles, bar rows and empty states, and the same shared
+/// Top Harvested Crops and Planting Forecast widgets. The content stays the
+/// farmer's own: their yield, revenue, expenses and recent sales, with the
+/// cooperative's market prices and forecasts for context.
+///
+/// Every figure comes from data already stored — nothing here is estimated.
+/// Money is shown to the centavo and quantities to their stored 2 decimals.
 
 // Period labels live on AnalyticsPeriod as plain English
 // (analytics_model.dart) since the model has no AppLocalizations access —
@@ -34,13 +47,26 @@ String _periodLabel(AppLocalizations l10n, AnalyticsPeriod p) {
   switch (p) {
     case AnalyticsPeriod.thisMonth:
       return l10n.farmerAnalyticsPeriodThisMonth;
-    case AnalyticsPeriod.thisSeason:
-      return l10n.farmerAnalyticsPeriodThisSeason;
+    case AnalyticsPeriod.thisQuarter:
+      return l10n.farmerAnalyticsPeriodThisQuarter;
     case AnalyticsPeriod.thisYear:
       return l10n.farmerAnalyticsPeriodThisYear;
     case AnalyticsPeriod.allTime:
       return l10n.farmerAnalyticsPeriodAllTime;
   }
+}
+
+final _pesoFormat = NumberFormat('#,##0.00');
+
+/// `₱1,234.50` — always 2 decimals; a loss reads `-₱450.00`.
+String _pesos(double value) =>
+    '${value < 0 ? '-' : ''}₱${_pesoFormat.format(value.abs())}';
+
+/// `1,250 kg` / `1,250.50 kg` — the stored 2 decimals, never rounded to whole.
+String _kg(double value) {
+  final v = roundQuantity(value);
+  final format = NumberFormat(v == v.roundToDouble() ? '#,##0' : '#,##0.00');
+  return '${format.format(v)} kg';
 }
 
 class FarmerAnalyticsScreen extends StatefulWidget {
@@ -64,9 +90,27 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   int _unreadCount = 0;
 
   CropPriceCard? _selectedPriceCard;
+
+  /// True only until the first load finishes: a full-page skeleton, as the
+  /// Manager's dashboard shows. Later refreshes keep the content on screen.
   bool _isLoading = true;
+
+  /// A period change is in flight: the figures are dimmed and a thin bar
+  /// shows, rather than the old numbers silently sitting under a new label.
+  bool _isPeriodLoading = false;
+  bool _isHistoryLoading = false;
+
+  /// The whole load threw (the repositories normally absorb their own
+  /// errors, so this is the safety net).
+  bool _loadFailed = false;
   bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySubscription;
+
+  // Sequence numbers: a slower, older response never overwrites a newer one
+  // (tapping through the period chips quickly, or a refresh landing late).
+  int _loadSeq = 0;
+  int _periodSeq = 0;
+  int _historySeq = 0;
 
   @override
   void initState() {
@@ -99,76 +143,124 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     if (mounted) _loadAll();
   }
 
-  Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
+  /// The two things the period selector controls (plus Price History, which
+  /// is loaded separately): the farm performance totals and the recent
+  /// transactions. Both take the same start date, so the list can never show
+  /// a sale from outside the period under a revenue total that left it out.
+  Future<(FarmPerformanceSummary, List<TransactionRecord>)> _fetchPeriodData(
+    AnalyticsPeriod period,
+  ) async {
     final results = await Future.wait([
-      _repo.fetchFarmPerformance(_period),
-      _repo.fetchRecentTransactions(startDate: _period.startDate),
-      _repo.fetchPriceCards(),
-      _repo.fetchPlantingForecasts(),
-      _repo.fetchTopSellingCrops(),
-      _notifRepo.fetchUnreadCount(),
+      _repo.fetchFarmPerformance(period),
+      _repo.fetchRecentTransactions(startDate: period.startDate),
     ]);
-    if (!mounted) return;
+    return (
+      results[0] as FarmPerformanceSummary,
+      results[1] as List<TransactionRecord>,
+    );
+  }
 
-    final priceCards = results[2] as List<CropPriceCard>;
-    final initialCard = priceCards.isNotEmpty ? priceCards.first : null;
+  Future<void> _loadAll() async {
+    final seq = ++_loadSeq;
+    final periodSeq = ++_periodSeq;
+    try {
+      final results = await Future.wait([
+        _fetchPeriodData(_period),
+        _repo.fetchPriceCards(),
+        _repo.fetchPlantingForecasts(),
+        _repo.fetchTopSellingCrops(),
+        _notifRepo.fetchUnreadCount(),
+      ]);
+      if (!mounted || seq != _loadSeq) return;
 
-    setState(() {
-      _performance = results[0] as FarmPerformanceSummary;
-      _transactions = results[1] as List<TransactionRecord>;
-      _priceCards = priceCards;
-      _forecasts = results[3] as List<PlantingForecast>;
-      _topSelling = results[4] as List<TopSellingCrop>;
-      _unreadCount = results[5] as int;
-      _selectedPriceCard = initialCard;
-      _isLoading = false;
-    });
+      final periodData =
+          results[0] as (FarmPerformanceSummary, List<TransactionRecord>);
+      final priceCards = results[1] as List<CropPriceCard>;
 
-    if (initialCard != null) _loadPriceHistory(initialCard);
+      // Keep the crop the farmer was looking at when it is still listed.
+      CropPriceCard? selected;
+      final previous = _selectedPriceCard;
+      if (previous != null) {
+        for (final c in priceCards) {
+          if (c.cropName == previous.cropName &&
+              c.priceType == previous.priceType) {
+            selected = c;
+          }
+        }
+      }
+      selected ??= priceCards.isNotEmpty ? priceCards.first : null;
+
+      setState(() {
+        if (periodSeq == _periodSeq) {
+          _performance = periodData.$1;
+          _transactions = periodData.$2;
+          _isPeriodLoading = false;
+        }
+        _priceCards = priceCards;
+        _forecasts = results[2] as List<PlantingForecast>;
+        _topSelling = results[3] as List<TopSellingCrop>;
+        _unreadCount = results[4] as int;
+        _selectedPriceCard = selected;
+        _isLoading = false;
+        _loadFailed = false;
+      });
+
+      if (selected != null) _loadPriceHistory(selected);
+    } catch (_) {
+      if (!mounted || seq != _loadSeq) return;
+      setState(() {
+        _isLoading = false;
+        _isPeriodLoading = false;
+        _loadFailed = true;
+      });
+    }
   }
 
   Future<void> _loadPriceHistory(CropPriceCard card) async {
+    final seq = ++_historySeq;
+    setState(() {
+      _selectedPriceCard = card;
+      _isHistoryLoading = true;
+    });
     final history = await _repo.fetchPriceHistory(
       card.cropName,
       priceType: card.priceType,
       startDate: _period.startDate,
     );
-    if (!mounted) return;
+    if (!mounted || seq != _historySeq) return;
     setState(() {
-      _selectedPriceCard = card;
       _priceHistory = history;
+      _isHistoryLoading = false;
     });
   }
 
   Future<void> _onPeriodChanged(AnalyticsPeriod p) async {
-    setState(() => _period = p);
-    final results = await Future.wait([
-      _repo.fetchFarmPerformance(p),
-      // Recent Transactions previously ignored the period filter entirely
-      // — found during live-testing verification, since a farmer could
-      // see a transaction from outside the selected period sitting right
-      // under a Total Revenue figure that correctly excluded it.
-      _repo.fetchRecentTransactions(startDate: p.startDate),
-      // Re-fetch history for whichever crop is currently selected too —
-      // previously this chart never responded to the period selector at
-      // all, contradicting the screen's own "Applies to Farm Performance
-      // and Price History" caption.
-      if (_selectedPriceCard != null)
-        _repo.fetchPriceHistory(
-          _selectedPriceCard!.cropName,
-          priceType: _selectedPriceCard!.priceType,
-          startDate: p.startDate,
-        ),
-    ]);
-    if (!mounted) return;
+    if (p == _period) return;
+    final seq = ++_periodSeq;
     setState(() {
-      _performance = results[0] as FarmPerformanceSummary;
-      _transactions = results[1] as List<TransactionRecord>;
-      if (_selectedPriceCard != null) {
-        _priceHistory = results[2] as List<PriceHistoryPoint>;
-      }
+      _period = p;
+      _isPeriodLoading = true;
     });
+    // Price History follows the period as well (see the caption under the
+    // selector), for whichever crop is currently selected.
+    final card = _selectedPriceCard;
+    if (card != null) unawaited(_loadPriceHistory(card));
+    try {
+      final data = await _fetchPeriodData(p);
+      if (!mounted || seq != _periodSeq) return;
+      setState(() {
+        _performance = data.$1;
+        _transactions = data.$2;
+        _isPeriodLoading = false;
+        _loadFailed = false;
+      });
+    } catch (_) {
+      if (!mounted || seq != _periodSeq) return;
+      setState(() {
+        _isPeriodLoading = false;
+        _loadFailed = true;
+      });
+    }
   }
 
   @override
@@ -219,7 +311,13 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                         _period,
                       ),
                       otherScreens: [
+                        ...AnalyticsRepository.farmPerformanceOtherCacheScreens(
+                          _period,
+                        ),
                         AnalyticsRepository.recentTransactionsCacheScreen(
+                          startDate: _period.startDate,
+                        ),
+                        ...AnalyticsRepository.recentTransactionsOtherCacheScreens(
                           startDate: _period.startDate,
                         ),
                         'analytics_price_cards',
@@ -233,152 +331,19 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                           ),
                       ],
                       isOnline: _isOnline,
-                      offlineMessage: AppLocalizations.of(
-                        context,
-                      ).offlinePriceData,
+                      offlineMessage: l10n.offlinePriceData,
                     ),
                     Expanded(
-                      child: RefreshIndicator(
-                        color: Theme.of(context).colorScheme.primary,
-                        onRefresh: _loadAll,
-                        child: ListView(
-                          // 72 clears the floating bottom nav bar (64px tall,
-                          // farmer_bottom_nav.dart) with a small margin. Found
-                          // during Phase 9 verification at 10, which is less than
-                          // the nav bar's own height — the last visible card
-                          // would sit partially behind it. 72 was the last known
-                          // value confirmed safe before this regressed; if it was
-                          // changed again to fight the "gap below the last
-                          // forecast card" complaint, that gap needs a different
-                          // fix than shrinking clearance below the nav bar.
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                          children: [
-                            // Period selector
-                            _PeriodSelector(
-                              active: _period,
-                              onChanged: _onPeriodChanged,
+                      child: _isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SkeletonList(),
+                            )
+                          : RefreshIndicator(
+                              color: Theme.of(context).colorScheme.primary,
+                              onRefresh: _loadAll,
+                              child: _buildContent(),
                             ),
-                            const SizedBox(
-                              height: AppConstants.spacingSectionV,
-                            ),
-
-                            // ── Section 1: Farm Performance ──────────────────────
-                            ReportSectionHeader(
-                              icon: Icons.agriculture_rounded,
-                              title: l10n.farmerAnalyticsFarmPerformanceTitle,
-                            ),
-                            const SizedBox(height: AppConstants.spacingMd),
-                            _isLoading
-                                ? SkeletonList(count: 2, rowHeight: 110)
-                                : _PerformanceKpiStrip(summary: _performance),
-                            const SizedBox(height: 14),
-                            if (!_isLoading)
-                              _HarvestBreakdownCard(
-                                breakdown: _performance.cropBreakdown,
-                              ),
-                            const SizedBox(height: 14),
-                            if (!_isLoading)
-                              _TransactionsCard(transactions: _transactions),
-                            const SizedBox(height: 28),
-
-                            // ── Section 2: Price Monitoring ──────────────────────
-                            ReportSectionHeader(
-                              icon: Icons.payments_rounded,
-                              title: l10n.farmerAnalyticsPriceMonitoringTitle,
-                            ),
-                            const SizedBox(height: AppConstants.spacingMd),
-                            _isLoading
-                                ? SizedBox(
-                                    height: 130,
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: SkeletonList(),
-                                    ),
-                                  )
-                                : _priceCards.isEmpty
-                                ? ReportEmptyState(
-                                    message:
-                                        l10n.farmerAnalyticsNoPricesAvailable,
-                                  )
-                                : _PriceCardsRow(
-                                    cards: _priceCards,
-                                    selected: _selectedPriceCard,
-                                    onSelected: _loadPriceHistory,
-                                  ),
-                            const SizedBox(height: 14),
-                            if (!_isLoading && _selectedPriceCard != null)
-                              _PriceHistoryChart(
-                                cropName: _selectedPriceCard!.cropName,
-                                points: _priceHistory,
-                                periodLabel: _periodLabel(l10n, _period),
-                              ),
-                            const SizedBox(
-                              height: AppConstants.spacingSectionV,
-                            ),
-
-                            // ── Top Harvested Crops ──────────────────────────────
-                            // Positioned here, between Price History and Planting
-                            // Forecast, to match Admin Analytics Dashboard's own
-                            // section order exactly (Price Snapshot -> Top
-                            // Harvested Crops -> Planting Forecast) — previously
-                            // this sat after the forecast cards instead. Shared
-                            // with Admin, already theme-aware; only its `title` is
-                            // overridden here for localization (a plain default
-                            // parameter, not touched in the shared widget file).
-                            if (!_isLoading && _topSelling.isNotEmpty) ...[
-                              TopHarvestedCropsChart(
-                                crops: _topSelling,
-                                title:
-                                    l10n.farmerAnalyticsTopHarvestedCropsTitle,
-                              ),
-                              const SizedBox(
-                                height: AppConstants.spacingSectionV,
-                              ),
-                            ],
-
-                            // ── Section 3: Planting Forecast ─────────────────────
-                            // PlantingForecastSectionHeader and PlantingForecastCard
-                            // are shared with Admin's Analytics Dashboard and were
-                            // already fully theme-aware and localized — verified by
-                            // direct read, not restyled here, per the reviewed
-                            // finding that neither needed a change.
-                            const PlantingForecastSectionHeader(),
-                            const SizedBox(height: AppConstants.spacingMd),
-                            _isLoading
-                                ? Column(
-                                    children: List.generate(
-                                      2,
-                                      (_) => const Padding(
-                                        padding: EdgeInsets.only(bottom: 10),
-                                        child: SizedBox(height: 90),
-                                      ),
-                                    ),
-                                  )
-                                : _forecasts.isEmpty
-                                // Reuses Admin's existing analyticsNoForecastsYet
-                                // key — identical English text, same feature,
-                                // same ReportEmptyState widget Admin's own
-                                // dashboard uses for this exact empty state.
-                                ? ReportEmptyState(
-                                    message: l10n.analyticsNoForecastsYet,
-                                  )
-                                : Column(
-                                    children: _forecasts
-                                        .map(
-                                          (f) => Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 12,
-                                            ),
-                                            child: PlantingForecastCard(
-                                              forecast: f,
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -387,7 +352,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                   left: 0,
                   right: 0,
                   child: FarmerTopBar(
-                    title: 'Analytics',
+                    title: l10n.navAnalytics,
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
@@ -403,12 +368,271 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       ),
     );
   }
+
+  Widget _buildContent() {
+    return FarmerAnalyticsBody(
+      period: _period,
+      performance: _performance,
+      transactions: _transactions,
+      priceCards: _priceCards,
+      selectedPriceCard: _selectedPriceCard,
+      priceHistory: _priceHistory,
+      forecasts: _forecasts,
+      topCrops: _topSelling,
+      isPeriodLoading: _isPeriodLoading,
+      isHistoryLoading: _isHistoryLoading,
+      loadFailed: _loadFailed,
+      onPeriodChanged: _onPeriodChanged,
+      onPriceCardSelected: _loadPriceHistory,
+      onRetry: _loadAll,
+    );
+  }
+}
+
+/// The scrolling content of the Analytics tab, given plain data. The screen
+/// above owns loading and state; this only lays it out, which is also what
+/// lets the layout be checked at phone widths without a signed-in session.
+@visibleForTesting
+class FarmerAnalyticsBody extends StatelessWidget {
+  final AnalyticsPeriod period;
+  final FarmPerformanceSummary performance;
+  final List<TransactionRecord> transactions;
+  final List<CropPriceCard> priceCards;
+  final CropPriceCard? selectedPriceCard;
+  final List<PriceHistoryPoint> priceHistory;
+  final List<PlantingForecast> forecasts;
+  final List<TopSellingCrop> topCrops;
+  final bool isPeriodLoading;
+  final bool isHistoryLoading;
+  final bool loadFailed;
+  final ValueChanged<AnalyticsPeriod> onPeriodChanged;
+  final ValueChanged<CropPriceCard> onPriceCardSelected;
+  final VoidCallback onRetry;
+
+  const FarmerAnalyticsBody({
+    super.key,
+    required this.period,
+    required this.performance,
+    required this.transactions,
+    required this.priceCards,
+    required this.selectedPriceCard,
+    required this.priceHistory,
+    required this.forecasts,
+    required this.topCrops,
+    this.isPeriodLoading = false,
+    this.isHistoryLoading = false,
+    this.loadFailed = false,
+    required this.onPeriodChanged,
+    required this.onPriceCardSelected,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    const gap = SizedBox(height: AppConstants.spacingSectionV);
+    return ListView(
+      // Always scrollable, so pull-to-refresh works even on a short page.
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppConstants.spacingSafeH,
+        AppConstants.spacingGutter,
+        AppConstants.spacingSafeH,
+        32,
+      ),
+      children: [
+        _PerformanceCard(
+          period: period,
+          summary: performance,
+          isRefreshing: isPeriodLoading,
+          showLoadError: loadFailed || performance.hasLoadError,
+          onPeriodChanged: onPeriodChanged,
+          onRetry: onRetry,
+        ),
+        gap,
+        _HarvestBreakdownCard(
+          breakdown: performance.cropBreakdown,
+          totalYieldKg: performance.totalYieldKg,
+          otherUnitHarvestCount: performance.otherUnitHarvestCount,
+        ),
+        gap,
+        _TransactionsCard(transactions: transactions),
+        gap,
+
+        // ── Price Monitoring ──────────────────────────────────────────────
+        ReportSectionCard(
+          title: l10n.farmerAnalyticsPriceMonitoringTitle,
+          icon: Icons.sell_rounded,
+          subtitle: l10n.farmerAnalyticsPriceFooterNote,
+          child: priceCards.isEmpty
+              ? ReportEmptyState(message: l10n.farmerAnalyticsNoPricesAvailable)
+              : _PriceCardsRow(
+                  cards: priceCards,
+                  selected: selectedPriceCard,
+                  onSelected: onPriceCardSelected,
+                ),
+        ),
+        if (selectedPriceCard != null) ...[
+          const SizedBox(height: AppConstants.spacingMd),
+          _PriceHistoryCard(
+            cropName: selectedPriceCard!.cropName,
+            points: priceHistory,
+            periodLabel: _periodLabel(l10n, period),
+            isLoading: isHistoryLoading,
+          ),
+        ],
+        gap,
+
+        // ── Top Harvested Crops ───────────────────────────────────────────
+        // Between Price Monitoring and Planting Forecast, the same order as
+        // the Manager's dashboard. Shared with it, so both read identically.
+        if (topCrops.isNotEmpty) ...[
+          TopHarvestedCropsChart(
+            crops: topCrops,
+            title: l10n.farmerAnalyticsTopHarvestedCropsTitle,
+          ),
+          gap,
+        ],
+
+        // ── Planting Forecast ─────────────────────────────────────────────
+        // PlantingForecastSectionHeader and PlantingForecastCard are shared
+        // with the Manager's Analytics Dashboard.
+        const PlantingForecastSectionHeader(),
+        const SizedBox(height: AppConstants.spacingMd),
+        if (forecasts.isEmpty)
+          ReportEmptyState(message: l10n.analyticsNoForecastsYet)
+        else
+          ...forecasts.map(
+            (f) => Padding(
+              padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
+              child: PlantingForecastCard(forecast: f),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Period Selector
+// Farm Performance: period selector + the four headline figures
 // ─────────────────────────────────────────────────────────────────────────────
 
+class _PerformanceCard extends StatelessWidget {
+  final AnalyticsPeriod period;
+  final FarmPerformanceSummary summary;
+  final bool isRefreshing;
+  final bool showLoadError;
+  final ValueChanged<AnalyticsPeriod> onPeriodChanged;
+  final VoidCallback onRetry;
+
+  const _PerformanceCard({
+    required this.period,
+    required this.summary,
+    required this.isRefreshing,
+    required this.showLoadError,
+    required this.onPeriodChanged,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final loss = summary.netProfit < 0;
+
+    return ReportSectionCard(
+      title: l10n.farmerAnalyticsFarmPerformanceTitle,
+      icon: Icons.agriculture_rounded,
+      subtitle: l10n.farmerAnalyticsPeriodCaption,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PeriodSelector(active: period, onChanged: onPeriodChanged),
+          // Reserves the bar's height so the layout does not jump.
+          SizedBox(
+            height: 6,
+            child: isRefreshing
+                ? const Align(
+                    alignment: Alignment.bottomCenter,
+                    child: LinearProgressIndicator(minHeight: 2),
+                  )
+                : null,
+          ),
+          const SizedBox(height: AppConstants.spacingSm),
+          if (showLoadError) ...[
+            _LoadErrorBanner(onRetry: onRetry),
+            const SizedBox(height: AppConstants.spacingMd),
+          ],
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: isRefreshing ? 0.45 : 1,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: ReportIconStatCard(
+                        icon: Icons.grass_rounded,
+                        accent: AppConstants.successGreen,
+                        label: l10n.farmerAnalyticsTotalYield,
+                        value: _kg(summary.totalYieldKg),
+                        shrinkValueToFit: true,
+                      ),
+                    ),
+                    const SizedBox(width: AppConstants.spacingSm),
+                    Expanded(
+                      child: ReportIconStatCard(
+                        icon: Icons.payments_rounded,
+                        accent: cs.primary,
+                        label: l10n.farmerAnalyticsTotalRevenue,
+                        value: _pesos(summary.totalRevenue),
+                        shrinkValueToFit: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppConstants.spacingSm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ReportIconStatCard(
+                        icon: Icons.receipt_long_rounded,
+                        accent: AppConstants.errorRed,
+                        label: l10n.farmerAnalyticsTotalExpenses,
+                        value: _pesos(summary.totalExpenses),
+                        shrinkValueToFit: true,
+                      ),
+                    ),
+                    const SizedBox(width: AppConstants.spacingSm),
+                    Expanded(
+                      child: ReportIconStatCard(
+                        icon: loss
+                            ? Icons.trending_down_rounded
+                            : Icons.trending_up_rounded,
+                        accent: loss
+                            ? AppConstants.errorRed
+                            : AppConstants.midGreen,
+                        label: l10n.farmerAnalyticsNetProfit,
+                        value: _pesos(summary.netProfit),
+                        shrinkValueToFit: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppConstants.spacingMd),
+          ReportInfoNote(text: l10n.farmerAnalyticsFarmPerformanceHint),
+        ],
+      ),
+    );
+  }
+}
+
+/// Segmented-pill period selector — the same control, size and colors as the
+/// Manager's Analytics Dashboard. Every segment has the same width and height;
+/// the label shrinks to fit rather than wrapping or being cut off.
 class _PeriodSelector extends StatelessWidget {
   final AnalyticsPeriod active;
   final ValueChanged<AnalyticsPeriod> onChanged;
@@ -419,430 +643,280 @@ class _PeriodSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-          ),
-          child: Row(
-            children: analyticsPeriodChipOrder.map((p) {
-              final isActive = p == active;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => onChanged(p),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? AppConstants.primaryGreen
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      _periodLabel(l10n, p),
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: isActive ? Colors.white : cs.onSurfaceVariant,
-                      ),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Row(
+        children: analyticsPeriodChipOrder.map((p) {
+          final isActive = p == active;
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(p),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 36,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppConstants.primaryGreen
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _periodLabel(l10n, p),
+                    maxLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isActive ? Colors.white : cs.onSurfaceVariant,
                     ),
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          l10n.farmerAnalyticsPeriodCaption,
-          style: GoogleFonts.inter(fontSize: 9, color: cs.outline),
-        ),
-      ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Performance Grid (4 cards)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Tile styling (color-tinted background/border, icon badge, typography)
-// mirrors Admin Marketplace tab's _KpiStrip/_KpiTile exactly
-// (marketplace_dashboard_screen.dart), per explicit request. Layout is a
-// 2x2 grid rather than Marketplace's horizontal-scrolling strip — with
-// exactly 4 tiles (an even number, all visible without scrolling), a
-// fixed grid reads better than a scrollable row per follow-up request.
-// Only the icon badge/border/label-adjacent tint carries each tile's
-// semantic color; the value text itself is uniformly `cs.onSurface`,
-// matching Marketplace's own convention exactly (color signals category,
-// not magnitude — Marketplace doesn't color-code a value green/red
-// either).
-class _PerformanceKpiStrip extends StatelessWidget {
-  final FarmPerformanceSummary summary;
-  const _PerformanceKpiStrip({required this.summary});
+/// Shown when a figure could not be read and there is no saved copy: the
+/// totals may be missing a source, and a zero here is not a real zero.
+class _LoadErrorBanner extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _LoadErrorBanner({required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final tiles = [
-      _KpiTile(
-        l10n.farmerAnalyticsTotalYield,
-        '${_fmt(summary.totalYieldKg)} kg',
-        AppConstants.successGreen,
-        Icons.grass_rounded,
+    const accent = AppConstants.warningAmber;
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.spacingMd),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
       ),
-      _KpiTile(
-        l10n.farmerAnalyticsTotalRevenue,
-        '₱${_fmt(summary.totalRevenue)}',
-        cs.primary,
-        Icons.payments_rounded,
-      ),
-      _KpiTile(
-        l10n.farmerAnalyticsTotalExpenses,
-        '₱${_fmt(summary.totalExpenses)}',
-        AppConstants.errorRed,
-        Icons.receipt_long_rounded,
-      ),
-      _KpiTile(
-        l10n.farmerAnalyticsNetProfit,
-        '₱${_fmt(summary.netProfit)}',
-        AppConstants.midGreen,
-        Icons.trending_up_rounded,
-      ),
-    ];
-
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      // 1.7 overflowed by ~7px when a label wrapped to its full 2 lines
-      // (confirmed live) — 1.4 gives enough vertical room for icon badge +
-      // 2-line label + value with margin, matching the same "generous
-      // fixed height beats width-derived height" lesson Admin Reports'
-      // own KPI-card overflow fix already documented (report_tab.md 4.15).
-      childAspectRatio: 1.4,
-      children: tiles.map((t) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: t.color.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            border: Border.all(color: t.color.withValues(alpha: 0.18)),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 18, color: accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.farmerAnalyticsLoadError,
+              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurface),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: t.color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                ),
-                child: Icon(t.icon, size: 14, color: t.color),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              l10n.farmerAnalyticsRetry,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.primaryGreen,
               ),
-              const SizedBox(height: 6),
-              Text(
-                t.label,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  color: cs.onSurfaceVariant,
-                  height: 1.2,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                t.value,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: cs.onSurface,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
-        );
-      }).toList(),
+        ],
+      ),
     );
   }
-
-  String _fmt(double v) {
-    if (v >= 1000) {
-      return NumberFormat('#,##0').format(v);
-    }
-    return v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
-  }
-}
-
-class _KpiTile {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  const _KpiTile(this.label, this.value, this.color, this.icon);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Harvest Breakdown Card
+// Harvest by Crop
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HarvestBreakdownCard extends StatelessWidget {
   final List<CropYieldBreakdown> breakdown;
-  const _HarvestBreakdownCard({required this.breakdown});
+  final double totalYieldKg;
+  final int otherUnitHarvestCount;
+
+  const _HarvestBreakdownCard({
+    required this.breakdown,
+    required this.totalYieldKg,
+    required this.otherUnitHarvestCount,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: sagana.glassBorder),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.farmerAnalyticsHarvestByCropTitle.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.70),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 14),
-              if (breakdown.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Center(
-                    child: Text(
-                      l10n.farmerAnalyticsNoHarvestData,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
+    return ReportSectionCard(
+      title: l10n.farmerAnalyticsHarvestByCropTitle,
+      icon: Icons.grass_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (breakdown.isEmpty)
+            ReportEmptyState(message: l10n.farmerAnalyticsNoHarvestData)
+          else
+            ...breakdown.map((b) {
+              final share = totalYieldKg > 0
+                  ? (b.quantityKg / totalYieldKg * 100).clamp(0, 100)
+                  : null;
+              return ReportBarRow(
+                label: b.cropName,
+                valueText: _kg(b.quantityKg),
+                fraction: b.percentOfMax,
+                color: AppConstants.successGreen,
+                caption: share == null
+                    ? null
+                    : l10n.farmerAnalyticsShareOfYield(
+                        share.toStringAsFixed(0),
                       ),
-                    ),
-                  ),
-                )
-              else
-                ...breakdown.map(
-                  (b) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              b.cropName,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                            Text(
-                              '${b.quantityKg.toStringAsFixed(0)} kg',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: b.percentOfMax,
-                            minHeight: 7,
-                            backgroundColor: cs.outline.withValues(alpha: 0.2),
-                            valueColor: const AlwaysStoppedAnimation(
-                              AppConstants.successGreen,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+              );
+            }),
+          if (otherUnitHarvestCount > 0) ...[
+            if (breakdown.isNotEmpty) const SizedBox(height: 4),
+            ReportInfoNote(
+              text: l10n.farmerAnalyticsOtherUnitsNote(otherUnitHarvestCount),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Transactions Card
+// Recent Transactions
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TransactionsCard extends StatelessWidget {
   final List<TransactionRecord> transactions;
   const _TransactionsCard({required this.transactions});
 
-  // Visual distinction between the three revenue channels a transaction
-  // can come from — previously only distinguishable by reading the
-  // ORD-/COOP-/INF- text prefix in the reference. Colors reuse tokens
-  // already meaningful elsewhere in this app rather than inventing new
-  // ones: buyerBlue for a Buyer marketplace order, primaryGreen for a
-  // cooperative purchase (the cooperative's own brand color), gold for
-  // an informal farm-gate sale (a distinct, warm "outside the system"
-  // tone matching AppConstants.gold's existing use elsewhere).
-  static (IconData, Color) _sourceMeta(String reference) {
-    if (reference.startsWith('ORD-')) {
-      return (Icons.storefront_rounded, AppConstants.buyerBlue);
-    } else if (reference.startsWith('COOP-')) {
-      return (Icons.groups_rounded, AppConstants.primaryGreen);
+  // Visual distinction between the four selling channels a transaction can
+  // come from. Colors reuse tokens already meaningful elsewhere in this app:
+  // buyerBlue for a Buyer marketplace order, primaryGreen for a cooperative
+  // purchase (the cooperative's own brand color), gold for an informal
+  // farm-gate sale, and purple for a DA-AMAD Market Linking round.
+  static (IconData, Color) _sourceMeta(TransactionSource source) {
+    switch (source) {
+      case TransactionSource.marketplace:
+        return (Icons.storefront_rounded, AppConstants.buyerBlue);
+      case TransactionSource.cooperative:
+        return (Icons.groups_rounded, AppConstants.primaryGreen);
+      case TransactionSource.informal:
+        return (Icons.handshake_rounded, AppConstants.gold);
+      case TransactionSource.marketLinking:
+        return (Icons.public_rounded, AppConstants.programPurple);
     }
-    return (Icons.handshake_rounded, AppConstants.gold);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: sagana.glassBorder),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.farmerAnalyticsRecentTransactionsTitle,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
+    return ReportSectionCard(
+      title: l10n.farmerAnalyticsRecentTransactionsTitle,
+      icon: Icons.receipt_long_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (transactions.isEmpty)
+            ReportEmptyState(message: l10n.farmerAnalyticsNoTransactions)
+          else
+            ...transactions.asMap().entries.map((entry) {
+              final t = entry.value;
+              final isLast = entry.key == transactions.length - 1;
+              final (sourceIcon, sourceColor) = _sourceMeta(t.source);
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  border: isLast
+                      ? null
+                      : Border(
+                          bottom: BorderSide(
+                            color: cs.outline.withValues(alpha: 0.10),
+                          ),
+                        ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              if (transactions.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Center(
-                    child: Text(
-                      l10n.farmerAnalyticsNoTransactions,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        color: sourceColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(sourceIcon, size: 16, color: sourceColor),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.cropName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          Text(
+                            l10n.farmerAnalyticsTransactionMeta(
+                              DateFormat('MMM d, yyyy').format(t.date.toLocal()),
+                              formatQuantityUnit(t.quantityKg, t.unit),
+                              t.reference,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                )
-              else
-                ...transactions.asMap().entries.map((entry) {
-                  final t = entry.value;
-                  final isLast = entry.key == transactions.length - 1;
-                  final (sourceIcon, sourceColor) = _sourceMeta(t.reference);
-                  return Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      border: isLast
-                          ? null
-                          : Border(
-                              bottom: BorderSide(color: sagana.glassBorder),
-                            ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _pesos(t.totalAmount),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          margin: const EdgeInsets.only(right: 10),
-                          decoration: BoxDecoration(
-                            color: sourceColor.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(sourceIcon, size: 14, color: sourceColor),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.cropName,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: cs.onSurface,
-                                ),
-                              ),
-                              Text(
-                                l10n.farmerAnalyticsTransactionMeta(
-                                  DateFormat('MMM d, yyyy').format(t.date),
-                                  t.quantityKg.toStringAsFixed(0),
-                                  t.reference,
-                                ),
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '₱${NumberFormat('#,##0').format(t.totalAmount)}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-            ],
+                  ],
+                ),
+              );
+            }),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => context.pushRoute(AppRoutes.myTransactionHistory),
+              child: Text(
+                l10n.farmerAnalyticsViewAllTransactions,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -878,14 +952,13 @@ class _PriceCardsRow extends StatelessWidget {
     // does, since fetchPriceCards() never populates CropPriceCard.costPerKg
     // anywhere in the codebase, so marginPerKg is always null. If a future
     // cost-basis feature wires that field up, this fixed height will need
-    // to grow back to fit that row too (was 216 before the first fix,
-    // sized for exactly that case).
+    // to grow back to fit that row too.
     return SizedBox(
       height: 170,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
           final c = cards[i];
           final isActive =
@@ -894,32 +967,22 @@ class _PriceCardsRow extends StatelessWidget {
           final marketColor = MarketTypeDisplay.color(context, c.priceType);
           final hasImage = c.imageUrl != null && c.imageUrl!.isNotEmpty;
           // Same larger horizontal card layout as Home's Market Rates
-          // carousel (_MarketRateCard, farmer_dashboard_screen.dart) —
-          // image filling the card's upper portion with the market-type
-          // badge overlaid top-left, crop identity and price below.
-          // Structure/proportions mirrored exactly; colors kept
-          // theme-aware (sagana.glassBackground/glassBorder) rather than
-          // Market Rate's own fixed white, consistent with the rest of
-          // this screen's Dark Mode support.
+          // carousel — image filling the card's upper portion with the
+          // market-type badge overlaid top-left, crop identity and price
+          // below. Surface and border follow the report cards' flat style.
           return GestureDetector(
             onTap: () => onSelected(c),
             child: Container(
               width: 180,
               decoration: BoxDecoration(
-                color: sagana.glassBackground,
+                color: sagana.cardBackground,
                 borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                 border: Border.all(
                   color: isActive
                       ? AppConstants.primaryGreen
-                      : sagana.glassBorder,
+                      : cs.outline.withValues(alpha: 0.20),
                   width: isActive ? 2 : 1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                    blurRadius: 10,
-                  ),
-                ],
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -936,7 +999,7 @@ class _PriceCardsRow extends StatelessWidget {
                             ? Image.network(
                                 c.imageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                errorBuilder: (_, _, _) => Container(
                                   color: marketColor.withValues(alpha: 0.12),
                                   child: Icon(
                                     Icons.eco_rounded,
@@ -953,15 +1016,10 @@ class _PriceCardsRow extends StatelessWidget {
                                   color: marketColor,
                                 ),
                               ),
-                        // price_type badge — previously the only thing
-                        // telling two cards apart when the same crop has
-                        // both a cooperative and an open-market price was
-                        // the crop name text alone (see
-                        // analytics_repository.dart's (crop_name,
-                        // price_type) dedup key comment). Reuses
-                        // MarketTypeDisplay, the same shared color+label
-                        // lookup Home/Market Rate Details/View Market
-                        // already use for this exact field.
+                        // Market-type badge: tells apart two cards of the
+                        // same crop that have both a cooperative and an
+                        // open-market price. Uses MarketTypeDisplay, the
+                        // shared lookup Home and View Market also use.
                         Positioned(
                           top: 8,
                           left: 8,
@@ -1057,7 +1115,10 @@ class _PriceCardsRow extends StatelessWidget {
                         ),
                         if (c.marginPerKg != null) ...[
                           const SizedBox(height: 8),
-                          Container(height: 1, color: sagana.glassBorder),
+                          Container(
+                            height: 1,
+                            color: cs.outline.withValues(alpha: 0.10),
+                          ),
                           const SizedBox(height: 6),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1096,186 +1157,149 @@ class _PriceCardsRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Price History Chart
+// Price History
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PriceHistoryChart extends StatelessWidget {
+class _PriceHistoryCard extends StatelessWidget {
   final String cropName;
   final List<PriceHistoryPoint> points;
   final String periodLabel;
+  final bool isLoading;
 
-  const _PriceHistoryChart({
+  const _PriceHistoryCard({
     required this.cropName,
     required this.points,
     required this.periodLabel,
+    required this.isLoading,
   });
+
+  /// Axis labels are short on purpose (the gutter is narrow); the exact
+  /// prices are in the Low / High / Latest row beneath the chart.
+  static String _axisPrice(double v) =>
+      v >= 100 ? '₱${v.round()}' : '₱${v.toStringAsFixed(1)}';
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: sagana.glassBackground,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: sagana.glassBorder),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF455A64).withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      l10n.farmerAnalyticsPriceHistoryTitle(cropName),
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      periodLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: AppConstants.primaryGreen,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 130,
-                width: double.infinity,
-                child: points.length < 2
-                    ? Center(
-                        child: Text(
-                          l10n.farmerAnalyticsNoPriceHistory,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          final values = points.map((p) => p.price).toList();
-                          return Stack(
-                            children: [
-                              CustomPaint(
-                                size: Size(constraints.maxWidth, 130),
-                                painter: TrendChartPainter(
-                                  values: values,
-                                  lineColor: cs.primary,
-                                  gradientColor: cs.primary,
-                                ),
-                              ),
-                              // Endpoint dot — TrendChartPainter (shared,
-                              // generalized) doesn't draw one itself,
-                              // unlike the private painter this replaces.
-                              // Position computed with the same padding
-                              // math TrendChartPainter uses internally, so
-                              // it lands exactly on the curve's last point.
-                              Builder(
-                                builder: (context) {
-                                  final minV = values.reduce(
-                                    (a, b) => a < b ? a : b,
-                                  );
-                                  final maxV = values.reduce(
-                                    (a, b) => a > b ? a : b,
-                                  );
-                                  final rawRange = (maxV - minV).abs();
-                                  final effRange = rawRange < 1
-                                      ? 1.0
-                                      : rawRange;
-                                  final padding = effRange * 0.15;
-                                  final lo = minV - padding;
-                                  final range = (maxV + padding) - lo;
-                                  final lastY =
-                                      130 * (1 - (values.last - lo) / range);
-                                  return Positioned(
-                                    left: constraints.maxWidth - 4,
-                                    top: lastY - 4,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: cs.primary,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-              ),
-              if (points.length >= 2) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      DateFormat('MMM d').format(points.first.date),
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      l10n.farmerAnalyticsToday,
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 10),
-              Text(
-                l10n.farmerAnalyticsPriceFooterNote,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 9,
-                  fontStyle: FontStyle.italic,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ],
+    final hasChart = points.length >= 2;
+    final values = points.map((p) => p.price).toList();
+
+    return ReportSectionCard(
+      title: l10n.farmerAnalyticsPriceHistoryTitle(cropName),
+      icon: Icons.show_chart_rounded,
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppConstants.primaryGreen.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+        ),
+        child: Text(
+          periodLabel,
+          style: GoogleFonts.inter(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.primaryGreen,
           ),
         ),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 150,
+            width: double.infinity,
+            child: isLoading
+                ? const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : !hasChart
+                ? Center(
+                    child: Text(
+                      l10n.farmerAnalyticsNoPriceHistory,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : CustomPaint(
+                    size: const Size(double.infinity, 150),
+                    painter: TrendChartPainter(
+                      values: values,
+                      lineColor: cs.primary,
+                      gradientColor: cs.primary,
+                      // One label per point; the painter draws the first,
+                      // middle and last, so the dates are the real ones.
+                      xLabels: [
+                        for (final p in points)
+                          DateFormat('MMM d').format(p.date.toLocal()),
+                      ],
+                      yValueFormatter: _axisPrice,
+                    ),
+                  ),
+          ),
+          if (hasChart && !isLoading) ...[
+            const SizedBox(height: AppConstants.spacingMd),
+            Row(
+              children: [
+                Expanded(
+                  child: _PriceStat(
+                    label: l10n.farmerAnalyticsPriceLow,
+                    value: formatPesos(values.reduce((a, b) => a < b ? a : b)),
+                  ),
+                ),
+                Expanded(
+                  child: _PriceStat(
+                    label: l10n.farmerAnalyticsPriceHigh,
+                    value: formatPesos(values.reduce((a, b) => a > b ? a : b)),
+                  ),
+                ),
+                Expanded(
+                  child: _PriceStat(
+                    label: l10n.farmerAnalyticsPriceLatest,
+                    value: formatPesos(values.last),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _PriceStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }

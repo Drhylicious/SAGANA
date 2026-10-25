@@ -510,6 +510,11 @@ class ReportIconStatCard extends StatelessWidget {
   final String value;
   final Widget? delta;
 
+  // When true, a value too wide for the tile shrinks to fit instead of being
+  // cut off with "…". For money, where a clipped digit is a wrong number.
+  // Defaults to false, which renders exactly what this card always did.
+  final bool shrinkValueToFit;
+
   const ReportIconStatCard({
     super.key,
     required this.icon,
@@ -517,6 +522,7 @@ class ReportIconStatCard extends StatelessWidget {
     required this.label,
     required this.value,
     this.delta,
+    this.shrinkValueToFit = false,
   });
 
   @override
@@ -551,15 +557,29 @@ class ReportIconStatCard extends StatelessWidget {
           Row(
             children: [
               Flexible(
-                child: Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    color: cs.onSurface,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: shrinkValueToFit
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          value,
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                          color: cs.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
               ),
               if (delta != null) Padding(padding: const EdgeInsets.only(left: 6), child: delta!),
             ],
@@ -581,6 +601,9 @@ class ReportSectionCard extends StatelessWidget {
   final Color accent;
   final Widget child;
   final Widget? trailing;
+  // Optional one-line explanation under the title. Null (the default) renders
+  // exactly what this card always did.
+  final String? subtitle;
 
   const ReportSectionCard({
     super.key,
@@ -589,6 +612,7 @@ class ReportSectionCard extends StatelessWidget {
     this.accent = AppConstants.primaryGreen,
     required this.child,
     this.trailing,
+    this.subtitle,
   });
 
   @override
@@ -630,6 +654,16 @@ class ReportSectionCard extends StatelessWidget {
               if (trailing != null) trailing!,
             ],
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              subtitle!,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: AppConstants.spacingMd),
           child,
         ],

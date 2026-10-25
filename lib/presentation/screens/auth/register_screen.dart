@@ -10,12 +10,14 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../core/utils/input_validation_utils.dart';
+import '../../../core/utils/person_name.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/auth_visuals.dart';
 import '../../widgets/fixed_farmer_address_fields.dart';
 import '../../widgets/password_requirements.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/username_availability_field.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -27,7 +29,10 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _fullNameCtrl = TextEditingController();
+  final _surnameCtrl = TextEditingController();
+  final _firstNameCtrl = TextEditingController();
+  final _middleInitialCtrl = TextEditingController();
+  String? _suffix; // Jr., Sr., II, III, IV or V; null = none
   final _usernameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -82,7 +87,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _emailDebounce?.cancel();
-    _fullNameCtrl.dispose();
+    _surnameCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _middleInitialCtrl.dispose();
     _usernameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
@@ -134,7 +141,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Cancel pending checks first so a late result cannot fill the new form.
     _emailDebounce?.cancel();
 
-    _fullNameCtrl.clear();
+    _surnameCtrl.clear();
+    _firstNameCtrl.clear();
+    _middleInitialCtrl.clear();
     _usernameCtrl.clear();
     _phoneCtrl.clear();
     _emailCtrl.clear();
@@ -146,6 +155,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() {
       _selectedRole = role;
+      _suffix = null;
       _dateOfBirth = null;
       _gender = null;
       _obscurePassword = true;
@@ -282,7 +292,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await AuthService.register(
         username: username,
         password: _passwordCtrl.text,
-        fullName: _fullNameCtrl.text.trim(),
+        surname: _surnameCtrl.text,
+        firstName: _firstNameCtrl.text,
+        middleInitial: _middleInitialCtrl.text,
+        suffix: _suffix,
         phoneNumber: phoneInput.isEmpty ? null : phoneInput,
         contactEmail: emailInput.isEmpty ? null : emailInput,
         role: _selectedRole,
@@ -362,6 +375,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     return null;
   }
+
+  /// The complete name as it will be saved, for the review step.
+  String _fullNameForReview() => PersonName.compose(
+    firstName: _firstNameCtrl.text,
+    middleInitial: _middleInitialCtrl.text,
+    surname: _surnameCtrl.text,
+    suffix: _suffix,
+  );
 
   bool get _isAddressComplete =>
       _streetCtrl.text.trim().isNotEmpty && _houseNoCtrl.text.trim().isNotEmpty;
@@ -597,7 +618,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return [
       header(l10n.registerStepPersonal, 0),
-      row(l10n.fullName, _fullNameCtrl.text.trim()),
+      row(l10n.fullName, _fullNameForReview()),
       row(l10n.registerUsernameLabel.replaceAll(' *', ''), username),
       row(l10n.emailAddress, email.isEmpty ? notProvided : email),
       row(l10n.phoneNumber, phone.isEmpty ? notProvided : phone),
@@ -653,23 +674,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Full Name — an ordinary text field. It is not searched anywhere and
-        // does not have to be unique.
-        TextFormField(
-          controller: _fullNameCtrl,
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.next,
-          decoration: authFieldDecoration(
-            label: '${l10n.fullName} *',
-            hint: _isFarmer
-                ? l10n.registerFullNameHintFarmer
-                : l10n.registerFullNameHintBuyer,
-            icon: Icons.person_outlined,
-          ),
-          validator: (v) =>
-              (v == null || v.trim().length < 2)
-              ? l10n.registerEnterFullName
-              : null,
+        // Name — Surname and First Name are required; Middle Initial and
+        // Suffix are optional. Names do not have to be unique.
+        PersonNameFields(
+          key: ValueKey('names-$_selectedRole'),
+          surnameController: _surnameCtrl,
+          firstNameController: _firstNameCtrl,
+          middleInitialController: _middleInitialCtrl,
+          suffix: _suffix,
+          onSuffixChanged: (v) => setState(() => _suffix = v),
         ),
         const SizedBox(height: 12),
 

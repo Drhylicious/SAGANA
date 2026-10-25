@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_profile_model.dart';
@@ -687,7 +688,7 @@ class _RecentOrderRow extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${order.orderReference} · ${order.quantityKg.toStringAsFixed(0)} kg',
+                    '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: cs.onSurfaceVariant,
@@ -697,7 +698,7 @@ class _RecentOrderRow extends StatelessWidget {
               ),
             ),
             Text(
-              '₱${order.totalPrice.toStringAsFixed(0)}',
+              formatPesos(order.totalPrice),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,

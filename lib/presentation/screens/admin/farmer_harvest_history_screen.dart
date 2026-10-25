@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../data/models/harvest_model.dart';
@@ -355,12 +356,12 @@ class _AdminHarvestDetailsSheet extends StatelessWidget {
           const SizedBox(height: 14),
           _AdminDetailRow(
             label: 'Quantity',
-            value: '${harvest.quantityKg.toStringAsFixed(0)} kg',
+            value: formatQuantityUnit(harvest.quantityKg, harvest.unit),
           ),
           _AdminDetailRow(label: 'Category', value: harvest.cropCategory),
           _AdminDetailRow(
             label: 'Batch Number',
-            value: harvest.batchNumber ?? '—',
+            value: harvest.displayBatch,
           ),
           _AdminDetailRow(
             label: 'Storage Location',

@@ -10,6 +10,7 @@ import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -18,6 +19,9 @@ import '../../../data/services/profile_state_service.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/change_password_dialog.dart';
+import '../../widgets/contact_email_verification.dart';
+import '../../../core/utils/contact_email.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
@@ -28,7 +32,11 @@ import '../../widgets/sub_page_top_bar.dart';
 /// replaces the bottom-sheet edit form and photo picker that previously
 /// lived inline in FarmerProfileScreen/FarmerSettingsScreen.
 class FarmerEditProfileScreen extends StatefulWidget {
-  const FarmerEditProfileScreen({super.key});
+  const FarmerEditProfileScreen({super.key, this.initialProfile});
+
+  /// Tests: shown instead of loading the profile from the server.
+  @visibleForTesting
+  final FarmerProfileModel? initialProfile;
 
   @override
   State<FarmerEditProfileScreen> createState() =>
@@ -37,9 +45,17 @@ class FarmerEditProfileScreen extends StatefulWidget {
 
 class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   final _repo = FarmerProfileRepository();
-  final _nameController = TextEditingController();
+  final _name = PersonNameInput();
+  final _nameFormKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+
+  // What the account has on record for the email, so the Verified / Unverified
+  // line shows the saved state (a typed-but-unsaved address is always Unverified).
+  String? _savedEmail;
+  String? _verifiedEmail;
+  bool get _emailVerified =>
+      ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -68,7 +84,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _name.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     super.dispose();
@@ -80,15 +96,26 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
       _loadFailed = false;
     });
     try {
-      final profile = await _repo.fetchProfile().timeout(
-        const Duration(seconds: 15),
-      );
+      final profile =
+          widget.initialProfile ??
+          await _repo.fetchProfile().timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() {
-        _nameController.text = profile?.fullName ?? '';
+        _name.load(
+          fullName: profile?.fullName,
+          surnameValue: profile?.surname,
+          firstNameValue: profile?.firstName,
+          middleInitialValue: profile?.middleInitial,
+          suffixValue: profile?.suffix,
+        );
         _phoneController.text = profile?.phoneNumber ?? '';
         _emailController.text = profile?.contactEmail ?? '';
         _originalEmail = profile?.contactEmail?.trim() ?? '';
+        _savedEmail = ContactEmail.effective(
+          contactEmail: profile?.contactEmail,
+          signInEmail: profile?.email,
+        );
+        _verifiedEmail = profile?.verifiedContactEmail;
         _photoUrl = profile?.profilePhotoUrl;
         _dateOfBirth = profile?.dateOfBirth;
         _gender = profile?.gender;
@@ -138,17 +165,53 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
   // when the person actually changes it.
   String _originalEmail = '';
 
+  // Verify Email saves the address first (same checks as Save), then sends the
+  // code. Returns true once the address is stored on the server.
+  Future<bool> _saveEmailForVerification() async {
+    final l10n = AppLocalizations.of(context);
+    void fail(String message) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+      );
+    }
+
+    final email = _emailController.text.trim();
+    if (!isValidEmailFormat(email)) {
+      fail(l10n.registerInvalidEmail);
+      return false;
+    }
+    if (email.toLowerCase() != _originalEmail.toLowerCase()) {
+      final domain = await AuthService.checkEmailDomain(email);
+      if (!mounted) return false;
+      if (domain == EmailDomainStatus.noMailServer) {
+        fail(l10n.registerEmailDomainInvalid);
+        return false;
+      }
+    }
+    try {
+      final outcome = await _repo.updateBasicInfo(contactEmail: email);
+      if (!mounted) return false;
+      if (outcome == SaveOutcome.queued) {
+        fail(l10n.emailVerifyOffline);
+        return false;
+      }
+      setState(() {
+        _originalEmail = email;
+        _savedEmail = email.toLowerCase();
+      });
+      FarmerProfileStateService.instance.refresh();
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      fail(friendlyErrorMessage(e));
+      return false;
+    }
+  }
+
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.fullNameEmpty),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
-      return;
-    }
+    // Surname and first name are checked on the fields themselves.
+    if (!(_nameFormKey.currentState?.validate() ?? false)) return;
     final email = _emailController.text.trim();
     if (email.isNotEmpty && !isValidEmailFormat(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -204,7 +267,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
     setState(() => _isSaving = true);
     try {
       final outcome = await _repo.updateBasicInfo(
-        fullName: _nameController.text.trim(),
+        name: _name.parts,
         phoneNumber: _phoneController.text.trim(),
         contactEmail: _emailController.text.trim(),
         dateOfBirth: _dateOfBirth,
@@ -287,9 +350,7 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                           children: [
                             ProfileAvatar(
                               photoUrl: _photoUrl,
-                              displayName: _nameController.text.isNotEmpty
-                                  ? _nameController.text
-                                  : l10n.defaultFarmerName,
+                              displayName: _name.displayName(l10n.defaultFarmerName),
                               radius: 56,
                             ),
                             if (_isUploadingPhoto)
@@ -347,11 +408,18 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                       const SizedBox(height: 20),
                       SectionLabel(label: l10n.sectionPersonalInformation),
                       const SizedBox(height: 8),
-                      AppTextField(
-                        controller: _nameController,
-                        label: l10n.fullName,
-                        prefixIcon: Icons.person_outline_rounded,
-                        textCapitalization: TextCapitalization.words,
+                      Form(
+                        key: _nameFormKey,
+                        child: PersonNameFields(
+                          style: PersonNameFieldsStyle.profile,
+                          surnameController: _name.surname,
+                          firstNameController: _name.firstName,
+                          middleInitialController: _name.middleInitial,
+                          suffix: _name.suffix,
+                          onSuffixChanged: (v) => setState(() => _name.suffix = v),
+                          allowAllBlank: _name.legacyFullName != null,
+                          legacyFullName: _name.legacyFullName,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
@@ -359,6 +427,17 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                         label: l10n.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
+                      ),
+                      ContactEmailVerification(
+                        emailController: _emailController,
+                        savedEmail: _savedEmail,
+                        verified: _emailVerified,
+                        isOnline: _isOnline,
+                        saveEmail: _saveEmailForVerification,
+                        onVerified: () {
+                          setState(() => _verifiedEmail = _savedEmail);
+                    FarmerProfileStateService.instance.refresh();
+                        },
                       ),
                       const SizedBox(height: 16),
                       AppTextField(

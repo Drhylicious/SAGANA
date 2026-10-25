@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/buyer_listing_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/services/cart_service.dart';
@@ -361,7 +362,9 @@ class _ListingCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          l10n.buyerBrowseUnitsSold(listing.soldKg.toStringAsFixed(0)),
+                          l10n.buyerBrowseUnitsSold(
+                            formatQuantityUnit(listing.soldKg, listing.unit),
+                          ),
                           style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
                         ),
                       ],
@@ -375,7 +378,7 @@ class _ListingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      '${listing.displayAvailableKg.toStringAsFixed(0)} kg ${l10n.buyerBrowseAvailableSuffix}',
+                      '${formatQuantityUnit(listing.displayAvailableKg, listing.unit)} ${l10n.buyerBrowseAvailableSuffix}',
                       style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant),
                     ),
                   ],

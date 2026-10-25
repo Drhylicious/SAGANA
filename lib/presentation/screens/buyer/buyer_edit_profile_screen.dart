@@ -15,6 +15,9 @@ import '../../../data/services/profile_photo_service.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/change_password_dialog.dart';
+import '../../widgets/contact_email_verification.dart';
+import '../../../core/utils/contact_email.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/auth_service.dart';
@@ -24,7 +27,11 @@ import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
 class BuyerEditProfileScreen extends StatefulWidget {
-  const BuyerEditProfileScreen({super.key});
+  const BuyerEditProfileScreen({super.key, this.initialProfile});
+
+  /// Tests: shown instead of loading the profile from the server.
+  @visibleForTesting
+  final BuyerProfileModel? initialProfile;
 
   @override
   State<BuyerEditProfileScreen> createState() => _BuyerEditProfileScreenState();
@@ -32,9 +39,17 @@ class BuyerEditProfileScreen extends StatefulWidget {
 
 class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   final _repository = BuyerProfileRepository();
-  final _nameController = TextEditingController();
+  final _name = PersonNameInput();
+  final _nameFormKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+
+  // What the account has on record for the email, so the Verified / Unverified
+  // line shows the saved state (a typed-but-unsaved address is always Unverified).
+  String? _savedEmail;
+  String? _verifiedEmail;
+  bool get _emailVerified =>
+      ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
 
   bool _isLoading = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
@@ -55,21 +70,33 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _name.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final profile = await _repository.fetchProfile();
+    final profile =
+        widget.initialProfile ?? await _repository.fetchProfile();
     if (!mounted) return;
     setState(() {
-      _nameController.text = profile?.fullName ?? '';
+      _name.load(
+        fullName: profile?.fullName,
+        surnameValue: profile?.surname,
+        firstNameValue: profile?.firstName,
+        middleInitialValue: profile?.middleInitial,
+        suffixValue: profile?.suffix,
+      );
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
       _emailController.text = profile?.contactEmail ?? '';
       _originalEmail = profile?.contactEmail?.trim() ?? '';
+      _savedEmail = ContactEmail.effective(
+        contactEmail: profile?.contactEmail,
+        signInEmail: profile?.email,
+      );
+      _verifiedEmail = profile?.verifiedContactEmail;
       _dateOfBirth = profile?.dateOfBirth;
       _gender = profile?.gender;
       _isLoading = false;
@@ -114,17 +141,49 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
   // when the person actually changes it.
   String _originalEmail = '';
 
+  // Verify Email saves the address first (same checks as Save), then sends the
+  // code. Returns true once the address is stored on the server.
+  Future<bool> _saveEmailForVerification() async {
+    final l10n = AppLocalizations.of(context);
+    void fail(String message) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+      );
+    }
+
+    final email = _emailController.text.trim();
+    if (!isValidEmailFormat(email)) {
+      fail(l10n.registerInvalidEmail);
+      return false;
+    }
+    if (email.toLowerCase() != _originalEmail.toLowerCase()) {
+      final domain = await AuthService.checkEmailDomain(email);
+      if (!mounted) return false;
+      if (domain == EmailDomainStatus.noMailServer) {
+        fail(l10n.registerEmailDomainInvalid);
+        return false;
+      }
+    }
+    try {
+      // Only the email: no other field is touched.
+      await _repository.updateProfile(contactEmail: email);
+      if (!mounted) return false;
+      setState(() {
+        _originalEmail = email;
+        _savedEmail = email.toLowerCase();
+      });
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      fail(friendlyErrorMessage(e));
+      return false;
+    }
+  }
+
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.fullNameEmpty),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
-      return;
-    }
+    // Surname and first name are checked on the fields themselves.
+    if (!(_nameFormKey.currentState?.validate() ?? false)) return;
     final email = _emailController.text.trim();
     if (email.isNotEmpty && !isValidEmailFormat(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -181,7 +240,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
     setState(() => _isSaving = true);
     try {
       await _repository.updateProfile(
-        fullName: _nameController.text,
+        name: _name.parts,
         phoneNumber: _phoneController.text,
         photoUrl: _photoUrl,
         contactEmail: _emailController.text.trim(),
@@ -258,9 +317,7 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                           children: [
                             ProfileAvatar(
                               photoUrl: _photoUrl,
-                              displayName: _nameController.text.isNotEmpty
-                                  ? _nameController.text
-                                  : l10n.buyerDefaultName,
+                              displayName: _name.displayName(l10n.buyerDefaultName),
                               radius: 56,
                             ),
                             if (_isUploadingPhoto)
@@ -318,11 +375,18 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                       const SizedBox(height: 20),
                       SectionLabel(label: l10n.personalInformation),
                       const SizedBox(height: 8),
-                      AppTextField(
-                        controller: _nameController,
-                        label: l10n.fullName,
-                        prefixIcon: Icons.person_outline_rounded,
-                        textCapitalization: TextCapitalization.words,
+                      Form(
+                        key: _nameFormKey,
+                        child: PersonNameFields(
+                          style: PersonNameFieldsStyle.profile,
+                          surnameController: _name.surname,
+                          firstNameController: _name.firstName,
+                          middleInitialController: _name.middleInitial,
+                          suffix: _name.suffix,
+                          onSuffixChanged: (v) => setState(() => _name.suffix = v),
+                          allowAllBlank: _name.legacyFullName != null,
+                          legacyFullName: _name.legacyFullName,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
@@ -330,6 +394,16 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                         label: l10n.emailAddress,
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
+                      ),
+                      ContactEmailVerification(
+                        emailController: _emailController,
+                        savedEmail: _savedEmail,
+                        verified: _emailVerified,
+                        isOnline: _isOnline,
+                        saveEmail: _saveEmailForVerification,
+                        onVerified: () {
+                          setState(() => _verifiedEmail = _savedEmail);
+                        },
                       ),
                       const SizedBox(height: 16),
                       AppTextField(

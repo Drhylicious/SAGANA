@@ -20,6 +20,12 @@ class FarmerRegistrationAddress {
   static const String barangayName = 'Payanas';
   static const String postalCode = '4903';
 
+  /// Where the maps open when nothing is pinned yet: Barangay Payanas, Torrijos
+  /// (OpenStreetMap place node, 13.3213 N 122.0394 E). Only a starting view,
+  /// never saved as a pin.
+  static const double mapCenterLatitude = 13.3213;
+  static const double mapCenterLongitude = 122.0394;
+
   /// One-line form of the address, in the same order the database stores it:
   /// house no., building, street, barangay, city, province, region, postal code.
   static String composeLine({

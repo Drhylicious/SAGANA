@@ -1,3 +1,5 @@
+import '../../core/utils/quantity_utils.dart';
+
 /// One completed sale, across any of the 4 selling channels, for the
 /// logged-in farmer only. Distinct from Admin's SalesTransactionRow
 /// (admin_reports_model.dart): no farmerName (the viewer already knows
@@ -17,6 +19,9 @@ class FarmerTransactionModel {
   sellingType; // 'offer_to_cooperative' | 'marketplace' | 'informal_sale' | 'da_amad_market_linking'
   final String cropName;
   final double quantityKg;
+
+  /// The unit quantityKg is measured in.
+  final String unit;
   final double amount;
   final DateTime transactionDate;
   final String? referenceNo; // offer_to_cooperative only
@@ -30,6 +35,7 @@ class FarmerTransactionModel {
     required this.sellingType,
     required this.cropName,
     required this.quantityKg,
+    this.unit = kDefaultUnit,
     required this.amount,
     required this.transactionDate,
     this.referenceNo,

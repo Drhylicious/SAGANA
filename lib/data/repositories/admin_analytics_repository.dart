@@ -78,10 +78,12 @@ class AdminAnalyticsRepository {
           .map((r) => r['farmer_id'] as String)
           .toSet();
 
-      final inactiveIds = farmerIds
-          .where((id) => !harvestedIds.contains(id) && !listedIds.contains(id))
-          .toList();
-      final activeListedOnlyIds = listedIds.difference(harvestedIds);
+      final tiers = classifyParticipation(
+        memberIds: farmerIds,
+        harvestedIds: harvestedIds,
+        listedIds: listedIds,
+      );
+      final inactiveIds = tiers.inactive;
 
       final farmerInfo = await fetchFarmerInfoMap(_client, inactiveIds);
       final inactiveFarmers =
@@ -96,8 +98,8 @@ class AdminAnalyticsRepository {
             ..sort((a, b) => a.fullName.compareTo(b.fullName));
 
       return MemberParticipationSummary(
-        activeHarvestedCount: harvestedIds.length,
-        activeListedCount: activeListedOnlyIds.length,
+        activeHarvestedCount: tiers.harvested.length,
+        activeListedCount: tiers.listedOnly.length,
         inactiveCount: inactiveIds.length,
         totalMembers: farmerIds.length,
         inactiveFarmers: inactiveFarmers,

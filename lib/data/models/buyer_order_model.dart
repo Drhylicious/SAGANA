@@ -1,13 +1,23 @@
+import '../../core/utils/order_reference.dart';
+import '../../core/utils/quantity_utils.dart';
 import 'farmer_crop_model.dart' show marketTypeLabelFor;
 
 class BuyerOrderModel {
   final String id;
+
+  /// The database-issued ORD-YYYYMMDD-XXXX number. Null for an order placed
+  /// before order numbers existed (it keeps its old reference).
+  final String? orderNumber;
   final String listingId;
   final String cropName;
   final String? variety;
   final String? listingPhotoUrl;
   final double quantityKg;
   final double pricePerKg;
+
+  /// The unit quantityKg and pricePerKg are measured in (copied from the
+  /// listing by the database; the fields keep their old names).
+  final String unit;
   final double totalPrice;
   final String status; // pending | approved | completed | cancelled | rejected
   final String? notes;
@@ -41,9 +51,11 @@ class BuyerOrderModel {
     required this.listingId,
     required this.cropName,
     this.variety,
+    this.orderNumber,
     this.listingPhotoUrl,
     required this.quantityKg,
     required this.pricePerKg,
+    this.unit = kDefaultUnit,
     required this.totalPrice,
     required this.status,
     this.notes,
@@ -101,10 +113,9 @@ class BuyerOrderModel {
     }
   }
 
-  /// Matches the LOAN-XXXXXXXX convention already established for
-  /// farmer_loans.loan_reference — same auto-generated-reference idiom,
-  /// applied to orders since orders has no equivalent stored column.
-  String get orderReference => 'ORD-${id.substring(0, 8).toUpperCase()}';
+  /// What every screen shows: the stored order number, or for an older order
+  /// the ORD-xxxxxxxx reference it always had (see order_reference.dart).
+  String get orderReference => orderReferenceOf(id, orderNumber);
 
   /// Relative "Harvested X days ago" label for the detail screen's
   /// freshness field. Empty when no harvest date is available (list view,
@@ -122,12 +133,14 @@ class BuyerOrderModel {
   factory BuyerOrderModel.fromMap(Map<String, dynamic> map) {
     return BuyerOrderModel(
       id: map['id'] as String,
+      orderNumber: map['order_number'] as String?,
       listingId: map['listing_id'] as String,
       cropName: map['crop_name'] as String? ?? 'Produce',
       variety: map['variety'] as String?,
       listingPhotoUrl: map['photo_url'] as String?,
       quantityKg: (map['quantity_kg'] as num).toDouble(),
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
       totalPrice: (map['total_price'] as num).toDouble(),
       status: map['status'] as String? ?? 'pending',
       notes: map['notes'] as String?,

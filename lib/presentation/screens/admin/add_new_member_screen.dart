@@ -8,12 +8,14 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../core/utils/input_validation_utils.dart';
+import '../../../core/utils/person_name.dart';
 import '../../../core/utils/temp_password.dart';
 import '../../../data/repositories/add_member_repository.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/account_form_widgets.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/username_availability_field.dart';
@@ -44,7 +46,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   // ── Controllers ────────────────────────────────────────────────────────────
   final _usernameCtrl    = TextEditingController();
   final _passwordCtrl    = TextEditingController();
-  final _fullNameCtrl    = TextEditingController();
+  final _surnameCtrl     = TextEditingController();
+  final _firstNameCtrl   = TextEditingController();
+  final _middleInitialCtrl = TextEditingController();
+  String? _suffix; // Jr., Sr., II, III, IV or V; null = none
   final _emailCtrl = TextEditingController();
   final _phoneCtrl       = TextEditingController();
   final _initialContributionCtrl = TextEditingController();
@@ -85,7 +90,9 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
   void dispose() {
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
-    _fullNameCtrl.dispose();
+    _surnameCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _middleInitialCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _initialContributionCtrl.dispose();
@@ -221,7 +228,10 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
     final result = await _repo.createMember(
       username:            normalizeUsername(_usernameCtrl.text),
       password:            _passwordCtrl.text.trim(),
-      fullName:            _fullNameCtrl.text.trim(),
+      surname:             _surnameCtrl.text,
+      firstName:           _firstNameCtrl.text,
+      middleInitial:       _middleInitialCtrl.text,
+      suffix:              _suffix,
       phoneNumber:         _phoneCtrl.text.trim(),
       contactEmail: _emailCtrl.text.trim(),
       dateOfBirth:         _dateOfBirth,
@@ -236,7 +246,12 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
 
     if (result.isSuccess) {
       _showSnack(
-        l10n.addMemberCreatedSuccess(_fullNameCtrl.text.trim()),
+        l10n.addMemberCreatedSuccess(PersonName.compose(
+          firstName: _firstNameCtrl.text,
+          middleInitial: _middleInitialCtrl.text,
+          surname: _surnameCtrl.text,
+          suffix: _suffix,
+        )),
         isSuccess: true,
       );
       context.pop(true);
@@ -357,16 +372,13 @@ class _AddNewMemberScreenState extends State<AddNewMemberScreen> {
                         cs: cs,
                         sagana: sagana,
                         children: [
-                          AccountFieldLabel(label: l10n.addMemberFullNameLabel, cs: cs),
-                          TextFormField(
-                            controller: _fullNameCtrl,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: InputDecoration(
-                              hintText: l10n.addMemberFullNameHint,
-                            ),
-                            validator: (v) => (v == null || v.trim().isEmpty)
-                                ? l10n.addMemberFullNameRequired
-                                : null,
+                          PersonNameFields(
+                            style: PersonNameFieldsStyle.form,
+                            surnameController: _surnameCtrl,
+                            firstNameController: _firstNameCtrl,
+                            middleInitialController: _middleInitialCtrl,
+                            suffix: _suffix,
+                            onSuffixChanged: (v) => setState(() => _suffix = v),
                           ),
                           const SizedBox(height: 14),
                           // Email above Phone (every account form).

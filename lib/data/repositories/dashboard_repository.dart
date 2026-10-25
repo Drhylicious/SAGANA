@@ -6,6 +6,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../services/app_settings_service.dart';
 import '../models/activity_text.dart';
 import '../models/admin_log_message.dart';
+import '../../core/utils/quantity_utils.dart';
 
 /// Localized labels for activity entries. Repositories have no BuildContext,
 /// so they resolve the user's current locale directly.
@@ -54,13 +55,16 @@ class DashboardRepository {
         screen: 'dash_yield_month_${startOfMonth.toIso8601String()}',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg')
+            .select('quantity_kg, unit')
             .eq('farmer_id', _userId)
             .gte('harvest_date', startOfMonth.toIso8601String()),
       );
       monthlyYield = yieldResponse.fold<double>(
         0,
-        (sum, row) => sum + (row['quantity_kg'] as num).toDouble(),
+        // A kg total: only rows measured in kg are added (units are never mixed).
+        (sum, row) => isKg(row['unit'] as String?)
+            ? sum + (row['quantity_kg'] as num).toDouble()
+            : sum,
       );
     } catch (_) {}
 
@@ -70,14 +74,17 @@ class DashboardRepository {
         screen: 'dash_yield_last_month_${startOfLastMonth.toIso8601String()}',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg')
+            .select('quantity_kg, unit')
             .eq('farmer_id', _userId)
             .gte('harvest_date', startOfLastMonth.toIso8601String())
             .lte('harvest_date', endOfLastMonth.toIso8601String()),
       );
       lastMonthYield = lastMonthYieldResponse.fold<double>(
         0,
-        (sum, row) => sum + (row['quantity_kg'] as num).toDouble(),
+        // A kg total: only rows measured in kg are added (units are never mixed).
+        (sum, row) => isKg(row['unit'] as String?)
+            ? sum + (row['quantity_kg'] as num).toDouble()
+            : sum,
       );
     } catch (_) {}
 
@@ -92,13 +99,16 @@ class DashboardRepository {
         screen: 'dash_yield_year_${startOfYear.toIso8601String()}',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg')
+            .select('quantity_kg, unit')
             .eq('farmer_id', _userId)
             .gte('harvest_date', startOfYear.toIso8601String()),
       );
       annualYield = annualYieldResponse.fold<double>(
         0,
-        (sum, row) => sum + (row['quantity_kg'] as num).toDouble(),
+        // A kg total: only rows measured in kg are added (units are never mixed).
+        (sum, row) => isKg(row['unit'] as String?)
+            ? sum + (row['quantity_kg'] as num).toDouble()
+            : sum,
       );
     } catch (_) {}
 
@@ -112,7 +122,9 @@ class DashboardRepository {
       final harvestDate = DateTime.tryParse(
         payload['harvest_date'] as String? ?? '',
       );
-      final qty = (payload['quantity_kg'] as num?)?.toDouble() ?? 0;
+      final qty = isKg(payload['unit'] as String?)
+          ? (payload['quantity_kg'] as num?)?.toDouble() ?? 0
+          : 0.0;
       if (harvestDate == null) continue;
       if (!harvestDate.isBefore(startOfMonth)) {
         monthlyYield += qty;
@@ -163,7 +175,7 @@ class DashboardRepository {
             .select('total_price, created_at')
             .eq('farmer_id', _userId)
             .eq('status', 'completed')
-            .gte('created_at', startOfYear.toIso8601String()),
+            .gte('created_at', startOfYear.toUtc().toIso8601String()),
       );
       for (final row in rows) {
         final amount = (row['total_price'] as num).toDouble();
@@ -209,7 +221,7 @@ class DashboardRepository {
             .from('informal_sales')
             .select('amount, sale_date')
             .eq('farmer_id', _userId)
-            .gte('sale_date', startOfYear.toIso8601String()),
+            .gte('sale_date', startOfYear.toUtc().toIso8601String()),
       );
       for (final row in rows) {
         final amount = (row['amount'] as num?)?.toDouble() ?? 0;
@@ -238,7 +250,7 @@ class DashboardRepository {
             )
             .eq('farmer_id', _userId)
             .eq('status', 'completed')
-            .gte('completed_at', startOfYear.toIso8601String()),
+            .gte('completed_at', startOfYear.toUtc().toIso8601String()),
       );
       for (final row in rows) {
         final pricePerKg = (row['price_per_kg'] as num?)?.toDouble();
@@ -248,7 +260,7 @@ class DashboardRepository {
             (row['requested_volume_kg'] as num?)?.toDouble() ??
             (row['volume_kg'] as num?)?.toDouble() ??
             0;
-        final amount = quantityKg * pricePerKg;
+        final amount = moneyOf(quantityKg, pricePerKg);
         marketLinkingAnnual += amount;
         final completedAt = DateTime.parse(row['completed_at'] as String);
         if (!completedAt.isBefore(startOfMonth)) marketLinkingMonthly += amount;
@@ -364,14 +376,14 @@ class DashboardRepository {
     final harvests = await _client
         .from('harvest_records')
         .select(
-          'id, crop_name, quantity_kg, batch_number, created_at, is_synced',
+          'id, crop_name, quantity_kg, unit, batch_number, created_at, is_synced',
         )
         .eq('farmer_id', _userId)
         .order('created_at', ascending: false)
         .limit(sourceLimit);
     for (final h in harvests) {
       final cropName = h['crop_name'] as String;
-      final batchNo = h['batch_number'] as String? ?? '—';
+      final batchNo = formatBatchNumber(h['batch_number'] as String?);
       if (!matchesSearch(cropName) && !matchesSearch(batchNo)) continue;
       final isSynced = h['is_synced'] as bool? ?? false;
       items.add(
@@ -380,8 +392,11 @@ class DashboardRepository {
           type: ActivityType.harvest,
           title: _l.activityHarvestTitle(cropName),
           subtitle:
-              'Batch #$batchNo • ${_formatRelative(DateTime.parse(h['created_at'] as String))}',
-          valueLabel: '${h['quantity_kg']} kg',
+              '${batchNo.isEmpty ? '—' : batchNo} • ${_formatRelative(DateTime.parse(h['created_at'] as String))}',
+          valueLabel: formatQuantityUnit(
+            h['quantity_kg'] as num,
+            h['unit'] as String?,
+          ),
           statusLabel: isSynced ? _l.activitySynced : _l.activityPendingSync,
           timestamp: DateTime.parse(h['created_at'] as String),
         ),
@@ -454,7 +469,7 @@ class DashboardRepository {
     final orders = await _client
         .from('orders')
         .select(
-          'id, quantity_kg, total_price, created_at, fulfillment_method, marketplace_listings(crop_name)',
+          'id, quantity_kg, unit, total_price, created_at, fulfillment_method, marketplace_listings(crop_name)',
         )
         .eq('buyer_id', _userId)
         .order('created_at', ascending: false)
@@ -480,9 +495,9 @@ class DashboardRepository {
           type: ActivityType.orderPlaced,
           title: _l.activityOrderPlacedTitle,
           subtitle: fulfillmentLabel != null
-              ? '${o['quantity_kg']}kg $cropName • $fulfillmentLabel'
-              : '${o['quantity_kg']}kg $cropName',
-          valueLabel: '₱${(o['total_price'] as num).toStringAsFixed(0)}',
+              ? '${formatQuantityUnit(o['quantity_kg'] as num, o['unit'] as String?)} $cropName • $fulfillmentLabel'
+              : '${formatQuantityUnit(o['quantity_kg'] as num, o['unit'] as String?)} $cropName',
+          valueLabel: formatPesos(o['total_price'] as num),
           statusLabel: fulfillmentLabel,
           timestamp: DateTime.parse(o['created_at'] as String),
         ),
@@ -715,7 +730,9 @@ class DashboardRepository {
     final List<ActivityItem> items = [];
     final sales = await _client
         .from('informal_sales')
-        .select('id, crop_name, quantity_kg, amount, buyer_name, sale_date')
+        .select(
+          'id, crop_name, quantity_kg, unit, amount, buyer_name, sale_date',
+        )
         .eq('farmer_id', userId)
         .order('sale_date', ascending: false)
         .limit(limit);
@@ -736,9 +753,12 @@ class DashboardRepository {
               ? '$cropName • Sold to $buyer'
               : cropName,
           valueLabel: s['amount'] != null
-              ? '₱${(s['amount'] as num).toStringAsFixed(0)}'
+              ? formatPesos(s['amount'] as num)
               : null,
-          statusLabel: '${s['quantity_kg']} kg',
+          statusLabel: formatQuantityUnit(
+            s['quantity_kg'] as num,
+            s['unit'] as String?,
+          ),
           timestamp: DateTime.parse(s['sale_date'] as String),
         ),
       );
@@ -786,7 +806,7 @@ class DashboardRepository {
     final List<ActivityItem> items = [];
     final offers = await _client
         .from('cooperative_purchase_offers')
-        .select('id, crop_name, offered_quantity_kg, offered_at')
+        .select('id, crop_name, offered_quantity_kg, unit, offered_at')
         .eq('farmer_id', userId)
         .order('offered_at', ascending: false)
         .limit(limit);
@@ -803,7 +823,10 @@ class DashboardRepository {
           type: ActivityType.cooperativeOffer,
           title: _l.activityOfferedToCoop,
           subtitle: cropName,
-          statusLabel: '${o['offered_quantity_kg']} kg',
+          statusLabel: formatQuantityUnit(
+            o['offered_quantity_kg'] as num,
+            o['unit'] as String?,
+          ),
           timestamp: DateTime.parse(o['offered_at'] as String),
         ),
       );
@@ -1156,9 +1179,13 @@ extension CropPriceFetch on DashboardRepository {
   // crop with more than one. Left optional, not required, so a caller
   // without a known price type still gets the old fallback behavior
   // rather than being forced to pass one.
+  /// [unit]: when given, only a reference price quoted in that same unit is
+  /// returned. A price per kg is not a price per sack, so a batch measured in
+  /// another unit gets no suggested price rather than a wrong one.
   Future<double?> fetchLatestPriceForCrop(
     String cropName, {
     String? priceType,
+    String? unit,
   }) async {
     final client = Supabase.instance.client;
     try {
@@ -1168,6 +1195,9 @@ extension CropPriceFetch on DashboardRepository {
           .ilike('crop_name', cropName);
       if (priceType != null) {
         query = query.eq('price_type', priceType);
+      }
+      if (unit != null) {
+        query = query.ilike('unit', unit.trim());
       }
       final response = await query
           .order('recorded_at', ascending: false)

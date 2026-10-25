@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/person_name.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
 import '../models/farmer_member_model.dart';
@@ -19,20 +20,34 @@ class AccountManagementRepository {
   Future<void> createOfficerAccount({
     required String username,
     required String password,
-    required String fullName,
+    required String surname,
+    required String firstName,
+    String? middleInitial,
+    String? suffix,
     String? email,
     String? phoneNumber,
     String? position,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
+    // The complete name, built the same way the database builds it (it
+    // rebuilds it from the parts itself); used for the activity log here.
+    final fullName = PersonName.compose(
+      firstName: firstName,
+      middleInitial: middleInitial,
+      surname: surname,
+      suffix: suffix,
+    );
     try {
       await _client.rpc(
         'create_officer_account',
         params: {
         'p_username': username,
         'p_password': password,
-        'p_full_name': fullName,
+        'p_surname': PersonName.clean(surname),
+        'p_first_name': PersonName.clean(firstName),
+        'p_middle_initial': PersonName.cleanInitial(middleInitial),
+        'p_suffix': PersonName.cleanSuffix(suffix),
         'p_email': email,
         'p_phone_number': phoneNumber,
         'p_position': position,

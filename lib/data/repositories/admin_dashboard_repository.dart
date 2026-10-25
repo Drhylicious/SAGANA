@@ -4,6 +4,7 @@ import '../services/offline_cache.dart';
 import '../models/admin_dashboard_model.dart';
 import '../repositories/admin_loan_repository.dart';
 import '../../core/utils/bod_schedule_utils.dart';
+import '../../core/utils/quantity_utils.dart';
 import '../../routes/app_routes.dart';
 import 'farmer_lookup.dart';
 
@@ -803,11 +804,15 @@ class AdminDashboardRepository {
     try {
       final rows = await OfflineCache.load(
         screen: 'admin_dash_fetchCoopPerformance_4',
-        fetch: () => _client.from('inventory_batches').select('available_kg'),
+        fetch: () =>
+            _client.from('inventory_batches').select('available_kg, unit'),
       );
+      // A kg total: stock held in another unit is not added to it.
       farmerAvailableStockKg = rows.fold<double>(
         0,
-        (s, r) => s + (r['available_kg'] as num).toDouble(),
+        (s, r) => isKg(r['unit'] as String?)
+            ? s + (r['available_kg'] as num).toDouble()
+            : s,
       );
     } catch (e) {
       debugPrint(
@@ -818,10 +823,14 @@ class AdminDashboardRepository {
     try {
       final rows = await OfflineCache.load(
         screen: 'admin_dash_fetchCoopPerformance_3',
+        // Available only: approved AND still some kg left to buy. A listing
+        // whose last kg has been ordered is Sold Out (see listingStateOf),
+        // so it is not counted here, matching All Listings.
         fetch: () => _client
             .from('marketplace_listings')
             .select('id')
-            .eq('status', 'approved'),
+            .eq('status', 'approved')
+            .gt('remaining_kg', 0),
       );
       activeListings = rows.length;
     } catch (e) {

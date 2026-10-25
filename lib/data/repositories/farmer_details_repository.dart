@@ -7,6 +7,7 @@ import '../models/farmer_member_model.dart';
 import '../models/loan_model.dart';
 import '../models/contribution_model.dart';
 import '../models/analytics_model.dart';
+import '../../core/utils/quantity_utils.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
 
@@ -17,9 +18,6 @@ import '../models/admin_log_message.dart';
 class FarmerDetailsRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
-  /// The farmer's default address, which for an outsider applicant is the
-  /// address saved at registration. Null when none is saved. Staff can read
-  /// it only after supabase_schema_buyer_addresses_staff_read.sql is applied.
   /// Every OfflineCache key this repository writes for one farmer (profile, loans,
   /// contribution, capital, expenses, programs). The screen notice covers them all.
   static List<String> cacheScreens(String farmerId) {
@@ -49,21 +47,23 @@ class FarmerDetailsRepository {
     ];
   }
 
-  Future<BuyerAddressModel?> fetchDefaultAddress(String farmerId) async {
+  /// Every address the farmer saved, the default one first (as My Addresses
+  /// lists them). For an outsider applicant this is the address entered at
+  /// registration. Empty when none is saved.
+  Future<List<BuyerAddressModel>> fetchAddresses(String farmerId) async {
     try {
-      final rowRows = await OfflineCache.load(
+      final rows = await OfflineCache.load(
         screen: 'fd_address_$farmerId',
         fetch: () => _client
             .from('buyer_addresses')
             .select()
             .eq('user_id', farmerId)
-            .eq('is_default', true)
-            .limit(1),
+            .order('is_default', ascending: false)
+            .order('created_at', ascending: false),
       );
-      final row = rowRows.isEmpty ? null : rowRows.first;
-      return row != null ? BuyerAddressModel.fromMap(row) : null;
+      return rows.map((r) => BuyerAddressModel.fromMap(r)).toList();
     } catch (_) {
-      return null;
+      return [];
     }
   }
 
@@ -171,11 +171,13 @@ class FarmerDetailsRepository {
         screen: 'fd_summary_harvests_$farmerId',
         fetch: () => _client
             .from('harvest_records')
-            .select('crop_name, quantity_kg, harvest_date'),
+            .select('crop_name, quantity_kg, unit, harvest_date'),
       );
       double totalYield = 0;
       final Map<String, double> byCrop = {};
       for (final row in rows) {
+        // kg figures only: another unit is never added to a kg total.
+        if (!isKg(row['unit'] as String?)) continue;
         final qty = (row['quantity_kg'] as num).toDouble();
         totalYield += qty;
         final crop = row['crop_name'] as String;
@@ -275,7 +277,7 @@ class FarmerDetailsRepository {
         screen: 'fd_harvest_stats_$farmerId',
         fetch: () => _client
             .from('harvest_records')
-            .select('quantity_kg, harvest_date, crop_name, is_synced')
+            .select('quantity_kg, unit, harvest_date, crop_name, is_synced')
             .eq('farmer_id', farmerId),
       );
       if (rows.isEmpty) {
@@ -295,9 +297,13 @@ class FarmerDetailsRepository {
       int unsyncedCount = 0;
       for (final r in rows) {
         final qty = (r['quantity_kg'] as num).toDouble();
-        totalKg += qty;
         final harvestDate = DateTime.parse(r['harvest_date'] as String);
-        if (harvestDate.year == currentYear) thisYearKg += qty;
+        // The totals are kg figures; a harvest in another unit is still
+        // counted and listed, but not added to them.
+        if (isKg(r['unit'] as String?)) {
+          totalKg += qty;
+          if (harvestDate.year == currentYear) thisYearKg += qty;
+        }
         if (!(r['is_synced'] as bool? ?? true)) unsyncedCount++;
       }
 

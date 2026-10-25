@@ -12,6 +12,7 @@ import '../../../data/repositories/account_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../widgets/account_form_widgets.dart';
+import '../../widgets/person_name_fields.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/username_availability_field.dart';
@@ -37,7 +38,10 @@ class _CreateOfficerAccountScreenState
   final _formKey = GlobalKey<FormState>();
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  final _fullNameCtrl = TextEditingController();
+  final _surnameCtrl = TextEditingController();
+  final _firstNameCtrl = TextEditingController();
+  final _middleInitialCtrl = TextEditingController();
+  String? _suffix; // Jr., Sr., II, III, IV or V; null = none
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _positionCtrl = TextEditingController();
@@ -84,7 +88,9 @@ class _CreateOfficerAccountScreenState
     _connectivitySub?.cancel();
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
-    _fullNameCtrl.dispose();
+    _surnameCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _middleInitialCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _positionCtrl.dispose();
@@ -109,7 +115,10 @@ class _CreateOfficerAccountScreenState
       await _repo.createOfficerAccount(
         username: normalizeUsername(_usernameCtrl.text),
         password: _passwordCtrl.text,
-        fullName: _fullNameCtrl.text.trim(),
+        surname: _surnameCtrl.text,
+        firstName: _firstNameCtrl.text,
+        middleInitial: _middleInitialCtrl.text,
+        suffix: _suffix,
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         phoneNumber: _phoneCtrl.text.trim().isEmpty
             ? null
@@ -230,16 +239,13 @@ class _CreateOfficerAccountScreenState
                     cs: cs,
                     sagana: sagana,
                     children: [
-                      AccountFieldLabel(label: l10n.createOfficerFullNameLabel, cs: cs),
-                      TextFormField(
-                        controller: _fullNameCtrl,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: InputDecoration(
-                          hintText: l10n.createOfficerFullNameHint,
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? l10n.createOfficerFullNameRequired
-                            : null,
+                      PersonNameFields(
+                        style: PersonNameFieldsStyle.form,
+                        surnameController: _surnameCtrl,
+                        firstNameController: _firstNameCtrl,
+                        middleInitialController: _middleInitialCtrl,
+                        suffix: _suffix,
+                        onSuffixChanged: (v) => setState(() => _suffix = v),
                       ),
                       const SizedBox(height: 14),
                       // Email above Phone (every account form).

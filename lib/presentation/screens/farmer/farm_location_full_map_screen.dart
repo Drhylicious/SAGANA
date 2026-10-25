@@ -3,11 +3,15 @@ import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/farmer_registration_address.dart';
 import '../../widgets/map_attribution_links.dart';
 import '../../../core/constants/osm_config.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
-const _defaultCenter = LatLng(13.6302, 121.9392);
+const _defaultCenter = LatLng(
+  FarmerRegistrationAddress.mapCenterLatitude,
+  FarmerRegistrationAddress.mapCenterLongitude,
+);
 const _defaultZoom = 15.0;
 const _pinZoom = 16.5;
 
