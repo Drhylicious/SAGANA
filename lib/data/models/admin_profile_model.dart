@@ -17,6 +17,8 @@ class AdminProfileModel {
   final String? contactEmail;
   // The last email address proven with a code (see ContactEmail).
   final String? verifiedContactEmail;
+  // A new email the person asked to switch to; it is theirs only once verified.
+  final String? pendingContactEmail;
   final String? position;
   final String? department;
   final DateTime? adminSince;
@@ -35,6 +37,7 @@ class AdminProfileModel {
     this.profilePhotoUrl,
     this.contactEmail,
     this.verifiedContactEmail,
+    this.pendingContactEmail,
     this.position,
     this.department,
     this.adminSince,
@@ -80,6 +83,7 @@ class AdminProfileModel {
       fullName: fullName ?? this.fullName,
       contactEmail: contactEmail,
       verifiedContactEmail: verifiedContactEmail,
+      pendingContactEmail: pendingContactEmail,
       surname: surname,
       firstName: firstName,
       middleInitial: middleInitial,

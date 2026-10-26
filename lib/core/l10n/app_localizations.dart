@@ -13772,6 +13772,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Username'**
   String get recoveryUsernameLabel;
+
+  /// No description provided for @emailInvalidInline.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid email address.'**
+  String get emailInvalidInline;
+
+  /// No description provided for @emailChangeKeepsCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current email, {email}, stays in use until you verify this new address.'**
+  String emailChangeKeepsCurrent(String email);
+
+  /// No description provided for @emailChangeSignInNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This is also the email you sign in with. Once the new address is verified, sign in with it.'**
+  String get emailChangeSignInNote;
+
+  /// No description provided for @emailChangePasswordLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Current password'**
+  String get emailChangePasswordLabel;
+
+  /// No description provided for @emailVerifyPasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your current password to change your sign-in email.'**
+  String get emailVerifyPasswordRequired;
+
+  /// No description provided for @emailVerifyWrongPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'That password is not correct.'**
+  String get emailVerifyWrongPassword;
+
+  /// No description provided for @emailVerifyInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'That email address is now used by another account. Choose a different one.'**
+  String get emailVerifyInUse;
+
+  /// No description provided for @emailChangeAddressInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'This email address is already used by another account.'**
+  String get emailChangeAddressInUse;
+
+  /// No description provided for @emailChangeReserved.
+  ///
+  /// In en, this message translates to:
+  /// **'This email domain cannot be used.'**
+  String get emailChangeReserved;
+
+  /// No description provided for @emailSignInChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Your sign-in email is now {email}. Use it the next time you sign in.'**
+  String emailSignInChanged(String email);
+
+  /// No description provided for @emailCannotBeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The Manager\'s email is the address you sign in with, so it cannot be left blank.'**
+  String get emailCannotBeEmpty;
 }
 
 class _AppLocalizationsDelegate

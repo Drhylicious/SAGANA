@@ -12,6 +12,7 @@ import '../../widgets/suspension_dialogs.dart';
 import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/member_title_row.dart';
 import '../../widgets/members_controls.dart';
 import '../../widgets/reason_dialogs.dart';
 import '../../../data/models/farmer_member_model.dart';
@@ -779,9 +780,8 @@ class _FarmerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: avatar + name/ID grouped together, status + menu
-            // aligned on their own trailing column so both sit consistently
-            // regardless of name length.
+            // Header: the avatar, then name | status | menu on one line with the
+            // contact lines beneath (see MemberTitleRow).
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -829,26 +829,33 @@ class _FarmerCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        farmer.fullName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                          height: 1.25,
+                      // Name, status and menu on ONE line, centred together;
+                      // the menu sits at the far right edge of the card.
+                      MemberTitleRow(
+                        name: farmer.fullName,
+                        badge: _StatusBadge(status: farmer.memberStatus, cs: cs),
+                        // One popup-menu style for every status (same as
+                        // Inventory's ⋯ menu). Only the actions change by status.
+                        menu: SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: PopupMenuButton<String>(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              Icons.more_vert_rounded,
+                              color: cs.onSurfaceVariant,
+                              size: 22,
+                            ),
+                            onSelected: onMenuSelected,
+                            itemBuilder: (ctx) => _menuEntries(ctx),
+                          ),
                         ),
                       ),
-                      // The status sits right under the name, so it is read
-                      // with it, and the menu keeps the right edge to itself.
-                      const SizedBox(height: 5),
-                      _StatusBadge(status: farmer.memberStatus, cs: cs),
-                      // Email and phone number on their own lines. A long
-                      // address may wrap onto a second line instead of being
-                      // cut off.
+                      // Email and phone number on their own lines, under the
+                      // name. A long address may wrap onto a second line
+                      // instead of being cut off.
                       for (final line in farmer.contactLines) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           line,
                           maxLines: 2,
@@ -861,23 +868,6 @@ class _FarmerCard extends StatelessWidget {
                         ),
                       ],
                     ],
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // One popup-menu style for every status (same as Inventory's
-                // ⋯ menu). Only the actions change by status.
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(
-                      Icons.more_vert_rounded,
-                      color: cs.onSurfaceVariant,
-                      size: 22,
-                    ),
-                    onSelected: onMenuSelected,
-                    itemBuilder: (ctx) => _menuEntries(ctx),
                   ),
                 ),
               ],
@@ -1094,6 +1084,9 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         _memberStatusLabel(l10n, status).toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
         style: GoogleFonts.inter(
           fontSize: 9,
           fontWeight: FontWeight.w800,

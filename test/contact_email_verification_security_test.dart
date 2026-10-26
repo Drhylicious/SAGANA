@@ -92,7 +92,14 @@ void main() {
       // And nothing else in the schema folder writes the verified columns.
       for (final f in Directory('supabase_schema').listSync().whereType<File>()) {
         // Script 19 only READS the proof (to decide who may recover by email).
-        if (!f.path.endsWith('.sql') || f.path.contains('registration_18_') || f.path.contains('registration_19_')) continue;
+        // Script 20 replaces script 18's functions (same writer, plus the pending
+        // address); it is checked on its own in the "change email" tests.
+        if (!f.path.endsWith('.sql') ||
+            f.path.contains('registration_18_') ||
+            f.path.contains('registration_19_') ||
+            f.path.contains('registration_20_')) {
+          continue;
+        }
         final other = f.readAsStringSync();
         expect(other.contains('verified_contact_email'), isFalse, reason: f.path);
       }
@@ -109,7 +116,12 @@ void main() {
     test('it identifies the caller from the JWT and takes no user id from the request', () {
       expect(edge, contains('auth.getUser()'));
       expect(edge, contains('return json(401'));
-      expect(edge, isNot(contains('req.json()')));
+      // The only thing read from the request body is the password a Manager gives
+      // to change their sign-in email: never a user id, never an address.
+      expect('req.json()'.allMatches(edge).length, 1);
+      expect(edge, contains('body?.current_password'));
+      expect(edge.contains('body?.user'), isFalse);
+      expect(edge.contains('body?.email'), isFalse);
       expect(edge, isNot(contains('req.text()')));
     });
 
@@ -136,7 +148,7 @@ void main() {
     });
 
     test('it uses the service role only for the two database calls', () {
-      expect(RegExp(r'admin\.rpc\(').allMatches(edge).length, 2);
+      expect(RegExp(r'admin\.rpc\(').allMatches(edge).length, 3);
       expect(edge, contains('SUPABASE_SERVICE_ROLE_KEY'));
     });
 

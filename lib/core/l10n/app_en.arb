@@ -2833,5 +2833,26 @@
   "emailVerifyNoEmail": "Add an email address first.",
   "recoveryEmailVerifiedOnlyTitle": "Email recovery needs a verified email",
   "recoveryEmailVerifiedOnlyBody": "A reset code is only sent to an email address that has been verified in Edit Profile. Enter your username below to ask the Manager for a temporary password instead.",
-  "recoveryUsernameLabel": "Username"
+  "recoveryUsernameLabel": "Username",
+  "emailInvalidInline": "Enter a valid email address.",
+  "emailChangeKeepsCurrent": "Your current email, {email}, stays in use until you verify this new address.",
+  "@emailChangeKeepsCurrent": {
+    "placeholders": {
+      "email": {"type": "String"}
+    }
+  },
+  "emailChangeSignInNote": "This is also the email you sign in with. Once the new address is verified, sign in with it.",
+  "emailChangePasswordLabel": "Current password",
+  "emailVerifyPasswordRequired": "Enter your current password to change your sign-in email.",
+  "emailVerifyWrongPassword": "That password is not correct.",
+  "emailVerifyInUse": "That email address is now used by another account. Choose a different one.",
+  "emailChangeAddressInUse": "This email address is already used by another account.",
+  "emailChangeReserved": "This email domain cannot be used.",
+  "emailSignInChanged": "Your sign-in email is now {email}. Use it the next time you sign in.",
+  "@emailSignInChanged": {
+    "placeholders": {
+      "email": {"type": "String"}
+    }
+  },
+  "emailCannotBeEmpty": "The Manager's email is the address you sign in with, so it cannot be left blank."
 }

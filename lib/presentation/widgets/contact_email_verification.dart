@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/utils/input_validation_utils.dart';
 import '../../data/repositories/contact_email_verification_repository.dart';
 import 'shared_widgets.dart';
 
@@ -20,23 +21,46 @@ import 'shared_widgets.dart';
 /// below; the server checks it. Nothing here decides ownership: only the
 /// server's "verified" answer does, and anything else leaves the address
 /// Unverified.
+///
+/// CHANGING AN EMAIL (Manager, Officer). A new address is only a candidate until
+/// its code is entered: the email in use ([activeEmail]) stays exactly as it is,
+/// and the note under the field says so. A Manager's email is also their sign-in
+/// address, so changing it asks for their current password first.
 class ContactEmailVerification extends StatefulWidget {
   /// The email field. Read for what the person has typed so far.
   final TextEditingController emailController;
 
-  /// The address saved on the account right now, or null.
+  /// The address a code would be sent to right now, as stored on the server: the
+  /// pending address when a change is in progress, else the email in use.
   final String? savedEmail;
 
-  /// The saved address has been proven (see ContactEmail.isVerified).
+  /// [savedEmail] has been proven (see ContactEmail.isVerified).
   final bool verified;
 
-  /// Saves the address in the field. Returns true once it is stored on the
-  /// server; false when it could not be (the host has already told the person
-  /// why).
+  /// The email the account uses today (null if none). When the field differs from
+  /// it, the person is changing it. Defaults to [savedEmail].
+  final String? activeEmail;
+
+  /// [activeEmail] is verified. Defaults to [verified].
+  final bool? activeVerified;
+
+  /// This address is also what the person signs in with (the Manager's).
+  final bool signInEmail;
+
+  /// A password must be entered before a code is sent for a changed address (the
+  /// Manager's sign-in email). Checked by the server.
+  final bool requiresPasswordWhenChanged;
+
+  /// Stores the address in the field as the one to verify (it becomes the email
+  /// in use only after the code is entered). Returns true once it is stored on the
+  /// server; false when it could not be (the host has already told the person why).
   final Future<bool> Function() saveEmail;
 
-  /// The server confirmed the code. The host refreshes its saved/verified state.
+  /// The server confirmed the code. The host refreshes its state.
   final VoidCallback onVerified;
+
+  /// The verified address is now what the person signs in with.
+  final VoidCallback? onSignInEmailChanged;
 
   final bool isOnline;
 
@@ -50,6 +74,11 @@ class ContactEmailVerification extends StatefulWidget {
     required this.verified,
     required this.saveEmail,
     required this.onVerified,
+    this.activeEmail,
+    this.activeVerified,
+    this.signInEmail = false,
+    this.requiresPasswordWhenChanged = false,
+    this.onSignInEmailChanged,
     this.isOnline = true,
     this.verifier,
   });
@@ -63,6 +92,7 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
   late final ContactEmailVerifier _verifier =
       widget.verifier ?? SupabaseContactEmailVerifier();
   final _codeCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   final _codeFocus = FocusNode();
 
   bool _working = false; // saving / sending / checking
@@ -76,6 +106,15 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
 
   String _norm(String? v) => (v ?? '').trim().toLowerCase();
   String get _typed => _norm(widget.emailController.text);
+  String get _active => _norm(widget.activeEmail ?? widget.savedEmail);
+
+  /// The field holds the email already in use.
+  bool get _typedIsActive => _active.isNotEmpty && _typed == _active;
+
+  /// The person is replacing an email that is in use.
+  bool get _changing => _active.isNotEmpty && !_typedIsActive;
+
+  bool get _needsPassword => widget.requiresPasswordWhenChanged && _changing;
 
   @override
   void initState() {
@@ -97,6 +136,7 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
     widget.emailController.removeListener(_onEmailTyped);
     _timer?.cancel();
     _codeCtrl.dispose();
+    _passwordCtrl.dispose();
     _codeFocus.dispose();
     super.dispose();
   }
@@ -144,6 +184,10 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
         return l10n.emailVerifySendFailed;
       case EmailCodeRequestStatus.alreadyVerified:
         return l10n.emailVerifyAlready;
+      case EmailCodeRequestStatus.passwordRequired:
+        return l10n.emailVerifyPasswordRequired;
+      case EmailCodeRequestStatus.wrongPassword:
+        return l10n.emailVerifyWrongPassword;
       case EmailCodeRequestStatus.sent:
       case EmailCodeRequestStatus.error:
         return l10n.emailVerifyGenericError;
@@ -166,6 +210,8 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
         return l10n.emailVerifyEmailChanged;
       case EmailCodeCheckStatus.invalidFormat:
         return l10n.emailVerifyEnterCode;
+      case EmailCodeCheckStatus.emailInUse:
+        return l10n.emailVerifyInUse;
       case EmailCodeCheckStatus.verified:
       case EmailCodeCheckStatus.error:
         return l10n.emailVerifyGenericError;
@@ -178,6 +224,10 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
     if (_working) return;
     if (_typed.isEmpty) {
       setState(() => _error = l10n.emailVerifyNoEmail);
+      return;
+    }
+    if (_needsPassword && _passwordCtrl.text.isEmpty) {
+      setState(() => _error = l10n.emailVerifyPasswordRequired);
       return;
     }
     if (!widget.isOnline) {
@@ -205,7 +255,9 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
       _working = true;
       _error = null;
     });
-    final r = await _verifier.requestCode();
+    final r = await _verifier.requestCode(
+      currentPassword: _needsPassword ? _passwordCtrl.text : null,
+    );
     if (!mounted) return;
     setState(() => _working = false);
     switch (r.status) {
@@ -227,6 +279,14 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
       case EmailCodeRequestStatus.cooldown:
         setState(() => _error = _requestError(l10n, r));
         _startCooldown(r.retryAfter ?? 60);
+      case EmailCodeRequestStatus.passwordRequired:
+      case EmailCodeRequestStatus.wrongPassword:
+        // Back to the password box, so it can be corrected.
+        setState(() {
+          _closeCodeEntry();
+          _passwordCtrl.clear();
+          _error = _requestError(l10n, r);
+        });
       case EmailCodeRequestStatus.limit:
       case EmailCodeRequestStatus.noEmail:
       case EmailCodeRequestStatus.unauthorized:
@@ -258,8 +318,10 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
       setState(() {
         _working = false;
         _closeCodeEntry();
+        _passwordCtrl.clear();
         _justVerified = true;
       });
+      if (r.signInChanged) widget.onSignInEmailChanged?.call();
       widget.onVerified();
       return;
     }
@@ -276,6 +338,19 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
     });
   }
 
+  Widget _note(Key key, String text, ColorScheme cs) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Text(
+      text,
+      key: key,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        height: 1.4,
+        color: cs.onSurfaceVariant,
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -283,8 +358,22 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
     final typed = _typed;
     if (typed.isEmpty) return const SizedBox.shrink();
 
-    final isVerified =
-        widget.verified && typed == _norm(widget.savedEmail) && !_codeSent;
+    // Not an email yet: say so on the field, before anything can be sent.
+    if (!isValidEmailFormat(widget.emailController.text.trim())) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          l10n.emailInvalidInline,
+          key: const ValueKey('verify-email-format-error'),
+          style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed),
+        ),
+      );
+    }
+
+    final isVerified = !_codeSent &&
+        (_typedIsActive
+            ? (widget.activeVerified ?? widget.verified)
+            : (widget.verified && typed == _norm(widget.savedEmail)));
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -321,6 +410,34 @@ class _ContactEmailVerificationState extends State<ContactEmailVerification> {
                 ),
             ],
           ),
+
+          // What a change does, in plain words, while it is in progress.
+          if (_changing && !isVerified) ...[
+            _note(
+              const ValueKey('verify-email-note-current'),
+              l10n.emailChangeKeepsCurrent(widget.activeEmail ?? widget.savedEmail ?? ''),
+              cs,
+            ),
+            if (widget.signInEmail)
+              _note(
+                const ValueKey('verify-email-note-signin'),
+                l10n.emailChangeSignInNote,
+                cs,
+              ),
+          ],
+
+          // A Manager changing their sign-in email proves it is them first.
+          if (_needsPassword && !_codeSent && !isVerified) ...[
+            const SizedBox(height: 10),
+            AppTextField(
+              key: const ValueKey('verify-email-password'),
+              controller: _passwordCtrl,
+              label: l10n.emailChangePasswordLabel,
+              prefixIcon: Icons.lock_outline_rounded,
+              isPassword: true,
+            ),
+          ],
+
           if (_codeSent) ...[
             const SizedBox(height: 4),
             Text(

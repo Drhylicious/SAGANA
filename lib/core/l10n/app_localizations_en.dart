@@ -7828,4 +7828,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryUsernameLabel => 'Username';
+
+  @override
+  String get emailInvalidInline => 'Enter a valid email address.';
+
+  @override
+  String emailChangeKeepsCurrent(String email) {
+    return 'Your current email, $email, stays in use until you verify this new address.';
+  }
+
+  @override
+  String get emailChangeSignInNote =>
+      'This is also the email you sign in with. Once the new address is verified, sign in with it.';
+
+  @override
+  String get emailChangePasswordLabel => 'Current password';
+
+  @override
+  String get emailVerifyPasswordRequired =>
+      'Enter your current password to change your sign-in email.';
+
+  @override
+  String get emailVerifyWrongPassword => 'That password is not correct.';
+
+  @override
+  String get emailVerifyInUse =>
+      'That email address is now used by another account. Choose a different one.';
+
+  @override
+  String get emailChangeAddressInUse =>
+      'This email address is already used by another account.';
+
+  @override
+  String get emailChangeReserved => 'This email domain cannot be used.';
+
+  @override
+  String emailSignInChanged(String email) {
+    return 'Your sign-in email is now $email. Use it the next time you sign in.';
+  }
+
+  @override
+  String get emailCannotBeEmpty =>
+      'The Manager\'s email is the address you sign in with, so it cannot be left blank.';
 }

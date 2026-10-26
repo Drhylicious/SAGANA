@@ -63,6 +63,7 @@ class AdminProfileRepository {
         profilePhotoUrl: infoRow['profile_photo_url'] as String?,
         contactEmail: infoRow['contact_email'] as String?,
         verifiedContactEmail: infoRow['verified_contact_email'] as String?,
+        pendingContactEmail: infoRow['pending_contact_email'] as String?,
         position:
             (adminRow?['position'] as String?) ??
             (officerRow?['position'] as String?),
@@ -202,9 +203,6 @@ class AdminProfileRepository {
     // The name in parts. Null leaves the name as it is.
     NameParts? name,
     String? phoneNumber,
-    // Officer only: the contact email (the sign-in address is a generated
-    // username and is never touched). Null leaves it; blank clears it.
-    String? contactEmail,
     DateTime? dateOfBirth,
     String? gender,
   }) {
@@ -213,14 +211,12 @@ class AdminProfileRepository {
       payload: {
         'name': name?.toColumns(),
         'phoneNumber': phoneNumber,
-        'contactEmail': contactEmail,
         'dateOfBirth': encodeDate(dateOfBirth),
         'gender': gender,
       },
       online: () => updateBasicInfoOnline(
         name: name,
         phoneNumber: phoneNumber,
-        contactEmail: contactEmail,
         dateOfBirth: dateOfBirth,
         gender: gender,
       ),
@@ -234,7 +230,6 @@ class AdminProfileRepository {
     // [name].
     String? fullName,
     String? phoneNumber,
-    String? contactEmail,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
@@ -247,8 +242,6 @@ class AdminProfileRepository {
       'phone_number': phoneNumber?.trim(),
         })
         .eq('user_id', _userId);
-
-    if (contactEmail != null) await updateContactEmail(contactEmail);
 
     AdminActivityRepository().log(
       module: 'profile',
@@ -274,9 +267,9 @@ class AdminProfileRepository {
         .eq('user_id', _userId);
   }
 
-  /// Saves the contact email now (online only; Verify Email needs it saved).
-  /// Blank clears it. The database checks the format and that no other account
-  /// uses it, and the email is Unverified until it is verified again.
+  /// Removes an Officer's contact email (online only). Changing it to another
+  /// address does NOT go through here: a new address is only pending until its
+  /// code is entered (ContactEmailVerifier.setPendingEmail).
   Future<void> updateContactEmail(String? email) async {
     final v = email?.trim() ?? '';
     await _client

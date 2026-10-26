@@ -192,12 +192,12 @@ void main() {
       await runIgnoringFontErrors(() async {
         await _pump(tester, AdminEditProfileScreen(initialProfile: _manager()));
         expect(find.text('manager@coop.ph'), findsOneWidget);
-        expect(find.text('Email address cannot be changed.'), findsOneWidget);
-        // The field cannot be edited.
+        // The email can be edited now (a change goes through verification).
+        expect(find.text('Email address cannot be changed.'), findsNothing);
         final field = tester.widget<TextField>(
           find.descendant(of: find.widgetWithText(TextFormField, 'manager@coop.ph').first, matching: find.byType(TextField)).first,
         );
-        expect(field.enabled, isFalse);
+        expect(field.enabled, isTrue);
         expect(_unverified(), findsOneWidget);
         expect(find.text('Verify Email'), findsOneWidget);
       });

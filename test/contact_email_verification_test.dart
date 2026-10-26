@@ -76,12 +76,21 @@ class _Fake implements ContactEmailVerifier {
   final List<EmailCodeCheckResult> checks;
   int requested = 0;
   final codesTried = <String>[];
+  final passwordsSent = <String?>[];
+  final pendingNamed = <String>[];
   _Fake({List<EmailCodeRequestResult>? requests, List<EmailCodeCheckResult>? checks})
       : requests = requests ?? [],
         checks = checks ?? [];
 
   @override
-  Future<EmailCodeRequestResult> requestCode() async {
+  Future<PendingEmailResult> setPendingEmail(String email) async {
+    pendingNamed.add(email);
+    return const PendingEmailResult(PendingEmailStatus.pending);
+  }
+
+  @override
+  Future<EmailCodeRequestResult> requestCode({String? currentPassword}) async {
+    passwordsSent.add(currentPassword);
     requested++;
     return requests.isEmpty
         ? const EmailCodeRequestResult(EmailCodeRequestStatus.sent, retryAfter: 60, maskedEmail: 'a***@gmail.com')

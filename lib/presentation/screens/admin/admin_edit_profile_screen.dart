@@ -9,6 +9,7 @@ import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 import '../../../core/utils/contact_email.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -16,6 +17,7 @@ import '../../../data/services/hive_service.dart';
 import '../../../data/models/admin_profile_model.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_profile_repository.dart';
+import '../../../data/repositories/contact_email_verification_repository.dart';
 import '../../../data/services/offline_actions.dart';
 import '../../../data/services/admin_profile_state_service.dart';
 import '../../widgets/app_dialog.dart';
@@ -34,7 +36,11 @@ import '../../widgets/sub_page_top_bar.dart';
 /// dedicated screen with a Save action, avatar tap-to-change, and a
 /// Security section linking out to the shared ChangePasswordDialog.
 class AdminEditProfileScreen extends StatefulWidget {
-  const AdminEditProfileScreen({super.key, this.initialProfile});
+  const AdminEditProfileScreen({super.key, this.initialProfile, this.verifier});
+
+  /// Tests: stands in for the server calls behind Verify Email.
+  @visibleForTesting
+  final ContactEmailVerifier? verifier;
 
   /// Tests: shown instead of loading the profile from the server.
   @visibleForTesting
@@ -52,17 +58,23 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
   final _dobController = TextEditingController();
   final _emailController = TextEditingController();
 
-  // The Officer's contact email is editable (their sign-in address is a
-  // generated username). The Manager's email is their sign-in address: shown
-  // locked, and verified in place.
+  // The email can be changed by both. The Officer's is a contact email (their
+  // sign-in address is a generated username and is never touched). The Manager's
+  // IS their sign-in address, so changing it also needs their current password.
+  // Either way a new address is only PENDING until its code is entered: the email
+  // in use, and the verified one, stay as they are until then.
   bool get _isOfficer => HiveService.isOfficer;
-  String _originalEmail = '';
-  // What the account has on record, so the Verified / Unverified line shows the
-  // saved state (a typed-but-unsaved address is always Unverified).
-  String? _savedEmail;
-  String? _verifiedEmail;
+  late final ContactEmailVerifier _verifier =
+      widget.verifier ?? SupabaseContactEmailVerifier();
+  String? _activeEmail; // in use today
+  String? _pendingEmail; // asked for, not yet verified
+  String? _verifiedEmail; // the last address proven with a code
+  /// The address a code would go to: the pending one, else the one in use.
+  String? get _savedEmail => _pendingEmail ?? _activeEmail;
   bool get _emailVerified =>
       ContactEmail.isVerified(contactEmail: _savedEmail, verifiedEmail: _verifiedEmail);
+  bool get _activeVerified =>
+      ContactEmail.isVerified(contactEmail: _activeEmail, verifiedEmail: _verifiedEmail);
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -105,12 +117,14 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       );
       _phoneController.text = profile?.phoneNumber ?? '';
       _photoUrl = profile?.profilePhotoUrl;
-      _emailController.text = _isOfficer
-          ? (profile?.contactEmail ?? '')
-          : (profile?.verifiableEmail ?? profile?.email ?? '');
-      _originalEmail = _emailController.text.trim();
-      _savedEmail = profile?.verifiableEmail;
+      _activeEmail = _isOfficer
+          ? profile?.contactEmail
+          : (profile?.verifiableEmail ?? profile?.email);
+      final pending = profile?.pendingContactEmail?.trim() ?? '';
+      _pendingEmail = pending.isEmpty ? null : pending;
       _verifiedEmail = profile?.verifiedContactEmail;
+      // A change the person already started is shown where they left it.
+      _emailController.text = _pendingEmail ?? _activeEmail ?? '';
       _dateOfBirth = profile?.dateOfBirth;
       _dobController.text = _dateOfBirth == null
           ? ''
@@ -187,10 +201,9 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
     );
   }
 
-  // Verify Email saves an Officer's address first (same checks as Save), then
-  // sends the code. The Manager's address is their sign-in email: nothing to save.
+  // Verify Email first names the address (same checks as Save): it becomes the
+  // PENDING address; the email in use does not change. Returns true once stored.
   Future<bool> _saveEmailForVerification() async {
-    if (!_isOfficer) return true;
     final l10n = AppLocalizations.of(context);
     void fail(String message) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -203,7 +216,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
       fail(l10n.registerInvalidEmail);
       return false;
     }
-    if (email.toLowerCase() != _originalEmail.toLowerCase()) {
+    if (email.toLowerCase() != (_activeEmail ?? '').toLowerCase()) {
       final domain = await AuthService.checkEmailDomain(email);
       if (!mounted) return false;
       if (domain == EmailDomainStatus.noMailServer) {
@@ -211,19 +224,52 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
         return false;
       }
     }
-    try {
-      await _repo.updateContactEmail(email);
-      if (!mounted) return false;
-      setState(() {
-        _originalEmail = email;
-        _savedEmail = email.toLowerCase();
-      });
-      return true;
-    } catch (e) {
-      if (!mounted) return false;
-      fail(readableDatabaseMessage(e) ?? l10n.adminProfileSaveError);
-      return false;
+    return _storePendingEmail(email, fail);
+  }
+
+  /// Names [email] as the address to switch to (or clears the change when it is
+  /// the one already in use). Shows the reason and returns false if refused.
+  Future<bool> _storePendingEmail(String email, void Function(String) fail) async {
+    final l10n = AppLocalizations.of(context);
+    final result = await _verifier.setPendingEmail(email);
+    if (!mounted) return false;
+    switch (result.status) {
+      case PendingEmailStatus.pending:
+        setState(() => _pendingEmail = email.toLowerCase());
+        return true;
+      case PendingEmailStatus.cleared:
+        setState(() => _pendingEmail = null);
+        return true;
+      case PendingEmailStatus.invalidFormat:
+        fail(l10n.registerInvalidEmail);
+      case PendingEmailStatus.reserved:
+        fail(l10n.emailChangeReserved);
+      case PendingEmailStatus.inUse:
+        fail(l10n.emailChangeAddressInUse);
+      case PendingEmailStatus.notSignedIn:
+        fail(l10n.emailVerifyUnauthorized);
+      case PendingEmailStatus.error:
+        fail(l10n.adminProfileSaveError);
     }
+    return false;
+  }
+
+  // The verified address is now what the Manager signs in with.
+  Future<void> _onSignInEmailChanged() async {
+    final shown = _savedEmail ?? '';
+    try {
+      await Supabase.instance.client.auth.refreshSession();
+    } catch (_) {
+      // The session still works; the new address is used at the next sign-in.
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context).emailSignInChanged(shown)),
+        backgroundColor: AppConstants.midGreen,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -231,9 +277,20 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
     // Surname and first name are checked on the fields themselves.
     if (!(_nameFormKey.currentState?.validate() ?? false)) return;
 
-    // An Officer's contact email: format first, and the domain when it changed.
+    // The email: a Manager's cannot be blank (it is how they sign in); an
+    // Officer may remove theirs. Otherwise format first, and the domain when it
+    // differs from the one in use.
     final email = _emailController.text.trim();
-    if (_isOfficer && email.isNotEmpty) {
+    if (email.isEmpty && !_isOfficer) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.emailCannotBeEmpty),
+          backgroundColor: AppConstants.errorRed,
+        ),
+      );
+      return;
+    }
+    if (email.isNotEmpty) {
       if (!isValidEmailFormat(email)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -243,7 +300,7 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
         );
         return;
       }
-      if (email.toLowerCase() != _originalEmail.toLowerCase()) {
+      if (email.toLowerCase() != (_activeEmail ?? '').toLowerCase()) {
         final domain = await AuthService.checkEmailDomain(email);
         if (!mounted) return;
         if (domain == EmailDomainStatus.noMailServer) {
@@ -271,12 +328,30 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
 
     setState(() => _isSaving = true);
     try {
+      // The email: a change is stored as PENDING (the email in use stays until
+      // the code is entered). Online only: it is checked against other accounts.
+      final typed = email.toLowerCase();
+      final stored = (_savedEmail ?? '').toLowerCase();
+      if (typed != stored) {
+        void fail(String message) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: AppConstants.errorRed),
+          );
+        }
+
+        if (email.isEmpty) {
+          // An Officer removing their contact email.
+          await _repo.updateContactEmail('');
+          await _verifier.setPendingEmail('');
+          if (mounted) setState(() { _activeEmail = null; _pendingEmail = null; });
+        } else if (!await _storePendingEmail(email, fail)) {
+          if (mounted) setState(() => _isSaving = false);
+          return;
+        }
+      }
       final outcome = await _repo.updateBasicInfo(
         name: _name.parts,
         phoneNumber: _phoneController.text.trim(),
-        // Only an Officer's contact email is saved here; the Manager's is the
-        // sign-in address and is not editable.
-        contactEmail: _isOfficer ? email : null,
         dateOfBirth: _dateOfBirth,
         gender: _gender,
       );
@@ -409,31 +484,27 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                   label: l10n.emailAddress,
                   prefixIcon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  // The Manager's email is the sign-in address: locked, with the
-                  // lock icon (same as Harvest Entry). An Officer's is editable.
-                  locked: !_isOfficer,
                 ),
-                if (!_isOfficer) ...[
-                  const SizedBox(height: 4),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Text(
-                      l10n.emailCannotBeChanged,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
                 ContactEmailVerification(
                   emailController: _emailController,
                   savedEmail: _savedEmail,
                   verified: _emailVerified,
+                  activeEmail: _activeEmail,
+                  activeVerified: _activeVerified,
+                  // A Manager signs in with this address.
+                  signInEmail: !_isOfficer,
+                  requiresPasswordWhenChanged: !_isOfficer,
                   isOnline: ConnectivityService.instance.isOnline,
+                  verifier: _verifier,
                   saveEmail: _saveEmailForVerification,
+                  onSignInEmailChanged: _onSignInEmailChanged,
                   onVerified: () {
-                    setState(() => _verifiedEmail = _savedEmail);
+                    setState(() {
+                      // The proven address is now the one in use.
+                      _activeEmail = _savedEmail;
+                      _pendingEmail = null;
+                      _verifiedEmail = _activeEmail;
+                    });
                     AdminProfileStateService.instance.refresh();
                   },
                 ),

@@ -7939,4 +7939,46 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get recoveryUsernameLabel => 'Username';
+
+  @override
+  String get emailInvalidInline => 'Maglagay ng wastong email address.';
+
+  @override
+  String emailChangeKeepsCurrent(String email) {
+    return 'Ang kasalukuyan mong email, $email, ay magagamit pa hanggang ma-verify ang bagong address na ito.';
+  }
+
+  @override
+  String get emailChangeSignInNote =>
+      'Ito rin ang email na ginagamit mo sa pag-sign in. Kapag na-verify na ang bagong address, ito na ang gamitin sa pag-sign in.';
+
+  @override
+  String get emailChangePasswordLabel => 'Kasalukuyang password';
+
+  @override
+  String get emailVerifyPasswordRequired =>
+      'Ilagay ang kasalukuyan mong password para mapalitan ang iyong sign-in email.';
+
+  @override
+  String get emailVerifyWrongPassword => 'Mali ang password.';
+
+  @override
+  String get emailVerifyInUse =>
+      'Ginagamit na ng ibang account ang email address na iyon. Pumili ng iba.';
+
+  @override
+  String get emailChangeAddressInUse =>
+      'Ginagamit na ng ibang account ang email address na ito.';
+
+  @override
+  String get emailChangeReserved => 'Hindi magagamit ang email domain na ito.';
+
+  @override
+  String emailSignInChanged(String email) {
+    return 'Ang sign-in email mo ay $email na. Gamitin ito sa susunod na pag-sign in.';
+  }
+
+  @override
+  String get emailCannotBeEmpty =>
+      'Ang email ng Manager ang ginagamit sa pag-sign in, kaya hindi ito puwedeng iwanang blangko.';
 }

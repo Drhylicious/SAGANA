@@ -67,7 +67,6 @@ class OfflineActionReplay {
           name: NameParts.fromRow(p['name'] as Map?),
           fullName: p['fullName'] as String?,
           phoneNumber: p['phoneNumber'] as String?,
-          contactEmail: p['contactEmail'] as String?,
           dateOfBirth: decodeDate(p['dateOfBirth']),
           gender: p['gender'] as String?,
         );

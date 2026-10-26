@@ -20,6 +20,12 @@ enum EmailCodeRequestStatus {
   /// Not signed in (or the session expired).
   unauthorized,
 
+  /// A Manager changing their sign-in email must give their current password.
+  passwordRequired,
+
+  /// That password is not the account's current password.
+  wrongPassword,
+
   /// The mail server could not send it.
   sendFailed,
 
@@ -63,6 +69,10 @@ class EmailCodeRequestResult {
         return const EmailCodeRequestResult(EmailCodeRequestStatus.noEmail);
       case 'unauthorized':
         return const EmailCodeRequestResult(EmailCodeRequestStatus.unauthorized);
+      case 'password_required':
+        return const EmailCodeRequestResult(EmailCodeRequestStatus.passwordRequired);
+      case 'wrong_password':
+        return const EmailCodeRequestResult(EmailCodeRequestStatus.wrongPassword);
       case 'send_failed':
         return const EmailCodeRequestResult(EmailCodeRequestStatus.sendFailed);
       default:
@@ -85,6 +95,9 @@ enum EmailCodeCheckStatus {
   /// Not six digits.
   invalidFormat,
 
+  /// Someone else took the address before the code was entered.
+  emailInUse,
+
   /// No connection, not signed in, or an unexpected failure.
   error,
 }
@@ -93,7 +106,15 @@ class EmailCodeCheckResult {
   final EmailCodeCheckStatus status;
   final int? attemptsLeft;
 
-  const EmailCodeCheckResult(this.status, {this.attemptsLeft});
+  /// The verified address became the account's SIGN-IN email (a Manager's
+  /// change): from now on they sign in with it.
+  final bool signInChanged;
+
+  const EmailCodeCheckResult(
+    this.status, {
+    this.attemptsLeft,
+    this.signInChanged = false,
+  });
 
   bool get verified => status == EmailCodeCheckStatus.verified;
 
@@ -103,7 +124,10 @@ class EmailCodeCheckResult {
     if (json is! Map) return const EmailCodeCheckResult(EmailCodeCheckStatus.error);
     switch (json['status']) {
       case 'verified':
-        return const EmailCodeCheckResult(EmailCodeCheckStatus.verified);
+        return EmailCodeCheckResult(
+          EmailCodeCheckStatus.verified,
+          signInChanged: json['signin_changed'] == true,
+        );
       case 'invalid_code':
         return EmailCodeCheckResult(
           EmailCodeCheckStatus.invalidCode,
@@ -119,17 +143,72 @@ class EmailCodeCheckResult {
         return const EmailCodeCheckResult(EmailCodeCheckStatus.emailChanged);
       case 'invalid_format':
         return const EmailCodeCheckResult(EmailCodeCheckStatus.invalidFormat);
+      case 'email_in_use':
+        return const EmailCodeCheckResult(EmailCodeCheckStatus.emailInUse);
       default:
         return const EmailCodeCheckResult(EmailCodeCheckStatus.error);
     }
   }
 }
 
-/// The two server calls behind "Verify Email". An interface so a screen can be
+/// What came back when a new address was named (it is only a candidate until
+/// the code is entered; nothing in use changes).
+enum PendingEmailStatus {
+  /// Stored as the address to verify.
+  pending,
+
+  /// Nothing is pending any more (blank, or the address already in use).
+  cleared,
+  invalidFormat,
+
+  /// The internal sign-in domain, which cannot receive mail.
+  reserved,
+
+  /// Another account already uses it.
+  inUse,
+  notSignedIn,
+  error,
+}
+
+class PendingEmailResult {
+  final PendingEmailStatus status;
+  const PendingEmailResult(this.status);
+
+  bool get stored =>
+      status == PendingEmailStatus.pending || status == PendingEmailStatus.cleared;
+
+  factory PendingEmailResult.fromJson(Object? json) {
+    if (json is! Map) return const PendingEmailResult(PendingEmailStatus.error);
+    switch (json['status']) {
+      case 'pending':
+        return const PendingEmailResult(PendingEmailStatus.pending);
+      case 'cleared':
+        return const PendingEmailResult(PendingEmailStatus.cleared);
+      case 'invalid_format':
+        return const PendingEmailResult(PendingEmailStatus.invalidFormat);
+      case 'reserved':
+        return const PendingEmailResult(PendingEmailStatus.reserved);
+      case 'in_use':
+        return const PendingEmailResult(PendingEmailStatus.inUse);
+      case 'not_signed_in':
+        return const PendingEmailResult(PendingEmailStatus.notSignedIn);
+      default:
+        return const PendingEmailResult(PendingEmailStatus.error);
+    }
+  }
+}
+
+/// The server calls behind "Verify Email". An interface so a screen can be
 /// tested without a server.
 abstract class ContactEmailVerifier {
-  /// Asks the server to e-mail a code to the signed-in account's address.
-  Future<EmailCodeRequestResult> requestCode();
+  /// Names the address the person wants to switch to. The email in use does not
+  /// change until the code sent to the new address is entered.
+  Future<PendingEmailResult> setPendingEmail(String email);
+
+  /// Asks the server to e-mail a code to the address being verified: the pending
+  /// one when a change is in progress, else the email in use. A Manager changing
+  /// their sign-in email passes [currentPassword].
+  Future<EmailCodeRequestResult> requestCode({String? currentPassword});
 
   /// Checks a typed code. The server decides; the app never sees the real code.
   Future<EmailCodeCheckResult> checkCode(String code);
@@ -139,9 +218,25 @@ class SupabaseContactEmailVerifier implements ContactEmailVerifier {
   final SupabaseClient _client = Supabase.instance.client;
 
   @override
-  Future<EmailCodeRequestResult> requestCode() async {
+  Future<PendingEmailResult> setPendingEmail(String email) async {
     try {
-      final res = await _client.functions.invoke('send-email-verification');
+      final res = await _client.rpc(
+        'set_pending_contact_email',
+        params: {'p_email': email.trim()},
+      );
+      return PendingEmailResult.fromJson(res);
+    } catch (_) {
+      return const PendingEmailResult(PendingEmailStatus.error);
+    }
+  }
+
+  @override
+  Future<EmailCodeRequestResult> requestCode({String? currentPassword}) async {
+    try {
+      final res = await _client.functions.invoke(
+        'send-email-verification',
+        body: currentPassword == null ? null : {'current_password': currentPassword},
+      );
       return EmailCodeRequestResult.fromJson(res.data);
     } on FunctionException catch (e) {
       if (e.status == 401) {

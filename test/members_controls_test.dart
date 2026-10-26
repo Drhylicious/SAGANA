@@ -277,13 +277,24 @@ void main() {
       expect(controls, lessThan(list));
     });
 
-    test('member card: status badge sits under the name, before the contact lines', () {
-      final name = src.indexOf('farmer.fullName,');
-      final badge = src.indexOf('_StatusBadge(status: farmer.memberStatus', name);
-      final contact = src.indexOf('farmer.contactLines', name);
-      expect(name, isNonNegative);
+    test('member card: name, status and menu are ONE line (MemberTitleRow), contact lines beneath', () {
+      final row = src.indexOf('MemberTitleRow(');
+      final name = src.indexOf('name: farmer.fullName', row);
+      final badge = src.indexOf('badge: _StatusBadge(status: farmer.memberStatus', row);
+      final menu = src.indexOf('menu: SizedBox(', row);
+      final contact = src.indexOf('farmer.contactLines', row);
+      expect(row, isNonNegative);
+      expect(name, greaterThan(row));
       expect(badge, greaterThan(name));
-      expect(badge, lessThan(contact));
+      expect(menu, greaterThan(badge));
+      expect(contact, greaterThan(menu), reason: 'the contact lines come after the title row');
+      // The badge is no longer stacked under the name.
+      expect(
+        RegExp(r'SizedBox\(height: 5\),\s*_StatusBadge').hasMatch(src),
+        isFalse,
+      );
+      // One popup menu per card, and it is inside the title row.
+      expect('PopupMenuButton<String>('.allMatches(src.substring(src.indexOf('class _FarmerCard'))).length, 1);
     });
   });
 }

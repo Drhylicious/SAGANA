@@ -2580,5 +2580,26 @@
   "emailVerifyNoEmail": "Maglagay muna ng email address.",
   "recoveryEmailVerifiedOnlyTitle": "Kailangan ng beripikadong email para sa email recovery",
   "recoveryEmailVerifiedOnlyBody": "Ipinapadala lang ang reset code sa email address na na-verify sa Edit Profile. Ilagay ang iyong username sa ibaba para humiling ng pansamantalang password sa Manager.",
-  "recoveryUsernameLabel": "Username"
+  "recoveryUsernameLabel": "Username",
+  "emailInvalidInline": "Maglagay ng wastong email address.",
+  "emailChangeKeepsCurrent": "Ang kasalukuyan mong email, {email}, ay magagamit pa hanggang ma-verify ang bagong address na ito.",
+  "@emailChangeKeepsCurrent": {
+    "placeholders": {
+      "email": {"type": "String"}
+    }
+  },
+  "emailChangeSignInNote": "Ito rin ang email na ginagamit mo sa pag-sign in. Kapag na-verify na ang bagong address, ito na ang gamitin sa pag-sign in.",
+  "emailChangePasswordLabel": "Kasalukuyang password",
+  "emailVerifyPasswordRequired": "Ilagay ang kasalukuyan mong password para mapalitan ang iyong sign-in email.",
+  "emailVerifyWrongPassword": "Mali ang password.",
+  "emailVerifyInUse": "Ginagamit na ng ibang account ang email address na iyon. Pumili ng iba.",
+  "emailChangeAddressInUse": "Ginagamit na ng ibang account ang email address na ito.",
+  "emailChangeReserved": "Hindi magagamit ang email domain na ito.",
+  "emailSignInChanged": "Ang sign-in email mo ay {email} na. Gamitin ito sa susunod na pag-sign in.",
+  "@emailSignInChanged": {
+    "placeholders": {
+      "email": {"type": "String"}
+    }
+  },
+  "emailCannotBeEmpty": "Ang email ng Manager ang ginagamit sa pag-sign in, kaya hindi ito puwedeng iwanang blangko."
 }
