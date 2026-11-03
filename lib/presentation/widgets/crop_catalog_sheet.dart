@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
+
 import '../../core/constants/app_constants.dart';
 import '../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../data/repositories/category_repository.dart';
@@ -73,8 +72,6 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   String? _category;
   String? _cropType = MarketTypes.instance.defaultCode;
   bool _isSubmitting = false;
-  Uint8List? _pickedImageBytes;
-  String? _pickedImageExt;
 
   @override
   void initState() {
@@ -144,23 +141,6 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
 
   void _goBackToBrowse() => setState(() => _step = _CropCatalogStep.browse);
 
-  Future<void> _pickImage() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _PhotoSourceSheet(),
-    );
-    if (source == null) return;
-    final picked = await ImagePicker().pickImage(source: source, imageQuality: 80);
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    setState(() {
-      _pickedImageBytes = bytes;
-      _pickedImageExt =
-          picked.name.contains('.') ? picked.name.split('.').last.toLowerCase() : 'jpg';
-    });
-  }
-
   Future<void> _submitRequest() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
@@ -173,16 +153,10 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
 
     setState(() => _isSubmitting = true);
     try {
-      String? photoUrl;
-      if (_pickedImageBytes != null) {
-        photoUrl = await widget.repo
-            .uploadCropRequestPhoto(_pickedImageBytes!, _pickedImageExt ?? 'jpg');
-      }
       await widget.repo.requestNewCrop(
         cropName: name,
         category: _category!,
         cropType: _cropType,
-        photoUrl: photoUrl,
       );
       // The crop is usable immediately (per the copy below) — closing the
       // whole modal here, rather than bouncing back to Browse, since the
@@ -263,6 +237,8 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
             ),
             child: ListView.separated(
               shrinkWrap: true,
+              // No automatic status-bar padding: this list sits inside a bigger scroll view.
+              padding: EdgeInsets.zero,
               itemCount: _filtered.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
@@ -379,39 +355,27 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
           itemLabel: (v) => MarketTypes.instance.label(v),
           onChanged: (v) => setState(() => _cropType = v ?? _cropType),
         ),
-        const SizedBox(height: 12),
-        Text('Photo (Optional)',
-            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
-        const SizedBox(height: 6),
-        GestureDetector(
-          onTap: _pickImage,
-          child: Container(
-            height: 120,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: AppConstants.offWhite,
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.photo_camera_outlined,
+                size: 16, color: AppConstants.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'No photo needed for a request. Once the crop is added, take a '
+                'photo of your actual crop from Crop Roster to sell it.',
+                style: GoogleFonts.inter(
+                    fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+              ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: _pickedImageBytes != null
-                ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.add_photo_alternate_outlined,
-                          color: AppConstants.onSurfaceVariant),
-                      const SizedBox(height: 4),
-                      Text('Tap to add a photo',
-                          style: GoogleFonts.inter(
-                              fontSize: 12, color: AppConstants.onSurfaceVariant)),
-                    ],
-                  ),
-          ),
+          ],
         ),
       ],
     );
   }
+
 
   Widget _buildRequestFooter(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -452,48 +416,3 @@ class _CropCatalogModalState extends State<_CropCatalogModal> {
   }
 }
 
-// Mirrors Admin Crop Management's own _PhotoSourceSheet exactly (same
-// camera/gallery choice, same styling) — kept as its own private copy per
-// this codebase's existing convention (each screen that picks a photo
-// owns its own source-sheet widget rather than sharing one).
-class _PhotoSourceSheet extends StatelessWidget {
-  const _PhotoSourceSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Material(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_rounded, color: AppConstants.primaryGreen),
-                title: Text('Take Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_rounded, color: AppConstants.primaryGreen),
-                title: Text('Upload Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

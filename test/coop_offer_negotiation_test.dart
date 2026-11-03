@@ -30,7 +30,7 @@ Map<String, dynamic> row({
     'agreed_price_per_kg': agreed,
     'last_proposed_by': lastBy,
     'negotiation_round': round,
-    'confirmed_quantity_kg': status == 'confirmed' ? qty : null,
+    'confirmed_quantity_kg': (status == 'approved' || status == 'delivered' || status == 'completed') ? qty : null,
     'confirmed_amount': confirmedAmount,
   };
 }
@@ -66,7 +66,7 @@ void main() {
     });
 
     test('closed offers wait for nobody', () {
-      for (final s in ['confirmed', 'declined', 'cancelled']) {
+      for (final s in ['approved', 'delivered', 'completed', 'declined', 'cancelled']) {
         final o = offer(row(status: s));
         expect(o.awaitingCooperative, isFalse, reason: s);
         expect(o.awaitingFarmer, isFalse, reason: s);
@@ -105,9 +105,10 @@ void main() {
       expect(steps.every((s) => s.askingPricePerKg == 100), isTrue);
 
       final accepted = offer(
-        row(status: 'confirmed', current: 80, lastBy: 'cooperative', round: 4, agreed: 80, confirmedAmount: 8000),
+        row(status: 'completed', current: 80, lastBy: 'cooperative', round: 4, agreed: 80, confirmedAmount: 8000),
       );
-      expect(accepted.isConfirmed, isTrue);
+      expect(accepted.isCompleted, isTrue);
+      expect(accepted.isAgreed, isTrue);
       expect(accepted.agreedPricePerKg, 80);
       expect(accepted.settledAmount, 8000);
     });
@@ -117,7 +118,9 @@ void main() {
     final offers = [
       offer(row()), // Cooperative's turn
       offer(row(current: 50, lastBy: 'cooperative', round: 2)), // Farmer's turn
-      offer(row(status: 'confirmed', agreed: 80, confirmedAmount: 8000)),
+      offer(row(status: 'approved', agreed: 80, confirmedAmount: 8000)),
+      offer(row(status: 'delivered', agreed: 80, confirmedAmount: 8000)),
+      offer(row(status: 'completed', agreed: 80, confirmedAmount: 8000)),
       offer(row(status: 'declined')),
       offer(row(status: 'cancelled')),
     ];
@@ -134,7 +137,9 @@ void main() {
       int c(CoopOfferFilter f) => offers.where(f.matches).length;
       expect(c(CoopOfferFilter.awaitingCooperative), 1);
       expect(c(CoopOfferFilter.awaitingFarmer), 1);
-      expect(c(CoopOfferFilter.accepted), 1);
+      expect(c(CoopOfferFilter.approved), 1);
+      expect(c(CoopOfferFilter.delivered), 1);
+      expect(c(CoopOfferFilter.completed), 1);
       expect(c(CoopOfferFilter.declined), 1);
       expect(c(CoopOfferFilter.cancelled), 1);
     });
@@ -177,7 +182,7 @@ void main() {
           host(
             Builder(
               builder: (c) {
-                for (final s in ['confirmed', 'declined', 'cancelled']) {
+                for (final s in ['completed', 'declined', 'cancelled']) {
                   for (final farmer in [true, false]) {
                     labels.add(CoopOfferStatusView.of(c, offer(row(status: s)), forFarmer: farmer).label);
                   }
@@ -187,7 +192,7 @@ void main() {
             ),
           ),
         );
-        expect(labels, ['Accepted', 'Accepted', 'Declined', 'Declined', 'Cancelled', 'Cancelled']);
+        expect(labels, ['Completed', 'Completed', 'Declined', 'Declined', 'Cancelled', 'Cancelled']);
       });
     });
 
@@ -259,7 +264,7 @@ void main() {
           host(
             CoopPriceSummary(
               offer: offer(
-                row(status: 'confirmed', current: 80, lastBy: 'cooperative', round: 4, agreed: 80, confirmedAmount: 8000),
+                row(status: 'completed', current: 80, lastBy: 'cooperative', round: 4, agreed: 80, confirmedAmount: 8000),
               ),
               forFarmer: false,
             ),

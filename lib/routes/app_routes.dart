@@ -3,6 +3,7 @@ class AppRoutes {
 
   // ─── Auth ────────────────────────────────────────────────────────────────────
   static const String splash = '/';
+  static const String welcome = '/welcome';
   static const String login = '/login';
   static const String register = '/register';
   static const String resetPasswordCallback = '/reset-password';
@@ -27,6 +28,8 @@ class AppRoutes {
   static const String createListing = '/farmer/marketplace/create';
   static const String listingSuccess = '/farmer/marketplace/success';
   static const String myListingDetail = '/farmer/marketplace/detail';
+  static const String editListing = '/farmer/marketplace/edit';
+  static const String farmerListingHistory = '/farmer/marketplace/history';
   static const String farmerMarketplaceListingDetail =
       '/farmer/marketplace/browse/details';
   static const String farmerMarketplaceCart = '/farmer/marketplace/browse/cart';
@@ -40,6 +43,10 @@ class AppRoutes {
   static const String farmerProfile = '/farmer/profile';
   static const String editFarmDetails = '/farmer/profile/farm-details/edit';
   static const String myLoans = '/farmer/profile/loans';
+  static const String requestLoan = '/farmer/profile/loans/request';
+  static const String myLoanRequests = '/farmer/profile/loans/requests';
+  static const String myLoanHistory = '/farmer/profile/loans/history';
+  static const String myPaymentHistory = '/farmer/profile/loans/payments';
   static const String myContribution = '/farmer/profile/contribution';
   static const String myExpenses = '/farmer/profile/expenses';
   // Primary Programs entry point — a search+filter browse screen (mirrors
@@ -78,6 +85,8 @@ class AppRoutes {
   static const String pendingApprovals = '/admin/listings/pending';
   static const String allListings = '/admin/listings/all';
   static const String listingReview = '/admin/listings/review';
+  static const String listingEditRequest = '/admin/listings/edit-request';
+  static const String adminListingHistory = '/admin/listings/history';
   static const String buyerManagement = '/admin/buyers';
   static const String buyerDetails = '/admin/buyers/details';
   static const String buyerOrderHistory = '/admin/buyers/order-history';
@@ -86,6 +95,7 @@ class AppRoutes {
   static const String recordPayment = '/admin/loans/payment';
   static const String loanDetails = '/admin/loans/details';
   static const String loanHistory = '/admin/loans/history';
+  static const String loanRequests = '/admin/loans/requests';
   static const String loanReport = '/admin/reports/loans';
   static const String salesReport = '/admin/reports/sales';
   static const String harvestReport = '/admin/reports/harvest';
@@ -103,6 +113,8 @@ class AppRoutes {
   static const String createOfficerAccount = '/admin/members/add-officer';
   static const String manageOfficerAccounts = '/admin/members/officer-accounts';
   static const String memberExpenseHistory = '/admin/members/expense-history';
+  // Who did what: the Manager/Officer action trail (admin_activity_log, source 'db').
+  static const String staffAccountability = '/admin/accountability';
 
   // ─── Admin — Report Routes ───────────────────────────────────────────────────
   static const String coopStockReport = '/admin/reports/coop-stock';

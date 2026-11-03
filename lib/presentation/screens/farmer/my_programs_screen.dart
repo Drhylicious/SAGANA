@@ -6,6 +6,7 @@ import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/skeleton.dart';
@@ -66,7 +67,7 @@ class _MyProgramsScreenState extends State<MyProgramsScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'my_programs',
                 isOnline: _isOnline,

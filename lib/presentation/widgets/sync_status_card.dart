@@ -191,15 +191,20 @@ class _SyncStatusCardState extends State<SyncStatusCard> {
               color: cs.onSurface,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            _lastSynced != null
-                ? l10n.syncLastSyncedAt(
-                    AppUtils.formatRelativeTime(_lastSynced!, l10n),
-                  )
-                : l10n.syncNeverSynced,
-            style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
+          // "Not synced yet" next to "All records are synced." contradicted
+          // itself, so with nothing queued and no sync on record there is no
+          // second line at all.
+          if (_lastSynced != null || _queued > 0) ...[
+            const SizedBox(height: 2),
+            Text(
+              _lastSynced != null
+                  ? l10n.syncLastSyncedAt(
+                      AppUtils.formatRelativeTime(_lastSynced!, l10n),
+                    )
+                  : l10n.syncNeverSynced,
+              style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

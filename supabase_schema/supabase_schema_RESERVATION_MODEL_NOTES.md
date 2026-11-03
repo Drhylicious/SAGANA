@@ -186,3 +186,14 @@ The reservation mechanics above are unchanged. These layers were added on top, a
 - **Wording.** Order notices read "Pending Order" / "Disapproved" (trigger `trg_notifications_order_wording`); the stored order status values (`pending`, `rejected`) are unchanged.
 
 Replay order for these layers on a fresh database, after everything above: `supabase_schema_market_visibility.sql` (superseded in part by the next two, safe to skip on a new database), `supabase_schema_market_types_channels.sql`, `supabase_schema_market_rules_by_data.sql`, `supabase_schema_order_wording_price_visibility.sql`. Tests: `supabase_schema_market_rules_test.sql`.
+
+## Market Linking reserves stock (Oct 2026): what is canonical now
+
+Market Linking used to touch the batch only at completion. It now follows the same reserve → sell → release model as the other channels. Canonical file: `supabase_schema_market_linking_partial_sales.sql` (run after `supabase_schema_crop_photos_selling_rules.sql`).
+
+- **Submit** (`submit_ginger_for_sale`): reserves the quantity (`_apply_batch_reservation`) and stores it on the request (`market_linking_programs.reserved_kg`).
+- **Complete Sale** (`record_market_linking_sale`, Manager/Officer): one sale per call, written to the ledger `market_linking_sales`. It consumes the request's reservation (a request made before this change has none; its sale comes out of `available_kg` instead, once). A part-sale leaves the rest of the request open; selling the last of it completes it.
+- **Close / cancel** (`close_market_linking_request`, or any change to `cancelled`): the unsold part of the reservation returns to `available_kg` (`_ml_release_reserved`, safe to call twice).
+- **Sold figure**: `reconcile_batch_sold()` now adds the ledger's sales (plus any completed request with no ledger row). Sales History, Reports, the Farmer's Home and the batch's Sold all read `market_linking_sales`.
+- `complete_market_linking()` keeps its signature (record the confirmed volume as one sale, then close the rest).
+- Marketplace listings, Offers to Cooperative and Market Linking submissions also need the Farmer's own crop photo (`farmer_crops.photo_url`): BEFORE INSERT triggers from `supabase_schema_crop_photos_selling_rules.sql`. Informal Sales do not.

@@ -8,8 +8,10 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/farmer_transaction_model.dart';
 import '../../../data/repositories/farmer_transaction_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/management_modal.dart';
+import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge;
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -114,7 +116,7 @@ class _FarmerTransactionHistoryScreenState
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     // The crop image lookup runs first on every load, so it
                     // stands in for the whole history's cache state.
                     CachedDataNotice(
@@ -209,7 +211,7 @@ class _SearchBar extends StatelessWidget {
       controller: controller,
       style: GoogleFonts.inter(fontSize: 14, color: AppConstants.onSurface),
       decoration: InputDecoration(
-        hintText: 'Search by crop...',
+        hintText: AppLocalizations.of(context).txnSearchHint,
         hintStyle: GoogleFonts.inter(
             fontSize: 14, color: AppConstants.outline.withValues(alpha: 0.60)),
         prefixIcon: const Icon(Icons.search_rounded, color: AppConstants.outline),
@@ -379,6 +381,37 @@ class _TransactionTile extends StatelessWidget {
                   style: GoogleFonts.inter(fontSize: 11.5, color: cs.onSurfaceVariant),
                   overflow: TextOverflow.ellipsis,
                 ),
+                // The crop's market type (Public / Cooperative) and category
+                // (Vegetable, Fruit, ...), on every channel.
+                if (transaction.marketType != null ||
+                    (transaction.cropCategory ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (transaction.marketType != null)
+                        ListingMarketBadge(marketType: transaction.marketType),
+                      if ((transaction.cropCategory ?? '').isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                          ),
+                          child: Text(
+                            transaction.cropCategory!,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -408,9 +441,10 @@ class _TransactionTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Transaction Details — read-only. Market Linking never shows buyer
-// identity here (the model itself never carries it) — same rule
-// MyMarketLinkingScreen already follows for a farmer's own enrollment.
+// Transaction Details — read-only. A Market Linking sale shows its agreed price
+// and the buyer saved on it (name, contact number, email), the same buyer the
+// Farmer sees on the request in Market Linking.
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TransactionDetailsSheet extends StatelessWidget {
@@ -419,37 +453,84 @@ class _TransactionDetailsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = transaction;
+    final money = NumberFormat('#,##0.00');
+    final dateTime = DateFormat('MMM d, yyyy · h:mm a');
+    final isCoop = t.sellingType == 'offer_to_cooperative';
+
+    // Every row is shown only when it has something to say (no empty
+    // placeholders), in a fixed order: what was sold, how, and to whom.
+    final rows = <MapEntry<String, String>>[
+      MapEntry(l10n.rptSellingChannel, sellingTypeLabel(t.sellingType)),
+      if (t.marketType != null)
+        MapEntry(l10n.rptMarketType, MarketTypeDisplay.label(l10n, t.marketType)),
+      if ((t.cropCategory ?? '').isNotEmpty)
+        MapEntry(l10n.txnCropCategory, t.cropCategory!),
+      MapEntry(l10n.rptQuantity, formatQuantityUnit(t.quantityKg, t.unit)),
+      if (t.pricePerKg != null)
+        MapEntry(
+          t.sellingType == 'marketplace' ? l10n.txnPrice : l10n.mlkDetailAgreedPrice,
+          formatPricePerUnit(t.pricePerKg!, t.unit),
+        ),
+      MapEntry(l10n.rptAmount, '₱${money.format(t.amount)}'),
+      MapEntry(
+        l10n.txnCompletedOn,
+        // A cooperative sale and a Market Linking sale carry a day, not a clock
+        // time worth showing; the others keep the time they were completed.
+        isCoop
+            ? DateFormat('MMM d, yyyy').format(t.transactionDate)
+            : dateTime.format(t.transactionDate),
+      ),
+      if (t.deliveredAt != null)
+        MapEntry(l10n.txnDeliveredOn, DateFormat('MMM d, yyyy').format(t.deliveredAt!)),
+      if ((t.referenceNo ?? '').isNotEmpty) MapEntry(l10n.rptReferenceNo, t.referenceNo!),
+      if ((t.batchNumber ?? '').isNotEmpty)
+        MapEntry(l10n.txnHarvestBatch, formatBatchNumber(t.batchNumber)),
+      if (t.orderStatus != null)
+        MapEntry(l10n.rptOrderStatus, adminOrderStatusLabel(l10n, t.orderStatus!)),
+      if ((t.fulfillmentMethod ?? '').isNotEmpty)
+        MapEntry(
+          l10n.txnFulfillment,
+          t.fulfillmentMethod == 'delivery' ? l10n.txnDelivery : l10n.txnPickup,
+        ),
+      // Who bought: an external buyer, or the Cooperative itself.
+      if (isCoop)
+        MapEntry(l10n.rptSoldTo, AppConstants.cooperativeName)
+      else if ((t.buyerName ?? '').trim().isNotEmpty)
+        MapEntry(l10n.rptSoldTo, t.buyerName!.trim()),
+      if ((t.buyerContact ?? '').trim().isNotEmpty)
+        MapEntry(l10n.mlkDetailBuyerContact, t.buyerContact!.trim()),
+      if ((t.buyerEmail ?? '').trim().isNotEmpty)
+        MapEntry(l10n.mlkDetailBuyerEmail, t.buyerEmail!.trim()),
+    ];
+
     return ManagementModalShell(
-      title: transaction.cropName,
-      subtitle: sellingTypeLabel(transaction.sellingType),
+      title: t.cropName,
+      subtitle: sellingTypeLabel(t.sellingType),
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (transaction.cropImageUrl != null) ...[
+          if (t.cropImageUrl != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusMd),
               child: Image.network(
-                transaction.cropImageUrl!,
+                t.cropImageUrl!,
                 width: double.infinity,
                 height: 140,
                 fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
             const SizedBox(height: 14),
           ],
-          _DetailRow(label: 'Quantity', value: formatQuantityUnit(transaction.quantityKg, transaction.unit)),
-          _DetailRow(label: 'Amount', value: '₱${transaction.amount.toStringAsFixed(2)}'),
-          _DetailRow(
-            label: 'Date',
-            value: DateFormat('MMM d, yyyy · h:mm a').format(transaction.transactionDate),
-          ),
-          if (transaction.referenceNo != null && transaction.referenceNo!.isNotEmpty)
-            _DetailRow(label: 'Reference No.', value: transaction.referenceNo!),
-          if (transaction.orderStatus != null)
-            _DetailRow(label: 'Order Status', value: transaction.orderStatus!),
-          if (transaction.buyerName != null && transaction.buyerName!.isNotEmpty)
-            _DetailRow(label: 'Sold To', value: transaction.buyerName!, isLast: true),
+          for (var i = 0; i < rows.length; i++)
+            _DetailRow(
+              label: rows[i].key,
+              value: rows[i].value,
+              isLast: i == rows.length - 1,
+            ),
         ],
       ),
     );
@@ -457,6 +538,7 @@ class _TransactionDetailsSheet extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
+
   final String label;
   final String value;
   final bool isLast;
@@ -519,15 +601,17 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            hasFilter ? 'No Matching Transactions' : 'No Transactions Yet',
+            hasFilter
+                ? AppLocalizations.of(context).txnNoMatchTitle
+                : AppLocalizations.of(context).txnEmptyTitle,
             style: GoogleFonts.poppins(
                 fontSize: 18, fontWeight: FontWeight.w700, color: AppConstants.onSurface),
           ),
           const SizedBox(height: 8),
           Text(
             hasFilter
-                ? 'Try a different search or selling type.'
-                : 'Your completed sales across every selling channel will show up here.',
+                ? AppLocalizations.of(context).txnNoMatchBody
+                : AppLocalizations.of(context).txnEmptyBody,
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
           ),

@@ -2,14 +2,17 @@ import 'dart:async' show unawaited;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/activity_throttle.dart';
 import '../../core/utils/input_validation_utils.dart';
 import '../../core/utils/person_name.dart';
 import '../models/suspension_notice.dart';
 import '../models/user_model.dart';
 import 'account_status_watcher.dart';
 import 'app_settings_service.dart';
+import 'guest_mode_service.dart';
 import 'hive_service.dart';
 import 'market_types_service.dart';
+import 'staff_permission_service.dart';
 
 /// Thrown when a failed self-registration could not be rolled back. The
 /// account may still exist, so the user is asked to contact the cooperative.
@@ -44,8 +47,33 @@ class AuthService {
     }
   }
 
+  // ── Activity ──────────────────────────────────────────────────────────────────
+  // Records that this account is in use (user_information.last_active_at),
+  // which is what the Manager's Active / Inactive status is derived from. Called
+  // on sign-in, when the app starts with a saved session, and when it returns to
+  // the foreground, so someone who stays signed in is not mistaken for idle.
+  // Never blocks or fails anything; at most one request per
+  // [ActivityThrottle.minGap] unless [force].
+  static final ActivityThrottle _activity = ActivityThrottle();
+
+  static void touchLastActive({bool force = false}) {
+    if (!isLoggedIn) return;
+    final now = DateTime.now();
+    if (!_activity.shouldStamp(now, force: force)) return;
+    _activity.markStamped(now);
+    unawaited(() async {
+      try {
+        await _client.rpc('touch_last_active');
+      } catch (_) {
+        // Offline or refused: try again at the next chance.
+        _activity.markFailed();
+      }
+    }());
+  }
+
   // ── Login ─────────────────────────────────────────────────────────────────────
-  // Accepts either a real email (admin) or a SAGANA username (officer/farmer/buyer).
+  // Accepts a SAGANA username (Officer/Farmer/Buyer) or a VERIFIED email (any
+  // role; the Manager has no username and always signs in with their email).
   // Usernames are stored with the @sagana.local suffix in Supabase Auth.
 
   static Future<UserModel> login({
@@ -71,17 +99,11 @@ class AuthService {
       );
     }
 
-    // Officer never gets a promoted email (that flow is Farmer/Buyer only —
-    // see promote_contact_email) — so an Officer must always authenticate
-    // with the synthetic OFF-XXXX@sagana.local address.
+    // Whether the address that just signed in is a username address or an email
+    // is not decided here: the database only ever holds a verified email as a
+    // sign-in address (script 21), so an unverified email never reaches this
+    // point, and a username always does.
     final authEmail = response.user!.email ?? email;
-    if (role == 'officer' && !authEmail.endsWith('@sagana.local')) {
-      await _client.auth.signOut();
-      throw const AuthException(
-        'Officer accounts must log in with a SAGANA username, '
-        'not an email address. Please use your OFF-XXXX username.',
-      );
-    }
 
     // Fetch membership status (farmers) and the forced-password-change
     // flag (all roles — an admin-issued temporary password can apply to
@@ -109,20 +131,13 @@ class AuthService {
             statusRow['pending_acknowledgement'] as bool? ?? false;
       }
 
-      // Blocked statuses — Suspended stops login with the recorded reason
-      // (Issue 5 / Decision D17), for any role that can be suspended by
-      // suspend_member/reactivate_member (Farmer and Buyer both write
-      // through those same RPCs onto this same user_roles.status column —
-      // this check was previously farmer-only, meaning a suspended buyer
-      // could still log in freely; Admin's "Suspend Account" action was a
-      // UI-only status flip with no actual access control behind it).
-      // Draft/Pending/Rejected are farmer-application-only statuses and
-      // still log in (they land on the Pending Applicant screen); a buyer
-      // is always created directly as 'active', so 'suspended' is the
-      // only non-'active' status that can ever occur for one. Inactive is
-      // derived, never a stored value, and never blocks either role.
-      if ((role == 'farmer' || role == 'buyer') &&
-          memberStatus == 'suspended') {
+      // Blocked status — Suspended stops a FARMER's login with the recorded
+      // reason (Issue 5 / Decision D17). Buyers cannot be suspended: they are
+      // only Active or Inactive, and the database refuses a suspended Buyer.
+      // Draft/Pending/Rejected are farmer-application-only statuses and still
+      // log in (they land on the Pending Applicant screen). Inactive is
+      // derived, never a stored value, and never blocks anyone.
+      if (role == 'farmer' && memberStatus == 'suspended') {
           final reason = statusRow['suspension_reason'] as String?;
           final until = statusRow['suspended_until'] as String?;
           await _client.auth.signOut();
@@ -145,7 +160,7 @@ class AuthService {
 
     // Stamp last activity for the derived "Inactive" indicator (Decision
     // D8). Fire-and-forget — never let this block or fail a login.
-    unawaited(_client.rpc('touch_last_active').catchError((_) {}));
+    touchLastActive(force: true);
 
     // Officer capability is a fixed role (every Admin module except the
     // Members tab) — no per-account permission scope to fetch (Decision D12).
@@ -185,7 +200,17 @@ class AuthService {
     await MarketTypes.instance.refresh();
     MarketTypes.instance.start();
 
+    // An Officer's View Only / Manage level per module, read before the first
+    // screen draws its action buttons.
+    await StaffPermissions.instance.refresh();
+    StaffPermissions.instance.start();
+
     AccountStatusWatcher.instance.start();
+
+    // A real session replaces any guest exploration. Done last, so the guest
+    // screens are only rebuilt once the signed-in account is fully set up (and
+    // a failed or suspended login leaves the visitor exploring as before).
+    GuestModeService.instance.exit();
 
     return userModel;
   }
@@ -384,6 +409,8 @@ class AuthService {
   static Future<void> logout() async {
     AccountStatusWatcher.instance.stop();
     MarketTypes.instance.stop();
+    StaffPermissions.instance.clear();
+    GuestModeService.instance.exit();
     await _client.auth.signOut();
     await HiveService.clearUserSession();
   }
@@ -571,6 +598,15 @@ class AuthService {
   }
 
   // ── Error Parser ──────────────────────────────────────────────────────────────
+
+  /// Supabase Auth refused the email/username + password pair. (Also what an
+  /// unverified email gets: it is simply not a sign-in address.)
+  static bool isInvalidCredentials(Object error) {
+    if (error is! AuthException) return false;
+    final msg = error.message.toLowerCase();
+    return msg.contains('invalid login credentials') ||
+        msg.contains('invalid credentials');
+  }
 
   static String parseAuthError(Object error) {
     if (error is AuthException) {

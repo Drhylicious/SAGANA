@@ -5,15 +5,15 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
-import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/models/price_record_model.dart';
-import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/price_management_repository.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/app_navigation_drawer.dart';
+import '../../../data/services/guest_mode_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/buyer_top_bar.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/cached_data_notice.dart';
@@ -32,7 +32,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
   final _priceRepo = PriceManagementRepository();
   final _marketRepo = BuyerMarketplaceRepository();
   final _notificationRepo = NotificationRepository();
-  final _profileRepo = BuyerProfileRepository();
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
@@ -40,7 +39,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
   List<PriceRecordModel> _latestPrices = [];
   Set<String> _listedCrops = {};
   int _unreadCount = 0;
-  BuyerProfileModel? _buyerProfile;
 
   // ─── Exclusive inline expansion ─────────────────────────────────────────
   String? _expandedCropId;
@@ -55,13 +53,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
     });
     _searchController.addListener(() => setState(() {}));
     _load();
-    _loadBuyerProfile();
-  }
-
-  Future<void> _loadBuyerProfile() async {
-    final profile = await _profileRepo.fetchProfile();
-    if (!mounted) return;
-    setState(() => _buyerProfile = profile);
   }
 
   @override
@@ -72,6 +63,11 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
+    // The Buyer-visible market filter below needs the market types; a guest's
+    // come from the public function and may still be loading.
+    if (GuestModeService.active && MarketTypes.instance.types.isEmpty) {
+      await MarketTypes.instance.loadPublic();
+    }
     final results = await Future.wait([
       _priceRepo.fetchLatestPricePerCrop(),
       _marketRepo.fetchListedCropNames(),
@@ -142,30 +138,11 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      drawer: AppNavigationDrawer(
-        photoUrl: _buyerProfile?.profilePhotoUrl,
-        displayName: _buyerProfile?.fullName ?? 'Buyer',
-        contactEmail: _buyerProfile?.contactEmail,
-        phoneNumber: _buyerProfile?.phoneNumber,
-        onEditProfile: () {
-          Navigator.pop(context);
-          context.push(AppRoutes.buyerEditProfile);
-        },
-        onMyAddresses: () {
-          Navigator.pop(context);
-          context.push(AppRoutes.myAddresses);
-        },
-        onSignOut: () => confirmBuyerSignOut(context),
-        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-      ),
       body: Stack(
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'latest_prices',
                 isOnline: _isOnline,
@@ -179,9 +156,7 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
                           padding: EdgeInsets.all(16),
                           child: SkeletonList(),
                         )
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: Column(
+                      : Column(
                             children: [
                               _buildSearchRow(l10n),
                               const SizedBox(height: 8),
@@ -194,7 +169,6 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
                               ),
                             ],
                           ),
-                        ),
                 ),
               ),
             ],
@@ -207,6 +181,14 @@ class _PriceMonitoringScreenState extends State<PriceMonitoringScreen> {
               title: l10n.buyerPriceTitle,
               unreadCount: _unreadCount,
               onNotificationTap: () async {
+                if (GuestModeService.active) {
+                  context.promptGuest(
+                    (l) => l.guestNotificationsTitle,
+                    (l) => l.guestNotificationsMessage,
+                    icon: Icons.notifications_none_rounded,
+                  );
+                  return;
+                }
                 await context.push(AppRoutes.buyerNotifications);
                 _loadUnreadCount();
               },
@@ -469,7 +451,7 @@ class _CropCard extends StatelessWidget {
                 l10n.priceUpdatedPrefix(
                   AppUtils.formatRelativeTime(price.recordedAt, l10n),
                 ),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
                   fontSize: 11,

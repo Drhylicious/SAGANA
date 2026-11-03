@@ -9,7 +9,9 @@ import '../../../data/models/buyer_listing_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/animated_pressable.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/skeleton.dart';
 
 /// Farmer-as-buyer Marketplace tab (Phase 9) — mirrors Buyer's
@@ -103,6 +105,14 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   }
 
   Future<void> _openCart() async {
+    if (GuestModeService.active) {
+      context.promptFarmer(
+        (l) => l.guestCartTitle,
+        (l) => l.guestCartMessage,
+        icon: Icons.shopping_cart_outlined,
+      );
+      return;
+    }
     await context.push(AppRoutes.farmerMarketplaceCart);
     _loadCartCount();
   }
@@ -214,12 +224,14 @@ class _FarmerMarketplaceTabState extends State<FarmerMarketplaceTab> {
   Widget _buildGrid(AppLocalizations l10n, List<BuyerListingModel> listings) {
     return GridView.builder(
       shrinkWrap: true,
+      // No automatic status-bar padding: this list sits inside a bigger scroll view.
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.71,
+        childAspectRatio: 0.68,
       ),
       itemCount: listings.length,
       itemBuilder: (context, i) => _ListingCard(
@@ -295,8 +307,9 @@ class _ListingCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AspectRatio(
-                aspectRatio: 1.3,
+              // The photo takes whatever height the details leave, so the text
+              // below is never clipped by the grid cell.
+              Expanded(
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -353,14 +366,20 @@ class _ListingCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            '₱${listing.pricePerKg.toStringAsFixed(2)}/kg',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14, fontWeight: FontWeight.w800,
-                              color: AppConstants.primaryGreen,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              formatPricePerUnit(listing.pricePerKg, listing.unit),
+                              maxLines: 1,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w800,
+                                color: AppConstants.primaryGreen,
+                              ),
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
                         Text(
                           l10n.buyerBrowseUnitsSold(
                             formatQuantityUnit(listing.soldKg, listing.unit),

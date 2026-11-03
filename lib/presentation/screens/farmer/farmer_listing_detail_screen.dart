@@ -3,16 +3,20 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../../routes/app_routes.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/inventory_batch_model.dart';
+import '../../../data/models/listing_edit_request_model.dart';
 import '../../../data/models/marketplace_listing_model.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/listing_status_badge.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/app_toast.dart';
 
 // Phase 12 — replaces the old single-purpose (Live-only) preview with a
 // single, parameterized, status-aware screen: "View Live" and every listing
@@ -39,16 +43,51 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
   bool _isLoadingBatch = true;
   bool _isOnline = ConnectivityService.instance.isOnline;
   bool _isSubmitting = false;
+  // What the listing's orders are really worth (each order keeps the price it
+  // was placed at, so this can differ from quantity x the current price).
+  double? _orderedAmount;
 
-  MarketplaceListingModel get _listing => widget.listing;
+  /// This listing's edit requests, newest first. While one is pending the listing
+  /// stays published exactly as it is.
+  List<ListingEditRequest> _requests = [];
+
+  ListingEditRequest? get _pendingRequest {
+    for (final r in _requests) {
+      if (r.isPending) return r;
+    }
+    return null;
+  }
+
+  /// The latest decision, when it was a disapproval and nothing is waiting.
+  ListingEditRequest? get _lastRejected {
+    if (_pendingRequest != null || _requests.isEmpty) return null;
+    return _requests.first.isRejected ? _requests.first : null;
+  }
+
+  late MarketplaceListingModel _listing;
 
   @override
   void initState() {
     super.initState();
+    _listing = widget.listing;
     ConnectivityService.instance.onConnectivityChanged.listen((v) {
       if (mounted) setState(() => _isOnline = v);
     });
     _loadBatch();
+    _loadOrderedAmount();
+    _loadRequests();
+  }
+
+  Future<void> _loadRequests() async {
+    final requests = await _listingRepo.fetchMyEditRequests(_listing.id);
+    if (!mounted) return;
+    setState(() => _requests = requests);
+  }
+
+  Future<void> _loadOrderedAmount() async {
+    final amounts = await _listingRepo.fetchOrderedAmounts();
+    if (!mounted) return;
+    setState(() => _orderedAmount = amounts[_listing.id]);
   }
 
   // Market Type / Batch Number / Category live on InventoryBatchModel, not
@@ -78,6 +117,62 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       ),
     );
     return false;
+  }
+
+  // Edit Listing: quantity, asking price, description and photo of a Pending
+  // Approval or Available listing. On return the listing and its batch are read
+  // again, because the edit may have changed the quantity left.
+  Future<void> _openEdit() async {
+    if (!_requireOnline()) return;
+    final saved = await context.pushRoute<bool>(
+      AppRoutes.editListing,
+      extra: _listing,
+    );
+    if (saved != true || !mounted) return;
+    final fresh = await _listingRepo.fetchListing(_listing.id);
+    if (!mounted) return;
+    if (fresh != null) setState(() => _listing = fresh);
+    _loadBatch();
+    _loadOrderedAmount();
+    _loadRequests();
+  }
+
+  Future<void> _cancelRequest(ListingEditRequest request) async {
+    final l = AppLocalizations.of(context);
+    if (!_requireOnline()) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusXl)),
+        title: Text(l.leCancelRequestTitle, style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700)),
+        content: Text(l.leCancelRequestBody, style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l.cancel)),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppConstants.errorRed, foregroundColor: Colors.white),
+            child: Text(l.leCancelRequest),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _listingRepo.cancelEditRequest(request.id);
+      if (!mounted) return;
+      AppToast.show(context, l.leRequestCancelled);
+      _loadRequests();
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.show(context, l.leRequestFailed, isError: true);
+    }
+  }
+
+  void _openHistory() {
+    context.pushRoute(
+      AppRoutes.farmerListingHistory,
+      extra: {'listingId': _listing.id, 'title': _listing.displayName},
+    );
   }
 
   Future<void> _confirmWithdraw() async {
@@ -204,7 +299,7 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 72),
+              TopBarSpacer(height: 72),
               CachedDataNotice(
                 screen: 'batch_${_listing.inventoryBatchId}',
                 isOnline: _isOnline,
@@ -232,6 +327,8 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
                       _buildCommonInfo(listing),
                       const SizedBox(height: 20),
                       _buildStatusSection(context, listing),
+                      const SizedBox(height: 16),
+                      _historyButton(),
                     ],
                   ),
                 ),
@@ -447,6 +544,12 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
           StatusStepper.forListingStatus(listing.status),
           const SizedBox(height: 20),
           _actionButton(
+            AppLocalizations.of(context).editListingAction,
+            AppConstants.primaryGreen,
+            onTap: ConnectivityService.instance.isOnline ? _openEdit : null,
+          ),
+          const SizedBox(height: 12),
+          _actionButton(
             'Withdraw Listing',
             AppConstants.errorRed,
             outlined: true,
@@ -467,31 +570,31 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
       // withdraw_listing() enforces this server-side too (pending_review
       // only), so this isn't just a UI restriction — see
       // supabase_schema_withdraw_listing_pending_only_guard.sql.
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppConstants.successGreen.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: AppConstants.successGreen,
-              size: 18,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'This listing is approved and available for purchase on the marketplace.',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppConstants.successGreen,
-                ),
-              ),
+      //
+      // Editing IS allowed (quantity, price, description, photo): the database
+      // keeps the stock and the existing orders consistent, and the Manager is
+      // notified. See supabase_schema_farmer_listing_edit.sql.
+      final pending = _pendingRequest;
+      final rejected = _lastRejected;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _approvedNotice(),
+          const SizedBox(height: 16),
+          if (pending != null) ...[
+            _pendingRequestCard(pending),
+          ] else ...[
+            if (rejected != null) ...[
+              _rejectedRequestCard(rejected),
+              const SizedBox(height: 16),
+            ],
+            _actionButton(
+              AppLocalizations.of(context).leRequestTitle,
+              AppConstants.primaryGreen,
+              onTap: ConnectivityService.instance.isOnline ? _openEdit : null,
             ),
           ],
-        ),
+        ],
       );
     }
 
@@ -564,43 +667,185 @@ class _FarmerListingDetailScreenState extends State<FarmerListingDetailScreen> {
     }
 
     if (listing.isSoldOut) {
-      // Nothing left to buy — no actions, per the approved design. A listing
-      // stored as sold is final; an approved one with 0 kg left still has
-      // orders in progress, so its amount is not final yet.
-      final realized =
-          (listing.volumeKg - listing.remainingKg) * listing.pricePerKg;
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppConstants.onSurfaceVariant.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              listing.isSold ? 'Final Realized Amount' : 'Total Ordered Amount',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppConstants.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '₱${realized.toStringAsFixed(2)}',
-              style: GoogleFonts.poppins(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: AppConstants.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _soldOutSummary(listing);
     }
 
     return const SizedBox.shrink();
+  }
+
+  Widget _pendingRequestCard(ListingEditRequest r) {
+    final l = AppLocalizations.of(context);
+    final unit = r.unit;
+    Widget line(String text) => Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: AppConstants.onSurface)),
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppConstants.warningAmber.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.40)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.hourglass_top_rounded, size: 18, color: AppConstants.warningAmber),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l.lePendingBannerTitle,
+                  style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l.lePendingBannerBody,
+            style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: AppConstants.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6),
+          if (r.changesQuantity)
+            line(l.wfDetailQuantity(formatQuantityUnit(r.originalQuantity, unit), formatQuantityUnit(r.proposedQuantity, unit))),
+          if (r.changesPrice)
+            line(l.wfDetailPrice(formatPricePerUnit(r.originalPrice, unit), formatPricePerUnit(r.proposedPrice, unit))),
+          if (r.changesDescription) line(l.wfDetailDescription),
+          if (r.changesPhoto) line(l.wfDetailPhoto),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _isSubmitting ? null : () => _cancelRequest(r),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppConstants.errorRed,
+                side: BorderSide(color: AppConstants.errorRed.withValues(alpha: 0.5)),
+              ),
+              child: Text(l.leCancelRequest),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rejectedRequestCard(ListingEditRequest r) {
+    final l = AppLocalizations.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppConstants.errorRed.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: AppConstants.errorRed.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.cancel_outlined, size: 18, color: AppConstants.errorRed),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l.leRejectedBannerTitle,
+                  style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          if ((r.reviewReason ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              l.leRejectedReason(r.reviewReason!.trim()),
+              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: AppConstants.onSurface),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _historyButton() {
+    final l = AppLocalizations.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _openHistory,
+        icon: const Icon(Icons.history_rounded, size: 18),
+        label: Text(l.leViewHistory),
+      ),
+    );
+  }
+
+  Widget _approvedNotice() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppConstants.successGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.check_circle_rounded,
+            color: AppConstants.successGreen,
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'This listing is approved and available for purchase on the marketplace.',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppConstants.successGreen,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Nothing left to buy — no actions, per the approved design. A listing stored
+  // as sold is final; an approved one with nothing left still has orders in
+  // progress, so its amount is not final yet.
+  Widget _soldOutSummary(MarketplaceListingModel listing) {
+    final realized =
+        _orderedAmount ??
+        moneyOf(listing.volumeKg - listing.remainingKg, listing.pricePerKg);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppConstants.onSurfaceVariant.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            listing.isSold ? 'Final Realized Amount' : 'Total Ordered Amount',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            formatPesos(realized),
+            style: GoogleFonts.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppConstants.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _actionButton(

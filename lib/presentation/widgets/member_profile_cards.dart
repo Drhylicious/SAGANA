@@ -83,7 +83,22 @@ class _MutedText extends StatelessWidget {
 class MemberIdentityCard extends StatelessWidget {
   final FarmerProfileModel profile;
 
-  const MemberIdentityCard({super.key, required this.profile});
+  /// The status pill, when the screen has its own wording and colour for it (the
+  /// Pending Applicant Profile). Left out, the pill is worked out from the
+  /// member's status as on the Manager's Member Details.
+  final String? statusLabel;
+  final Color? statusColor;
+
+  /// A small heading above the Email | Phone and Date of Birth | Gender tiles.
+  final String? detailsTitle;
+
+  const MemberIdentityCard({
+    super.key,
+    required this.profile,
+    this.statusLabel,
+    this.statusColor,
+    this.detailsTitle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,25 +137,30 @@ class MemberIdentityCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: AppConstants.successGreen.withValues(alpha: 0.10),
+                  color: (statusColor ?? AppConstants.successGreen).withValues(
+                    alpha: 0.10,
+                  ),
                   borderRadius: BorderRadius.circular(AppConstants.radiusFull),
                 ),
                 child: Text(
-                  profile.memberStatus == MemberStatus.pending
+                  statusLabel ??
+                      (profile.memberStatus == MemberStatus.pending
                       ? l10n.farmerDetailsPendingApplicantBadge
                       : profile.memberStatus == MemberStatus.rejected
                       ? l10n.farmerMgmtStatusRejectedLabel
                       : profile.isVerified
                       ? l10n.farmerDetailsActiveMemberBadge
-                      : l10n.farmerDetailsPendingVerificationBadge,
+                      : l10n.farmerDetailsPendingVerificationBadge),
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: profile.memberStatus == MemberStatus.rejected
-                        ? AppConstants.errorRed
-                        : profile.isVerified
-                        ? AppConstants.successGreen
-                        : AppConstants.warningAmber,
+                    color:
+                        statusColor ??
+                        (profile.memberStatus == MemberStatus.rejected
+                            ? AppConstants.errorRed
+                            : profile.isVerified
+                            ? AppConstants.successGreen
+                            : AppConstants.warningAmber),
                   ),
                 ),
               ),
@@ -181,7 +201,23 @@ class MemberIdentityCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Divider(color: cs.outline.withValues(alpha: 0.10)),
-          const SizedBox(height: 12),
+          if (detailsTitle != null) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                detailsTitle!,
+                key: const ValueKey('member-details-title'),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else
+            const SizedBox(height: 12),
 
           // Contact details and date of birth / gender, in two rows of equal
           // tiles.
@@ -309,18 +345,95 @@ class MemberIdentityCard extends StatelessWidget {
   }
 }
 
-/// Every address the farmer saved under My Addresses (default first), each with
-/// its structured fields and its map pin. The farm is not here: it is a separate
-/// address with its own pin.
+/// The address a card shows as one piece: a small "Complete Address" caption over
+/// the full address in a readable size. Selectable, so a Manager can copy it.
+class _CompleteAddress extends StatelessWidget {
+  final String address;
+  final Key? textKey;
+  const _CompleteAddress({required this.address, this.textKey});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.memberProfileCompleteAddress,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+            color: cs.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          address,
+          key: textKey,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            height: 1.5,
+            color: cs.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A map under an address, with the attribution the map tiles require.
+class _PinnedMap extends StatelessWidget {
+  final LatLng pin;
+  final Color pinColor;
+  final Key? mapKey;
+  const _PinnedMap({
+    required this.pin,
+    this.pinColor = AppConstants.errorRed,
+    this.mapKey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AddressMapPreview(key: mapKey, pin: pin, pinColor: pinColor),
+        const SizedBox(height: 6),
+        const MapAttributionLinks(),
+      ],
+    );
+  }
+}
+
+/// Every address the farmer saved under My Addresses (default first): its
+/// complete address in one piece, with that address's own map pin below it. The
+/// farm is not here: it is a separate address with its own pin.
 class MemberResidentialAddressCard extends StatelessWidget {
   final List<BuyerAddressModel> addresses;
-  const MemberResidentialAddressCard({super.key, required this.addresses});
+
+  /// A different card title (the Pending Applicant Profile says Address
+  /// Information).
+  final String? title;
+
+  /// Just the complete address: no label, no Default badge, no map. For an
+  /// applicant, whose only address is the one entered at registration.
+  final bool compact;
+
+  const MemberResidentialAddressCard({
+    super.key,
+    required this.addresses,
+    this.title,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return AddressSectionCard(
-      title: l10n.memberProfileResidentialTitle,
+      title: title ?? l10n.memberProfileResidentialTitle,
       child: addresses.isEmpty
           ? _MutedText(l10n.pendingNoAddressYet)
           : Column(
@@ -328,15 +441,24 @@ class MemberResidentialAddressCard extends StatelessWidget {
               children: [
                 for (var i = 0; i < addresses.length; i++) ...[
                   if (i > 0) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Divider(
                       height: 1,
                       color: Theme.of(context).colorScheme.outline
                           .withValues(alpha: 0.15),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
-                  _AddressBlock(address: addresses[i]),
+                  _AddressBlock(
+                    address: addresses[i],
+                    index: i,
+                    // The label ("Home") only tells addresses apart, so it is
+                    // shown when there is more than one, or one is the default.
+                    showLabel:
+                        !compact &&
+                        (addresses.length > 1 || addresses[i].isDefault),
+                    showMap: !compact,
+                  ),
                 ],
               ],
             ),
@@ -346,7 +468,15 @@ class MemberResidentialAddressCard extends StatelessWidget {
 
 class _AddressBlock extends StatelessWidget {
   final BuyerAddressModel address;
-  const _AddressBlock({required this.address});
+  final int index;
+  final bool showLabel;
+  final bool showMap;
+  const _AddressBlock({
+    required this.address,
+    required this.index,
+    required this.showLabel,
+    required this.showMap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -354,98 +484,179 @@ class _AddressBlock extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final a = address;
     final hasPin = a.latitude != null && a.longitude != null;
+    final notes = a.notes?.trim() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                a.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
-            ),
-            if (a.isDefault) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppConstants.successGreen.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                ),
+        if (showLabel) ...[
+          Row(
+            children: [
+              Flexible(
                 child: Text(
-                  l10n.buyerAddressesDefaultBadge,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
+                  a.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppConstants.successGreen,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
+              if (a.isDefault) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppConstants.successGreen.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  ),
+                  child: Text(
+                    l10n.buyerAddressesDefaultBadge,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.successGreen,
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
+          const SizedBox(height: 10),
+        ],
+        _CompleteAddress(
+          address: a.addressLine,
+          textKey: ValueKey('member-residential-address-$index'),
         ),
-        const SizedBox(height: 6),
-        Text(
-          a.addressLine,
-          style: GoogleFonts.inter(fontSize: 13, height: 1.5),
-        ),
-        const SizedBox(height: 12),
-        MemberInfoRow(label: l10n.registerRegionLabel, value: a.regionName),
-        MemberInfoRow(label: l10n.registerProvinceLabel, value: a.provinceName),
-        MemberInfoRow(
-          label: l10n.registerCityLabel,
-          value: a.cityMunicipalityName,
-        ),
-        MemberInfoRow(label: l10n.registerBarangayLabel, value: a.barangayName),
-        MemberInfoRow(label: l10n.registerPostalLabel, value: a.postalCode),
-        MemberInfoRow(label: l10n.registerStreetLabel, value: a.street),
-        MemberInfoRow(label: l10n.registerBuildingLabel, value: a.building),
-        MemberInfoRow(label: l10n.registerHouseNoLabel, value: a.houseNo),
-        if (a.notes != null && a.notes!.trim().isNotEmpty)
-          MemberInfoRow(label: l10n.buyerAddressNotesField, value: a.notes),
-        const SizedBox(height: 4),
-        if (hasPin) ...[
-          AddressMapPreview(pin: LatLng(a.latitude!, a.longitude!)),
-          const SizedBox(height: 6),
-          const MapAttributionLinks(),
-        ] else
+        if (notes.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          MemberInfoRow(label: l10n.buyerAddressNotesField, value: notes),
+        ],
+        if (showMap) const SizedBox(height: 12),
+        if (!showMap)
+          const SizedBox.shrink()
+        else if (hasPin)
+          _PinnedMap(
+            pin: LatLng(a.latitude!, a.longitude!),
+            mapKey: ValueKey('member-residential-map-$index'),
+          )
+        else
           _MutedText(l10n.memberProfileNoMapPin),
       ],
     );
   }
 }
 
-/// The farm, in the order of the farmer's Farm Details screen: the farm's own
-/// information, then its address, then its map pin. The farm address and pin are
-/// kept apart from the residential address above.
+/// The farm, in one card with three parts in the order of the farmer's Farm
+/// Details screen: its complete address, its information, then its map pin. The
+/// farm address and pin are kept apart from the residential address above.
 class MemberFarmSection extends StatelessWidget {
   final FarmerProfileModel profile;
   const MemberFarmSection({super.key, required this.profile});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final divider = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Divider(
+        height: 1,
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+      ),
+    );
+    return AddressSectionCard(
+      title: l10n.memberProfileFarmDetailsTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FarmAddressPart(profile: profile),
+          divider,
+          _FarmInfoPart(profile: profile),
+          divider,
+          _FarmLocationPart(profile: profile),
+        ],
+      ),
+    );
+  }
+}
+
+/// A part of the farm card: a small icon and its title.
+class _PartHeading extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  const _PartHeading({required this.icon, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: cs.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The farm's address as one line: the one saved with the farm, or, when only the
+/// separate parts were saved, the same line built from them.
+String _farmCompleteAddress(FarmerProfileModel p) {
+  final saved = p.farmAddress?.trim() ?? '';
+  if (saved.isNotEmpty) return saved;
+  if (p.hasStructuredFarmAddress) {
+    return FarmerRegistrationAddress.composeLine(
+      houseNo: p.farmHouseNo ?? '',
+      building: p.farmBuilding,
+      street: p.farmStreet ?? '',
+    );
+  }
+  return '';
+}
+
+class _FarmAddressPart extends StatelessWidget {
+  final FarmerProfileModel profile;
+  const _FarmAddressPart({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final address = _farmCompleteAddress(profile);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _FarmInfoCard(profile: profile),
-        const SizedBox(height: 16),
-        _FarmAddressCard(profile: profile),
-        const SizedBox(height: 16),
-        _FarmLocationCard(profile: profile),
+        _PartHeading(
+          icon: Icons.agriculture_outlined,
+          title: l10n.farmAddressSectionTitle,
+        ),
+        if (address.isEmpty)
+          _MutedText(l10n.memberProfileNoFarmAddress)
+        else
+          _CompleteAddress(
+            address: address,
+            textKey: const ValueKey('member-farm-address'),
+          ),
       ],
     );
   }
 }
 
-class _FarmInfoCard extends StatelessWidget {
+class _FarmInfoPart extends StatelessWidget {
   final FarmerProfileModel profile;
-  const _FarmInfoCard({required this.profile});
+  const _FarmInfoPart({required this.profile});
 
   @override
   Widget build(BuildContext context) {
@@ -454,189 +665,128 @@ class _FarmInfoCard extends StatelessWidget {
     final p = profile;
     final soil = p.soilType?.trim() ?? '';
     final water = p.waterSource?.trim() ?? '';
-    return AddressSectionCard(
-      title: l10n.memberProfileFarmInfoTitle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MemberInfoRow(label: l10n.memberProfileFarmName, value: p.farmName),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PartHeading(
+          icon: Icons.info_outline_rounded,
+          title: l10n.memberProfileFarmInfoTitle,
+        ),
+        MemberInfoRow(label: l10n.memberProfileFarmName, value: p.farmName),
+        MemberInfoRow(
+          label: l10n.farmerDetailsTotalArea,
+          value: p.landAreaHectares != null
+              ? '${p.landAreaHectares!.toStringAsFixed(2)} ha'
+              : null,
+        ),
+        MemberInfoRow(
+          label: l10n.farmerDetailsExperience,
+          value: p.yearsFarming != null
+              ? l10n.farmerDetailsYearsValue(p.yearsFarming!)
+              : null,
+        ),
+        MemberInfoRow(
+          label: l10n.memberProfileOwnership,
+          value: p.farmOwnershipType,
+        ),
+        // Soil and water have no field on the farmer's screen any more, so
+        // they only show when an older record still has a value.
+        if (soil.isNotEmpty)
           MemberInfoRow(
-            label: l10n.farmerDetailsTotalArea,
-            value: p.landAreaHectares != null
-                ? '${p.landAreaHectares!.toStringAsFixed(2)} ha'
-                : null,
+            label: l10n.memberProfileSoilType,
+            value: _codeLabel(soil),
           ),
+        if (water.isNotEmpty)
           MemberInfoRow(
-            label: l10n.farmerDetailsExperience,
-            value: p.yearsFarming != null
-                ? l10n.farmerDetailsYearsValue(p.yearsFarming!)
-                : null,
+            label: l10n.memberProfileWaterSource,
+            value: _codeLabel(water),
           ),
-          MemberInfoRow(
-            label: l10n.memberProfileOwnership,
-            value: p.farmOwnershipType,
-          ),
-          // Soil and water have no field on the farmer's screen any more, so
-          // they only show when an older record still has a value.
-          if (soil.isNotEmpty)
-            MemberInfoRow(
-              label: l10n.memberProfileSoilType,
-              value: _codeLabel(soil),
-            ),
-          if (water.isNotEmpty)
-            MemberInfoRow(
-              label: l10n.memberProfileWaterSource,
-              value: _codeLabel(water),
-            ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.memberProfileCropsTitle,
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          if (p.primaryCrops.isEmpty)
-            _MutedText(l10n.farmerDetailsNoCropsYet)
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final crop in p.primaryCrops)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+        const SizedBox(height: 4),
+        Text(
+          l10n.memberProfileCropsTitle,
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        if (p.primaryCrops.isEmpty)
+          _MutedText(l10n.farmerDetailsNoCropsYet)
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final crop in p.primaryCrops)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppConstants.secondaryContainer.withValues(
+                      alpha: 0.20,
                     ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.secondaryContainer.withValues(
-                        alpha: 0.20,
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      crop,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF694300),
-                      ),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusFull,
                     ),
                   ),
-              ],
-            ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.info_outline_rounded, size: 14, color: cs.primary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  l10n.farmerDetailsManagedByFarmer,
-                  style: GoogleFonts.inter(fontSize: 11, color: cs.primary),
+                  child: Text(
+                    crop,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF694300),
+                    ),
+                  ),
                 ),
-              ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FarmAddressCard extends StatelessWidget {
-  final FarmerProfileModel profile;
-  const _FarmAddressCard({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final p = profile;
-    final line = p.farmAddress?.trim() ?? '';
-    return AddressSectionCard(
-      title: l10n.farmAddressSectionTitle,
-      child: p.hasStructuredFarmAddress
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (line.isNotEmpty) ...[
-                  Text(
-                    line,
-                    style: GoogleFonts.inter(fontSize: 13, height: 1.5),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                MemberInfoRow(
-                  label: l10n.registerRegionLabel,
-                  value: FarmerRegistrationAddress.regionName,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerProvinceLabel,
-                  value: FarmerRegistrationAddress.provinceName,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerCityLabel,
-                  value: FarmerRegistrationAddress.cityName,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerBarangayLabel,
-                  value: FarmerRegistrationAddress.barangayName,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerPostalLabel,
-                  value: FarmerRegistrationAddress.postalCode,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerStreetLabel,
-                  value: p.farmStreet,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerBuildingLabel,
-                  value: p.farmBuilding,
-                ),
-                MemberInfoRow(
-                  label: l10n.registerHouseNoLabel,
-                  value: p.farmHouseNo,
-                ),
-              ],
-            )
-          // A farm saved as one line of text, before the address had fields.
-          : line.isNotEmpty
-          ? Text(line, style: GoogleFonts.inter(fontSize: 13, height: 1.5))
-          : _MutedText(l10n.memberProfileNoFarmAddress),
-    );
-  }
-}
-
-class _FarmLocationCard extends StatelessWidget {
-  final FarmerProfileModel profile;
-  const _FarmLocationCard({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final p = profile;
-    return AddressSectionCard(
-      title: l10n.farmLocationSectionTitle,
-      child: !p.hasCoordinates
-          ? _MutedText(l10n.memberProfileNoFarmPin)
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AddressMapPreview(
-                  pin: LatLng(p.farmLatitude!, p.farmLongitude!),
-                  pinColor: AppConstants.primaryGreen,
-                ),
-                const SizedBox(height: 6),
-                const MapAttributionLinks(),
-                const SizedBox(height: 10),
-                MemberInfoRow(
-                  label: l10n.memberProfileCoordinates,
-                  value: p.coordinatesLabel,
-                ),
-              ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Icon(Icons.info_outline_rounded, size: 14, color: cs.primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                l10n.farmerDetailsManagedByFarmer,
+                style: GoogleFonts.inter(fontSize: 11, color: cs.primary),
+              ),
             ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FarmLocationPart extends StatelessWidget {
+  final FarmerProfileModel profile;
+  const _FarmLocationPart({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final p = profile;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PartHeading(
+          icon: Icons.place_outlined,
+          title: l10n.farmLocationSectionTitle,
+        ),
+        if (!p.hasCoordinates)
+          _MutedText(l10n.memberProfileNoFarmPin)
+        else ...[
+          _PinnedMap(
+            pin: LatLng(p.farmLatitude!, p.farmLongitude!),
+            pinColor: AppConstants.primaryGreen,
+            mapKey: const ValueKey('member-farm-map'),
+          ),
+          const SizedBox(height: 10),
+          MemberInfoRow(
+            label: l10n.memberProfileCoordinates,
+            value: p.coordinatesLabel,
+          ),
+        ],
+      ],
     );
   }
 }

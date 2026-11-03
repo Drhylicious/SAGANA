@@ -12,13 +12,10 @@ class FarmerCropModel {
   final String farmerId;
   final String cropName;
   final String category;
+  /// The Farmer's own, camera-captured photo of this crop (farmer_crops.photo_url).
+  /// The Crop Master image is a reference for the catalog only and is never
+  /// loaded, shown or assigned here.
   final String? photoUrl;
-
-  /// Admin-curated catalog reference photo (crop_master.image_url), joined
-  /// in for display fallback only — never written back to farmer_crops.
-  /// Distinct from [photoUrl], which is the farmer's own photo of their
-  /// specific planting.
-  final String? catalogImageUrl;
   final String? cropMasterId; // null until linked to the official catalog
   /// Market type as registered on the crop's catalog entry —
   /// a market_types.code (Public or Cooperative). Null until the crop
@@ -41,7 +38,6 @@ class FarmerCropModel {
     required this.cropName,
     required this.category,
     this.photoUrl,
-    this.catalogImageUrl,
     this.cropMasterId,
     this.cropType,
     this.exclusiveChannel,
@@ -55,18 +51,15 @@ class FarmerCropModel {
   bool get hasHarvests => harvestCount > 0;
   bool get hasPhoto => photoUrl != null && photoUrl!.isNotEmpty;
 
-  /// The photo a card should actually render: the farmer's own photo if
-  /// they've uploaded one, else the catalog's reference photo, else the
-  /// caller falls back to a generic category icon.
-  String? get displayImageUrl {
-    if (hasPhoto) return photoUrl;
-    if (catalogImageUrl != null && catalogImageUrl!.isNotEmpty) {
-      return catalogImageUrl;
-    }
-    return null;
-  }
+  /// Selling through the Marketplace, to the Cooperative or via Market Linking
+  /// needs the Farmer's own photo; harvesting and Informal Sales do not.
+  bool get needsPhoto => !hasPhoto;
 
-  bool get hasDisplayImage => displayImageUrl != null;
+  /// The photo a card renders: the Farmer's own photo, or null (the caller shows
+  /// a plain category icon and a "Photo Required" mark). Never a catalog image.
+  String? get displayImageUrl => hasPhoto ? photoUrl : null;
+
+  bool get hasDisplayImage => hasPhoto;
 
   /// Human-readable label for [cropType], for display wherever a crop's
   /// market type needs to be shown (Request New Crop, Record New Harvest,
@@ -111,7 +104,6 @@ class FarmerCropModel {
       cropName: map['crop_name'] as String,
       category: map['category'] as String? ?? 'Other',
       photoUrl: map['photo_url'] as String?,
-      catalogImageUrl: map['catalog_image_url'] as String?,
       cropMasterId: map['crop_master_id'] as String?,
       cropType: map['crop_type'] as String?,
       exclusiveChannel: map['exclusive_channel'] as String?,
@@ -142,7 +134,6 @@ class FarmerCropModel {
     String? cropName,
     String? category,
     String? photoUrl,
-    String? catalogImageUrl,
     String? cropMasterId,
     String? cropType,
     int? harvestCount,
@@ -153,7 +144,6 @@ class FarmerCropModel {
       cropName: cropName ?? this.cropName,
       category: category ?? this.category,
       photoUrl: photoUrl ?? this.photoUrl,
-      catalogImageUrl: catalogImageUrl ?? this.catalogImageUrl,
       cropMasterId: cropMasterId ?? this.cropMasterId,
       cropType: cropType ?? this.cropType,
       exclusiveChannel: exclusiveChannel,

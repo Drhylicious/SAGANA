@@ -6,6 +6,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_crop_model.dart' show marketTypeLabelFor;
 import '../../../data/models/inventory_batch_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
+import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../../data/repositories/listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -13,7 +14,9 @@ import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/crop_photo_capture.dart';
 import 'listing_success_screen.dart' show ListingSuccessArgs;
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -38,6 +41,8 @@ class CreateListingScreen extends StatefulWidget {
 class _CreateListingScreenState extends State<CreateListingScreen> {
   final _inventoryRepo = InventoryRepository();
   final _listingRepo = ListingRepository();
+  final _cropRepo = CropRepository();
+
   final _dashboardRepo = DashboardRepository();
 
   final _quantityController = TextEditingController();
@@ -202,13 +207,26 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Photo is no longer farmer-uploaded here — the Crop Roster is the
-      // single source of truth for a crop's image (per explicit product
-      // direction), so this is always whatever the selected batch already
-      // resolved (InventoryRepository, via fetchFarmerCropImageMap): the
-      // farmer's own crop photo if set, else the crop_master catalog
-      // photo, else none.
-      final photoUrl = _selectedBatch?.displayImageUrl;
+      // The listing shows the Farmer's own camera photo of the crop (Crop
+      // Roster is its one source) — never a catalog image. A crop without one
+      // cannot be listed: the Farmer is asked to take it now, and the database
+      // checks it again.
+      var photoUrl = _selectedBatch?.displayImageUrl;
+      if (photoUrl == null || photoUrl.isEmpty) {
+        setState(() => _isSubmitting = false);
+        photoUrl = await requireCropPhotoToSell(
+          context,
+          repo: _cropRepo,
+          cropId: _selectedBatch!.cropId,
+          cropName: _selectedBatch!.cropName,
+          why: 'list this on the Marketplace',
+        );
+        if (photoUrl == null || !mounted) return;
+        setState(() {
+          _selectedBatch = _selectedBatch!.withPhoto(photoUrl!);
+          _isSubmitting = true;
+        });
+      }
 
       final submittedListing = await _listingRepo.createListing(
         cropName: _selectedBatch!.cropName,
@@ -243,7 +261,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       final errorText = e.toString();
       final message = errorText.contains('Not enough available quantity')
           ? 'Not enough available stock for that quantity. Please lower it and try again.'
-          : errorText.contains('can only be sold through')
+          : errorText.contains('can only be sold through') || isPhotoRequiredError(e)
               ? friendlyErrorMessage(e)
               : 'Failed to submit listing. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(
@@ -270,7 +288,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     if (!_isOnline) OfflineStatusCard(message: AppLocalizations.of(context).offlineListingSubmit),
                     Expanded(
                 child: SingleChildScrollView(

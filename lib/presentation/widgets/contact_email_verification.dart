@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/utils/input_validation_utils.dart';
@@ -573,4 +574,24 @@ class _StatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A Farmer's or Buyer's verified email has just become a way to sign in (the
+/// server switched their sign-in address when the code was accepted). The cached
+/// session still names the old address, which later re-sign-ins such as Change
+/// Password would use, so it is refreshed here, then the person is told.
+Future<void> announceEmailSignInEnabled(BuildContext context, String? email) async {
+  try {
+    await Supabase.instance.client.auth.refreshSession();
+  } catch (_) {
+    // The session still works; the new address is read at the next sign-in.
+  }
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(AppLocalizations.of(context).emailSignInEnabled(email ?? '')),
+      backgroundColor: AppConstants.midGreen,
+      duration: const Duration(seconds: 6),
+    ),
+  );
 }

@@ -1,3 +1,4 @@
+import '../../data/models/marketplace_listing_model.dart';
 import '../../data/repositories/admin_listing_repository.dart';
 
 /// Display order for the Manager's listing screens. Both keep the order the
@@ -35,3 +36,13 @@ int approvalGroup(AdminListingModel listing) {
 
 List<AdminListingModel> orderForApprovals(Iterable<AdminListingModel> listings) =>
     stableGroupSort(listings, approvalGroup);
+
+/// Farmer > Listing: listings that are still live (Pending Approval and
+/// Available) come first; Sold Out, Disapproved and Withdrawn go to the bottom.
+/// The newest-first order is kept inside each group.
+int farmerListingGroup(MarketplaceListingModel listing) =>
+    (listing.isSoldOut || listing.isRejected || listing.isWithdrawn) ? 1 : 0;
+
+List<MarketplaceListingModel> orderForFarmerListings(
+  Iterable<MarketplaceListingModel> listings,
+) => stableGroupSort(listings, farmerListingGroup);

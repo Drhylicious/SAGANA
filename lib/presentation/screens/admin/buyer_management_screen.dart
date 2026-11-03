@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
@@ -11,9 +12,8 @@ import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/app_toast.dart';
+import '../../widgets/buyer_status_badge.dart';
 import '../../widgets/profile_avatar.dart';
-import '../../widgets/suspension_dialogs.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
@@ -35,7 +35,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
   bool _isOnline  = true;
   String _searchQuery = '';
   // null=all, 'active', 'inactive' (derived, 30-day-idle — see
-  // BuyerProfileModel.isInactive), 'suspended'.
+  // BuyerProfileModel.isInactive).
   String? _statusFilter;
 
   @override
@@ -72,65 +72,22 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
     var list = _buyers;
     switch (_statusFilter) {
       case 'active':
-        list = list.where((b) => b.isActive && !b.isInactive).toList();
+        list = list.where((b) => buyerStatusOf(b) == BuyerStatus.active).toList();
         break;
       case 'inactive':
-        list = list.where((b) => b.isInactive).toList();
-        break;
-      case 'suspended':
-        list = list.where((b) => !b.isActive).toList();
+        list = list.where((b) => buyerStatusOf(b) == BuyerStatus.inactive).toList();
         break;
     }
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list
-          .where(
-            (b) =>
-          b.fullName.toLowerCase().contains(q) ||
-                (b.phoneNumber?.contains(q) ?? false),
-          )
-          .toList();
+    // Searched by name only: contact details are not shown on this screen.
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      list = list.where((b) => b.fullName.toLowerCase().contains(q)).toList();
     }
     return list;
   }
 
-  // ─── Suspend flow — two-step (reason, then confirm), same shape as
-  // FarmerDetailsScreen's flow (both now share promptSuspendReason from
-  // suspension_dialogs.dart). Reactivate stays single-tap, also
-  // matching Farmer.
-
-  Future<void> _suspendOrReactivate(BuyerProfileModel buyer) async {
-    final l10n = AppLocalizations.of(context);
-    if (buyer.isActive) {
-      final request = await promptSuspension(
-        context: context,
-        role: 'buyer',
-        displayName: buyer.fullName,
-      );
-      if (request == null || !mounted) return;
-      try {
-        await _repo.setBuyerStatus(
-          buyerId: buyer.userId,
-          status: 'suspended',
-          reason: request.reason,
-          suspendedUntil: request.suspendedUntil,
-        );
-      } catch (_) {
-        if (mounted)
-          AppToast.show(context, l10n.suspendActionError, isError: true);
-        return;
-      }
-    } else {
-      try {
-        await _repo.setBuyerStatus(buyerId: buyer.userId, status: 'active');
-      } catch (_) {
-        if (mounted)
-          AppToast.show(context, l10n.suspendActionError, isError: true);
-        return;
-      }
-    }
-          _load();
-  }
+  int _countOf(BuyerStatus s) =>
+      _buyers.where((b) => buyerStatusOf(b) == s).length;
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +102,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'buyers_all',
                 isOnline: _isOnline,
@@ -198,14 +155,14 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                               child: Row(
                                 children: [
                                   _TextTab(
-                                    label: l10n.farmerMgmtAllFilter,
+                                    label: '${l10n.farmerMgmtAllFilter} (${_buyers.length})',
                                     active: _statusFilter == null,
                                     onTap: () =>
                                         setState(() => _statusFilter = null),
                                     cs: cs,
                                   ),
                                   _TextTab(
-                                    label: l10n.farmerMgmtStatusActiveLabel,
+                                    label: '${l10n.farmerMgmtStatusActiveLabel} (${_countOf(BuyerStatus.active)})',
                                     active: _statusFilter == 'active',
                                     onTap: () => setState(
                                       () => _statusFilter = 'active',
@@ -213,18 +170,10 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                                     cs: cs,
                                   ),
                                   _TextTab(
-                                    label: l10n.analyticsInactive,
+                                    label: '${l10n.analyticsInactive} (${_countOf(BuyerStatus.inactive)})',
                                     active: _statusFilter == 'inactive',
                                     onTap: () => setState(
                                       () => _statusFilter = 'inactive',
-                                    ),
-                                    cs: cs,
-                                  ),
-                                  _TextTab(
-                                    label: l10n.farmerMgmtStatusSuspendedLabel,
-                                    active: _statusFilter == 'suspended',
-                                    onTap: () => setState(
-                                      () => _statusFilter = 'suspended',
                                     ),
                                     cs: cs,
                                   ),
@@ -240,7 +189,7 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                               ...visible.map(
                                 (b) => Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
-                                    child: _BuyerCard(
+                                    child: BuyerManagementCard(
                                       buyer: b,
                                       cs: cs,
                                       sagana: sagana,
@@ -262,9 +211,6 @@ class _BuyerManagementScreenState extends State<BuyerManagementScreen> {
                                         'buyerName': b.fullName,
                                       },
                                     ),
-                                    onToggleStatus: _isOnline
-                                        ? () => _suspendOrReactivate(b)
-                                        : null,
                                   ),
                                 ),
                                     ),
@@ -351,40 +297,25 @@ class _TextTab extends StatelessWidget {
 }
 
 // ─── Buyer Card ───────────────────────────────────────────────────────────────
-// Redesigned: [avatar] Name … [status badge] / Email or Phone (whichever
-// exists; neither shown if both are unset). Order count/spent/"since" — a
-// second, cluttering subtitle line — removed entirely; that summary lives
-// on Buyer Details' own KPI cards instead, not duplicated here.
+// [avatar]  Name                      ● Status   ⋮      (one row)
+// No e-mail, phone, order count or last-active line: contact details are reached
+// through the order workflows, and the order totals live on Buyer Details.
 
-class _BuyerCard extends StatelessWidget {
+class BuyerManagementCard extends StatelessWidget {
   final BuyerProfileModel buyer;
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onTap;
   final VoidCallback onViewOrders;
   final VoidCallback onSendNotification;
-  final VoidCallback? onToggleStatus;
-  const _BuyerCard({
+  const BuyerManagementCard({
     required this.buyer,
     required this.cs,
     required this.sagana,
     required this.onTap,
     required this.onViewOrders,
     required this.onSendNotification,
-    required this.onToggleStatus,
   });
-
-  String _badgeLabel(AppLocalizations l10n) {
-    if (!buyer.isActive) return l10n.buyerMgmtSuspendedBadge;
-    if (buyer.isInactive) return l10n.buyerMgmtInactiveBadge;
-    return l10n.buyerMgmtActiveBadge;
-  }
-
-  Color _badgeColor(ColorScheme cs) {
-    if (!buyer.isActive) return cs.outline;
-    if (buyer.isInactive) return AppConstants.warningAmber;
-    return AppConstants.successGreen;
-  }
 
   Widget _menuRow(IconData icon, String label, Color color) {
     return Row(
@@ -399,14 +330,12 @@ class _BuyerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final contactLine = (buyer.contactEmail?.isNotEmpty ?? false)
-        ? buyer.contactEmail
-        : buyer.phoneNumber;
+    final status = buyerStatusOf(buyer);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -423,72 +352,34 @@ class _BuyerCard extends StatelessWidget {
           ],
       ),
       child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
         children: [
             ProfileAvatar(
               photoUrl: buyer.profilePhotoUrl,
               displayName: buyer.fullName,
-              radius: 22,
-          ),
-          const SizedBox(width: 12),
-
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                  Row(
-                    children: [
-                  Expanded(
-                        child: Text(
-                          buyer.fullName,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: buyer.isActive
-                                ? cs.onSurface
-                                : cs.onSurfaceVariant,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                    decoration: BoxDecoration(
-                      color: _badgeColor(cs).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                  ),
-                ),
-                          child: Text(
-                          _badgeLabel(l10n),
-                              style: GoogleFonts.inter(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w800,
-                            color: _badgeColor(cs),
-                          ),
-                        ),
-                          ),
-                      ],
-                    ),
-                  if (contactLine != null && contactLine.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      contactLine,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                  ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-              ],
+              radius: 24,
             ),
-          ),
+            const SizedBox(width: 14),
+
+            // One row: picture | name | status | menu. Nothing else.
+            Expanded(
+              child: Text(
+                buyer.fullName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: buyer.isActive ? cs.onSurface : cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Capped so a very narrow screen shortens the badge, not the name.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: BuyerStatusBadge(status: status),
+            ),
 
             const SizedBox(width: 4),
             // Same interaction pattern as Admin Inventory Management's
@@ -506,8 +397,6 @@ class _BuyerCard extends StatelessWidget {
                     onViewOrders();
                   case 'notify':
                     onSendNotification();
-                  case 'toggle':
-                    onToggleStatus?.call();
                 }
               },
               itemBuilder: (ctx) => [
@@ -525,20 +414,6 @@ class _BuyerCard extends StatelessWidget {
                     Icons.campaign_outlined,
                     l10n.farmerMgmtActionSendNotification,
                     cs.onSurface,
-                  ),
-                ),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'toggle',
-                  enabled: onToggleStatus != null,
-                  child: _menuRow(
-                    buyer.isActive
-                        ? Icons.block_rounded
-                        : Icons.check_circle_outline_rounded,
-                    buyer.isActive
-                        ? l10n.farmerMgmtSuspendAccountAction
-                        : l10n.buyerMgmtReactivateAccount,
-                    buyer.isActive ? AppConstants.errorRed : cs.onSurface,
                   ),
                 ),
               ],

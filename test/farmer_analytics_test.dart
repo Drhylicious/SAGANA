@@ -130,7 +130,11 @@ void main() {
       expect(src, contains(".eq('status', 'completed')"));
       expect(src, contains(".from('member_sales_transactions')"));
       expect(src, contains(".from('informal_sales')"));
-      expect(src, contains(".from('market_linking_programs')"));
+      // Market Linking income is one row per recorded sale (the sales ledger),
+      // so a request sold in parts counts each part once, on its own day.
+      expect(src, contains(".from('market_linking_sales')"));
+      expect(src, isNot(contains(".from('market_linking_programs')")));
+
     });
 
     test('expenses leave out subsidized items and include queued ones', () {
@@ -385,7 +389,14 @@ void main() {
           ),
         );
         expect(tester.takeException(), isNull);
-        expect(find.byType(FittedBox), findsOneWidget);
+        // The value sits in a FittedBox (the label has its own).
+        expect(
+          find.ancestor(
+            of: find.text('₱999,999.99'),
+            matching: find.byType(FittedBox),
+          ),
+          findsOneWidget,
+        );
         expect(find.text('₱999,999.99'), findsOneWidget);
       });
     });

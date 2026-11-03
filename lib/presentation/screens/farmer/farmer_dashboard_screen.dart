@@ -24,11 +24,14 @@ import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../data/services/sync_service.dart';
+import '../../../data/guest/guest_farmer_sample_data.dart';
+import '../../../data/services/guest_mode_service.dart';
+import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/sync_status_card.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/skeleton.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 
@@ -102,7 +105,45 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
     _isOnline = ConnectivityService.instance.isOnline;
   }
 
+  /// Explore as Farmer: made-up figures, no repository or database call.
+  Future<void> _loadGuestData() async {
+    setState(() => _isLoading = true);
+    // initState calls this before the first build; wait one frame so the
+    // localization lookup below is allowed.
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      _summary = GuestFarmerSampleData.summary;
+      _marketRates = GuestFarmerSampleData.marketRates;
+      _activity = GuestFarmerSampleData.activity;
+      _priorityItems = [
+        PriorityItem(
+          title: l10n.farmerDashLoanDueInDaysTitleOther(3),
+          subtitle: l10n.farmerDashLoanDueSoonSubtitle(
+            'SAMPLE',
+            '1500',
+            DateFormat(
+              'MMM d',
+              l10n.localeName,
+            ).format(DateTime.now().add(const Duration(days: 3))),
+          ),
+          icon: Icons.event_repeat_rounded,
+          severity: PrioritySeverity.warning,
+          onTap: () => context.promptFarmer(
+            (l) => l.guestPriorityTitle,
+            (l) => l.guestPriorityMessage,
+            icon: Icons.flag_outlined,
+          ),
+        ),
+      ];
+      _unreadCount = 0;
+      _isLoading = false;
+    });
+  }
+
   Future<void> _loadData() async {
+    if (GuestModeService.active) return _loadGuestData();
     setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
@@ -291,6 +332,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
   }
 
   String _firstName(AppLocalizations l10n) {
+    if (GuestModeService.active) return l10n.guestName;
     final name = _profileState.fullName ?? l10n.defaultFarmerName;
     return name.split(' ').first;
   }
@@ -309,42 +351,12 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      drawer: AnimatedBuilder(
-        animation: FarmerProfileStateService.instance,
-        builder: (context, _) {
-          final profile = FarmerProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? l10n.defaultFarmerName,
-            contactEmail: profile?.contactEmail,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.farmerEditProfile);
-            },
-            onEditFarmDetails: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.editFarmDetails);
-            },
-            onMyAddresses: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.myAddresses);
-            },
-            onSignOut: () => confirmFarmerSignOut(context),
-            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () =>
-                context.pushRoute(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           Expanded(
             child: Stack(
               children: [
-                const SizedBox(height: 72),
+                TopBarSpacer(height: 72),
                 CachedDataNotice(
                   screen: DashboardRepository.activityCacheScreen(limit: 5),
                   otherScreens: DashboardRepository.summaryCacheScreens(),
@@ -359,9 +371,17 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                         onRefresh: _loadData,
                         child: CustomScrollView(
                           slivers: [
-                            const SliverToBoxAdapter(
-                              child: SizedBox(height: 72),
+                            SliverToBoxAdapter(
+                              child: TopBarSpacer(height: 72),
                             ),
+
+                            if (GuestModeService.active)
+                              const SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                                  child: GuestSampleBanner(),
+                                ),
+                              ),
 
                             // Welcome
                             SliverToBoxAdapter(
@@ -472,12 +492,15 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                                 child: _MarketRatesCarousel(
                                   rates: _marketRates,
                                   isLoading: _isLoading,
-                                  onViewMarket: () =>
-                                      context.pushRoute(AppRoutes.viewMarket),
-                                  onTapRate: (rate) => context.pushRoute(
-                                    AppRoutes.marketRateDetails,
-                                    extra: rate,
-                                  ),
+                                  onViewMarket: () => GuestModeService.active
+                                      ? _promptMarketRates()
+                                      : context.pushRoute(AppRoutes.viewMarket),
+                                  onTapRate: (rate) => GuestModeService.active
+                                      ? _promptMarketRates()
+                                      : context.pushRoute(
+                                          AppRoutes.marketRateDetails,
+                                          extra: rate,
+                                        ),
                                 ),
                               ),
                             ),
@@ -494,9 +517,15 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                                 child: _RecentActivitySection(
                                   items: _activity,
                                   isLoading: _isLoading,
-                                  onViewAll: () => context.pushRoute(
-                                    AppRoutes.farmerRecentActivity,
-                                  ),
+                                  onViewAll: () => GuestModeService.active
+                                      ? context.promptFarmer(
+                                          (l) => l.guestActivityTitle,
+                                          (l) => l.guestActivityMessage,
+                                          icon: Icons.history_rounded,
+                                        )
+                                      : context.pushRoute(
+                                          AppRoutes.farmerRecentActivity,
+                                        ),
                                 ),
                               ),
                             ),
@@ -517,8 +546,13 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-                    onNotificationTap: () =>
-                        context.pushRoute(AppRoutes.farmerNotifications),
+                    onNotificationTap: () => GuestModeService.active
+                        ? context.promptFarmer(
+                            (l) => l.guestNotificationsTitle,
+                            (l) => l.guestNotificationsMessage,
+                            icon: Icons.notifications_none_rounded,
+                          )
+                        : context.pushRoute(AppRoutes.farmerNotifications),
                     enableMenu: true,
                   ),
                 ),
@@ -529,6 +563,12 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen> {
       ),
     );
   }
+
+  Future<void> _promptMarketRates() => context.promptFarmer(
+    (l) => l.guestMarketRatesTitle,
+    (l) => l.guestMarketRatesMessage,
+    icon: Icons.trending_up_rounded,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -715,8 +755,11 @@ class _KpiSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        SyncStatusCard(onSyncCompleted: onSyncCompleted),
+        // Syncing saved records needs an account; a guest has none to sync.
+        if (!GuestModeService.active) ...[
+          const SizedBox(height: 12),
+          SyncStatusCard(onSyncCompleted: onSyncCompleted),
+        ],
       ],
     );
   }
@@ -839,16 +882,22 @@ class _EarningsCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Shrinks to fit beside the Goal badge instead of truncating to
+              // "₱18..." on a narrow phone.
               Expanded(
                 child: isLoading
                     ? SkeletonBlock(width: 90, height: 24)
-                    : Text(
-                        '₱${_formatCompact(summary.monthlyEarnings)}',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.secondaryContainer,
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '₱${_formatCompact(summary.monthlyEarnings)}',
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppConstants.secondaryContainer,
+                          ),
                         ),
                       ),
               ),

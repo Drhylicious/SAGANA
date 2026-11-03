@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 /// Quantities and prices are stored as DECIMAL(10,2): at most 2 decimal places
 /// and a value below 100,000,000.
@@ -128,6 +129,17 @@ String formatQuantity(num value) {
       ? rounded.toStringAsFixed(0)
       : rounded.toStringAsFixed(kQuantityDecimals);
 }
+
+/// `1,250` / `1,250.50` / `0.45`: thousands separators, and a total with a
+/// fraction keeps its 2 decimals (a total is never rounded to a whole number).
+String formatQuantityGrouped(num value) {
+  final v = roundQuantity(value);
+  final format = NumberFormat(v == v.roundToDouble() ? '#,##0' : '#,##0.00');
+  return format.format(v);
+}
+
+/// A total of kilograms for a summary card: `1,250 kg`, `0.45 kg`.
+String formatKgTotal(num value) => '${formatQuantityGrouped(value)} kg';
 
 /// A unit that is safe to print: trimmed, and kg when there is none.
 String unitOrDefault(String? unit) {

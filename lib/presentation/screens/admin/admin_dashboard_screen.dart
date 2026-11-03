@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -10,12 +11,10 @@ import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_dashboard_repository.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
-import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/admin_top_bar.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/sync_status_card.dart';
@@ -287,27 +286,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: AnimatedBuilder(
-        animation: AdminProfileStateService.instance,
-        builder: (context, _) {
-          final profile = AdminProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Admin',
-            contactEmail: profile?.contactEmail ?? profile?.email,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.push(AppRoutes.adminEditProfile);
-            },
-            onSignOut: () => confirmAdminSignOut(context),
-            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: RefreshIndicator(
         color: AppConstants.primaryGreen,
         onRefresh: _loadAll,
@@ -316,6 +294,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             SliverPersistentHeader(
               pinned: true,
               delegate: AdminTopBarDelegate(
+                topPadding: MediaQuery.paddingOf(context).top,
                 title: l10n.adminNavDashboard,
                 unreadCount: _unreadCount,
                 onNotificationTap: () => context
@@ -1100,6 +1079,8 @@ class _MiniCalendar extends StatelessWidget {
           // Calendar grid
           GridView.builder(
             shrinkWrap: true,
+            // No automatic status-bar padding: this list sits inside a bigger scroll view.
+            padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
@@ -1281,14 +1262,21 @@ class _ManagementModulesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final textScale =
+        MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.4).toDouble();
     return GridView.builder(
       shrinkWrap: true,
+      // No automatic status-bar padding: this list sits inside a bigger scroll view.
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.55,
+        // A fixed height that grows with the phone's font size, so a two-line
+        // title (Inventory Management, Supply Chain Management) fits instead of
+        // being cut to "Inventory Manage...".
+        mainAxisExtent: 128 * textScale,
       ),
       itemCount: modules.length,
       itemBuilder: (context, i) {
@@ -1364,7 +1352,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: cs.onSurface,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
@@ -1373,7 +1361,7 @@ class _ManagementModulesGrid extends StatelessWidget {
                           fontSize: 9,
                           color: cs.onSurfaceVariant,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -1621,8 +1609,7 @@ class _CoopPerformanceCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     l10n.adminDashCoopPerformanceHeader,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -1660,7 +1647,7 @@ class _CoopPerformanceCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 _StatPill(
                   l10n.adminDashStatFarmerStock,
-                  '${summary.totalStockKg.toStringAsFixed(0)} kg',
+                  formatKgTotal(summary.totalStockKg),
                   cs,
                 ),
                 const SizedBox(width: 12),

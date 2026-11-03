@@ -1,10 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/utils/quantity_utils.dart';
 import '../services/offline_cache.dart';
 import '../models/contribution_model.dart';
-import '../models/admin_reports_model.dart';
 import '../models/program_model.dart';
-import 'farmer_lookup.dart';
 import 'member_sales_aggregation.dart' as member_sales_agg;
 
 class ContributionRepository {
@@ -125,20 +122,28 @@ class ContributionRepository {
     }
   }
 
-  // ─── Coop annual total (for share % calculation) ──────────────────────────
+  // ─── My share of the cooperative's year (worked out in the database) ──────
 
-  Future<CoopAnnualTotal?> fetchCoopTotal(int year) async {
+  /// This farmer's selling and buying share (percent) for [year]. The
+  /// database works it out from the saved year settings and returns only the
+  /// two percentages, so the cooperative-wide totals themselves are never
+  /// sent to a Farmer (get_my_activity_share, SQL script 16). Zero when the
+  /// year has no saved totals or the call fails.
+  Future<({double selling, double buying})> fetchMyActivityShare(int year) async {
     try {
-      final row = await _client
-          .from('cooperative_annual_totals')
-          .select()
-          .eq('year', year)
-          .maybeSingle();
-      if (row == null) return null;
-      return CoopAnnualTotal.fromMap(row);
-    } catch (_) {
-      return null;
-    }
+      final rows = await _client.rpc(
+        'get_my_activity_share',
+        params: {'p_year': year},
+      );
+      if (rows is List && rows.isNotEmpty) {
+        final row = rows.first as Map<String, dynamic>;
+        return (
+          selling: (row['selling_share_percent'] as num? ?? 0).toDouble(),
+          buying: (row['buying_share_percent'] as num? ?? 0).toDouble(),
+        );
+      }
+    } catch (_) {}
+    return (selling: 0.0, buying: 0.0);
   }
 
   // ─── Payout decision (cash or capital) ──────────────────────────────────────
@@ -179,142 +184,4 @@ class ContributionRepository {
         memberSales: memberSales,
         coopTotalSales: coopTotalSales,
       );
-
-  // ─── Export support (Phase 7 — Farmer Download Records) ───────────────────
-  // Farmer-scoped equivalents of AdminReportsRepository's fetchSalesReport /
-  // fetchMemberContributionReport — reuses the same SalesReportData /
-  // MemberContributionReportData shapes (and therefore the existing
-  // report_csv_serializers.dart functions unchanged) filtered to _userId
-  // via RLS's own "farmer reads own" policy, not a parallel data path.
-
-  Future<SalesReportData> fetchMySalesForExport({
-    DateTime? start,
-    DateTime? end,
-  }) async {
-    try {
-      var query = _client
-          .from('member_sales_transactions')
-          .select('*')
-          .eq('farmer_id', _userId);
-      if (start != null) {
-        query = query.gte(
-          'sale_date',
-          start.toIso8601String().split('T').first,
-        );
-      }
-      if (end != null) {
-        query = query.lte('sale_date', end.toIso8601String().split('T').first);
-      }
-      final rows = await query.order('sale_date', ascending: false);
-      if (rows.isEmpty) return SalesReportData.empty();
-
-      final info = (await fetchFarmerInfoMap(_client, [_userId]))[_userId];
-      final transactions = rows.map((row) {
-        return SalesTransactionRow(
-          id: row['id'] as String,
-          farmerName: info?.fullName ?? 'Unknown Farmer',
-          cropType: row['crop_type'] as String? ?? 'palay',
-          cropName: row['crop_name'] as String? ?? '—',
-          quantityKg: (row['quantity_kg'] as num).toDouble(),
-          unit: unitOrDefault(row['unit'] as String?),
-          amount: (row['amount'] as num).toDouble(),
-          saleDate: DateTime.parse(row['sale_date'] as String),
-          referenceNo: row['reference_no'] as String?,
-          // Farmer Download Records only ever reads member_sales_
-          // transactions (this farmer's own Offer-to-Cooperative sales) —
-          // the other three Selling Types aren't part of this export.
-          sellingType: 'offer_to_cooperative',
-        );
-      }).toList();
-
-      return SalesReportData(
-        totalRevenue: 0,
-        totalQuantityKg: 0,
-        transactionCount: transactions.length,
-        monthlyTrend: const [],
-        transactions: transactions,
-      );
-    } catch (_) {
-      return SalesReportData.empty();
-    }
-  }
-
-  /// Member Contribution export is inherently annual (Balik-Tangkilik is
-  /// computed per calendar year, same as the My Contribution screen's own
-  /// current-year default) — [year] is passed explicitly rather than a
-  /// date range, regardless of which period the farmer picked for the
-  /// other export modules.
-  Future<MemberContributionReportData> fetchMyContributionForExport(
-    int year,
-  ) async {
-    try {
-      final rows = await _client
-          .from('member_sales_transactions')
-          .select('crop_type, quantity_kg, unit, amount')
-          .eq('farmer_id', _userId)
-          .gte('sale_date', '$year-01-01')
-          .lte('sale_date', '$year-12-31');
-
-      // Palay/Peanut keep their own dedicated fields; any other crop — now
-      // possible here as of Phase 9's any-crop Offer-to-Cooperative
-      // widening — rolls into otherCrops (Phase 11 addition), rather than
-      // being silently miscounted as Palay (this loop's previous implicit
-      // "else" branch) or left out of the exported breakdown entirely.
-      double palayQtyKg = 0, palayAmount = 0, peanutQtyKg = 0, peanutAmount = 0;
-      double otherCropsQtyKg = 0, otherCropsAmount = 0;
-      for (final row in rows) {
-        // Quantities are kg figures: a sale in another unit adds its amount
-        // but not its quantity.
-        final qty = isKg(row['unit'] as String?)
-            ? (row['quantity_kg'] as num).toDouble()
-            : 0.0;
-        final amount = (row['amount'] as num).toDouble();
-        final cropType = row['crop_type'] as String?;
-        if (cropType == 'palay') {
-          palayQtyKg += qty;
-          palayAmount += amount;
-        } else if (cropType == 'peanut') {
-          peanutQtyKg += qty;
-          peanutAmount += amount;
-        } else {
-          otherCropsQtyKg += qty;
-          otherCropsAmount += amount;
-        }
-      }
-      final totalAmount = palayAmount + peanutAmount + otherCropsAmount;
-
-      final coopTotal = await fetchCoopTotal(year);
-      final sharePercent = coopTotal == null
-          ? 0.0
-          : computeMemberSharePercent(
-              memberSales: totalAmount,
-              coopTotalSales: coopTotal.totalCoopSales,
-            ) *
-              100;
-
-      final info = (await fetchFarmerInfoMap(_client, [_userId]))[_userId];
-      return MemberContributionReportData(
-        year: year,
-        totalCoopSales: 0,
-        memberCount: 0,
-        contributingMemberCount: 0,
-        rows: [
-          MemberContributionRow(
-            farmerId: _userId,
-            farmerName: info?.fullName ?? 'Unknown Farmer',
-            palayQtyKg: palayQtyKg,
-            palayAmount: palayAmount,
-            peanutQtyKg: peanutQtyKg,
-            peanutAmount: peanutAmount,
-            totalAmount: totalAmount,
-            sharePercent: sharePercent,
-            otherCropsQtyKg: otherCropsQtyKg,
-            otherCropsAmount: otherCropsAmount,
-          ),
-        ],
-      );
-    } catch (_) {
-      return MemberContributionReportData.empty(year);
-    }
-  }
-}
+}

@@ -1,10 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/harvest_model.dart';
-import '../models/admin_reports_model.dart';
 import '../services/hive_service.dart';
 import '../services/offline_cache.dart';
-import 'farmer_lookup.dart';
 
 class HarvestRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -234,51 +232,5 @@ extension HarvestHistoryFetch on HarvestRepository {
 
   Future<Map<String, double>> fetchHistoryStatsForFarmer(String farmerId) {
     return _fetchHistoryStatsForFarmer(farmerId);
-  }
-
-  // ─── Export support (Phase 7 — Farmer Download Records) ───────────────────
-  // Reuses fetchAllHarvests() (already merges synced + offline-queued
-  // entries, same pattern every other screen in this repository uses)
-  // rather than a parallel query, then filters by date client-side —
-  // consistent with the codebase's existing client-side-filtering
-  // convention at SP3's current scale.
-  Future<HarvestReportData> fetchMyHarvestForExport({
-    DateTime? start,
-    DateTime? end,
-  }) async {
-    final all = await fetchAllHarvests();
-    final filtered = all.where((h) {
-      if (start != null && h.harvestDate.isBefore(start)) return false;
-      if (end != null && h.harvestDate.isAfter(end)) return false;
-      return true;
-    }).toList();
-    if (filtered.isEmpty) return HarvestReportData.empty();
-
-    final info = (await fetchFarmerInfoMap(Supabase.instance.client, [
-      _userId,
-    ]))[_userId];
-    final harvests = filtered.map((h) {
-      return HarvestReportRow(
-        id: h.id,
-        farmerId: h.farmerId,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
-        cropName: h.cropName,
-        quantityKg: h.quantityKg,
-        unit: h.unit,
-        harvestDate: h.harvestDate,
-        isSynced: h.isSynced,
-        batchNumber: h.batchNumber ?? '—',
-      );
-    }).toList();
-
-    return HarvestReportData(
-      totalYieldKg: 0,
-      harvestCount: harvests.length,
-      unsyncedCount: 0,
-      monthlyTrend: const [],
-      cropBreakdown: const [],
-      harvests: harvests,
-      soldKgInPeriod: 0,
-    );
   }
 }

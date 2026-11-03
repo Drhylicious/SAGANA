@@ -22,8 +22,17 @@ class MemberTitleRow extends StatelessWidget {
     required this.menu,
   });
 
-  /// As tall as the menu's tap target, so the row never jumps between cards.
-  static const double rowHeight = 36;
+  /// The row is only as tall as one line of the name (a few pixels taller than the
+  /// text), so the contact lines under it sit close to the name instead of below
+  /// a 36 px band. The same on every card, so rows never jump between cards.
+  static const double rowHeight = 22;
+
+  /// The three-dot menu keeps its full 36 px tap target; it is centred on the
+  /// row and extends a few pixels above and below it.
+  static const double menuHeight = 36;
+
+  /// The menu's width (a 36 x 36 tap target).
+  static const double menuWidth = 36;
 
   /// The widest a badge may grow before its text is cut with an ellipsis.
   static const double maxBadgeWidth = 96;
@@ -57,7 +66,20 @@ class MemberTitleRow extends StatelessWidget {
             child: badge,
           ),
           const SizedBox(width: 2),
-          KeyedSubtree(key: const ValueKey('member-card-menu'), child: menu),
+          SizedBox(
+            width: menuWidth,
+            height: rowHeight,
+            child: OverflowBox(
+              minWidth: 0,
+              maxWidth: menuWidth,
+              minHeight: 0,
+              maxHeight: menuHeight,
+              child: KeyedSubtree(
+                key: const ValueKey('member-card-menu'),
+                child: menu,
+              ),
+            ),
+          ),
         ],
       ),
     );

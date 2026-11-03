@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/quantity_utils.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -9,11 +10,9 @@ import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../../data/models/admin_reports_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
-import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/models/admin_analytics_model.dart';
@@ -94,27 +93,6 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: AnimatedBuilder(
-        animation: AdminProfileStateService.instance,
-        builder: (context, _) {
-          final profile = AdminProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Manager',
-            contactEmail: profile?.contactEmail ?? profile?.email,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.push(AppRoutes.adminEditProfile);
-            },
-            onSignOut: () => confirmAdminSignOut(context),
-            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           AdminTopBar(
@@ -234,7 +212,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         ),
         ReportHeroStat(
           label: l10n.reportsTotalHarvest,
-          value: '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
+          value: formatKgTotal(_summary.totalHarvestKg),
           current: _summary.totalHarvestKg,
           previous: _previousSummary.totalHarvestKg,
           icon: Icons.agriculture_rounded,
@@ -419,7 +397,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         Icons.agriculture_rounded,
         AppRoutes.harvestReport,
         previewLabel: l10n.reportsTotalHarvest,
-        previewValue: '${_summary.totalHarvestKg.toStringAsFixed(0)} kg',
+        previewValue: formatKgTotal(_summary.totalHarvestKg),
         accent: AppConstants.successGreen,
       ),
       _ReportCardData(
@@ -461,16 +439,23 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       ),
     ];
 
+    return _reportGrid(
+      reports.map((r) => _reportCard(context, r, cs, sagana)).toList(),
+    );
+  }
+
+  // The two-column card grid of Detailed Reports.
+  Widget _reportGrid(List<Widget> cards) {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
+      // No automatic status-bar padding: this list sits inside a bigger scroll view.
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppConstants.spacingMd,
       crossAxisSpacing: AppConstants.spacingMd,
       childAspectRatio: 1.05,
-      children: reports
-          .map((r) => _reportCard(context, r, cs, sagana))
-          .toList(),
+      children: cards,
     );
   }
 
@@ -543,7 +528,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
             ? AppConstants.warningAmber
             : AppConstants.successGreen,
       ),
-      // The yearly payout is Admin-only, so Officers do not see this card.
+      // The yearly payout is Manager-only: an Officer sees neither the card nor
+      // anything behind it.
       if (!HiveService.isOfficer)
         _ReportCardData(
           l10n.reportsBalikTangkilikManagement,
@@ -562,12 +548,18 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
       ),
     ];
 
+    // One row that fills the width for both roles: the Manager's three cards
+    // sit side by side, the Officer's two line up with the two columns of
+    // Detailed Reports above (same gap), with no empty slot.
+    final gap = tools.length == 2
+        ? AppConstants.spacingMd
+        : AppConstants.spacingSm;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < tools.length; i++) ...[
-            if (i > 0) const SizedBox(width: AppConstants.spacingSm),
+            if (i > 0) SizedBox(width: gap),
             Expanded(child: _reportCard(context, tools[i], cs, sagana)),
           ],
         ],

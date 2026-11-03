@@ -1,3 +1,58 @@
+import '../../core/utils/quantity_utils.dart';
+
+/// One calendar year of a farmer's harvest and sales, for the Profile tab's
+/// Annual Yield and Annual Earnings. Each year is computed on its own from the
+/// records dated inside that year, so a new year starts at zero while every
+/// earlier year's records stay in the database untouched.
+class AnnualFarmSummary {
+  final int year;
+
+  /// Harvest quantity per unit (`{kg: 12500.5, sack: 3}`). Units are never
+  /// added together.
+  final Map<String, double> yieldByUnit;
+
+  /// Earnings per selling channel (completed sales only).
+  final double marketplace;
+  final double cooperative;
+  final double informal;
+  final double marketLinking;
+
+  const AnnualFarmSummary({
+    required this.year,
+    required this.yieldByUnit,
+    required this.marketplace,
+    required this.cooperative,
+    required this.informal,
+    required this.marketLinking,
+  });
+
+  double get earnings => marketplace + cooperative + informal + marketLinking;
+
+  bool get hasYield => yieldByUnit.values.any((v) => v > 0);
+
+  /// `12,500.5 kg`, or `12,500.5 kg + 3 sack` when a farmer harvested in more
+  /// than one unit. A year with no harvest shows `0 kg`.
+  String get yieldText {
+    final lines = [
+      for (final e in yieldByUnit.entries)
+        if (e.value > 0) (quantity: e.value, unit: e.key),
+    ];
+    if (lines.isEmpty) return '0 $kDefaultUnit';
+    return lines
+        .map((l) => '${formatQuantityGrouped(l.quantity)} ${l.unit}')
+        .join(' + ');
+  }
+
+  static AnnualFarmSummary empty(int year) => AnnualFarmSummary(
+    year: year,
+    yieldByUnit: const {},
+    marketplace: 0,
+    cooperative: 0,
+    informal: 0,
+    marketLinking: 0,
+  );
+}
+
 class DashboardSummaryModel {
   // This calendar month only — see DashboardRepository.fetchSummary() for
   // exactly which harvest_records rows are included. Named "monthly" (not

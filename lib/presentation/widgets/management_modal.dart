@@ -16,12 +16,17 @@ String adminOrderStatusLabel(AppLocalizations l10n, String status) {
       return l10n.adminOrderStatusPendingReview;
     case 'approved':
       return l10n.buyerOrderDetailStepApproved;
+    case 'ready_for_pickup':
+      return l10n.orderStatusReadyForPickup;
+    case 'out_for_delivery':
+      return l10n.orderStatusOutForDelivery;
+    case 'delivered':
+      return l10n.orderStatusDelivered;
     case 'completed':
       return l10n.statCompleted;
     case 'cancelled':
+    case 'rejected': // legacy stored value, shown as cancelled
       return l10n.buyerActivityStatusCancelled;
-    case 'rejected':
-      return l10n.orderStatusRejected;
     default:
       return status;
   }
@@ -244,6 +249,11 @@ class ManagementModalActions extends StatelessWidget {
         Expanded(
           child: OutlinedButton(
             onPressed: isLoading ? null : (onCancel ?? () => Navigator.pop(context)),
+            // Tight side padding: with the default 24px each side, a phone left
+            // this third-width button almost no room for its label.
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
             // FittedBox + maxLines: 1: this button only gets 1/3 of the
             // row's width (see the primary button's flex: 2 below), and
             // Tagalog "Kanselahin" is long enough next to the default

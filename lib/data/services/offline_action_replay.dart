@@ -120,6 +120,10 @@ class OfflineActionReplay {
         await NotificationRepository().markAsReadOnline(p['id'] as String);
       case 'notification_read_all':
         await NotificationRepository().markAllAsReadOnline();
+      case 'notification_unread':
+        await NotificationRepository().markAsUnreadOnline(p['id'] as String);
+      case 'notification_unread_all':
+        await NotificationRepository().markAllAsUnreadOnline();
       case 'notification_delete':
         await NotificationRepository().deleteNotificationOnline(p['id'] as String);
       case 'notification_delete_all':

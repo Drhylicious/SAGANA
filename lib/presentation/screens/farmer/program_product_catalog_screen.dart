@@ -5,6 +5,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/program_model.dart';
 import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
@@ -424,7 +425,7 @@ class _ProgramProductCatalogScreenState
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'program_products_${widget.programId}',
                 isOnline: _isOnline,

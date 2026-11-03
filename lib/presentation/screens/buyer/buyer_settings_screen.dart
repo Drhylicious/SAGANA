@@ -66,7 +66,7 @@ class _BuyerSettingsScreenState extends State<BuyerSettingsScreen> {
     if (confirmed == true) {
       await AuthService.logout();
       if (!mounted) return;
-      context.go(AppRoutes.login);
+      context.go(AppRoutes.welcome);
     }
   }
 

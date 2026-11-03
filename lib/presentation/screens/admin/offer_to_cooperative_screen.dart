@@ -7,9 +7,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/cooperative_offer_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/coop_offer_widgets.dart';
-import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
@@ -40,6 +42,7 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
 
   String _searchQuery = '';
   CoopOfferFilter _filter = CoopOfferFilter.all;
+  TableChangeWatcher? _watcher;
 
   @override
   void initState() {
@@ -47,10 +50,19 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
     AppTheme.applySystemOverlay(context);
     _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
     _loadAll();
+    // A new offer, or a counter from the Farmer, moves the chip counts without
+    // a pull-down.
+    _watcher = TableChangeWatcher(
+      tables: const ['cooperative_purchase_offers'],
+      onChange: () {
+        if (mounted) _loadAll();
+      },
+    )..start();
   }
 
   @override
   void dispose() {
+    _watcher?.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -114,25 +126,18 @@ class _OfferToCooperativeScreenState extends State<OfferToCooperativeScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          height: 34,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: [
-                              for (final f in CoopOfferFilter.values) ...[
-                                ListingStatusFilterChip(
-                                  label: f == CoopOfferFilter.all
-                                      ? f.label(l10n, forFarmer: false)
-                                      : '${f.label(l10n, forFarmer: false)} (${_countFor(f)})',
-                                  active: _filter == f,
-                                  color: f.color(context, forFarmer: false),
-                                  onTap: () => setState(() => _filter = f),
-                                  cs: cs,
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                            ],
-                          ),
+                        MarketplaceFilterBar<CoopOfferFilter>(
+                          selected: _filter,
+                          onSelected: (f) => setState(() => _filter = f),
+                          options: [
+                            for (final f in CoopOfferFilter.values)
+                              MarketplaceFilterOption(
+                                value: f,
+                                label: f.label(l10n, forFarmer: false),
+                                count: _countFor(f),
+                                color: f.color(context, forFarmer: false),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 20),
                         if (_filtered.isEmpty)
@@ -181,7 +186,7 @@ class _OfferCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final view = CoopOfferStatusView.of(context, offer, forFarmer: false);
-    final price = offer.isConfirmed
+    final price = offer.isAgreed
         ? (offer.agreedPricePerKg ?? offer.currentPricePerKg)
         : offer.currentPricePerKg;
 
@@ -237,6 +242,7 @@ class _OfferCard extends StatelessWidget {
                               color: cs.onSurfaceVariant,
                             ),
                           ),
+                          CoopFarmerContact(offer: offer, compact: true),
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -273,7 +279,7 @@ class _OfferCard extends StatelessWidget {
                             ),
                           if (price != null && price != offer.askingPricePerKg)
                             _line(
-                              offer.isConfirmed
+                              offer.isAgreed
                                   ? l10n.coopAgreedPriceLabel
                                   : l10n.coopLatestProposalLabel,
                               coopPricePerKg(price, offer.unit),
@@ -281,9 +287,11 @@ class _OfferCard extends StatelessWidget {
                             ),
                           if (price == null)
                             _line(l10n.coopLatestProposalLabel, l10n.coopNoPriceYet),
-                          if (offer.isConfirmed && offer.confirmedAmount != null)
+                          if (offer.isAgreed && offer.confirmedAmount != null)
                             _line(
-                              l10n.coopTotalPaidLabel,
+                              offer.isCompleted
+                                  ? l10n.coopTotalPaidLabel
+                                  : l10n.coopAgreedTotalLabel,
                               coopPeso(offer.confirmedAmount!),
                               strong: true,
                               color: AppConstants.successGreen,

@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -9,11 +11,16 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
+import '../../widgets/coop_offer_widgets.dart' show CoopDeliveryPhoto, showCoopDeliveryDialog;
 import '../../widgets/fulfillment_info_card.dart';
+import '../../widgets/order_status_style.dart';
+import '../../widgets/app_toast.dart';
+import '../../../core/utils/order_status.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
 import 'order_delivery_map_screen.dart';
 import '../../widgets/skeleton.dart';
+import '../../widgets/workflow_history_sheet.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
 /// Admin-facing order detail — approve / cancel / complete a single order.
@@ -61,21 +68,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     });
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'approved':
-        return AppConstants.successGreen;
-      case 'pending':
-        return AppConstants.warningAmber;
-      case 'completed':
-        return AppConstants.primaryGreen;
-      case 'cancelled':
-      case 'rejected':
-        return AppConstants.errorRed;
-      default:
-        return AppConstants.outline;
-    }
-  }
+  Color _statusColor(String status) => orderStatusColor(status);
 
   // ─── Delivery pinpoint ──────────────────────────────────────────────────
 
@@ -92,6 +85,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   // ─── Actions ────────────────────────────────────────────────────────────
 
   Future<void> _confirmApprove() async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
     await _runAction(
       title: l10n.adminOrderDetailApproveTitle,
@@ -104,94 +98,72 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Future<void> _confirmComplete() async {
+  // ─── Fulfillment steps ──────────────────────────────────────────────────
+  // The Manager / Officer records each step by hand: Ready for Pickup (pickup
+  // order), Out for Delivery then Mark as Delivered with a photo (delivery
+  // order). The database re-checks the role, the method and the order of steps.
+
+  Future<void> _confirmReady() async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
     await _runAction(
-      title: l10n.adminOrderDetailCompleteTitle,
-      subtitle: l10n.adminOrderDetailCompleteSubtitle,
-      body: Text(l10n.adminOrderDetailCompleteBody),
-      primaryLabel: l10n.adminOrderDetailCompleteTitle,
+      title: l10n.orderReadyDialogTitle,
+      subtitle: l10n.adminOrderDetailOrderNumber(_order!.orderReference),
+      body: Text(l10n.orderReadyDialogBody),
+      primaryLabel: l10n.orderActionReadyForPickup,
       isDestructive: false,
-      action: () => _repo.completeOrder(widget.orderId),
-      successMessage: l10n.adminOrderDetailCompletedToast,
+      action: () => _repo.markReadyForPickup(widget.orderId),
+      successMessage: l10n.orderToastReady,
     );
   }
 
-  // Cancelling requires a reason (unlike Approve/Complete, which reuse the
-  // generic _runAction flow) — the buyer sees this reason, so the primary
-  // button stays disabled until the admin actually enters one.
-  Future<void> _confirmCancel() async {
+  Future<void> _confirmOut() async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
-    final reasonCtrl = TextEditingController();
-    bool isSaving = false;
-    await showManagementModal(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-        final hasReason = reasonCtrl.text.trim().isNotEmpty;
-        return ManagementModalShell(
-          title: l10n.adminOrderDetailCancelTitle,
-          subtitle: l10n.adminOrderDetailCancelSubtitle,
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-                Text(l10n.adminOrderDetailCancelBody),
-              const SizedBox(height: 14),
-              TextField(
-                controller: reasonCtrl,
-                maxLines: 2,
-                onChanged: (_) => setSheet(() {}),
-                decoration: InputDecoration(
-                  labelText: l10n.adminOrderDetailReasonLabel,
-                  hintText: l10n.adminOrderDetailReasonHint,
-                ),
-              ),
-            ],
-          ),
-          footer: ManagementModalActions(
-            primaryLabel: l10n.adminOrderDetailCancelTitle,
-            isDestructive: true,
-            isLoading: isSaving,
-            onPrimary: !hasReason
-                ? null
-                : () async {
-                    setSheet(() => isSaving = true);
-                    String? error;
-                    try {
-                        await _repo.cancelOrder(
-                          widget.orderId,
-                          reason: reasonCtrl.text.trim(),
-                        );
-                    } catch (_) {
-                      error = l10n.adminOrderDetailFailedTryAgain;
-                    }
-                    if (!ctx.mounted) return;
-                    Navigator.pop(ctx);
-                    if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            error ?? l10n.adminOrderDetailCancelledToast,
-                          ),
-                          backgroundColor: error != null
-                              ? AppConstants.errorRed
-                              : AppConstants.midGreen,
-                      behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    if (error == null) _load();
-                  },
-          ),
-        );
-        },
-      ),
+    await _runAction(
+      title: l10n.orderOutDialogTitle,
+      subtitle: l10n.adminOrderDetailOrderNumber(_order!.orderReference),
+      body: Text(l10n.orderOutDialogBody),
+      primaryLabel: l10n.orderActionOutForDelivery,
+      isDestructive: false,
+      action: () => _repo.markOutForDelivery(widget.orderId),
+      successMessage: l10n.orderToastOut,
     );
   }
 
-  /// Shared confirm → call repository → feedback → reload flow for all
-  /// three actions, so Approve/Complete/Cancel all look and behave the
-  /// same way instead of three one-off implementations.
+  /// Photo evidence is required: the dialog will not submit without one.
+  Future<void> _markDelivered() async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
+    final l10n = AppLocalizations.of(context);
+    final order = _order!;
+    final input = await showCoopDeliveryDialog(
+      context,
+      subtitle: '${order.orderReference} · ${formatQuantityUnit(order.quantityKg, order.unit)} ${order.displayName}',
+      title: l10n.orderDeliveredDialogTitle,
+      body: l10n.orderDeliveredDialogBody,
+      confirmLabel: l10n.orderActionMarkDelivered,
+    );
+    if (input == null || !mounted) return;
+    try {
+      await _repo.markDelivered(
+        orderId: widget.orderId,
+        photoBytes: input.photo.bytes,
+        photoExtension: input.photo.extension,
+        note: input.note,
+      );
+      if (!mounted) return;
+      AppToast.show(context, l10n.orderToastDelivered);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.show(context, l10n.adminOrderDetailFailedTryAgain, isError: true);
+    }
+  }
+
+  /// Confirm → call repository → feedback → reload flow for the Manager's one
+  /// order action, Approve. (The Manager neither cancels nor completes an order:
+  /// the Buyer or Farmer cancels their own pending order, and the consumer
+  /// confirms receipt to complete an approved one.)
   Future<void> _runAction({
     required String title,
     required String subtitle,
@@ -305,7 +277,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ],
                             _buildStatusCard(_order!, cs, l10n),
                         const SizedBox(height: 12),
-                            if (!_order!.isCancelled && _order!.status != 'rejected') ...[
+                            if (_order!.deliveryPhotoUrl != null) ...[
+                              _SectionCard(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(l10n.buyerOrderDeliveryPhotoTitle,
+                                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 10),
+                                    CoopDeliveryPhoto(url: _order!.deliveryPhotoUrl!),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (!_order!.isCancelled) ...[
                               _buildTimeline(_order!),
                               const SizedBox(height: 16),
                             ],
@@ -314,6 +300,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             _buildProductCard(_order!, cs, l10n),
                             const SizedBox(height: 16),
                             _buildSummaryCard(_order!, cs, l10n),
+                            const SizedBox(height: 16),
+                            // Who did each step, with name, role and time. Staff only:
+                            // the Buyer and Farmer see statuses, never staff identities.
+                            WorkflowActivityCard(
+                              entityType: 'order',
+                              entityId: _order!.id,
+                              refreshKey: _order!.status,
+                            ),
                           ],
                         ),
                       ),
@@ -324,76 +318,49 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  // Cancel is only ever offered from 'pending' — once an order is
-  // 'approved', logically the only forward action left is Complete (why
-  // would you cancel an order the cooperative already committed to
-  // fulfilling?). Completed/cancelled orders show no actions at all.
+  // A pending order offers Approve. Every other order shows no action: an
+  // approved one waits for the consumer to confirm receipt (which completes it),
+  // and completed and cancelled ones are finished. The Manager has no Cancel
+  // (only the Buyer or Farmer cancels, and only while the order is pending) and
+  // no Complete.
   Widget? _buildBottomBar() {
     if (widget.readOnly) return null;
     final order = _order;
-    if (order == null ||
-        order.isCompleted ||
-        order.isCancelled ||
-        order.status == 'rejected') {
-      return null;
-    }
+    if (order == null) return null;
     final l10n = AppLocalizations.of(context);
+    final online = ConnectivityService.instance.isOnline;
 
-    if (order.isPending) {
+    // After approval the next step depends on the fulfillment method.
+    final next = order.nextAction;
+    if (next != null) {
+      final (label, icon, onTap) = switch (next) {
+        StaffOrderAction.readyForPickup => (l10n.orderActionReadyForPickup, Icons.storefront_rounded, _confirmReady),
+        StaffOrderAction.outForDelivery => (l10n.orderActionOutForDelivery, Icons.local_shipping_outlined, _confirmOut),
+        StaffOrderAction.markDelivered => (l10n.orderActionMarkDelivered, Icons.photo_camera_outlined, _markDelivered),
+      };
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  // No icon here, same reasoning as Approve Order below:
-                  // at narrow widths the icon + gap left too little room
-                  // for "Cancel Order" and wrapped it onto two lines.
-                  child: OutlinedButton(
-                  onPressed: _confirmCancel,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppConstants.errorRed,
-                    side: const BorderSide(color: AppConstants.errorRed),
-                  ),
-                    child: Text(
-                      l10n.adminOrderDetailCancelTitle,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: PrimaryButton(
-                  height: 46,
-                  // No icon here: at narrow widths (360px) this button
-                  // shares the row with "Cancel Order" and the icon + gap
-                  // left too little room for "Approve Order", causing the
-                  // label to ellipsis-clip.
-                  label: l10n.adminOrderDetailApproveTitle,
-                  onPressed: ConnectivityService.instance.isOnline
-                      ? _confirmApprove
-                      : null,
-                ),
-              ),
-            ],
+          child: PrimaryButton(
+            height: 46,
+            icon: icon,
+            label: label,
+            onPressed: online ? onTap : null,
           ),
         ),
       );
     }
+    if (!order.isPending) return null;
 
-    // Approved — Cancel Order is gone, Complete Order gets the full row.
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
         child: PrimaryButton(
           height: 46,
-          icon: Icons.task_alt_rounded,
-          label: l10n.adminOrderDetailCompleteTitle,
+          icon: Icons.check_circle_outline_rounded,
+          label: l10n.adminOrderDetailApproveTitle,
           onPressed: ConnectivityService.instance.isOnline
-              ? _confirmComplete
+              ? _confirmApprove
               : null,
         ),
       ),
@@ -408,9 +375,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final color = _statusColor(order.status);
     final subtitle = switch (order.status) {
       'pending' => l10n.adminOrderDetailAwaitingReview,
-      'approved' => l10n.adminOrderDetailApprovedAwaitingCompletion,
+      'approved' => order.isDelivery ? l10n.adminOrderNextOut : l10n.adminOrderNextReady,
+      'ready_for_pickup' => l10n.adminOrderWaitingPickup,
+      'out_for_delivery' => l10n.adminOrderNextDelivered,
+      'delivered' => l10n.adminOrderWaitingReceipt,
       'completed' => l10n.statCompleted,
-      'rejected' => l10n.adminOrderNoteRejectedByCoop,
       _ => l10n.buyerActivityStatusCancelled,
     };
     return _SectionCard(
@@ -450,6 +419,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ],
           ),
+          if (order.isReadyForPickup || order.isDelivered) ...[
+            const SizedBox(height: 10),
+            Text(
+              l10n.adminOrderWaitingForBuyerNote,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
           if (order.isCancelled && order.cancelledBy != null) ...[
             const SizedBox(height: 10),
             Text(
@@ -463,7 +442,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
           ],
-          if ((order.isCancelled || order.status == 'rejected') &&
+          if (order.isCancelled &&
               order.notes != null &&
               order.notes!.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -483,16 +462,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Widget _buildTimeline(AdminOrderModel order) {
     final l10n = AppLocalizations.of(context);
-    final steps = [
-      l10n.buyerOrderDetailPendingTimestamp,
-      l10n.buyerOrderDetailStepApproved,
-      l10n.statCompleted,
-    ];
-    final currentIndex = switch (order.status) {
-      'approved' => 1,
-      'completed' => 2,
-      _ => 0,
-    };
+    // The journey follows the fulfillment method (see orderJourney).
+    final journey = orderJourney(order.fulfillmentMethod);
+    final steps = [for (final s in journey) adminOrderStatusLabel(l10n, s)];
+    final currentIndex = journey.indexOf(order.status).clamp(0, journey.length - 1);
     return _SectionCard(
       child: Row(
         children: List.generate(steps.length * 2 - 1, (i) {

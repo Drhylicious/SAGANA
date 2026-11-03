@@ -119,8 +119,9 @@ class _ListingSuccessScreenState extends State<ListingSuccessScreen>
     super.dispose();
   }
 
+  // To the centavo, exactly as the database rounds an order total.
   double get _estimatedRevenue =>
-      (_listing?.volumeKg ?? 0) * (_listing?.pricePerKg ?? 0);
+      moneyOf(_listing?.volumeKg ?? 0, _listing?.pricePerKg ?? 0);
 
   void _viewMyListings() {
     // Use GoRouter helper to navigate (replaces Navigator.named usage).

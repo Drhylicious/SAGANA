@@ -1,7 +1,10 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:flutter/material.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/cached_data_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -141,6 +144,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
   // ── Open update sheet ─────────────────────────────────────────────────────
 
   void _openUpdateSheet(PriceRecordModel price) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     if (!_isOnline) {
       _showSnack(AppLocalizations.of(context).priceOfflineWarning);
       return;
@@ -155,6 +159,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
   // ── Open add sheet ────────────────────────────────────────────────────────
 
   void _openAddSheet() {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     if (!_isOnline) {
       _showSnack(AppLocalizations.of(context).priceOfflineWarning);
       return;
@@ -339,7 +344,7 @@ class _PriceManagementScreenState extends State<PriceManagementScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -516,8 +521,8 @@ class _TopAppBar extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          height: 64 + MediaQuery.paddingOf(context).top,
+          padding: EdgeInsets.fromLTRB(8, MediaQuery.paddingOf(context).top, 8, 0),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: sagana.glassBorder)),

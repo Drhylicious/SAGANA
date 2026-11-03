@@ -6,13 +6,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/map_attribution_links.dart';
 import '../../../core/constants/osm_config.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/farmer_profile_model.dart';
 import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
+import '../../../data/models/loan_request_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
+import '../../../data/repositories/loan_repository.dart';
 import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
@@ -23,7 +26,6 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../../../data/services/profile_state_service.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/profile_avatar.dart';
@@ -42,18 +44,28 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
   final _marketLinkingRepo = MarketLinkingRepository();
   final _dashboardRepo = DashboardRepository();
 
+  final _loanRepo = LoanRepository();
+
   FarmerProfileModel? _profile;
   double _outstandingLoans = 0;
+  int _pendingLoanRequests = 0;
   double _monthExpenses = 0;
-  // Relocated from the Farmer Home tab — same DashboardRepository.
-  // fetchSummary() call Home itself uses, so this is the identical
-  // figure, not a second independent computation of "this year's yield".
-  double _annualYieldKg = 0;
-  double _annualEarnings = 0;
+  // Annual Yield / Annual Earnings for [_selectedYear]. Each year is computed on
+  // its own from the records dated in that year (DashboardRepository.
+  // fetchAnnualSummary), so a new year starts at zero and earlier years stay
+  // viewable with the arrows.
+  late int _selectedYear = DateTime.now().year;
+  AnnualFarmSummary? _annual;
+  bool _annualLoading = false;
   int _unsyncedCount = 0;
   int _unreadCount = 0;
   int _programCount = 0;
   int _marketLinkingCount = 0;
+  // DA-AMAD Market Linking row: where this farmer stands, for its subtitle.
+  DaAmadEnrollmentStatus? _enrollmentStatus;
+  bool _enrollmentAcknowledged = true;
+  int _activeMarketLinkingRequests = 0;
+  bool _hasGinger = false;
   bool _isLoading = true;
   bool _farmDetailsExpanded = true;
   bool _isOnline = true;
@@ -95,7 +107,10 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _repo.fetchMyProgramCount(),
       _marketLinkingRepo.fetchMySubmissionCount(),
       _marketLinkingRepo.fetchHasGingerCrop(),
-      _dashboardRepo.fetchSummary(),
+      _dashboardRepo.fetchAnnualSummary(_selectedYear),
+      _loanRepo.fetchMyLoanRequests(),
+      _marketLinkingRepo.fetchMyEnrollment(),
+      _marketLinkingRepo.fetchMyActiveRequestCount(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -111,9 +126,15 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
       _marketLinkingCount = (results[5] as int) > 0 || (results[6] as bool)
           ? 1
           : 0;
-      final summary = results[7] as DashboardSummaryModel;
-      _annualYieldKg = summary.annualYieldKg;
-      _annualEarnings = summary.annualEarnings;
+      _annual = results[7] as AnnualFarmSummary;
+      _pendingLoanRequests = (results[8] as List<LoanRequestModel>)
+          .where((r) => r.isPending)
+          .length;
+      final enrollment = results[9] as DaAmadEnrollmentModel?;
+      _enrollmentStatus = enrollment?.status;
+      _enrollmentAcknowledged = enrollment?.acknowledgedAt != null;
+      _activeMarketLinkingRequests = results[10] as int;
+      _hasGinger = results[6] as bool;
       _unsyncedCount = HiveService.getUnsyncedCount();
       _isLoading = false;
     });
@@ -123,40 +144,52 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
     }
   }
 
+  // The DA-AMAD row says where this farmer stands, instead of one generic line:
+  // not enrolled yet (the opportunity), waiting for the review, turned down
+  // (and may re-apply), or enrolled (with the requests in progress). The status
+  // is the real enrollment status, never assumed.
+  String _marketLinkingSubtitle(AppLocalizations l10n) {
+    switch (_enrollmentStatus) {
+      case null:
+        // No application on record. A farmer who only has older requests (they
+        // were in Market Linking before applications existed) just sees them.
+        return _marketLinkingCount > 0 && !_hasGinger
+            ? l10n.profileMlkSubtitleDefault
+            : l10n.profileMlkSubtitleJoin;
+      case DaAmadEnrollmentStatus.pending:
+        return l10n.profileMlkSubtitlePending;
+      case DaAmadEnrollmentStatus.rejected:
+        return l10n.profileMlkSubtitleDeclined;
+      case DaAmadEnrollmentStatus.approved:
+        if (!_enrollmentAcknowledged) return l10n.profileMlkSubtitleApproved;
+        return _activeMarketLinkingRequests > 0
+            ? l10n.profileMlkSubtitleActive(_activeMarketLinkingRequests)
+            : l10n.profileMlkSubtitleEnrolled;
+    }
+  }
+
+  // Only the Annual Yield / Annual Earnings tiles change when another year is
+  // chosen, so only they reload (the rest of the screen stays as it is).
+  Future<void> _selectYear(int year) async {
+    if (year == _selectedYear || year > DateTime.now().year || year < _kFirstYear) {
+      return;
+    }
+    setState(() {
+      _selectedYear = year;
+      _annualLoading = true;
+    });
+    final annual = await _dashboardRepo.fetchAnnualSummary(year);
+    if (!mounted || year != _selectedYear) return;
+    setState(() {
+      _annual = annual;
+      _annualLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      drawer: AnimatedBuilder(
-        animation: FarmerProfileStateService.instance,
-        builder: (context, _) {
-          final profile = FarmerProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Farmer',
-            contactEmail: profile?.contactEmail,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.farmerEditProfile);
-            },
-            onEditFarmDetails: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.editFarmDetails);
-            },
-            onMyAddresses: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.myAddresses);
-            },
-            onSignOut: () => confirmFarmerSignOut(context),
-            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () =>
-                context.pushRoute(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           Expanded(
@@ -164,7 +197,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 64),
+                    TopBarSpacer(height: 64),
                     CachedDataNotice(
                       screen: 'profile_user_info',
                       otherScreens: const [
@@ -264,13 +297,15 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                   ),
                                   const SizedBox(height: 20),
                                   _AnnualStatsRow(
-                                    annualYieldKg: _annualYieldKg,
-                                    annualEarnings: _annualEarnings,
-                                    isLoading: _isLoading,
+                                    year: _selectedYear,
+                                    summary: _annual,
+                                    isLoading: _isLoading || _annualLoading,
+                                    onYearChanged: _selectYear,
                                   ),
                                   const SizedBox(height: 20),
                                   _FarmRecordsSection(
                                     outstandingLoans: _outstandingLoans,
+                                    pendingLoanRequests: _pendingLoanRequests,
                                     monthExpenses: _monthExpenses,
                                     onLoansTap: () =>
                                         context.pushRoute(AppRoutes.myLoans),
@@ -302,7 +337,9 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen> {
                                     _RecordRow(
                                       icon: Icons.eco_rounded,
                                       title: 'DA-AMAD Market Linking',
-                                      subtitle: 'View your enrollment status',
+                                      subtitle: _marketLinkingSubtitle(
+                                        AppLocalizations.of(context),
+                                      ),
                                       onTap: () => context.pushRoute(
                                         AppRoutes.myMarketLinking,
                                       ),
@@ -969,43 +1006,134 @@ class _DetailField extends StatelessWidget {
 // independent computation of "this year's yield/earnings".
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The first year the year arrows go back to (the app's records start in 2020, as
+/// the expense date picker does).
+const int _kFirstYear = 2020;
+
 class _AnnualStatsRow extends StatelessWidget {
-  final double annualYieldKg;
-  final double annualEarnings;
+  final int year;
+  final AnnualFarmSummary? summary;
   final bool isLoading;
+  final ValueChanged<int> onYearChanged;
 
   const _AnnualStatsRow({
-    required this.annualYieldKg,
-    required this.annualEarnings,
+    required this.year,
+    required this.summary,
     required this.isLoading,
+    required this.onYearChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final year = DateTime.now().year;
-    return Row(
+    final l10n = AppLocalizations.of(context);
+    final currentYear = DateTime.now().year;
+    final s = summary;
+    final ready = !isLoading && s != null && s.year == year;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _AnnualStatTile(
-            icon: Icons.eco_rounded,
-            color: AppConstants.primaryGreen,
-            label: AppLocalizations.of(context).farmerDashAnnualYield(year),
-            value: isLoading
-                ? '—'
-                : '${NumberFormat('#,##0').format(annualYieldKg)} kg',
+        Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(
+                  l10n.profileAnnualSummary,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.onSurface,
+                  ),
+                ),
+              ),
+            ),
+            _YearStepper(
+              year: year,
+              canGoBack: year > _kFirstYear,
+              canGoForward: year < currentYear,
+              onChanged: onYearChanged,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _AnnualStatTile(
+                icon: Icons.eco_rounded,
+                color: AppConstants.primaryGreen,
+                label: l10n.farmerDashAnnualYield(year),
+                value: ready ? s.yieldText : '—',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _AnnualStatTile(
+                icon: Icons.payments_rounded,
+                color: AppConstants.buyerBlue,
+                label: l10n.farmerDashAnnualEarnings(year),
+                value: ready
+                    ? '₱${NumberFormat('#,##0.00').format(s.earnings)}'
+                    : '—',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            l10n.profileAnnualHint(year),
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              color: AppConstants.onSurfaceVariant,
+            ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _AnnualStatTile(
-            icon: Icons.payments_rounded,
-            color: AppConstants.buyerBlue,
-            label: AppLocalizations.of(context).farmerDashAnnualEarnings(year),
-            value: isLoading
-                ? '—'
-                : '₱${NumberFormat('#,##0').format(annualEarnings)}',
+      ],
+    );
+  }
+}
+
+/// ‹ 2026 › — step through the years. The future is not selectable.
+class _YearStepper extends StatelessWidget {
+  final int year;
+  final bool canGoBack;
+  final bool canGoForward;
+  final ValueChanged<int> onChanged;
+
+  const _YearStepper({
+    required this.year,
+    required this.canGoBack,
+    required this.canGoForward,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    Widget arrow(IconData icon, String tooltip, bool enabled, int target) =>
+        IconButton(
+          onPressed: enabled ? () => onChanged(target) : null,
+          tooltip: tooltip,
+          icon: Icon(icon, size: 20),
+          visualDensity: VisualDensity.compact,
+          color: AppConstants.primaryGreen,
+          disabledColor: AppConstants.outline.withValues(alpha: 0.4),
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        arrow(Icons.chevron_left_rounded, l10n.profileAnnualPrevYear, canGoBack, year - 1),
+        Text(
+          '$year',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppConstants.onSurface,
           ),
         ),
+        arrow(Icons.chevron_right_rounded, l10n.profileAnnualNextYear, canGoForward, year + 1),
       ],
     );
   }
@@ -1077,6 +1205,7 @@ class _AnnualStatTile extends StatelessWidget {
 
 class _FarmRecordsSection extends StatelessWidget {
   final double outstandingLoans;
+  final int pendingLoanRequests;
   final double monthExpenses;
   final VoidCallback onLoansTap;
   final VoidCallback onExpensesTap;
@@ -1086,6 +1215,7 @@ class _FarmRecordsSection extends StatelessWidget {
 
   const _FarmRecordsSection({
     required this.outstandingLoans,
+    required this.pendingLoanRequests,
     required this.monthExpenses,
     required this.onLoansTap,
     required this.onExpensesTap,
@@ -1096,6 +1226,15 @@ class _FarmRecordsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final money = NumberFormat('#,##0.00');
+    // Input Loans: what is owed, plus any request still waiting for a decision.
+    final loanBase = outstandingLoans > 0
+        ? l10n.profileLoansOutstanding(money.format(outstandingLoans))
+        : l10n.profileLoansNone;
+    final loanSubtitle = pendingLoanRequests > 0
+        ? '$loanBase · ${l10n.profileLoansPending(pendingLoanRequests)}'
+        : loanBase;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1113,37 +1252,35 @@ class _FarmRecordsSection extends StatelessWidget {
         _RecordRow(
           icon: Icons.eco_outlined,
           title: 'Input Loans',
-          subtitle: outstandingLoans > 0
-              ? '₱${outstandingLoans.toStringAsFixed(2)} outstanding'
-              : 'No outstanding loans',
+          subtitle: loanSubtitle,
           onTap: onLoansTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.receipt_outlined,
           title: 'Expenses',
-          subtitle: '₱${monthExpenses.toStringAsFixed(2)} this month',
+          subtitle: l10n.profileExpensesSubtitle(money.format(monthExpenses)),
           onTap: onExpensesTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.receipt_long_outlined,
           title: 'Transaction History',
-          subtitle: 'Your sales across every selling channel',
+          subtitle: l10n.profileTransactionsSubtitle,
           onTap: onTransactionHistoryTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.handshake_outlined,
-          title: AppLocalizations.of(context).coopMyOffersTitle,
-          subtitle: AppLocalizations.of(context).coopProfileRowSubtitle,
+          title: l10n.coopMyOffersTitle,
+          subtitle: l10n.coopProfileRowSubtitle,
           onTap: onCoopOffersTap,
         ),
         const SizedBox(height: 8),
         _RecordRow(
           icon: Icons.shopping_bag_outlined,
           title: 'Orders',
-          subtitle: 'Orders you\'ve placed on the Marketplace',
+          subtitle: l10n.profileOrdersSubtitle,
           onTap: onMyOrdersTap,
         ),
       ],

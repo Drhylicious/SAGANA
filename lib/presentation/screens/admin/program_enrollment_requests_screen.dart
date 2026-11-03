@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
@@ -59,6 +61,7 @@ class _ProgramEnrollmentRequestsScreenState
   }
 
   void _showReviewModal(ProgramEnrollmentRequest item) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final notesCtrl = TextEditingController();
     bool isSaving = false;
 

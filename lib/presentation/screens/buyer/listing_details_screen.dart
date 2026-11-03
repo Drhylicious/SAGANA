@@ -12,9 +12,12 @@ import '../../../data/models/cart_item_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -78,6 +81,7 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   // fixed default here isn't a dead end.
   double _quantity = 10;
   bool _isAddingToCart = false;
+  TableChangeWatcher? _stockWatcher;
 
   bool get _isOwnListing =>
       widget.isFarmerContext &&
@@ -103,10 +107,25 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       if (mounted) setState(() => _isOnline = v);
     });
     _load();
+    // Someone else ordering from this listing changes what is left.
+    if (!GuestModeService.active) {
+      _stockWatcher = TableChangeWatcher(
+        tables: const ['marketplace_listings'],
+        onChange: () {
+          if (mounted) _load(silent: true);
+        },
+      )..start();
+    }
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _stockWatcher?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     final listing = await _repository.fetchListingById(widget.listingId);
     List<BuyerListingModel> related = [];
     if (listing != null) {
@@ -116,9 +135,12 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       // Was: .floor().clamp(1, ...) — silently truncated a fractional
       // remainder (low-stock listings under 10kg were floored, making the
       // true fractional remainder unreachable).
-      _quantity = listing.displayAvailableKg >= 10
-          ? 10
-          : listing.displayAvailableKg.clamp(0.01, 999999);
+      final max = listing.displayAvailableKg.clamp(0.01, 999999).toDouble();
+      // A quiet reload keeps what the Buyer already typed, only pulling it
+      // down if the stock left is now smaller than that.
+      _quantity = silent
+          ? (_quantity > max ? max : _quantity)
+          : (listing.displayAvailableKg >= 10 ? 10 : max);
     }
     if (!mounted) return;
     setState(() {
@@ -129,6 +151,14 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   }
 
   void _openBuyNowSheet() {
+    if (GuestModeService.active) {
+      context.promptGuest(
+        (l) => l.guestBuyNowTitle,
+        (l) => l.guestBuyNowMessage,
+        icon: Icons.shopping_bag_outlined,
+      );
+      return;
+    }
     final listing = _listing!;
     // A real bottom sheet (flush to the screen edges, native slide-up),
     // not AppBottomSheet's centered-card-style transition — that read as a
@@ -143,6 +173,14 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
   }
 
   Future<void> _addToCart() async {
+    if (GuestModeService.active) {
+      context.promptGuest(
+        (l) => l.guestCartTitle,
+        (l) => l.guestCartMessage,
+        icon: Icons.shopping_cart_outlined,
+      );
+      return;
+    }
     if (!ConnectivityService.instance.isOnline) {
       AppToast.show(context, AppLocalizations.of(context).offlineBuyerBody);
       return;

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/animations/app_page_transitions.dart';
@@ -7,11 +8,19 @@ import '../../data/models/export_model.dart';
 import '../../data/models/farmer_crop_model.dart';
 import '../../data/models/farmer_market_rate_model.dart';
 import '../../data/services/hive_service.dart';
+import '../../data/services/auth_service.dart';
+import '../../data/services/guest_mode_service.dart';
+import '../../data/services/staff_permission_service.dart';
 import '../../presentation/screens/auth/login_screen.dart';
+import '../../presentation/screens/auth/welcome_screen.dart';
+import '../../presentation/screens/shared/guest_screens.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/auth/reset_password_screen.dart';
 import '../../presentation/screens/auth/force_password_change_screen.dart';
 import '../../presentation/screens/farmer/create_listing_screen.dart';
+import '../../presentation/screens/farmer/edit_listing_screen.dart';
+import '../../presentation/screens/shared/listing_history_screen.dart';
+import '../../presentation/screens/admin/listing_edit_request_screen.dart';
 import '../../presentation/screens/farmer/crop_listing_screen.dart';
 import '../../presentation/screens/farmer/crop_details_screen.dart';
 import '../../presentation/screens/farmer/select_crop_screen.dart';
@@ -38,6 +47,11 @@ import '../../presentation/screens/farmer/my_expenses_screen.dart';
 import '../../presentation/screens/farmer/my_listings_screen.dart';
 import '../../data/models/marketplace_listing_model.dart';
 import '../../presentation/screens/farmer/my_loans_screen.dart';
+import '../../presentation/screens/farmer/request_loan_screen.dart';
+import '../../presentation/screens/farmer/my_loan_requests_screen.dart';
+import '../../presentation/screens/farmer/my_loan_history_screen.dart';
+import '../../presentation/screens/farmer/my_payment_history_screen.dart';
+import '../../presentation/screens/admin/loan_requests_screen.dart';
 import '../../presentation/screens/farmer/my_programs_screen.dart';
 import '../../presentation/screens/farmer/browse_programs_screen.dart';
 import '../../presentation/screens/farmer/program_details_screen.dart';
@@ -57,6 +71,7 @@ import '../../presentation/screens/admin/admin_settings_screen.dart';
 import '../../presentation/screens/admin/admin_edit_profile_screen.dart';
 import '../../presentation/screens/admin/create_officer_account_screen.dart';
 import '../../presentation/screens/admin/manage_accounts_screen.dart';
+import '../../presentation/screens/admin/staff_accountability_screen.dart';
 import '../../presentation/screens/admin/crop_management_screen.dart';
 import '../../presentation/screens/admin/crop_request_approval_screen.dart';
 import '../../presentation/screens/admin/program_purchase_review_screen.dart';
@@ -185,6 +200,73 @@ class AppRouter {
   // the rest of that session.
   static bool _hasBootstrapped = false;
 
+  // Screens a signed-out visitor may open. Guest Mode is read-only: it gets the
+  // public Welcome/auth screens, the shared Support & Info pages, and only the
+  // tab screens (plus public listing details) of the mode it is exploring.
+  static const _publicPaths = {
+    AppRoutes.splash,
+    AppRoutes.welcome,
+    AppRoutes.login,
+    AppRoutes.register,
+    AppRoutes.resetPasswordCallback,
+    AppRoutes.forcePasswordChange,
+    AppRoutes.aboutSagana,
+    AppRoutes.aboutCooperative,
+    AppRoutes.privacyPolicy,
+    AppRoutes.termsOfUse,
+  };
+  static const _guestBuyerPaths = {
+    AppRoutes.marketplaceBrowse,
+    AppRoutes.listingDetails,
+    AppRoutes.myOrders,
+    AppRoutes.priceMonitoring,
+    AppRoutes.buyerAccount,
+  };
+  static const _guestFarmerPaths = {
+    AppRoutes.farmerDashboard,
+    AppRoutes.harvestHub,
+    AppRoutes.myListings,
+    AppRoutes.farmerAnalytics,
+    AppRoutes.farmerProfile,
+    AppRoutes.farmerMarketplaceListingDetail,
+  };
+
+  /// Screens only the Manager opens, whatever permissions an Officer holds:
+  /// the Balik-Tangkilik payout, the staff accountability history, and the
+  /// creation of Officer accounts (an Officer can create Farmer accounts only).
+  static const _managerOnlyPaths = <String>{
+    AppRoutes.balikTangkilikManagement,
+    AppRoutes.staffAccountability,
+    AppRoutes.createOfficerAccount,
+  };
+
+  @visibleForTesting
+  static Set<String> get managerOnlyPaths => _managerOnlyPaths;
+
+  /// Screens that only exist to make a change, and the module whose Manage
+  /// access they need.
+  static const _manageOnlyPaths = <String, StaffModule>{
+    AppRoutes.addNewMember: StaffModule.members,
+    AppRoutes.issueNewLoan: StaffModule.loans,
+    AppRoutes.recordPayment: StaffModule.loans,
+  };
+
+  @visibleForTesting
+  static Map<String, StaffModule> get manageOnlyPaths => _manageOnlyPaths;
+
+  @visibleForTesting
+  static bool isGuestAllowed(String path) {
+    if (_publicPaths.contains(path)) return true;
+    switch (GuestModeService.instance.role) {
+      case GuestRole.buyer:
+        return _guestBuyerPaths.contains(path);
+      case GuestRole.farmer:
+        return _guestFarmerPaths.contains(path);
+      case null:
+        return false;
+    }
+  }
+
   static GoRouter create() {
     return GoRouter(
       navigatorKey: rootNavigatorKey,
@@ -215,6 +297,16 @@ class AppRouter {
           }
         }
 
+        // No signed-in session: only the public screens and, while exploring as
+        // a guest, that mode's own read-only screens are reachable. Staff
+        // (Manager/Officer) screens and every other private screen go to Welcome.
+        // A signed-in user never sees Welcome; Splash sends them to their role.
+        final signedIn = AuthService.isLoggedIn || HiveService.isLoggedIn();
+        if (!signedIn) {
+          return isGuestAllowed(path) ? null : AppRoutes.welcome;
+        }
+        if (path == AppRoutes.welcome) return AppRoutes.splash;
+
         // Forced password change after an admin-issued temporary password
         // (see AccountManagementRepository.resetUserPassword). Applies to
         // every role, unlike the farmer-pending check below, so it's
@@ -228,25 +320,22 @@ class AppRouter {
           return AppRoutes.forcePasswordChange;
         }
 
-        // Officer scope enforcement (Issue 6 / Decision D19) — an Officer
-        // has every Admin module EXCEPT the Members tab and Officer/account
-        // management. Admin is never subject to this. Redirects to the
-        // Admin dashboard rather than splash — the person is legitimately
-        // logged in, just hit a wall on one screen.
+        // An Officer opens every Manager screen, Members included: what an
+        // Officer may DO in each module is set per module (View Only or
+        // Manage, see StaffPermissions) and enforced by the database, so the
+        // router does not wall off screens. The one exception is the Balik
+        // Tangkilik yearly payout, which stays Manager-only. Redirects to the
+        // dashboard rather than splash — the person is legitimately logged in,
+        // just hit a wall on one screen.
         if (HiveService.getUserRole() == 'officer') {
-          const membersOnlyPaths = {
-            AppRoutes.farmerManagement,
-            AppRoutes.farmerDetails,
-            AppRoutes.addNewMember,
-            AppRoutes.createOfficerAccount,
-            AppRoutes.manageOfficerAccounts,
-            AppRoutes.manageAdminAccounts,
-            AppRoutes.memberExpenseHistory,
-            // Balik Tangkilik yearly payout: Admin only.
-            AppRoutes.balikTangkilikManagement,
-          };
-          if (membersOnlyPaths.contains(path) ||
-              path.startsWith('/admin/members')) {
+          if (_managerOnlyPaths.contains(path)) {
+            return AppRoutes.adminDashboard;
+          }
+          // Screens that exist only to make a change are closed to an Officer
+          // who has View Only in that module (the screens that mix viewing and
+          // acting disable their own buttons instead).
+          final needed = _manageOnlyPaths[path];
+          if (needed != null && !StaffPermissions.instance.canManage(needed)) {
             return AppRoutes.adminDashboard;
           }
         }
@@ -280,6 +369,13 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.fadeThrough(
             key: s.pageKey,
             child: const SplashScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.welcome,
+          pageBuilder: (c, s) => AppPageTransitions.fadeThrough(
+            key: s.pageKey,
+            child: const WelcomeScreen(),
           ),
         ),
         GoRoute(
@@ -356,6 +452,38 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const MyLoansScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myLoanHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyLoanHistoryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myPaymentHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyPaymentHistoryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.myLoanRequests,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const MyLoanRequestsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.requestLoan,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const RequestLoanScreen(),
           ),
         ),
         GoRoute(
@@ -523,6 +651,31 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: FarmerListingDetailScreen(
+              listing: s.extra as MarketplaceListingModel,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.farmerListingHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: ListingHistoryScreen(
+                listingId: extra['listingId'] as String,
+                title: extra['title'] as String?,
+                staffView: false,
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.editListing,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: EditListingScreen(
               listing: s.extra as MarketplaceListingModel,
             ),
           ),
@@ -770,6 +923,29 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.listingEditRequest,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: ListingEditRequestScreen(requestId: s.extra as String),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.adminListingHistory,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map;
+            return AppPageTransitions.slideForward(
+              key: s.pageKey,
+              child: ListingHistoryScreen(
+                listingId: extra['listingId'] as String,
+                title: extra['title'] as String?,
+                staffView: true,
+              ),
+            );
+          },
+        ),
+        GoRoute(
           path: AppRoutes.listingReview,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) {
@@ -845,6 +1021,7 @@ class AppRouter {
               child: OrderManagementScreen(
                 buyerId: extra?['buyerId'] as String?,
                 buyerName: extra?['buyerName'] as String?,
+                initialFilter: extra?['filter'] as String?,
               ),
             );
           },
@@ -975,6 +1152,14 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.loanRequests,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const LoanRequestsScreen(),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.loanHistory,
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
@@ -1004,6 +1189,14 @@ class AppRouter {
           pageBuilder: (c, s) => AppPageTransitions.slideForward(
             key: s.pageKey,
             child: const CreateOfficerAccountScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.staffAccountability,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (c, s) => AppPageTransitions.slideForward(
+            key: s.pageKey,
+            child: const StaffAccountabilityScreen(),
           ),
         ),
         GoRoute(
@@ -1108,7 +1301,9 @@ class AppRouter {
                   path: AppRoutes.farmerDashboard,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const FarmerDashboardScreen(),
+                    child: GuestAware(
+                      signedIn: () => const FarmerDashboardScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -1120,7 +1315,9 @@ class AppRouter {
                   path: AppRoutes.harvestHub,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const HarvestHubScreen(),
+                    child: GuestAware(
+                      signedIn: () => const HarvestHubScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -1132,7 +1329,9 @@ class AppRouter {
                   path: AppRoutes.myListings,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const MyListingsScreen(),
+                    child: GuestAware(
+                      signedIn: () => const MyListingsScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -1144,7 +1343,9 @@ class AppRouter {
                   path: AppRoutes.farmerAnalytics,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const FarmerAnalyticsScreen(),
+                    child: GuestAware(
+                      signedIn: () => const FarmerAnalyticsScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -1156,7 +1357,10 @@ class AppRouter {
                   path: AppRoutes.farmerProfile,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const FarmerProfileScreen(),
+                    child: GuestAware(
+                      signedIn: () => const FarmerProfileScreen(),
+                      guest: (role) => GuestProfileScreen(role: role),
+                    ),
                   ),
                 ),
               ],
@@ -1473,7 +1677,9 @@ class AppRouter {
                   path: AppRoutes.marketplaceBrowse,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const MarketplaceBrowseScreen(),
+                    child: GuestAware(
+                      signedIn: () => const MarketplaceBrowseScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -1485,8 +1691,11 @@ class AppRouter {
                   path: AppRoutes.myOrders,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: MyOrdersScreen(
-                      initialTabIndex: s.extra as int? ?? 0,
+                    child: GuestAware(
+                      signedIn: () => MyOrdersScreen(
+                        initialTabIndex: s.extra as int? ?? 0,
+                      ),
+                      guest: (_) => const GuestOrdersScreen(),
                     ),
                   ),
                 ),
@@ -1499,7 +1708,9 @@ class AppRouter {
                   path: AppRoutes.priceMonitoring,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const PriceMonitoringScreen(),
+                    child: GuestAware(
+                      signedIn: () => const PriceMonitoringScreen(),
+                    ),
                   ),
                 ),
               ],
@@ -1511,7 +1722,10 @@ class AppRouter {
                   path: AppRoutes.buyerAccount,
                   pageBuilder: (c, s) => NoTransitionPage(
                     key: s.pageKey,
-                    child: const BuyerAccountScreen(),
+                    child: GuestAware(
+                      signedIn: () => const BuyerAccountScreen(),
+                      guest: (role) => GuestProfileScreen(role: role),
+                    ),
                   ),
                 ),
               ],

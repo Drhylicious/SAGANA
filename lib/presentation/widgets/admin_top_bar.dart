@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'shell_drawer_scope.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
@@ -11,6 +12,7 @@ import '../../data/services/auth_service.dart';
 import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
 import 'profile_avatar.dart';
+import 'sagana_logo_mark.dart';
 import 'shared_widgets.dart';
 
 /// Shared Sign Out confirmation for every Admin screen that hosts the
@@ -32,7 +34,7 @@ Future<void> confirmAdminSignOut(BuildContext context) async {
   if (confirmed == true) {
     AdminProfileStateService.instance.clear();
     await AuthService.logout();
-    if (context.mounted) context.go(AppRoutes.login);
+    if (context.mounted) context.go(AppRoutes.welcome);
   }
 }
 
@@ -84,8 +86,8 @@ class AdminTopBar extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              height: 64 + MediaQuery.paddingOf(context).top,
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top, 20, 0),
               decoration: BoxDecoration(
                 color: sagana.glassBackground,
                 border: Border(
@@ -98,29 +100,16 @@ class AdminTopBar extends StatelessWidget {
                   // enableMenu is set (root/primary screens only); stays
                   // branding-only, non-interactive otherwise, so
                   // secondary screens reusing this bar are unaffected.
-                  GestureDetector(
-                    onTap: enableMenu ? () => Scaffold.of(context).openDrawer() : null,
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.95),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/sagana_icon.png',
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        ),
-                      ),
-                    ),
+                  SaganaLogoMark(
+                    onTap: enableMenu ? () => openNavigationDrawer(context) : null,
                   ),
 
-                  const SizedBox(width: 12),
+                  // Primary screens: logo | title. Secondary screens that reuse
+                  // this bar keep the plain logo and title.
+                  if (enableMenu)
+                    const SaganaLogoDivider()
+                  else
+                    const SizedBox(width: 12),
 
                   // Title
                   Expanded(
@@ -206,8 +195,12 @@ class AdminTopBarDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback? onProfileTap;
   final bool enableMenu;
 
+  /// The status-bar height the bar grows by (pass `MediaQuery.paddingOf(context).top`).
+  final double topPadding;
+
   const AdminTopBarDelegate({
     required this.title,
+    this.topPadding = 0,
     this.unreadCount = 0,
     this.onBroadcastTap,
     this.onNotificationTap,
@@ -216,11 +209,13 @@ class AdminTopBarDelegate extends SliverPersistentHeaderDelegate {
   });
 
   @override
-  double get minExtent => 64;
+  double get minExtent => 64 + topPadding;
   @override
-  double get maxExtent => 64;
+  double get maxExtent => 64 + topPadding;
   @override
-  bool shouldRebuild(covariant AdminTopBarDelegate old) => old.unreadCount != unreadCount || old.title != title;
+  bool shouldRebuild(covariant AdminTopBarDelegate old) => old.unreadCount != unreadCount ||
+      old.title != title ||
+      old.topPadding != topPadding;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {

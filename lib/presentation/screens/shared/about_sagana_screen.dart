@@ -103,6 +103,8 @@ class AboutSaganaScreen extends StatelessWidget {
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
+            // No automatic status-bar padding: this list sits inside a bigger scroll view.
+            padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,

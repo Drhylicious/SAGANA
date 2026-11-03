@@ -10,6 +10,7 @@ import '../../../data/models/broadcast_model.dart';
 import '../../../data/repositories/broadcast_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
@@ -191,6 +192,10 @@ class _NotificationBroadcastScreenState
 
   // ── Send ───────────────────────────────────────────────────────────────────
 
+  /// Open to the Manager and to every Officer, whatever module access they hold:
+  /// Broadcast is a primary screen (top bar). Who sent it is recorded by the
+  /// database (broadcast_logs.created_by and the staff audit trail), not
+  /// restricted by permission.
   Future<void> _send() async {
     final l10n = AppLocalizations.of(context);
     final title = _titleCtrl.text.trim();
@@ -342,7 +347,7 @@ class _NotificationBroadcastScreenState
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               Expanded(
                 child: _isLoading
                     ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())

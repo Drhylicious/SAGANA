@@ -4,6 +4,7 @@ import '../../core/utils/person_name.dart';
 import '../../core/constants/app_constants.dart';
 import '../services/offline_cache.dart';
 import 'admin_activity_repository.dart';
+import 'crop_lookup.dart' show fetchFarmerCropImageMap;
 import '../models/admin_log_message.dart';
 
 // ─── Market Linking Status ─────────────────────────────────────────────────────
@@ -108,6 +109,28 @@ class DaAmadEnrollmentModel {
   final DateTime submittedAt;
   final DateTime? reviewedAt;
 
+  /// When the Farmer tapped Continue on the approval congratulations. Stored on
+  /// the server, so the screen stays gone on any device and after any logout.
+  final DateTime? acknowledgedAt;
+
+  // Shown on the Manager's enrollment cards only (the Farmer's own copy leaves
+  // them at their defaults).
+  final String? farmerPhotoUrl;
+
+  /// Who reviewed it (name), when it has been reviewed.
+  final String? reviewerName;
+
+  /// How many Market Linking sale requests this farmer has made so far.
+  final int requestCount;
+
+  /// True for a farmer who is already in Market Linking (has requests) but has
+  /// no enrollment application on record: they joined before enrollment had to
+  /// be reviewed. Shown as Enrolled, with no review date.
+  final bool enrolledWithoutReview;
+
+  /// A newer application from the same farmer exists, so this one is history.
+  final bool isSuperseded;
+
   const DaAmadEnrollmentModel({
     required this.id,
     required this.farmerId,
@@ -116,7 +139,124 @@ class DaAmadEnrollmentModel {
     this.adminNotes,
     required this.submittedAt,
     this.reviewedAt,
+    this.acknowledgedAt,
+    this.farmerPhotoUrl,
+    this.reviewerName,
+    this.requestCount = 0,
+    this.enrolledWithoutReview = false,
+    this.isSuperseded = false,
   });
+
+  DaAmadEnrollmentModel copyWith({bool? isSuperseded}) => DaAmadEnrollmentModel(
+    id: id,
+    farmerId: farmerId,
+    farmerName: farmerName,
+    status: status,
+    adminNotes: adminNotes,
+    submittedAt: submittedAt,
+    reviewedAt: reviewedAt,
+    acknowledgedAt: acknowledgedAt,
+    farmerPhotoUrl: farmerPhotoUrl,
+    reviewerName: reviewerName,
+    requestCount: requestCount,
+    enrolledWithoutReview: enrolledWithoutReview,
+    isSuperseded: isSuperseded ?? this.isSuperseded,
+  );
+}
+
+/// The Manager's enrollment queue, split the way the screen shows it.
+class DaAmadEnrollmentLists {
+  /// Applications waiting for a decision, oldest first.
+  final List<DaAmadEnrollmentModel> pending;
+
+  /// Every farmer already decided on: approved, declined, and farmers already
+  /// enrolled in Market Linking without an application on record. Most recent
+  /// first.
+  final List<DaAmadEnrollmentModel> reviewed;
+
+  const DaAmadEnrollmentLists({required this.pending, required this.reviewed});
+
+  /// Farmers approved into Market Linking (the Manager's Enrolled section),
+  /// including those already in it with no application on record.
+  List<DaAmadEnrollmentModel> get enrolled => [
+    for (final e in reviewed)
+      if (e.status == DaAmadEnrollmentStatus.approved) e,
+  ];
+}
+
+/// Splits enrollment rows into the Pending and Reviewed lists.
+///
+/// [rows] are every application, in any order; [enrolledOnly] are farmers who
+/// are in Market Linking but have no application. A farmer whose application
+/// was declined and who applied again has an older, superseded row; it stays
+/// in Reviewed as history and is marked so.
+DaAmadEnrollmentLists splitEnrollments(
+  List<DaAmadEnrollmentModel> rows, {
+  List<DaAmadEnrollmentModel> enrolledOnly = const [],
+}) {
+  final latestByFarmer = <String, DateTime>{};
+  for (final r in rows) {
+    final t = latestByFarmer[r.farmerId];
+    if (t == null || r.submittedAt.isAfter(t)) latestByFarmer[r.farmerId] = r.submittedAt;
+  }
+  final pending = rows
+      .where((r) => r.status == DaAmadEnrollmentStatus.pending)
+      .toList()
+    ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+  final reviewed = [
+    for (final r in rows)
+      if (r.status != DaAmadEnrollmentStatus.pending)
+        r.copyWith(isSuperseded: r.submittedAt.isBefore(latestByFarmer[r.farmerId]!)),
+    ...enrolledOnly,
+  ]..sort(
+      (a, b) => (b.reviewedAt ?? b.submittedAt).compareTo(a.reviewedAt ?? a.submittedAt),
+    );
+  return DaAmadEnrollmentLists(pending: pending, reviewed: reviewed);
+}
+
+// ─── One recorded sale ─────────────────────────────────────────────────────────
+// A request can be sold in several parts (80 kg submitted, 50 sold, then 30);
+// each part is one row of market_linking_sales, with its own buyer and price.
+
+class MarketLinkingSale {
+  final String id;
+  final String buyerName;
+  final String? buyerContact;
+  final double quantityKg;
+
+  /// The unit [quantityKg] and [pricePerKg] are measured in: the harvest
+  /// batch's own unit (the fields keep their old names).
+  final String unit;
+  final double pricePerKg;
+  final double totalAmount;
+  final String? notes;
+  final DateTime completedAt;
+
+  const MarketLinkingSale({
+    required this.id,
+    required this.buyerName,
+    this.buyerContact,
+    required this.quantityKg,
+    this.unit = kDefaultUnit,
+    required this.pricePerKg,
+    required this.totalAmount,
+    this.notes,
+    required this.completedAt,
+  });
+
+  factory MarketLinkingSale.fromMap(Map<String, dynamic> map) {
+    return MarketLinkingSale(
+      id: map['id'] as String,
+      buyerName: map['buyer_name'] as String? ?? 'Buyer',
+      buyerContact: map['buyer_contact'] as String?,
+      quantityKg: (map['confirmed_volume_kg'] as num).toDouble(),
+      unit: unitOrDefault(map['unit'] as String?),
+      pricePerKg: (map['price_per_kg'] as num).toDouble(),
+      totalAmount: (map['total_amount'] as num).toDouble(),
+      notes: map['notes'] as String?,
+      completedAt: DateTime.parse(map['completed_at'] as String),
+    );
+  }
 }
 
 // ─── Market Linking Model ──────────────────────────────────────────────────────
@@ -132,6 +272,11 @@ class MarketLinkingModel {
   final String? buyerName;
   final String? buyerContact;
   final double? volumeKg;
+
+  /// The unit every quantity and price of this request is measured in: the
+  /// harvest batch's own unit. Ginger is no longer fixed to kg, and nothing here
+  /// is ever converted.
+  final String unit;
   // Captured when the entry moves to Buyer Found — the quantity the buyer
   // wants to purchase, distinct from volumeKg (farmer's committed volume
   // at enrollment) and confirmedVolumeKg (final, set at Completion).
@@ -147,6 +292,27 @@ class MarketLinkingModel {
   final String? inventoryBatchId;
   final double? confirmedVolumeKg;
   final String? batchNumber; // enrichment only, not a real column
+
+  /// Buyer Details (stage 2): who the buyer is. Set by Manager/Officer.
+  final String? buyerEmail;
+
+  /// The Farmer's cancellation request: null, 'requested' (waiting for review),
+  /// 'rejected' (declined), 'approved' or 'withdrawn' (nothing left to cancel).
+  final String? cancellationStatus;
+  final String? cancellationReason;
+  final String? cancellationReviewNotes;
+  final DateTime? cancellationRequestedAt;
+
+  /// The Farmer's own camera photo of this crop (never the Crop Master image),
+  /// shown to Manager/Officer so they can see the actual crop being sold.
+  /// Enrichment only, not a column of this table.
+  final String? cropPhotoUrl;
+
+  /// Submitted quantity still held for this request, and how much has been
+  /// sold so far (the sum of [sales]).
+  final double reservedKg;
+  final double soldKg;
+  final List<MarketLinkingSale> sales;
 
   // The DA-AMAD Enrollment that authorized this submission — see
   // supabase_schema_market_linking_enrollment_link.sql. Null for any row
@@ -167,6 +333,7 @@ class MarketLinkingModel {
     this.buyerName,
     this.buyerContact,
     this.volumeKg,
+    this.unit = kDefaultUnit,
     this.requestedVolumeKg,
     this.pricePerKg,
     this.notes,
@@ -176,18 +343,76 @@ class MarketLinkingModel {
     this.inventoryBatchId,
     this.confirmedVolumeKg,
     this.batchNumber,
+    this.buyerEmail,
+    this.cancellationStatus,
+    this.cancellationReason,
+    this.cancellationReviewNotes,
+    this.cancellationRequestedAt,
+    this.cropPhotoUrl,
+    this.reservedKg = 0,
+    this.soldKg = 0,
+    this.sales = const [],
     this.enrollmentId,
   });
+
+  /// What is left of the submitted quantity (80 submitted, 50 sold -> 30).
+  /// Zero once the request is closed or completed.
+  double get remainingKg {
+    if (!isActive) return 0;
+    final left = (volumeKg ?? 0) - soldKg;
+    return left > 0 ? roundQuantity(left) : 0;
+  }
+
+  bool get hasSales => soldKg > 0;
+
+  /// True when this request matches what was typed in the search bar: every
+  /// word must appear somewhere in the farmer's name, the crop, the batch
+  /// number, or the buyer's name, contact number or email (case does not
+  /// matter). An empty search matches everything.
+  bool matchesSearch(String query) {
+    final words = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    if (words.isEmpty) return true;
+    final haystack = [
+      farmerName,
+      cropName,
+      batchNumber,
+      formatBatchNumber(batchNumber),
+      buyerName,
+      buyerContact,
+      buyerEmail,
+    ].whereType<String>().join(' ').toLowerCase();
+    return words.every(haystack.contains);
+  }
+
+
+  /// Buyer Details have been saved (stage 2 done).
+  bool get hasBuyer => (buyerName ?? '').trim().isNotEmpty;
+
+  /// The Farmer asked to cancel and the Manager/Officer has not answered yet.
+  bool get isCancellationRequested =>
+      isActive && cancellationStatus == 'requested';
+
+  /// The last cancellation request was declined (the request is still open).
+  bool get wasCancellationDeclined =>
+      isActive && cancellationStatus == 'rejected';
+
+  /// The Farmer may ask to cancel an active request that still has something
+  /// unsold and no request already waiting.
+  bool get canRequestCancellation =>
+      isActive && !isCancellationRequested && remainingKg > 0;
+
+  /// Money received so far across every recorded sale, to the centavo.
+  double get soldValue =>
+      sales.fold<double>(0, (sum, s) => sum + s.totalAmount);
 
   bool get isActive =>
       status == MarketLinkingStatus.requested ||
       status == MarketLinkingStatus.submitted ||
       status == MarketLinkingStatus.buyerFound;
 
-  double? get totalValue =>
-      volumeKg != null && pricePerKg != null
-      ? moneyOf(volumeKg!, pricePerKg!)
-      : null;
+  /// The money this request has brought in: the sum of its recorded sales. Null
+  /// until something is sold.
+  double? get totalValue => sales.isEmpty ? null : soldValue;
 
   String get initials => PersonName.initials(farmerName, fallback: 'F');
 
@@ -202,6 +427,7 @@ class MarketLinkingModel {
       status: MarketLinkingStatusExt.fromString(map['status'] as String?),
       buyerName:      map['buyer_name'] as String?,
       buyerContact:   map['buyer_contact'] as String?,
+      unit:           unitOrDefault(map['unit'] as String?),
       volumeKg:       map['volume_kg'] != null
                           ? (map['volume_kg'] as num).toDouble()
                           : null,
@@ -224,6 +450,22 @@ class MarketLinkingModel {
                           ? (map['confirmed_volume_kg'] as num).toDouble()
                           : null,
       batchNumber:    map['batch_number'] as String?,
+      buyerEmail:     map['buyer_email'] as String?,
+
+      cancellationStatus: map['cancellation_status'] as String?,
+      cancellationReason: map['cancellation_reason'] as String?,
+      cancellationReviewNotes: map['cancellation_review_notes'] as String?,
+      cancellationRequestedAt: map['cancellation_requested_at'] != null
+                          ? DateTime.parse(map['cancellation_requested_at'] as String)
+                          : null,
+      cropPhotoUrl:   map['crop_photo_url'] as String?,
+
+      reservedKg:     (map['reserved_kg'] as num?)?.toDouble() ?? 0,
+      soldKg:         (map['sold_kg'] as num?)?.toDouble() ?? 0,
+      sales: [
+        for (final s in (map['sales'] as List? ?? const []))
+          MarketLinkingSale.fromMap(Map<String, dynamic>.from(s as Map)),
+      ],
       enrollmentId: map['enrollment_id'] as String?,
     );
   }
@@ -231,31 +473,60 @@ class MarketLinkingModel {
 
 // ─── Market Linking Summary Stats ──────────────────────────────────────────────
 
-/// Lightweight aggregate for dashboard use — status column only, no farmer
-/// join, no full row hydration. Matches the fetchSummaryStats() pattern
-/// already established by AdminListingRepository/AdminOrderRepository
-/// (M-11, Admin Marketplace review, Phase 7).
+/// The Marketplace Overview's Market Linking figures, taken from the requests
+/// themselves (market_linking_programs). A legacy 'requested' row (never created
+/// by the current flow) is not counted, so [total] equals the "All" chip on the
+/// Manager/Officer Market Linking screen.
 class MarketLinkingSummaryStats {
+  /// Every Market Linking request, whatever its status.
   final int total;
-  final int submitted;
-  // Unique farmers enrolled — NOT the same as total (total rounds/records;
-  // a farmer with two rounds via Start New Round is still one enrolled
-  // farmer). The Marketplace Dashboard's "Market Linking" tile shows this,
-  // not total, for the same reason the screen's own KPI strip does
-  // (see M-marketplace-6/M-marketplace-8).
-  final int enrolledFarmers;
+
+  /// Waiting for a buyer (status submitted).
+  final int waitingForBuyer;
+
+  /// A buyer is saved and the sale is not complete yet.
+  final int buyerFound;
+
+  /// Farmers who asked to cancel an open request and are waiting for a review.
+  final int cancellationRequests;
+
+  /// Different Farmers with at least one open request.
+  final int activeFarmers;
 
   const MarketLinkingSummaryStats({
     required this.total,
-    required this.submitted,
-    required this.enrolledFarmers,
+    required this.waitingForBuyer,
+    required this.buyerFound,
+    required this.cancellationRequests,
+    required this.activeFarmers,
   });
+
+  /// Open requests: waiting for a buyer, or buyer found.
+  int get active => waitingForBuyer + buyerFound;
 
   static const empty = MarketLinkingSummaryStats(
     total: 0,
-    submitted: 0,
-    enrolledFarmers: 0,
+    waitingForBuyer: 0,
+    buyerFound: 0,
+    cancellationRequests: 0,
+    activeFarmers: 0,
   );
+
+  /// Counts [rows] (status, farmer_id, cancellation_status) the way the Market
+  /// Linking screen does. Pure, so it is tested without a database.
+  factory MarketLinkingSummaryStats.fromRows(List<Map<String, dynamic>> rows) {
+    final real = rows.where((r) => r['status'] != 'requested').toList();
+    bool isOpen(Map<String, dynamic> r) =>
+        r['status'] == 'submitted' || r['status'] == 'buyer_found';
+    final open = real.where(isOpen).toList();
+    return MarketLinkingSummaryStats(
+      total: real.length,
+      waitingForBuyer: real.where((r) => r['status'] == 'submitted').length,
+      buyerFound: real.where((r) => r['status'] == 'buyer_found').length,
+      cancellationRequests: open.where((r) => r['cancellation_status'] == 'requested').length,
+      activeFarmers: open.map((r) => r['farmer_id']).whereType<String>().toSet().length,
+    );
+  }
 }
 
 // ─── Repository ────────────────────────────────────────────────────────────────
@@ -302,27 +573,70 @@ class MarketLinkingRepository {
               .toSet()
               .toList();
           final batchMap = <String, String>{};
+          final batchUnitMap = <String, String>{};
+          final batchCropMap = <String, String>{};
           if (batchIds.isNotEmpty) {
             try {
               final batchRows = await _client
                   .from('inventory_batches')
-                  .select('id, batch_number')
+                  .select('id, batch_number, crop_id, unit')
                   .inFilter('id', batchIds);
               for (final b in batchRows) {
                 batchMap[b['id'] as String] = b['batch_number'] as String;
+                batchUnitMap[b['id'] as String] = unitOrDefault(b['unit'] as String?);
+                final cropId = b['crop_id'] as String?;
+                if (cropId != null) batchCropMap[b['id'] as String] = cropId;
               }
             } catch (_) {}
           }
+
+          // The Farmer's own crop photo for each batch's crop — never the
+          // Crop Master image.
+          final photoByCrop = batchCropMap.isEmpty
+              ? <String, String>{}
+              : await fetchFarmerCropImageMap(
+                  _client,
+                  batchCropMap.values.toSet().toList(),
+                );
+
+          // Every recorded sale of these requests, oldest first.
+          final salesByProgram = <String, List<Map<String, dynamic>>>{};
+          try {
+            final saleRows = await _client
+                .from('market_linking_sales')
+                .select(
+                  'id, program_id, buyer_name, buyer_contact, confirmed_volume_kg, '
+                  'price_per_kg, total_amount, notes, completed_at',
+                )
+                .inFilter('program_id', rows.map((r) => r['id'] as String).toList())
+                .order('completed_at', ascending: true);
+            for (final s in saleRows) {
+              (salesByProgram[s['program_id'] as String] ??= []).add(s);
+            }
+          } catch (_) {}
 
           return rows.map<Map<String, dynamic>>((r) {
             final fid  = r['farmer_id'] as String;
             final info = infoMap[fid] ?? {};
             final batchId = r['inventory_batch_id'] as String?;
+            // The request's own unit; the batch's when the column is not there
+            // yet. Its sales are measured in the same unit.
+            final unit = unitOrDefault(
+              (r['unit'] as String?) ?? (batchId != null ? batchUnitMap[batchId] : null),
+            );
             return {
               ...r,
+              'unit':             unit,
               'farmer_name':      info['full_name'] as String? ?? 'Farmer',
               'farmer_photo_url': info['profile_photo_url'] as String?,
               'batch_number':     batchId != null ? batchMap[batchId] : null,
+              'crop_photo_url':   batchId != null
+                  ? photoByCrop[batchCropMap[batchId]]
+                  : null,
+              'sales': [
+                for (final s in salesByProgram[r['id'] as String] ?? const [])
+                  {...s, 'unit': unit},
+              ],
             };
           }).toList();
         },
@@ -334,40 +648,22 @@ class MarketLinkingRepository {
     }
   }
 
-  /// Lightweight aggregate for the Marketplace Dashboard's Market Linking
-  /// KPI tile and priority alert — selects only status + farmer_id (no
-  /// full row hydration) and tallies client-side. farmer_id is included
-  /// so the dashboard's "Market Linking" tile can show enrolled farmers
-  /// (unique) rather than total rows — the Dashboard tile had the exact
-  /// same total-vs-enrolled conflation the screen's own KPI strip did
-  /// before it was fixed (M-11, M-marketplace-6/M-marketplace-8).
-  ///
-  /// 'requested' rows (farmer-submitted, not yet admin-approved — see
-  /// supabase_schema_market_linking_farmer_requests.sql) are excluded from
-  /// every count here, same as the Market Linking screen's own KPI strip
-  /// (_nonRequestedEntries) — a farmer who only has a pending request
-  /// isn't actually enrolled yet, and counting them as one would silently
-  /// inflate this tile the moment farmer-initiated requests existed.
+  /// The Marketplace Overview's Market Linking figures (see
+  /// [MarketLinkingSummaryStats]). A database that does not have the
+  /// cancellation column yet still returns the rest.
   Future<MarketLinkingSummaryStats> fetchSummaryStats() async {
     try {
-      final rows = await _client
-          .from('market_linking_programs')
-          .select('status, farmer_id')
-          .neq('status', 'requested');
-
-      int submitted = 0;
-      final farmerIds = <String>{};
-      for (final r in rows) {
-        final status = r['status'] as String?;
-        if (status == 'submitted') submitted++;
-        final farmerId = r['farmer_id'] as String?;
-        if (farmerId != null) farmerIds.add(farmerId);
+      Future<List<Map<String, dynamic>>> read(String columns) async =>
+          List<Map<String, dynamic>>.from(
+            await _client.from('market_linking_programs').select(columns).neq('status', 'requested'),
+          );
+      List<Map<String, dynamic>> rows;
+      try {
+        rows = await read('status, farmer_id, cancellation_status');
+      } catch (_) {
+        rows = await read('status, farmer_id');
       }
-      return MarketLinkingSummaryStats(
-        total: rows.length,
-        submitted: submitted,
-        enrolledFarmers: farmerIds.length,
-      );
+      return MarketLinkingSummaryStats.fromRows(rows);
     } catch (_) {
       return MarketLinkingSummaryStats.empty;
     }
@@ -411,75 +707,107 @@ class MarketLinkingRepository {
   // actual Ginger harvest for sale (submitGingerForSale() below) then
   // requires that enrollment to already be approved.
 
-  /// Buyer Found and Cancelled stay a plain update — no inventory
-  /// implication either way, per the approved design. Completed branches:
-  /// with a batch (newly attached this call, or already attached earlier)
-  /// it goes through complete_market_linking so the deduction is validated
-  /// and atomic; without one, it's the same plain update as any other
-  /// status change.
-  Future<void> updateStatus({
-    required String id,
-    required MarketLinkingStatus newStatus,
-    String? buyerName,
-    String? buyerContact,
-    double? pricePerKg,
-    double? requestedVolumeKg,
-    String? notes,
-    String? inventoryBatchId,
-    double? confirmedVolumeKg,
-  }) async {
-    if (newStatus == MarketLinkingStatus.completed) {
-      await _client.rpc(
-        'complete_market_linking',
-        params: {
-        'p_id': id,
-        if (inventoryBatchId != null) 'p_batch_id': inventoryBatchId,
-          if (confirmedVolumeKg != null)
-            'p_confirmed_volume_kg': confirmedVolumeKg,
-        if (buyerName != null) 'p_buyer_name': buyerName,
-        if (buyerContact != null) 'p_buyer_contact': buyerContact,
-        if (pricePerKg != null) 'p_price_per_kg': pricePerKg,
-        if (notes != null) 'p_notes': notes,
-        },
-      );
-      AdminActivityRepository().log(
-        module: 'market_linking',
-        actionType: 'completed',
-        message: const AdminLogMessage('adminLogMarketLinkingCompleted'),
-        referenceId: id,
-      );
-      return;
-    }
+  // ─── The Manager/Officer's stages ─────────────────────────────────────────
+  // Request (the Farmer's submission) -> Buyer Details -> Complete Sale ->
+  // Completed. Each stage is its own call, so saving the buyer never sells
+  // anything and only Complete Sale moves stock.
 
-    final now = DateTime.now().toIso8601String();
-    await _client
-        .from('market_linking_programs')
-        .update({
-      'status':        newStatus.value,
-      if (buyerName != null) 'buyer_name': buyerName,
-      if (buyerContact != null) 'buyer_contact': buyerContact,
-      if (pricePerKg != null) 'price_per_kg': pricePerKg,
-          if (requestedVolumeKg != null)
-            'requested_volume_kg': requestedVolumeKg,
-      if (notes != null) 'notes': notes,
-      if (newStatus == MarketLinkingStatus.buyerFound)
-        'buyer_found_at': now,
-        })
-        .eq('id', id);
+  /// Stage 2 — Buyer Details: who the buyer is, and nothing else (full name and
+  /// contact number are required; email is optional). Moves the
+  /// request to Buyer Found. Never sells, completes or deducts anything.
+  Future<void> saveBuyerDetails({
+    required String programId,
+    required String fullName,
+    required String contactNumber,
+    String? email,
+  }) async {
+    await _client.rpc(
+      'save_market_linking_buyer_details',
+      params: {
+        'p_program_id': programId,
+        'p_buyer_name': fullName.trim(),
+        'p_buyer_contact': contactNumber.trim(),
+        'p_buyer_email': (email ?? '').trim().isEmpty ? null : email!.trim(),
+      },
+    );
     AdminActivityRepository().log(
       module: 'market_linking',
-      actionType: newStatus.value,
-      message: AdminLogMessage('adminLogMarketLinkingStatus', {'status': newStatus.value}),
-      referenceId: id,
+      actionType: 'buyer_found',
+      message: const AdminLogMessage('adminLogMarketLinkingStatus', {'status': 'buyer_found'}),
+      referenceId: programId,
     );
   }
 
-  // startNewRound() removed — it inserted a fresh enrollment directly at
-  // status='submitted', the same admin-direct bypass as enrollFarmer()
-  // above. A farmer sells another batch of ginger the same way as their
-  // first round: Submit to Sell -> 'requested' -> Approve/Decline. The
-  // prior round's row is untouched either way (never mutated), so its
-  // history is preserved regardless of which path creates the next one.
+  /// Stage 3 — Complete Sale: records one sale for the saved buyer: the quantity
+  /// purchased, the agreed price per kg and any notes. The total is computed by
+  /// the database. Only this step moves stock to Sold. A part-purchase leaves
+  /// the unsold quantity reserved for the Farmer; selling the last of it
+  /// completes the request. Returns the new sale's id.
+  Future<String> recordSale({
+    required String programId,
+    required double quantityKg,
+    required double pricePerKg,
+    String? notes,
+  }) async {
+    final id = await _client.rpc(
+      'record_market_linking_sale',
+      params: {
+        'p_program_id': programId,
+        'p_quantity_kg': roundQuantity(quantityKg),
+        'p_price_per_kg': roundQuantity(pricePerKg),
+        'p_notes': notes,
+      },
+    );
+    AdminActivityRepository().log(
+      module: 'market_linking',
+      actionType: 'sale_recorded',
+      message: const AdminLogMessage('adminLogMarketLinkingCompleted'),
+      referenceId: programId,
+    );
+    return id as String;
+  }
+
+  // ─── Cancellation: the Farmer asks, the Manager/Officer reviews ───────────
+  // There is deliberately no way for a Manager/Officer to cancel a request on
+  // their own (the database refuses it too).
+
+  /// Farmer: asks to cancel an active request. A reason is required. Nothing is
+  /// released until the Manager/Officer approves.
+  Future<void> requestCancellation({
+    required String programId,
+    required String reason,
+  }) async {
+    await _client.rpc(
+      'request_market_linking_cancellation',
+      params: {'p_program_id': programId, 'p_reason': reason.trim()},
+    );
+  }
+
+  /// Manager/Officer: approves or declines a Farmer's cancellation. Declining
+  /// needs a reason. Approving releases only the unsold reserved quantity and
+  /// keeps every sale already recorded.
+  Future<void> respondToCancellation({
+    required String programId,
+    required bool approve,
+    String? notes,
+  }) async {
+    await _client.rpc(
+      'respond_to_market_linking_cancellation',
+      params: {
+        'p_program_id': programId,
+        'p_approve': approve,
+        'p_notes': (notes ?? '').trim().isEmpty ? null : notes!.trim(),
+      },
+    );
+    AdminActivityRepository().log(
+      module: 'market_linking',
+      actionType: approve ? 'cancellation_approved' : 'cancellation_declined',
+      message: AdminLogMessage('adminLogMarketLinkingStatus', {
+        'status': approve ? 'cancellation approved' : 'cancellation declined',
+      }),
+      referenceId: programId,
+    );
+  }
 
   /// Permanently removes a cancelled entry so cancelled records don't
   /// accumulate indefinitely. The `.eq('status', 'cancelled')` is a
@@ -499,60 +827,6 @@ class MarketLinkingRepository {
       message: const AdminLogMessage('adminLogMarketLinkingDeleted'),
       referenceId: id,
     );
-  }
-
-  /// Attaches (or clears) a batch link independently of a status change —
-  /// callable while still Submitted or Buyer Found. Not usable once
-  /// Completed; the sheet enforces that by not showing this control then.
-  Future<void> attachBatch({
-    required String id,
-    required String? batchId,
-  }) async {
-    await _client
-        .from('market_linking_programs')
-        .update({'inventory_batch_id': batchId})
-        .eq('id', id);
-    AdminActivityRepository().log(
-      module: 'market_linking',
-      actionType: 'batch_attached',
-      message: const AdminLogMessage('adminLogMarketLinkingBatchAttached'),
-      referenceId: id,
-    );
-  }
-
-  /// Any Ginger (da_amad_market-classified) batch belonging to this farmer
-  /// with stock left — no is_coop_eligible-style gating, per the approved
-  /// decision. Resolves via crop_master -> farmer_crops -> inventory_batches
-  /// rather than a crop-name match, same reasoning as
-  /// fetchEnrollmentCandidates() above.
-  Future<List<Map<String, dynamic>>> fetchEligibleBatches(
-    String farmerId,
-  ) async {
-    try {
-      final daAmadCropIds = await _daAmadCropMasterIds();
-      if (daAmadCropIds.isEmpty) return [];
-
-      final farmerCropRows = await _client
-          .from('farmer_crops')
-          .select('id')
-          .eq('farmer_id', farmerId)
-          .inFilter('crop_master_id', daAmadCropIds);
-      final farmerCropIds = farmerCropRows
-          .map((r) => r['id'] as String)
-          .toList();
-      if (farmerCropIds.isEmpty) return [];
-
-      final rows = await _client
-          .from('inventory_batches')
-          .select('id, batch_number, available_kg')
-          .eq('farmer_id', farmerId)
-          .inFilter('crop_id', farmerCropIds)
-          .gt('available_kg', 0)
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(rows);
-    } catch (_) {
-      return [];
-    }
   }
 
   // ─── Farmer submits a Ginger harvest for sale ──────────────────────────
@@ -625,6 +899,23 @@ class MarketLinkingRepository {
           .from('market_linking_programs')
           .select('id')
           .eq('farmer_id', uid);
+      return rows.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// How many of the farmer's own requests are still open (waiting for a buyer,
+  /// or a buyer found and not yet fully sold) — for the Profile row's subtitle.
+  Future<int> fetchMyActiveRequestCount() async {
+    try {
+      final uid = _client.auth.currentUser?.id;
+      if (uid == null) return 0;
+      final rows = await _client
+          .from('market_linking_programs')
+          .select('id')
+          .eq('farmer_id', uid)
+          .inFilter('status', ['submitted', 'buyer_found']);
       return rows.length;
     } catch (_) {
       return 0;
@@ -711,10 +1002,26 @@ class MarketLinkingRepository {
         reviewedAt: row['reviewed_at'] != null
             ? DateTime.parse(row['reviewed_at'] as String)
             : null,
+        acknowledgedAt: row['acknowledged_at'] != null
+            ? DateTime.parse(row['acknowledged_at'] as String)
+            : null,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  /// The Farmer tapped Continue on the approval congratulations: remember it on
+  /// the server, for that enrollment, so it never shows again. Best effort: the
+  /// device also remembers it locally, so a failed call (offline) never brings
+  /// the screen back on this device.
+  Future<void> acknowledgeEnrollment(String enrollmentId) async {
+    try {
+      await _client.rpc(
+        'acknowledge_da_amad_enrollment',
+        params: {'p_enrollment_id': enrollmentId},
+      );
+    } catch (_) {}
   }
 
   /// Submits (or resubmits, after a rejection) a DA-AMAD enrollment
@@ -727,66 +1034,102 @@ class MarketLinkingRepository {
     await _client.rpc('submit_da_amad_enrollment');
   }
 
-  /// Admin: enrollments awaiting review.
-  Future<List<DaAmadEnrollmentModel>> fetchPendingEnrollments() =>
-      _fetchEnrollmentsByStatus('pending');
+  /// Manager / Officer: the whole enrollment queue in one read, so Pending and
+  /// Reviewed always come from the same snapshot and their counts agree.
+  ///
+  /// Reviewed holds every farmer already decided on: approved, declined, and
+  /// farmers who are already in Market Linking (they have requests) but have no
+  /// application on record. Unlike the earlier two-call version, a failed read
+  /// throws, so the screen can say so instead of showing an empty list that
+  /// looks like "nobody has been reviewed".
+  Future<DaAmadEnrollmentLists> fetchEnrollmentQueue() async {
+    final rows = await _client
+        .from('da_amad_enrollments')
+        .select('id, farmer_id, status, admin_notes, submitted_at, reviewed_at, reviewed_by');
+    final programs = await _client
+        .from('market_linking_programs')
+        .select('farmer_id, submitted_at');
 
-  /// Admin: enrollments already reviewed (approved or rejected), most
-  /// recently reviewed first.
-  Future<List<DaAmadEnrollmentModel>> fetchReviewedEnrollments() async {
-    final results = await Future.wait([
-      _fetchEnrollmentsByStatus('approved'),
-      _fetchEnrollmentsByStatus('rejected'),
-    ]);
-    final combined = [...results[0], ...results[1]]
-      ..sort(
-        (a, b) => (b.reviewedAt ?? b.submittedAt).compareTo(
-          a.reviewedAt ?? a.submittedAt,
-        ),
-      );
-    return combined;
-  }
-
-  Future<List<DaAmadEnrollmentModel>> _fetchEnrollmentsByStatus(
-    String status,
-  ) async {
-    try {
-      final rows = await _client
-          .from('da_amad_enrollments')
-          .select(
-            'id, farmer_id, status, admin_notes, submitted_at, reviewed_at',
-          )
-          .eq('status', status)
-          .order('submitted_at', ascending: status == 'pending');
-      if (rows.isEmpty) return [];
-
-      final farmerIds = rows
-          .map((r) => r['farmer_id'] as String)
-          .toSet()
-          .toList();
-      final infoRows = await _client
-          .from('user_information')
-          .select('user_id, full_name')
-          .inFilter('user_id', farmerIds);
-      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
-
-      return rows.map((r) {
-        final info = infoMap[r['farmer_id']];
-        return DaAmadEnrollmentModel(
-          id: r['id'] as String,
-          farmerId: r['farmer_id'] as String,
-          farmerName: info?['full_name'] as String? ?? 'Farmer',
-          status: DaAmadEnrollmentStatusExt.fromString(r['status'] as String?),
-          adminNotes: r['admin_notes'] as String?,
-          submittedAt: DateTime.parse(r['submitted_at'] as String),
-          reviewedAt: r['reviewed_at'] != null
-              ? DateTime.parse(r['reviewed_at'] as String)
-              : null,
-        );
-      }).toList();
-    } catch (_) {
-      return [];
+    final requestCounts = <String, int>{};
+    final firstRequest = <String, DateTime>{};
+    for (final p in programs) {
+      final id = p['farmer_id'] as String;
+      requestCounts[id] = (requestCounts[id] ?? 0) + 1;
+      final at = DateTime.tryParse(p['submitted_at'] as String? ?? '');
+      if (at != null && (firstRequest[id] == null || at.isBefore(firstRequest[id]!))) {
+        firstRequest[id] = at;
+      }
     }
+    final applied = {for (final r in rows) r['farmer_id'] as String};
+    final unreviewed = requestCounts.keys.where((id) => !applied.contains(id)).toList();
+
+    final peopleIds = <String>{
+      ...applied,
+      ...unreviewed,
+      for (final r in rows)
+        if (r['reviewed_by'] != null) r['reviewed_by'] as String,
+    }.toList();
+    final people = <String, Map<String, dynamic>>{};
+    if (peopleIds.isNotEmpty) {
+      final info = await _client
+          .from('user_information')
+          .select('user_id, full_name, profile_photo_url')
+          .inFilter('user_id', peopleIds);
+      for (final i in info) {
+        people[i['user_id'] as String] = i;
+      }
+    }
+
+    DaAmadEnrollmentModel build(
+      String farmerId, {
+      required String id,
+      required DaAmadEnrollmentStatus status,
+      String? notes,
+      required DateTime submittedAt,
+      DateTime? reviewedAt,
+      String? reviewedBy,
+      bool enrolledWithoutReview = false,
+    }) {
+      final person = people[farmerId];
+      return DaAmadEnrollmentModel(
+        id: id,
+        farmerId: farmerId,
+        farmerName: person?['full_name'] as String? ?? 'Farmer',
+        status: status,
+        adminNotes: notes,
+        submittedAt: submittedAt,
+        reviewedAt: reviewedAt,
+        farmerPhotoUrl: person?['profile_photo_url'] as String?,
+        reviewerName: reviewedBy == null ? null : people[reviewedBy]?['full_name'] as String?,
+        requestCount: requestCounts[farmerId] ?? 0,
+        enrolledWithoutReview: enrolledWithoutReview,
+      );
+    }
+
+    return splitEnrollments(
+      [
+        for (final r in rows)
+          build(
+            r['farmer_id'] as String,
+            id: r['id'] as String,
+            status: DaAmadEnrollmentStatusExt.fromString(r['status'] as String?),
+            notes: r['admin_notes'] as String?,
+            submittedAt: DateTime.parse(r['submitted_at'] as String),
+            reviewedAt: r['reviewed_at'] != null ? DateTime.parse(r['reviewed_at'] as String) : null,
+            reviewedBy: r['reviewed_by'] as String?,
+          ),
+      ],
+      enrolledOnly: [
+        for (final id in unreviewed)
+          build(
+            id,
+            id: 'enrolled-$id',
+            status: DaAmadEnrollmentStatus.approved,
+            submittedAt: firstRequest[id] ?? DateTime.fromMillisecondsSinceEpoch(0),
+            enrolledWithoutReview: true,
+          ),
+      ],
+    );
   }
 
   /// Admin approves or declines a farmer's enrollment. Routed through

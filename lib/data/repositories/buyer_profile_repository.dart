@@ -1,10 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
-import '../services/server_only.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/buyer_profile_model.dart';
 import '../models/buyer_activity_model.dart';
-import 'admin_activity_repository.dart';
 import '../services/offline_actions.dart';
 import '../models/admin_log_message.dart';
 import '../models/activity_text.dart';
@@ -364,9 +362,10 @@ class BuyerProfileRepository {
     try {
       final info = await _client
           .from('user_information')
-          .select(
-            'full_name, phone_number, profile_photo_url, contact_email, last_active_at',
-          )
+          // Contact details (phone, e-mail) are not shown on the Manager's
+          // Buyer Details, so they are not read here. They stay stored and are
+          // still used where an order needs them.
+          .select('full_name, profile_photo_url, last_active_at')
           .eq('user_id', buyerId)
           .maybeSingle();
       if (info == null) return null;
@@ -437,10 +436,8 @@ class BuyerProfileRepository {
       return BuyerProfileModel(
         userId: buyerId,
         fullName: info['full_name'] as String? ?? 'Buyer',
-        phoneNumber: info['phone_number'] as String?,
         profilePhotoUrl: info['profile_photo_url'] as String?,
         email: '', // synthetic auth address — BuyerDetailsScreen never shows it
-        contactEmail: info['contact_email'] as String?,
         accountStatus: status,
         memberSince: joinedAt,
         totalOrders: totalOrders,
@@ -481,9 +478,9 @@ class BuyerProfileRepository {
 
           final infoRows = await _client
               .from('user_information')
-              .select(
-                'user_id, full_name, phone_number, profile_photo_url, contact_email, last_active_at',
-              )
+              // No phone or e-mail: Buyer Management does not show or search
+              // them (they stay stored, and are used where an order needs them).
+              .select('user_id, full_name, profile_photo_url, last_active_at')
               .inFilter('user_id', userIds);
           final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
@@ -521,9 +518,7 @@ class BuyerProfileRepository {
             return {
               'user_id': uid,
               'full_name': info['full_name'] as String? ?? 'Buyer',
-              'phone_number': info['phone_number'] as String?,
               'profile_photo_url': info['profile_photo_url'] as String?,
-              'contact_email': info['contact_email'] as String?,
               'account_status': role['status'] as String? ?? 'active',
               'total_orders': orderCountMap[uid] ?? 0,
               'completed_orders': completedCountMap[uid] ?? 0,
@@ -540,11 +535,8 @@ class BuyerProfileRepository {
         return BuyerProfileModel(
           userId: r['user_id'] as String,
           fullName: r['full_name'] as String,
-          phoneNumber: r['phone_number'] as String?,
           profilePhotoUrl: r['profile_photo_url'] as String?,
-          email:
-              '', // synthetic auth address — the card shows contactEmail instead
-          contactEmail: r['contact_email'] as String?,
+          email: '', // synthetic auth address — never shown
           accountStatus: r['account_status'] as String,
           totalOrders: (r['total_orders'] as num).toInt(),
           completedOrders: (r['completed_orders'] as num).toInt(),
@@ -561,53 +553,6 @@ class BuyerProfileRepository {
     }
   }
 
-  // Routed through the same suspend_member/reactivate_member RPCs Farmer
-  // suspension already uses (see FarmerDetailsRepository.setFarmerStatus)
-  // rather than a raw user_roles.update() — despite the "member" naming,
-  // both RPCs operate on any user_roles row by user_id with no role
-  // filter, so they work unchanged for a buyer. Switching to them gets
-  // Buyer suspension the same reason storage (user_roles.suspension_reason,
-  // required — the RPC itself rejects an empty reason), audit trail
-  // (member_status_events), and login-blocking guard (see
-  // AuthService.login) that Farmer suspension already had; the old
-  // version here only ever flipped a status column with no reason and no
-  // actual access-control effect. The RPC sends its own notification, so
-  // no separate NotificationRepository call is needed here.
-  Future<void> setBuyerStatus({
-    required String buyerId,
-    required String status, // 'active' | 'suspended'
-    String? reason,
-    DateTime? suspendedUntil, // null = until an admin reactivates
-  }) async {
-    await ServerOnly.ensureOnline();
-    if (status == 'suspended') {
-      await _client.rpc(
-        'suspend_member',
-        params: {
-          'p_user_id': buyerId,
-          'p_reason': (reason == null || reason.trim().isEmpty)
-              ? 'Suspended by Manager'
-              : reason.trim(),
-          'p_suspended_until': suspendedUntil?.toUtc().toIso8601String(),
-        },
-      );
-      AdminActivityRepository().log(
-        module: 'members',
-        actionType: 'suspended',
-        message: const AdminLogMessage('adminLogBuyerSuspended'),
-        referenceId: buyerId,
-      );
-    } else {
-      await _client.rpc('reactivate_member', params: {'p_user_id': buyerId});
-      AdminActivityRepository().log(
-        module: 'members',
-        actionType: 'reactivated',
-        message: const AdminLogMessage('adminLogBuyerReactivated'),
-        referenceId: buyerId,
-      );
-    }
-  }
-
   // ─── Admin: total buyer count for dashboard KPI ────────────────────────────
   // Deliberately just a count, for the Admin dashboard's own KPI tile.
   // Buyer Management's full list (order stats, status, etc.) now
@@ -615,11 +560,10 @@ class BuyerProfileRepository {
   // no separate/duplicated local repository remains.
   Future<int> fetchBuyerCount() async {
     try {
-      final rows = await _client
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'buyer');
-      return rows.length;
+      // An exact count by the database (a plain select stops at 1000 rows). It
+      // counts every Buyer account, the same total as Buyer Management's "All".
+      return await _client.from('user_roles').count().eq('role', 'buyer');
+
     } catch (e) {
       debugPrint('BuyerProfileRepository.fetchBuyerCount failed: $e');
       return 0;

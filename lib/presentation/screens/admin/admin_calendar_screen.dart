@@ -302,6 +302,8 @@ class _AdminCalendarScreenState extends State<AdminCalendarScreen> {
                           else
                             GridView.builder(
                               shrinkWrap: true,
+                              // No automatic status-bar padding: this list sits inside a bigger scroll view.
+                              padding: EdgeInsets.zero,
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 7,

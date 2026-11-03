@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -69,6 +71,7 @@ class _ProgramPurchaseReviewScreenState
   }
 
   void _showReviewSheet(ProgramPurchase purchase) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     showManagementModal(
       context: context,
       builder: (ctx) {

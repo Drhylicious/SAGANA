@@ -1,4 +1,5 @@
 import '../../core/utils/order_reference.dart';
+import '../../core/utils/order_status.dart';
 import '../../core/utils/quantity_utils.dart';
 import 'farmer_crop_model.dart' show marketTypeLabelFor;
 
@@ -19,7 +20,7 @@ class BuyerOrderModel {
   /// listing by the database; the fields keep their old names).
   final String unit;
   final double totalPrice;
-  final String status; // pending | approved | completed | cancelled | rejected
+  final String status; // pending | approved | ready_for_pickup | out_for_delivery | delivered | completed | cancelled
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -45,6 +46,14 @@ class BuyerOrderModel {
   final String? deliveryNotes;
   final String? deliveryRecipientName;
   final String? deliveryLabel;
+
+  // Fulfillment progress recorded by the Manager / Officer (null until it
+  // happens). The delivery photo is the evidence uploaded with "Mark as Delivered".
+  final DateTime? readyAt;
+  final DateTime? outForDeliveryAt;
+  final DateTime? deliveredAt;
+  final String? deliveryPhotoUrl;
+  final String? deliveryEvidenceNote;
 
   const BuyerOrderModel({
     required this.id,
@@ -74,6 +83,11 @@ class BuyerOrderModel {
     this.deliveryNotes,
     this.deliveryRecipientName,
     this.deliveryLabel,
+    this.readyAt,
+    this.outForDeliveryAt,
+    this.deliveredAt,
+    this.deliveryPhotoUrl,
+    this.deliveryEvidenceNote,
   });
 
   bool get hasFulfillmentChoice => fulfillmentMethod != null;
@@ -89,25 +103,35 @@ class BuyerOrderModel {
 
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
+  bool get isReadyForPickup => status == 'ready_for_pickup';
+  bool get isOutForDelivery => status == 'out_for_delivery';
+  bool get isDelivered => status == 'delivered';
   bool get isCompleted => status == 'completed';
-  bool get isCancelled => status == 'cancelled';
-  bool get isRejected => status == 'rejected';
 
-  /// Same display-label-vs-stored-value pattern as MarketplaceListingModel's
-  /// pending_review → "Pending" convention — 'pending' and 'rejected' are
-  /// stored; "Pending Order" and "Disapproved" are what people read.
+  /// Receipt can be confirmed only when Ready for Pickup (pickup) or Delivered
+  /// (delivery); the database refuses it at any other point.
+  bool get canConfirmReceipt => canConfirmReceiptFor(status, fulfillmentMethod);
+  bool get isCancelled => status == 'cancelled';
+
+  /// The stored 'pending' is read as "Pending Order". There is no Disapproved
+  /// state: an old stored 'rejected' arrives here already as 'cancelled'
+  /// (see canonicalOrderStatus).
   String get statusLabel {
     switch (status) {
       case 'pending':
         return 'Pending Order';
       case 'approved':
         return 'Approved';
+      case 'ready_for_pickup':
+        return 'Ready for Pickup';
+      case 'out_for_delivery':
+        return 'Out for Delivery';
+      case 'delivered':
+        return 'Delivered';
       case 'completed':
         return 'Completed';
       case 'cancelled':
         return 'Cancelled';
-      case 'rejected':
-        return 'Disapproved';
       default:
         return status;
     }
@@ -130,6 +154,9 @@ class BuyerOrderModel {
 
   String get marketTypeLabel => marketTypeLabelFor(marketType);
 
+  static DateTime? _dt(dynamic v) =>
+      v == null ? null : DateTime.parse(v as String).toLocal();
+
   factory BuyerOrderModel.fromMap(Map<String, dynamic> map) {
     return BuyerOrderModel(
       id: map['id'] as String,
@@ -142,7 +169,7 @@ class BuyerOrderModel {
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
       unit: unitOrDefault(map['unit'] as String?),
       totalPrice: (map['total_price'] as num).toDouble(),
-      status: map['status'] as String? ?? 'pending',
+      status: canonicalOrderStatus(map['status'] as String?),
       notes: map['notes'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -161,6 +188,11 @@ class BuyerOrderModel {
       deliveryNotes: map['delivery_notes'] as String?,
       deliveryRecipientName: map['delivery_recipient_name'] as String?,
       deliveryLabel: map['delivery_label'] as String?,
+      readyAt: _dt(map['ready_at']),
+      outForDeliveryAt: _dt(map['out_for_delivery_at']),
+      deliveredAt: _dt(map['delivered_at']),
+      deliveryPhotoUrl: map['delivery_photo_url'] as String?,
+      deliveryEvidenceNote: map['delivery_evidence_note'] as String?,
     );
   }
 }

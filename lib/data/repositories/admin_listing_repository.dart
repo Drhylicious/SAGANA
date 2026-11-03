@@ -4,6 +4,7 @@ import '../services/server_only.dart';
 import 'admin_activity_repository.dart';
 import 'crop_lookup.dart';
 import '../models/admin_log_message.dart';
+import '../models/listing_edit_request_model.dart';
 import '../../core/utils/quantity_utils.dart';
 
 // ─── Admin Listing Model ──────────────────────────────────────────────────────
@@ -234,7 +235,23 @@ class ListingSummaryStats {
     sold: 0,
     rejected: 0,
   );
+
+  /// Builds the figures from [{status, n}] count rows ('total' is the count of
+  /// every non-withdrawn listing).
+  factory ListingSummaryStats.fromCountRows(List<Map<String, dynamic>> rows) {
+    int of(String status) => rows
+        .where((r) => r['status'] == status)
+        .fold<int>(0, (sum, r) => sum + ((r['n'] as num?)?.toInt() ?? 0));
+    return ListingSummaryStats(
+      total: of('total'),
+      pending: of('pending_review'),
+      approved: of('approved'),
+      sold: of('sold'),
+      rejected: of('rejected'),
+    );
+  }
 }
+
 
 // ─── Admin Listing Repository ─────────────────────────────────────────────────
 
@@ -276,8 +293,7 @@ class AdminListingRepository {
     try {
       var query = _client
           .from('crop_master')
-          .select('crop_name')
-          .eq('is_active', true);
+          .select('crop_name');
       if (category != null) {
         query = query.eq('category', category);
       }
@@ -543,40 +559,41 @@ class AdminListingRepository {
     }
   }
 
+  /// The Marketplace Overview's listing figures. Each is an exact count taken by
+  /// the database, never "rows we happened to download": a plain select returns
+  /// at most 1000 rows, which would silently cap every total. Withdrawn listings
+  /// (a Farmer housekeeping action) are not counted, so All Listings equals the
+  /// "All" chip of the All Listings screen.
   Future<ListingSummaryStats> fetchSummaryStats() async {
     try {
       final rows = await OfflineCache.load(
-        screen: 'listing_status_rows',
-        fetch: () => _client
-            .from('marketplace_listings')
-            .select('status')
-            .neq('status', 'withdrawn'),
-      );
+        screen: 'listing_status_counts',
+        fetch: () async {
+          Future<int> n([String? status]) {
+            var q = _client.from('marketplace_listings').count().neq('status', 'withdrawn');
+            if (status != null) q = q.eq('status', status);
+            return q;
+          }
 
-      int pending = 0, approved = 0, sold = 0, rejected = 0;
-      for (final r in rows) {
-        switch (r['status'] as String?) {
-          case 'pending_review':
-            pending++;
-            break;
-          case 'approved':
-            approved++;
-            break;
-          case 'sold':
-            sold++;
-            break;
-          case 'rejected':
-            rejected++;
-            break;
-        }
-      }
-      return ListingSummaryStats(
-        total: rows.length,
-        pending: pending,
-        approved: approved,
-        sold: sold,
-        rejected: rejected,
+          final results = await Future.wait([
+            n(),
+            n('pending_review'),
+            n('approved'),
+            n('sold'),
+            n('rejected'),
+            countPendingEditRequests(),
+          ]);
+          return [
+            {'status': 'total', 'n': results[0]},
+            // Waiting on a decision: new listings and Farmer edit requests.
+            {'status': 'pending_review', 'n': results[1] + results[5]},
+            {'status': 'approved', 'n': results[2]},
+            {'status': 'sold', 'n': results[3]},
+            {'status': 'rejected', 'n': results[4]},
+          ];
+        },
       );
+      return ListingSummaryStats.fromCountRows(rows);
     } catch (_) {
       return ListingSummaryStats.empty;
     }
@@ -593,6 +610,138 @@ class AdminListingRepository {
     } catch (_) {
       return [];
     }
+  }
+
+  // ─── Listing edit requests (Farmer changes to a published listing) ─────────
+
+  static const _editRequestSelect =
+      '*, marketplace_listings(crop_name, variety, volume_kg, remaining_kg, '
+      'price_per_kg, description, photo_url, status, inventory_batch_id)';
+
+  /// Every edit request, newest first, with the listing as it is now, the
+  /// farmer's name and (for a decided one) the reviewer's name.
+  Future<List<ListingEditRequest>> fetchEditRequests() async {
+    try {
+      final rows = await _client
+          .from('listing_edit_requests')
+          .select(_editRequestSelect)
+          .order('created_at', ascending: false)
+          .limit(300);
+      return _enrichEditRequests(List<Map<String, dynamic>>.from(rows));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<ListingEditRequest?> fetchEditRequestById(String requestId) async {
+    try {
+      final row = await _client
+          .from('listing_edit_requests')
+          .select(_editRequestSelect)
+          .eq('id', requestId)
+          .maybeSingle();
+      if (row == null) return null;
+      final list = await _enrichEditRequests([Map<String, dynamic>.from(row)]);
+      return list.isEmpty ? null : list.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<ListingEditRequest>> _enrichEditRequests(
+    List<Map<String, dynamic>> rows,
+  ) async {
+    if (rows.isEmpty) return [];
+    final people = <String>{
+      for (final r in rows) r['farmer_id'] as String,
+      for (final r in rows)
+        if (r['reviewed_by'] != null) r['reviewed_by'] as String,
+    }.toList();
+    final names = <String, String>{};
+    try {
+      final info = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', people);
+      for (final i in info) {
+        names[i['user_id'] as String] = (i['full_name'] as String? ?? '').trim();
+      }
+    } catch (_) {}
+
+    // Free quantity on the batch, only for the requests still waiting.
+    final batchIds = <String>{
+      for (final r in rows)
+        if (r['status'] == 'pending' &&
+            (r['marketplace_listings'] as Map?)?['inventory_batch_id'] != null)
+          (r['marketplace_listings'] as Map)['inventory_batch_id'] as String,
+    }.toList();
+    final available = <String, double>{};
+    if (batchIds.isNotEmpty) {
+      try {
+        final b = await _client
+            .from('inventory_batches')
+            .select('id, available_kg')
+            .inFilter('id', batchIds);
+        for (final x in b) {
+          available[x['id'] as String] = (x['available_kg'] as num).toDouble();
+        }
+      } catch (_) {}
+    }
+
+    return [
+      for (final r in rows)
+        () {
+          final l = Map<String, dynamic>.from(
+            (r['marketplace_listings'] as Map?) ?? const {},
+          );
+          return ListingEditRequest.fromMap(
+            r,
+            extra: {
+              'farmer_name': names[r['farmer_id']] ?? 'Farmer',
+              'reviewer_name': r['reviewed_by'] == null ? null : names[r['reviewed_by']],
+              'crop_name': l['crop_name'],
+              'variety': l['variety'],
+              'current_quantity': l['volume_kg'],
+              'current_remaining': l['remaining_kg'],
+              'current_price': l['price_per_kg'],
+              'current_description': l['description'],
+              'current_photo_url': l['photo_url'],
+              'listing_status': l['status'],
+              'batch_available': l['inventory_batch_id'] == null
+                  ? null
+                  : available[l['inventory_batch_id']],
+            },
+          );
+        }(),
+    ];
+  }
+
+  /// How many edit requests are waiting for a decision.
+  Future<int> countPendingEditRequests() async {
+    try {
+      return await _client
+          .from('listing_edit_requests')
+          .count()
+          .eq('status', 'pending');
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> approveEditRequest(String requestId) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('approve_listing_edit', params: {'p_request_id': requestId});
+  }
+
+  Future<void> rejectEditRequest({
+    required String requestId,
+    required String reason,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'reject_listing_edit',
+      params: {'p_request_id': requestId, 'p_reason': reason.trim()},
+    );
   }
 
   Future<void> approveListing(String listingId) async {

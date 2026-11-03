@@ -8,10 +8,14 @@ import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/models/cooperative_offer_model.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
+import '../../../data/repositories/workflow_event_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/staff_permission_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/coop_offer_widgets.dart';
 import '../../widgets/skeleton.dart';
+import '../../widgets/view_only_banner.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
 /// One Offer to Cooperative negotiation, for either side.
@@ -41,18 +45,42 @@ class CoopOfferNegotiationScreen extends StatefulWidget {
 class _CoopOfferNegotiationScreenState
     extends State<CoopOfferNegotiationScreen> {
   final _repo = CooperativeOfferRepository();
+  TableChangeWatcher? _watcher;
   bool _isLoading = true;
   bool _busy = false;
   CooperativeOfferModel? _offer;
   List<CooperativeOfferEvent> _events = [];
+  Map<String, String> _staffNames = const {};
 
   bool get _forFarmer => widget.isFarmer;
+
+  /// The cooperative's answers (accept, counter, decline, confirm receipt)
+  /// belong to the Marketplace module: a View Only Officer is told why and
+  /// nothing is sent. The Farmer's side has no such check, and the Manager
+  /// always passes.
+  bool _cooperativeMayAct() =>
+      _forFarmer || requireManage(context, StaffModule.marketplace);
 
   @override
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
     _load();
+    // The other side answering (a counteroffer, an acceptance, a decline) must
+    // change the buttons here without a pull-down: Accept / Decline /
+    // Counteroffer follow whose turn it is.
+    _watcher = TableChangeWatcher(
+      tables: const ['cooperative_purchase_offers'],
+      onChange: () {
+        if (mounted && !_busy) _load(showSpinner: false);
+      },
+    )..start();
+  }
+
+  @override
+  void dispose() {
+    _watcher?.dispose();
+    super.dispose();
   }
 
   Future<void> _load({bool showSpinner = true}) async {
@@ -61,10 +89,20 @@ class _CoopOfferNegotiationScreenState
       _repo.fetchOfferById(widget.offerId),
       _repo.fetchHistory(widget.offerId),
     ]);
+    final events = results[1] as List<CooperativeOfferEvent>;
+    // The Manager / Officer sees which staff member took each cooperative step;
+    // a Farmer never gets these names.
+    final names = _forFarmer
+        ? const <String, String>{}
+        : await WorkflowEventRepository().fetchNames([
+            for (final e in events)
+              if (!e.byFarmer && e.actorId != null) e.actorId!,
+          ]);
     if (!mounted) return;
     setState(() {
       _offer = results[0] as CooperativeOfferModel?;
-      _events = results[1] as List<CooperativeOfferEvent>;
+      _events = events;
+      _staffNames = names;
       _isLoading = false;
     });
   }
@@ -89,6 +127,7 @@ class _CoopOfferNegotiationScreenState
   }
 
   Future<void> _accept(CooperativeOfferModel offer) async {
+    if (!_cooperativeMayAct()) return;
     final l10n = AppLocalizations.of(context);
     final price = offer.currentPricePerKg;
     if (price == null) return;
@@ -110,6 +149,7 @@ class _CoopOfferNegotiationScreenState
         expectedRound: offer.negotiationRound,
         asCooperative: !_forFarmer,
         kg: offer.offeredQuantityKg,
+        unit: offer.unit,
         amount: moneyOf(price, offer.offeredQuantityKg),
       ),
       l10n.coopToastAccepted,
@@ -117,6 +157,7 @@ class _CoopOfferNegotiationScreenState
   }
 
   Future<void> _counter(CooperativeOfferModel offer) async {
+    if (!_cooperativeMayAct()) return;
     final l10n = AppLocalizations.of(context);
     final input = await showCoopPriceDialog(
       context,
@@ -141,12 +182,68 @@ class _CoopOfferNegotiationScreenState
         expectedRound: offer.negotiationRound,
         note: input.note,
         asCooperative: !_forFarmer,
+        unit: offer.unit,
       ),
       l10n.coopToastCountered,
     );
   }
 
+  /// The Farmer hands the approved harvest over: a camera photo is required.
+  Future<void> _deliver(CooperativeOfferModel offer) async {
+    final l10n = AppLocalizations.of(context);
+    final input = await showCoopDeliveryDialog(
+      context,
+      subtitle: l10n.coopCounterSubtitle(
+        offer.cropName,
+        coopKg(offer.offeredQuantityKg, offer.unit),
+      ),
+    );
+    if (input == null) return;
+    await _run(
+      () => _repo.deliverOffer(
+        offerId: offer.id,
+        photoBytes: input.photo.bytes,
+        photoExtension: input.photo.extension,
+        note: input.note,
+      ),
+      l10n.coopToastDelivered,
+    );
+  }
+
+  /// The Manager / Officer confirms the physical receipt: the sale is settled and
+  /// the harvest enters cooperative inventory.
+  Future<void> _confirmReceipt(CooperativeOfferModel offer) async {
+    if (!_cooperativeMayAct()) return;
+    final l10n = AppLocalizations.of(context);
+    final amount = offer.confirmedAmount ??
+        moneyOf(offer.agreedPricePerKg ?? 0, offer.offeredQuantityKg);
+    final note = await showCoopConfirmDialog(
+      context,
+      title: l10n.coopReceiptTitle,
+      body: l10n.coopReceiptBody(
+        coopKg(offer.offeredQuantityKg, offer.unit),
+        offer.cropName,
+        offer.farmerName,
+        coopPeso(amount),
+      ),
+      confirmLabel: l10n.coopReceiptConfirm,
+      reasonLabel: l10n.coopNoteLabel,
+    );
+    if (note == null) return;
+    await _run(
+      () => _repo.confirmReceipt(
+        offerId: offer.id,
+        note: note.isEmpty ? null : note,
+        kg: offer.offeredQuantityKg,
+        unit: offer.unit,
+        amount: amount,
+      ),
+      l10n.coopToastReceived,
+    );
+  }
+
   Future<void> _end(CooperativeOfferModel offer) async {
+    if (!_cooperativeMayAct()) return;
     final l10n = AppLocalizations.of(context);
     if (_forFarmer) {
       final note = await showCoopConfirmDialog(
@@ -241,12 +338,17 @@ class _CoopOfferNegotiationScreenState
                         ],
                         _BatchCard(offer: offer),
                         const SizedBox(height: 16),
+                        if (offer.deliveryPhotoUrl != null) ...[
+                          _DeliveryCard(offer: offer),
+                          const SizedBox(height: 16),
+                        ],
                         CoopSectionCard(
                           title: l10n.coopHistoryTitle,
                           child: CoopNegotiationTimeline(
                             events: _events,
                             forFarmer: _forFarmer,
                             unit: offer.unit,
+                            staffNames: _forFarmer ? null : _staffNames,
                           ),
                         ),
                       ],
@@ -255,7 +357,9 @@ class _CoopOfferNegotiationScreenState
           ),
         ],
       ),
-      bottomNavigationBar: (offer != null && offer.isPending)
+      bottomNavigationBar: offer == null
+          ? null
+          : offer.isPending
           ? CoopOfferActionBar(
               offer: offer,
               forFarmer: _forFarmer,
@@ -264,6 +368,24 @@ class _CoopOfferNegotiationScreenState
               onAccept: () => _accept(offer),
               onCounter: () => _counter(offer),
               onEnd: () => _end(offer),
+            )
+          // Approved: the Farmer delivers. Delivered: the Manager / Officer
+          // confirms the receipt. Nobody else has an action on these.
+          : (offer.awaitingDelivery && _forFarmer)
+          ? CoopHandoverBar(
+              label: l10n.coopActionDeliver,
+              icon: Icons.local_shipping_outlined,
+              busy: _busy,
+              online: ConnectivityService.instance.isOnline,
+              onPressed: () => _deliver(offer),
+            )
+          : (offer.awaitingReceipt && !_forFarmer)
+          ? CoopHandoverBar(
+              label: l10n.coopActionConfirmReceipt,
+              icon: Icons.verified_rounded,
+              busy: _busy,
+              online: ConnectivityService.instance.isOnline,
+              onPressed: () => _confirmReceipt(offer),
             )
           : null,
     );
@@ -284,8 +406,16 @@ class _StatusCard extends StatelessWidget {
     final view = CoopOfferStatusView.of(context, offer, forFarmer: forFarmer);
 
     final String message;
-    if (offer.isConfirmed) {
-      message = l10n.coopClosedAccepted;
+    if (offer.isCompleted) {
+      message = l10n.coopClosedCompleted;
+    } else if (offer.isDelivered) {
+      message = forFarmer
+          ? l10n.coopDeliveredFarmerMsg
+          : l10n.coopDeliveredStaffMsg;
+    } else if (offer.isApproved) {
+      message = forFarmer
+          ? l10n.coopApprovedFarmerMsg
+          : l10n.coopApprovedStaffMsg;
     } else if (offer.isDeclined) {
       message = l10n.coopClosedDeclined;
     } else if (offer.isCancelled) {
@@ -339,6 +469,58 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
+// ─── Delivery evidence card ──────────────────────────────────────────────────
+
+class _DeliveryCard extends StatelessWidget {
+  final CooperativeOfferModel offer;
+  const _DeliveryCard({required this.offer});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return CoopSectionCard(
+      title: l10n.coopDeliveryPhotoTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CoopDeliveryPhoto(url: offer.deliveryPhotoUrl!),
+          const SizedBox(height: 10),
+          if (offer.deliveredAt != null)
+            Text(
+              l10n.coopDeliveredOn(coopDateTime(offer.deliveredAt!)),
+              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          if (offer.deliveryNote != null && offer.deliveryNote!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '“${offer.deliveryNote}”',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+          if (offer.receivedAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                l10n.coopReceivedOn(coopDateTime(offer.receivedAt!)),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppConstants.successGreen,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Farmer + batch cards ────────────────────────────────────────────────────
 
 class _FarmerCard extends StatelessWidget {
@@ -385,14 +567,7 @@ class _FarmerCard extends StatelessWidget {
                     color: cs.onSurface,
                   ),
                 ),
-                if (offer.farmerPhone != null)
-                  Text(
-                    offer.farmerPhone!,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
+                CoopFarmerContact(offer: offer),
               ],
             ),
           ),
@@ -503,6 +678,11 @@ class CoopOfferActionBar extends StatelessWidget {
     final myTurn = forFarmer ? offer.awaitingFarmer : offer.awaitingCooperative;
     final canAct = online && !busy;
 
+    // The Manager / Officer who just sent a counteroffer has nothing to do until
+    // the Farmer answers: no buttons at all (the status card says who is up).
+    // Decline Offer comes back when the Farmer answers with a counteroffer.
+    if (!forFarmer && !myTurn) return const SizedBox.shrink();
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
@@ -532,91 +712,122 @@ class CoopOfferActionBar extends StatelessWidget {
                     style: GoogleFonts.inter(fontSize: 12, color: cs.error),
                   ),
                 ),
+              // Both sides share one layout (the Farmer answering a counteroffer
+              // sees the same buttons as the Manager / Officer answering an offer):
+              //   [ Accept Offer ] [ Decline Offer ]
+              //   [   Submit Counteroffer          ]
+              // Accepting needs no counteroffer first: it approves the price on
+              // the table as is. Only the side whose turn it is gets them.
               if (myTurn)
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: canAct ? onCounter : null,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            offer.hasPrice
-                                ? l10n.coopActionCounter
-                                : l10n.coopActionProposePrice,
-                            maxLines: 1,
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (offer.hasPrice) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: canAct ? onAccept : null,
-                          child: busy
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.4,
-                                    valueColor: AlwaysStoppedAnimation(Colors.white),
-                                  ),
-                                )
-                              : FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    l10n.coopActionAccept(
-                                      coopPricePerKg(
-                                        offer.currentPricePerKg!,
-                                        offer.unit,
-                                      ),
-                                    ),
-                                    maxLines: 1,
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ],
+                ..._turnActions(context, canAct)
+              else if (forFarmer)
+                // Waiting for the Cooperative: the Farmer can still withdraw.
+                SizedBox(
+                  width: double.infinity,
+                  child: _endButton(context, canAct, l10n.coopActionCancel),
                 ),
-              // Ending the negotiation is a full-width outlined button in the
-              // warning colour: the same shape and height as Counteroffer, so
-              // it reads as one of the actions rather than a stray link.
-              if (myTurn) const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: canAct ? onEnd : null,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: cs.error,
-                    side: BorderSide(
-                      color: canAct
-                          ? cs.error
-                          : cs.outline.withValues(alpha: 0.30),
-                    ),
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      forFarmer
-                          ? l10n.coopActionCancel
-                          : l10n.coopActionDecline,
-                      maxLines: 1,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// The red outlined "end the negotiation" button.
+  Widget _endButton(BuildContext context, bool canAct, String label) {
+    final cs = Theme.of(context).colorScheme;
+    return OutlinedButton(
+      onPressed: canAct ? onEnd : null,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: cs.error,
+        side: BorderSide(
+          color: canAct ? cs.error : cs.outline.withValues(alpha: 0.30),
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  /// The buttons of the side whose turn it is (Manager / Officer or Farmer):
+  ///   with a price on the table:
+  ///       [ Accept Offer ] [ Decline Offer ]
+  ///       [   Submit Counteroffer          ]
+  ///   with no price yet (an older offer, Cooperative only): Propose a Price,
+  ///   then Decline Offer.
+  /// For the Farmer, "Decline Offer" ends the negotiation exactly as Cancel
+  /// Offer does (same confirmation, same release of the reserved stock).
+  List<Widget> _turnActions(BuildContext context, bool canAct) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+
+    final decline = _endButton(context, canAct, l10n.coopActionDecline);
+    final counter = SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: canAct ? onCounter : null,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            offer.hasPrice
+                ? l10n.coopActionSubmitCounter
+                : l10n.coopActionProposePrice,
+            maxLines: 1,
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    );
+
+    if (!offer.hasPrice) {
+      return [counter, const SizedBox(height: 10), SizedBox(width: double.infinity, child: decline)];
+    }
+    return [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          l10n.coopCurrentPriceHint(
+            coopPricePerKg(offer.currentPricePerKg!, offer.unit),
+          ),
+          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+      ),
+      Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: canAct ? onAccept : null,
+              child: busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        l10n.coopActionAcceptOffer,
+                        maxLines: 1,
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: decline),
+        ],
+      ),
+      const SizedBox(height: 10),
+      counter,
+    ];
   }
 }

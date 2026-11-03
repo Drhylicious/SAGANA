@@ -12,11 +12,13 @@ import '../../../data/repositories/analytics_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../../data/services/profile_state_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/guest/guest_farmer_sample_data.dart';
+import '../../../data/services/guest_mode_service.dart';
+import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/skeleton.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/planting_forecast_card.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/report_ui_widgets.dart';
@@ -160,7 +162,27 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     );
   }
 
+  /// Explore as Farmer: made-up figures, no repository or database call.
+  void _loadGuest() {
+    final cards = GuestFarmerSampleData.priceCards;
+    setState(() {
+      _performance = GuestFarmerSampleData.performance(_period);
+      _transactions = GuestFarmerSampleData.transactions;
+      _priceCards = cards;
+      _forecasts = GuestFarmerSampleData.forecasts;
+      _topSelling = GuestFarmerSampleData.topCrops;
+      _unreadCount = 0;
+      _selectedPriceCard ??= cards.first;
+      _priceHistory = GuestFarmerSampleData.priceHistory(_selectedPriceCard!);
+      _isLoading = false;
+      _isPeriodLoading = false;
+      _isHistoryLoading = false;
+      _loadFailed = false;
+    });
+  }
+
   Future<void> _loadAll() async {
+    if (GuestModeService.active) return _loadGuest();
     final seq = ++_loadSeq;
     final periodSeq = ++_periodSeq;
     try {
@@ -217,6 +239,13 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
   }
 
   Future<void> _loadPriceHistory(CropPriceCard card) async {
+    if (GuestModeService.active) {
+      setState(() {
+        _selectedPriceCard = card;
+        _priceHistory = GuestFarmerSampleData.priceHistory(card);
+      });
+      return;
+    }
     final seq = ++_historySeq;
     setState(() {
       _selectedPriceCard = card;
@@ -236,6 +265,11 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
 
   Future<void> _onPeriodChanged(AnalyticsPeriod p) async {
     if (p == _period) return;
+    if (GuestModeService.active) {
+      _period = p;
+      _loadGuest();
+      return;
+    }
     final seq = ++_periodSeq;
     setState(() {
       _period = p;
@@ -268,36 +302,6 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: AnimatedBuilder(
-        animation: FarmerProfileStateService.instance,
-        builder: (context, _) {
-          final profile = FarmerProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Farmer',
-            contactEmail: profile?.contactEmail,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.farmerEditProfile);
-            },
-            onEditFarmDetails: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.editFarmDetails);
-            },
-            onMyAddresses: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.myAddresses);
-            },
-            onSignOut: () => confirmFarmerSignOut(context),
-            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () =>
-                context.pushRoute(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           Expanded(
@@ -305,7 +309,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(
                       screen: AnalyticsRepository.farmPerformanceCacheScreen(
                         _period,
@@ -356,8 +360,13 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-                    onNotificationTap: () =>
-                        context.pushRoute(AppRoutes.farmerNotifications),
+                    onNotificationTap: () => GuestModeService.active
+                        ? context.promptFarmer(
+                            (l) => l.guestNotificationsTitle,
+                            (l) => l.guestNotificationsMessage,
+                            icon: Icons.notifications_none_rounded,
+                          )
+                        : context.pushRoute(AppRoutes.farmerNotifications),
                     enableMenu: true,
                   ),
                 ),
@@ -385,6 +394,7 @@ class _FarmerAnalyticsScreenState extends State<FarmerAnalyticsScreen> {
       onPeriodChanged: _onPeriodChanged,
       onPriceCardSelected: _loadPriceHistory,
       onRetry: _loadAll,
+      banner: GuestModeService.active ? const GuestSampleBanner() : null,
     );
   }
 }
@@ -409,8 +419,12 @@ class FarmerAnalyticsBody extends StatelessWidget {
   final ValueChanged<CropPriceCard> onPriceCardSelected;
   final VoidCallback onRetry;
 
+  /// Shown above the figures; used by Explore as Farmer to flag sample data.
+  final Widget? banner;
+
   const FarmerAnalyticsBody({
     super.key,
+    this.banner,
     required this.period,
     required this.performance,
     required this.transactions,
@@ -441,6 +455,7 @@ class FarmerAnalyticsBody extends StatelessWidget {
         32,
       ),
       children: [
+        if (banner != null) ...[banner!, gap],
         _PerformanceCard(
           period: period,
           summary: performance,
@@ -652,7 +667,11 @@ class _PeriodSelector extends StatelessWidget {
       child: Row(
         children: analyticsPeriodChipOrder.map((p) {
           final isActive = p == active;
+          final label = _periodLabel(l10n, p);
+          // Each chip is as wide as its label (flex = length), so every label
+          // fits at the same size instead of the long ones shrinking.
           return Expanded(
+            flex: label.length + 4,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onChanged(p),
@@ -660,7 +679,7 @@ class _PeriodSelector extends StatelessWidget {
                 duration: const Duration(milliseconds: 180),
                 height: 36,
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppConstants.primaryGreen
@@ -670,7 +689,7 @@ class _PeriodSelector extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    _periodLabel(l10n, p),
+                    label,
                     maxLines: 1,
                     style: GoogleFonts.poppins(
                       fontSize: 11,
@@ -905,7 +924,13 @@ class _TransactionsCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () => context.pushRoute(AppRoutes.myTransactionHistory),
+              onPressed: () => GuestModeService.active
+                  ? context.promptFarmer(
+                      (l) => l.guestTransactionsTitle,
+                      (l) => l.guestTransactionsMessage,
+                      icon: Icons.receipt_long_outlined,
+                    )
+                  : context.pushRoute(AppRoutes.myTransactionHistory),
               child: Text(
                 l10n.farmerAnalyticsViewAllTransactions,
                 style: GoogleFonts.inter(

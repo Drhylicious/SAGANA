@@ -89,6 +89,52 @@ class CapitalContributionRepository {
     );
   }
 
+  /// Reverses a recorded contribution: adds an opposite entry that points back to
+  /// the original and carries the reason. Nothing is deleted or edited. Needs a
+  /// connection; throws on failure so the screen can say why (the database writes
+  /// readable messages: already reversed, reason missing, view-only access...).
+  Future<void> reverseContribution({
+    required String eventId,
+    required String reason,
+    required double amount,
+  }) async {
+    await _client.rpc(
+      'reverse_capital_contribution',
+      params: {'p_event_id': eventId, 'p_reason': reason.trim()},
+    );
+
+    AdminActivityRepository().log(
+      module: 'members',
+      actionType: 'contribution_reversed',
+      message: AdminLogMessage('adminLogContributionReversed', {
+        'amount': amount.abs().toStringAsFixed(2),
+      }),
+    );
+  }
+
+  /// user id -> full name for the staff who recorded the entries. A failed
+  /// lookup only leaves the names out; the ledger still loads.
+  Future<Map<String, String>> _recorderNames(List<Map<String, dynamic>> rows) async {
+    final ids = {
+      for (final r in rows)
+        if (r['recorded_by'] is String) r['recorded_by'] as String,
+    }.toList();
+    if (ids.isEmpty) return const {};
+    try {
+      final people = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', ids);
+      return {
+        for (final p in people)
+          if ((p['full_name'] as String?)?.trim().isNotEmpty ?? false)
+            p['user_id'] as String: (p['full_name'] as String).trim(),
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
   /// Ledger for one member, newest first.
   Future<List<CapitalContributionEvent>> fetchLedger(
     String farmerId, {
@@ -104,7 +150,13 @@ class CapitalContributionRepository {
             .order('created_at', ascending: false)
             .limit(limit),
       );
-      return rows.map((r) => CapitalContributionEvent.fromMap(r)).toList();
+      final names = await _recorderNames(rows);
+      return rows
+          .map((r) => CapitalContributionEvent.fromMap(
+                r,
+                recordedByName: names[r['recorded_by']],
+              ))
+          .toList();
     } catch (_) {
       return [];
     }

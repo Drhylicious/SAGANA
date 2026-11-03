@@ -6,17 +6,18 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/buyer_listing_model.dart';
-import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/repositories/buyer_marketplace_repository.dart';
-import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/services/cart_service.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/animated_pressable.dart';
-import '../../widgets/app_navigation_drawer.dart';
+import '../../../data/services/guest_mode_service.dart';
 import '../../widgets/buyer_top_bar.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/skeleton.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../widgets/cached_data_notice.dart';
 
 class MarketplaceBrowseScreen extends StatefulWidget {
@@ -31,7 +32,6 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   final _repository = BuyerMarketplaceRepository();
   final _cartService = CartService();
   final _notificationRepo = NotificationRepository();
-  final _profileRepo = BuyerProfileRepository();
   final _searchController = TextEditingController();
 
   bool _isLoading = true;
@@ -41,11 +41,11 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   String _selectedCategory = 'All';
   int _cartCount = 0;
   int _unreadCount = 0;
-  BuyerProfileModel? _buyerProfile;
 
   static const _pageSize = 20;
   final _scrollController = ScrollController();
   int _offset = 0;
+  TableChangeWatcher? _stockWatcher;
   bool _hasMore = true;
   bool _isLoadingMore = false;
 
@@ -58,13 +58,23 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     _load();
     _loadCartCount();
     _loadUnreadCount();
-    _loadBuyerProfile();
     _searchController.addListener(() {
       setState(
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
     _scrollController.addListener(_onScroll);
+    // Quantity left (and Sold Out listings dropping off) follows the database
+    // live. The reload keeps every page already scrolled through.
+    // A signed-out guest cannot read the table, so there is nothing to watch.
+    if (!GuestModeService.active) {
+      _stockWatcher = TableChangeWatcher(
+        tables: const ['marketplace_listings'],
+        onChange: () {
+          if (mounted) _load(silent: true);
+        },
+      )..start();
+    }
   }
 
   void _onScroll() {
@@ -87,14 +97,9 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
     setState(() => _unreadCount = count);
   }
 
-  Future<void> _loadBuyerProfile() async {
-    final profile = await _profileRepo.fetchProfile();
-    if (!mounted) return;
-    setState(() => _buyerProfile = profile);
-  }
-
   @override
   void dispose() {
+    _stockWatcher?.dispose();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -104,17 +109,20 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
   // since an earlier backend-only pass (Buyer review finding 2.2), but
   // nothing called it with either until now. _load() is the initial/
   // refresh fetch — always resets back to page one.
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
+    // A quiet reload re-reads as many listings as are already on screen, so
+    // the list does not jump back to the first page.
+    final limit = silent && _offset > _pageSize ? _offset : _pageSize;
     final listings = await _repository.fetchApprovedListings(
-      limit: _pageSize,
+      limit: limit,
       offset: 0,
     );
     if (!mounted) return;
     setState(() {
       _allListings = listings;
       _offset = listings.length;
-      _hasMore = listings.length == _pageSize;
+      _hasMore = listings.length == limit;
       _isLoading = false;
     });
   }
@@ -163,30 +171,11 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      drawer: AppNavigationDrawer(
-        photoUrl: _buyerProfile?.profilePhotoUrl,
-        displayName: _buyerProfile?.fullName ?? 'Buyer',
-        contactEmail: _buyerProfile?.contactEmail,
-        phoneNumber: _buyerProfile?.phoneNumber,
-        onEditProfile: () {
-          Navigator.pop(context);
-          context.push(AppRoutes.buyerEditProfile);
-        },
-        onMyAddresses: () {
-          Navigator.pop(context);
-          context.push(AppRoutes.myAddresses);
-        },
-        onSignOut: () => confirmBuyerSignOut(context),
-        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-      ),
       body: Stack(
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: BuyerMarketplaceRepository.listingsCacheScreen(
                   limit: _pageSize,
@@ -256,6 +245,14 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
               // refreshing on return covers the only way this screen's own
               // read-state actually changes.
               onNotificationTap: () async {
+                if (GuestModeService.active) {
+                  context.promptGuest(
+                    (l) => l.guestNotificationsTitle,
+                    (l) => l.guestNotificationsMessage,
+                    icon: Icons.notifications_none_rounded,
+                  );
+                  return;
+                }
                 await context.push(AppRoutes.buyerNotifications);
                 _loadUnreadCount();
               },
@@ -298,6 +295,14 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           _CartIconButton(
             count: _cartCount,
             onTap: () async {
+              if (GuestModeService.active) {
+                context.promptBuyer(
+                  (l) => l.guestCartTitle,
+                  (l) => l.guestCartMessage,
+                  icon: Icons.shopping_cart_outlined,
+                );
+                return;
+              }
               await context.push(AppRoutes.buyerCart);
               _loadCartCount();
             },
@@ -377,7 +382,7 @@ class _MarketplaceBrowseScreenState extends State<MarketplaceBrowseScreen> {
           // Buyer Browse-tab rework: card content is now name, price+sold
           // row, market type, available — one more line than the earlier
           // 0.72 tuning accounted for; loosened further to fit it.
-          childAspectRatio: 0.71,
+          childAspectRatio: 0.68,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, i) =>
@@ -468,8 +473,10 @@ class _ListingCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Photo + badges ──────────────────────────────────────────
-              AspectRatio(
-                aspectRatio: 1.3,
+              // The photo takes whatever height the details leave, so the text
+              // below is never clipped by the grid cell (a fixed ratio did that
+              // once the price wrapped or the phone used a larger font).
+              Expanded(
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -528,18 +535,24 @@ class _ListingCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            formatPricePerUnit(
-                              listing.pricePerKg,
-                              listing.unit,
-                            ),
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppConstants.primaryGreen,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              formatPricePerUnit(
+                                listing.pricePerKg,
+                                listing.unit,
+                              ),
+                              maxLines: 1,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppConstants.primaryGreen,
+                              ),
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
                         Text(
                           l10n.buyerBrowseUnitsSold(
                             formatQuantityUnit(listing.soldKg, listing.unit),

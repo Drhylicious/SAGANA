@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../data/services/staff_permission_service.dart';
+import '../../widgets/view_only_banner.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -9,12 +11,10 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/bod_schedule_utils.dart';
 import '../../../data/models/admin_loan_model.dart';
 import '../../../data/repositories/admin_loan_repository.dart';
-import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/admin_top_bar.dart';
-import '../../widgets/app_navigation_drawer.dart';
 
 /// Loan Management — Admin Dashboard.
 /// Shell tab (branch 3, adminLoansKey). No back button.
@@ -35,6 +35,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   List<AdminLoanSummary> _overdueLoans = [];
   List<AdminLoanSummary> _activeLoans = [];
   (int, int) _paidCountTrend = (0, 0);
+  int _pendingRequests = 0;
 
   /// Overdue first (most urgent), topped up with active loans to a max
   /// of 5 cards — replaces the old separate Overdue/Active sections.
@@ -63,6 +64,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       _repo.fetchOverdueLoans(limit: 3),
       _repo.fetchActiveLoans(limit: 5),
       _repo.fetchPaidCountThisVsLastMonth(),
+      _repo.fetchPendingLoanRequestCount(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -70,6 +72,7 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
       _overdueLoans = results[1] as List<AdminLoanSummary>;
       _activeLoans = results[2] as List<AdminLoanSummary>;
       _paidCountTrend = results[3] as (int, int);
+      _pendingRequests = results[4] as int;
       _isLoading = false;
     });
   }
@@ -82,27 +85,6 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: AnimatedBuilder(
-        animation: AdminProfileStateService.instance,
-        builder: (context, _) {
-          final profile = AdminProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Manager',
-            contactEmail: profile?.contactEmail ?? profile?.email,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.push(AppRoutes.adminEditProfile);
-            },
-            onSignOut: () => confirmAdminSignOut(context),
-            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           AdminTopBar(
@@ -177,10 +159,16 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
   // ─── Navigation ─────────────────────────────────────────────────────────
 
   void _goToIssueLoan() {
+    if (!requireManage(context, StaffModule.loans)) return;
     context.push(AppRoutes.issueNewLoan).then((_) => _loadAll());
   }
 
+  void _goToRequests() {
+    context.push(AppRoutes.loanRequests).then((_) => _loadAll());
+  }
+
   void _goToPayment([String? loanId]) {
+    if (!requireManage(context, StaffModule.loans)) return;
     context
         .push(AppRoutes.recordPayment, extra: loanId)
         .then((_) => _loadAll());
@@ -374,6 +362,8 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
+      // No automatic status-bar padding: this list sits inside a bigger scroll view.
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppConstants.spacingMd,
       crossAxisSpacing: AppConstants.spacingMd,
@@ -607,24 +597,39 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     // visible for everyone who reaches this screen.
     const canIssueLoans = true;
 
-    return Row(
+    return Column(
       children: [
-        if (canIssueLoans) ...[
-          Expanded(
-            child: _quickActionButton(
-              icon: Icons.add_card_rounded,
-              label: l10n.loanDashActionIssue,
-              onTap: _goToIssueLoan,
+        Row(
+          children: [
+            if (canIssueLoans) ...[
+              Expanded(
+                child: _quickActionButton(
+                  icon: Icons.add_card_rounded,
+                  label: l10n.loanDashActionIssue,
+                  onTap: _goToIssueLoan,
+                ),
+              ),
+              const SizedBox(width: AppConstants.spacingSm),
+            ],
+            Expanded(
+              child: _quickActionButton(
+                icon: Icons.payments_outlined,
+                label: l10n.loanDashActionPayments,
+                onTap: () => _goToPayment(),
+              ),
             ),
-          ),
-          const SizedBox(width: AppConstants.spacingSm),
-        ],
-        Expanded(
-          child: _quickActionButton(
-            icon: Icons.payments_outlined,
-            label: l10n.loanDashActionPayments,
-            onTap: () => _goToPayment(),
-          ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingSm),
+        // Farmers' loan requests waiting for a decision; the count is the
+        // number still Pending.
+        _quickActionButton(
+          icon: Icons.assignment_late_outlined,
+          label: _pendingRequests > 0
+              ? l10n.loanDashActionRequestsCount(_pendingRequests)
+              : l10n.loanDashActionRequests,
+          onTap: _goToRequests,
+          highlight: _pendingRequests > 0,
         ),
       ],
     );
@@ -634,16 +639,21 @@ class _LoanDashboardScreenState extends State<LoanDashboardScreen> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool highlight = false,
   }) {
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
+      // No Flexible here: OutlinedButton.icon already wraps its label in one.
       label: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
       ),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppConstants.primaryGreen,
+        foregroundColor: highlight ? Colors.white : AppConstants.primaryGreen,
+        backgroundColor: highlight ? AppConstants.primaryGreen : null,
         side: const BorderSide(color: AppConstants.primaryGreen),
         minimumSize: const Size(double.infinity, 44),
         shape: RoundedRectangleBorder(

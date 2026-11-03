@@ -7,6 +7,7 @@ import '../../../data/repositories/crop_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/crop_category_chips.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../widgets/shared_widgets.dart';
@@ -116,7 +117,7 @@ class _SelectCropScreenState extends State<SelectCropScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(screen: 'farmer_crops_approved', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineCropList),
                     Expanded(
                       child: _isLoading

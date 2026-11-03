@@ -1,0 +1,15 @@
+{
+  "name": "sagana-sql-harness",
+  "version": "1.0.0",
+  "description": "Runs the Officer-permission SQL scripts (supabase_schema/) on an in-memory Postgres (PGlite) as Manager, Officer, Farmer and Buyer under row level security. Never touches Supabase. npm install, then npm test.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  },
+  "private": true
+}

@@ -128,16 +128,9 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
 
   // ─── Derived values ─────────────────────────────────────────────────────
 
-  /// Whether the selected farmer clears the capital-share minimum. Only
-  /// blocks the Issue button when we have a fresh online standing read
-  /// AND a policy minimum > 0; otherwise stays permissive (issue_loan()
-  /// enforces the rule hard server-side either way).
-  bool get _capitalEligible {
-    final standing = _farmerStanding;
-    if (!_standingCheckedOnline || standing == null) return true;
-    if (standing.minimumCapitalRequired <= 0) return true;
-    return standing.meetsCapitalEligibility;
-  }
+  // The capital-share requirement (PHP 2,000) is no longer part of issuing a
+  // loan: neither this screen nor issue_loan() checks it, and no other
+  // eligibility rule has replaced it (none is confirmed by the cooperative).
 
   /// Sum of the line totals, each already rounded to centavos, so the total
   /// shown is exactly what the lines add up to and what is saved.
@@ -203,27 +196,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
     if (_selectedFarmer == null || _items.isEmpty || !formValid) return;
     final monthlyPayment = _enteredMonthlyPayment;
     if (monthlyPayment <= 0) return;
-
-    // Capital-share eligibility — UI hard-stop (Issue 4d). Only enforced
-    // when we actually have a fresh online standing read; issue_loan()
-    // re-checks server-side regardless.
-    final standing = _farmerStanding;
-    if (_standingCheckedOnline &&
-        standing != null &&
-        standing.minimumCapitalRequired > 0 &&
-        !standing.meetsCapitalEligibility) {
-      _showSnack(
-        l10n.issueLoanCapitalBlocked(
-          NumberFormat.currency(
-            locale: 'en_PH',
-            symbol: '₱',
-            decimalDigits: 0,
-          ).format(standing.minimumCapitalRequired),
-        ),
-        isError: true,
-      );
-      return;
-    }
 
     // Loan issuance is decided by the server (stock and reference numbers),
     // so it is never kept on the device.
@@ -538,26 +510,6 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: AppConstants.errorRed,
-                    ),
-                  ),
-                if (!standing.meetsCapitalEligibility &&
-                    standing.minimumCapitalRequired > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      standing.showsCapitalAmount
-                          ? l10n.issueLoanCapitalIneligible(
-                              currency.format(standing.capitalContribution),
-                              currency.format(standing.minimumCapitalRequired),
-                            )
-                          : l10n.issueLoanCapitalIneligibleNoAmount(
-                              currency.format(standing.minimumCapitalRequired),
-                            ),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppConstants.errorRed,
-                      ),
                     ),
                   ),
               ],
@@ -991,9 +943,7 @@ class _IssueNewLoanScreenState extends State<IssueNewLoanScreen> {
                 label: l10n.issueLoanSubmit,
                 expand: false,
                 isLoading: _isSubmitting,
-                onPressed: (_isSubmitting || !_capitalEligible || !_isOnline)
-                    ? null
-                    : _submit,
+                onPressed: (_isSubmitting || !_isOnline) ? null : _submit,
               ),
             ],
           ),
@@ -1356,14 +1306,24 @@ class _AddLoanItemModalBodyState extends State<AddLoanItemModalBody> {
               value: _selected,
               hintText: l10n.issueLoanSelectItemHint,
               items: _available,
-              itemLabel: (c) => '${c.itemName} (${c.unit})',
-              validator: (v) => v == null ? l10n.issueLoanErrorSelectItem : null,
+              // An item with nothing on hand (for example one just restored
+              // from the archive) stays visible, marked, but cannot be added.
+              itemLabel: (c) => c.quantityOnHand <= 0
+                  ? '${c.itemName} (${c.unit}) · ${l10n.issueLoanItemOutOfStock}'
+                  : '${c.itemName} (${c.unit})',
+              validator: (v) {
+                if (v == null) return l10n.issueLoanErrorSelectItem;
+                if (v.quantityOnHand <= 0) return l10n.issueLoanItemOutOfStock;
+                return null;
+              },
               onChanged: (v) {
                 setState(() => _selected = v);
                 // The stock limit depends on the item: re-check a quantity
-                // that is already typed.
+                // that is already typed, and flag an out-of-stock pick now.
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted && _qtyController.text.isNotEmpty) {
+                  if (mounted &&
+                      (_qtyController.text.isNotEmpty ||
+                          (v != null && v.quantityOnHand <= 0))) {
                     _formKey.currentState?.validate();
                   }
                 });

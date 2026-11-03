@@ -1,12 +1,32 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
+import '../models/account_source_model.dart';
 import '../models/farmer_member_model.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
 
 class FarmerManagementRepository {
   final SupabaseClient _client = Supabase.instance.client;
+
+  // ─── Applicants an Officer created ───────────────────────────────────────
+  //
+  // user id -> who created the account and when, from the view
+  // account_creation_sources. Applicants who registered themselves have no row.
+  // If the view is not installed yet this is just empty.
+  Future<Map<String, AccountSource>> fetchOfficerCreatedSources() async {
+    try {
+      final rows = await _client
+          .from('account_creation_sources')
+          .select('user_id, requested_by_name, requested_at');
+      return {
+        for (final r in rows)
+          r['user_id'] as String: AccountSource.fromMap(r),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
 
   // ─── Fetch all farmer members ─────────────────────────────────────────────
   // Joins user_roles + user_information + farmer_profiles + crops + loans
@@ -274,8 +294,10 @@ class FarmerManagementRepository {
 
   // ─── Suspend / reactivate (Issue 5, Decision D17) ────────────────────────
 
-  /// Manager-only. Removes a disapproved applicant's account from the system.
-  /// The RPC refuses anything that is not a disapproved farmer applicant.
+  /// Manager-only (the database refuses an Officer). Removes a disapproved
+  /// account from the system, but never one that owns financial or transaction
+  /// history, and it records who created, disapproved and deleted it.
+  /// The RPC refuses anything that is not a disapproved farmer account.
   Future<void> deleteRejectedApplicant({required String userId}) async {
     await _client.rpc(
       'admin_delete_rejected_applicant',

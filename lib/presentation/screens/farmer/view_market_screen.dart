@@ -6,6 +6,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/farmer_market_rate_model.dart';
 import '../../../data/repositories/farmer_market_rates_repository.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
@@ -98,7 +99,7 @@ class _ViewMarketScreenState extends State<ViewMarketScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 72),
+              TopBarSpacer(height: 72),
               CachedDataNotice(
                 screen: FarmerMarketRatesRepository.cacheScreen(),
                 isOnline: _isOnline,
@@ -442,7 +443,7 @@ class _MarketRateCard extends StatelessWidget {
                     l10n.priceUpdatedPrefix(
                       AppUtils.formatRelativeTime(rate.recordedAt, l10n),
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 11,

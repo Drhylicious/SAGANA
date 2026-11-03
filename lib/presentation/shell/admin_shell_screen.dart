@@ -1,43 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/services/hive_service.dart';
+import '../../data/services/staff_permission_service.dart';
 import '../widgets/admin_bottom_nav.dart';
+import '../widgets/view_only_banner.dart';
+import 'role_drawers.dart';
+import 'shell_scaffold.dart';
 
-/// Hosts the admin tab navigators with a shared bottom nav bar.
+/// Hosts the admin tab navigators with a shared bottom nav bar and the one
+/// navigation drawer Manager and Officer share.
 ///
 /// Branches (fixed): 0 Dashboard · 1 Members · 2 Marketplace · 3 Loans ·
-/// 4 Reports. An Officer (Issue 6 / Decision D19) does NOT get the Members
-/// tab — the branch still exists but its nav button is hidden and the
-/// visible index is mapped around branch 1.
+/// 4 Reports. The Manager and every Officer see all five tabs; an Officer's
+/// per-module level (View Only / Manage) only changes what the screens let
+/// them do. While an Officer is on a tab whose module is View Only, a slim
+/// strip above the navigation bar says so.
 class AdminShellScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   const AdminShellScreen({super.key, required this.navigationShell});
 
+  // Branch index -> the permission module of that tab.
+  static const _branchModules = [
+    StaffModule.dashboard,
+    StaffModule.members,
+    StaffModule.marketplace,
+    StaffModule.loans,
+    StaffModule.reports,
+  ];
+
   @override
   Widget build(BuildContext context) {
     AppTheme.applySystemOverlay(context);
 
-    final hideMembers = HiveService.isOfficer;
-    final visibleBranches =
-        hideMembers ? const [0, 2, 3, 4] : const [0, 1, 2, 3, 4];
+    final index = navigationShell.currentIndex;
+    final module = index >= 0 && index < _branchModules.length
+        ? _branchModules[index]
+        : StaffModule.dashboard;
 
-    var displayIndex = visibleBranches.indexOf(navigationShell.currentIndex);
-    if (displayIndex < 0) displayIndex = 0;
-
-    return Scaffold(
+    return ShellScaffold(
+      drawer: const AdminShellDrawer(),
       body: navigationShell,
-      bottomNavigationBar: AdminBottomNav(
-        hideMembers: hideMembers,
-        currentIndex: displayIndex,
-        onTap: (index) {
-          final branch = visibleBranches[index];
-          navigationShell.goBranch(
-            branch,
-            initialLocation: branch == navigationShell.currentIndex,
-          );
-        },
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ViewOnlyStrip(module: module),
+          AdminBottomNav(
+            currentIndex: index,
+            onTap: (i) => navigationShell.goBranch(
+              i,
+              initialLocation: i == navigationShell.currentIndex,
+            ),
+          ),
+        ],
       ),
     );
   }

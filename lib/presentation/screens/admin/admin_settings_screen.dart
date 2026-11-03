@@ -96,7 +96,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     if (confirmed == true) {
       AdminProfileStateService.instance.clear();
       await AuthService.logout();
-      if (mounted) context.go(AppRoutes.login);
+      if (mounted) context.go(AppRoutes.welcome);
     }
   }
 

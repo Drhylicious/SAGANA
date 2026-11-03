@@ -41,10 +41,21 @@ Color accountStatusColor(ColorScheme cs, MemberStatus status) {
 /// its own line. A missing e-mail or phone reads "Not set". Nothing is cut off:
 /// long names and addresses wrap onto further lines.
 class AccountCard extends StatelessWidget {
-  const AccountCard({super.key, required this.account, required this.onTap});
+  const AccountCard({
+    super.key,
+    required this.account,
+    required this.onTap,
+    this.roleLabel,
+  });
 
   final AccountEntry account;
-  final VoidCallback onTap;
+
+  /// Null makes the card display-only (nothing opens when it is tapped).
+  final VoidCallback? onTap;
+
+  /// A short role caption under the name ("Manager", "Officer"), when the list
+  /// mixes roles.
+  final String? roleLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +128,17 @@ class AccountCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (roleLabel != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      roleLabel!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   _ContactLine(
                     icon: Icons.email_outlined,

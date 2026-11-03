@@ -1,8 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/client_id.dart';
 import '../models/loan_model.dart';
-import '../models/admin_loan_model.dart';
+import '../models/loan_request_model.dart';
 import '../services/offline_cache.dart';
-import 'farmer_lookup.dart';
+import '../services/server_only.dart';
 
 class LoanRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -35,6 +36,75 @@ class LoanRepository {
     }
   }
 
+  // ─── Loan requests (Request a Loan) ───────────────────────────────────────
+  //
+  // A Farmer asks for inputs from the existing loan item catalog; a Manager /
+  // Officer approves (which issues the loan through issue_loan()) or disapproves.
+  // Every rule is enforced by the database (see
+  // supabase_schema_farmer_loan_requests.sql); the app only presents it. Browsing
+  // the catalog and submitting need a connection: the stock shown and checked has
+  // to be the live one, so none of this is queued offline.
+
+  /// The loan catalog with the live stock on hand. Throws when offline.
+  Future<List<LoanableItem>> fetchLoanableItems() async {
+    await ServerOnly.ensureOnline();
+    final res = await _client.rpc('list_loanable_items') as List;
+    return [
+      for (final r in res)
+        LoanableItem.fromMap(Map<String, dynamic>.from(r as Map)),
+    ];
+  }
+
+  /// The Farmer's own requests, newest first (viewable offline from the last load).
+  Future<List<LoanRequestModel>> fetchMyLoanRequests() async {
+    try {
+      final rows = await OfflineCache.load(
+        screen: 'loan_requests',
+        fetch: () async {
+          final res = await _client.rpc('get_my_loan_requests');
+          return [
+            for (final r in (res as List? ?? const []))
+              Map<String, dynamic>.from(r as Map),
+          ];
+        },
+      );
+      return rows.map(LoanRequestModel.fromFarmerJson).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Sends a request for [lines] (inventory item id + quantity). Prices and names
+  /// are taken from the catalog by the database, never from the app. Returns the
+  /// request number. [idempotencyKey] makes a retry after a lost connection
+  /// return the same request instead of creating a second one.
+  Future<String> submitLoanRequest({
+    required List<({String inventoryItemId, double quantity})> lines,
+    String? notes,
+    String? idempotencyKey,
+  }) async {
+    await ServerOnly.ensureOnline();
+    final res = await _client.rpc(
+      'submit_loan_request',
+      params: {
+        'p_items': [
+          for (final l in lines)
+            {'inventoryItemId': l.inventoryItemId, 'quantity': l.quantity},
+        ],
+        'p_notes': notes,
+        'p_idempotency_key': idempotencyKey ?? newClientId(),
+      },
+    );
+    final rows = res as List;
+    return rows.isEmpty ? '' : (rows.first['new_request_no'] as String? ?? '');
+  }
+
+  /// Withdraws a request nobody has decided yet.
+  Future<void> cancelLoanRequest(String requestId) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('cancel_loan_request', params: {'p_request_id': requestId});
+  }
+
   // ─── Total outstanding balance ────────────────────────────────────────────
 
   Future<double> fetchTotalOutstanding() async {
@@ -55,51 +125,6 @@ class LoanRepository {
       return total;
     } catch (_) {
       return 0;
-    }
-  }
-
-  // ─── Export support (Phase 7 — Farmer Download Records) ───────────────────
-  // Mirrors AdminLoanRepository.fetchAllLoans()'s query/mapping exactly
-  // (same table joins, same AdminLoanSummary.fromRow() factory) but scoped
-  // to the current farmer, so the CSV output matches Admin's own Loan
-  // Report format precisely.
-  Future<List<AdminLoanSummary>> fetchMyLoansForExport({
-    DateTime? start,
-    DateTime? end,
-  }) async {
-    try {
-      var query = _client
-          .from('farmer_loans')
-          .select('*, farmer_loan_items(item_name)')
-          .eq('farmer_id', _userId);
-      if (start != null) {
-        query = query.gte(
-          'issued_date',
-          start.toIso8601String().split('T').first,
-        );
-      }
-      if (end != null) {
-        query = query.lte(
-          'issued_date',
-          end.toIso8601String().split('T').first,
-        );
-      }
-      final rows = await query.order('issued_date', ascending: false);
-      if (rows.isEmpty) return [];
-
-      final info = (await fetchFarmerInfoMap(_client, [_userId]))[_userId];
-      return rows.map<AdminLoanSummary>((row) {
-        final items = ((row['farmer_loan_items'] as List?) ?? [])
-            .map((i) => i['item_name'] as String)
-            .toList();
-        return AdminLoanSummary.fromRow(
-          row,
-          farmerName: info?.fullName ?? 'Unknown Farmer',
-          itemNames: items,
-        );
-      }).toList();
-    } catch (_) {
-      return [];
     }
   }
 }

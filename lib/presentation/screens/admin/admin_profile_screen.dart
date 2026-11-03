@@ -450,27 +450,32 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   /// deliberately never referenced: no admin tab exists in
   /// ManageAccountsScreen.
   ///
-  /// Cosmetic fix (verification pass): Farmer Accounts / Officer Accounts
-  /// route into Member Management, which the router already blocks for
-  /// an Officer (Decision D19) — they were previously shown anyway and
-  /// just bounced back to the dashboard on tap. Hidden here instead.
+  /// Farmer Accounts / Officer Accounts are shown to the Manager and to every
+  /// Officer; what an Officer can do there depends on their Members level.
   Widget _buildQuickAccessGrid(BuildContext context, AppLocalizations l10n, ColorScheme cs, SaganaColors sagana) {
-    final isOfficer = HiveService.isOfficer;
     final items = [
-      if (!isOfficer) ...[
+      (
+        icon: Icons.groups_outlined,
+        color: AppConstants.primaryGreen,
+        title: l10n.adminProfileFarmerAccounts,
+        subtitle: l10n.adminProfileFarmerAccountsSubtitle,
+        onTap: () => context.push(AppRoutes.manageFarmerAccounts),
+      ),
+      (
+        icon: Icons.badge_outlined,
+        color: AppConstants.buyerBlue,
+        title: l10n.adminProfileOfficerAccounts,
+        subtitle: l10n.adminProfileOfficerAccountsSubtitle,
+        onTap: () => context.push(AppRoutes.manageOfficerAccounts),
+      ),
+      // Manager-only: who did what.
+      if (!HiveService.isOfficer) ...[
         (
-          icon: Icons.groups_outlined,
-          color: AppConstants.primaryGreen,
-          title: l10n.adminProfileFarmerAccounts,
-          subtitle: l10n.adminProfileFarmerAccountsSubtitle,
-          onTap: () => context.push(AppRoutes.manageFarmerAccounts),
-        ),
-        (
-          icon: Icons.badge_outlined,
-          color: AppConstants.buyerBlue,
-          title: l10n.adminProfileOfficerAccounts,
-          subtitle: l10n.adminProfileOfficerAccountsSubtitle,
-          onTap: () => context.push(AppRoutes.manageOfficerAccounts),
+          icon: Icons.fact_check_outlined,
+          color: AppConstants.programPurple,
+          title: l10n.staffAccountabilityTitle,
+          subtitle: l10n.staffAccountabilitySubtitle,
+          onTap: () => context.push(AppRoutes.staffAccountability),
         ),
       ],
       (

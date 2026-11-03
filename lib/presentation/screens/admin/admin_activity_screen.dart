@@ -9,7 +9,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_dashboard_model.dart';
 import '../../../data/repositories/admin_activity_repository.dart';
-import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/member_access.dart';
 import '../../widgets/skeleton.dart';
@@ -88,6 +87,10 @@ Color moduleColor(String? module, ColorScheme cs) {
       return AppConstants.successGreen;
     case 'broadcast':
       return AppConstants.amber;
+    case 'marketplace':
+      return AppConstants.buyerBlue;
+    case 'system':
+      return cs.outline;
     case 'profile':
       return cs.outline;
     default:
@@ -123,6 +126,10 @@ IconData moduleIcon(String? module) {
       return Icons.handshake_rounded;
     case 'broadcast':
       return Icons.campaign_rounded;
+    case 'marketplace':
+      return Icons.storefront_rounded;
+    case 'system':
+      return Icons.settings_suggest_rounded;
     case 'profile':
       return Icons.person_rounded;
     default:
@@ -160,6 +167,10 @@ String moduleLabel(AppLocalizations l10n, String? module) {
       return l10n.offerCoopTitle;
     case 'broadcast':
       return l10n.broadcastTitle;
+    case 'marketplace':
+      return l10n.navMarketplace;
+    case 'system':
+      return l10n.staffLogSystem;
     case 'profile':
       return l10n.adminProfileTitle;
     default:
@@ -378,10 +389,8 @@ class _AdminActivityScreenState extends State<AdminActivityScreen> {
     'profile',
   ];
 
-  // Officers do not have the Members tab, so the Members chip is hidden for them.
-  List<String?> get _visibleCategories => HiveService.isOfficer
-      ? _filterCategories.where((c) => c != 'members').toList()
-      : _filterCategories;
+  // Manager and Officer both have every tab, so every chip is shown.
+  List<String?> get _visibleCategories => _filterCategories;
 
   String _categoryLabel(AppLocalizations l10n, String? category) {
     switch (category) {

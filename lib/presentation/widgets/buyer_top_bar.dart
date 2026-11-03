@@ -1,6 +1,7 @@
 import '../../core/l10n/app_localizations.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'shell_drawer_scope.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
@@ -8,6 +9,7 @@ import '../../core/theme/sagana_colors.dart';
 import '../../data/services/auth_service.dart';
 import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
+import 'sagana_logo_mark.dart';
 import 'shared_widgets.dart';
 
 /// Shared Sign Out confirmation for every Buyer screen that hosts the
@@ -28,7 +30,7 @@ Future<void> confirmBuyerSignOut(BuildContext context) async {
   );
   if (confirmed == true) {
     await AuthService.logout();
-    if (context.mounted) context.go(AppRoutes.login);
+    if (context.mounted) context.go(AppRoutes.welcome);
   }
 }
 
@@ -72,8 +74,8 @@ class BuyerTopBar extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          height: 64 + MediaQuery.paddingOf(context).top,
+          padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top, 20, 0),
           decoration: BoxDecoration(
             color: sagana.glassBackground,
             border: Border(bottom: BorderSide(color: cs.outline.withValues(alpha: 0.20))),
@@ -82,28 +84,14 @@ class BuyerTopBar extends StatelessWidget {
             children: [
               // SAGANA icon — identical implementation to AdminTopBar's,
               // opens the Navigation Drawer when enableMenu is set.
-              GestureDetector(
-                onTap: enableMenu ? () => Scaffold.of(context).openDrawer() : null,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.95),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/sagana_icon.png',
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
-                    ),
-                  ),
-                ),
+              SaganaLogoMark(
+                onTap: enableMenu ? () => openNavigationDrawer(context) : null,
               ),
-              const SizedBox(width: 12),
+              // Primary screens: logo | title.
+              if (enableMenu)
+                const SaganaLogoDivider()
+              else
+                const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   title,

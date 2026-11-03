@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/guest_mode_service.dart';
 import '../services/market_types_service.dart';
 import '../services/offline_cache.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -16,6 +17,21 @@ class PriceManagementRepository {
   // separate cards instead of one collapsing into the other.
 
   Future<List<PriceRecordModel>> fetchLatestPricePerCrop() async {
+    // Signed-out guest: only the public function, which returns the latest price
+    // of Buyer-visible markets and nothing else.
+    if (GuestModeService.active) {
+      try {
+        final rows = await OfflineCache.load(
+          screen: 'guest_latest_prices',
+          fetch: () async => _rpcRows(await _client.rpc('public_latest_prices')),
+        );
+        return rows.map(PriceRecordModel.fromMap).toList()
+          ..sort((a, b) => a.cropName.compareTo(b.cropName));
+      } catch (e) {
+        debugPrint('PriceManagementRepository guest prices failed: $e');
+        return [];
+      }
+    }
     try {
       // Embeds crop_master's image + category via the real crop_id FK —
       // Price Management only ever references these, never uploads or
@@ -26,7 +42,7 @@ class PriceManagementRepository {
         screen: 'latest_prices',
         fetch: () => _client
             .from('price_records')
-            .select('*, crop_master(image_url, category, is_active)')
+            .select('*, crop_master(image_url, category)')
             .order('recorded_at', ascending: false),
       );
       // Live rows are already limited by the database (a Buyer is never sent a
@@ -44,10 +60,10 @@ class PriceManagementRepository {
 
       final Map<String, PriceRecordModel> latest = {};
       for (final row in rows) {
-        // An archived crop (retired from the catalog, e.g. Copra) no longer
-        // shows a current price. Its records stay in the database.
-        final master = row['crop_master'];
-        if (master is Map && master['is_active'] == false) continue;
+        // A record whose crop has been removed from the catalog (crop_id is
+        // cleared when a crop is deleted) is history: it stays in the database
+        // but is not a current reference price and cannot be edited.
+        if (row['crop_id'] == null) continue;
         final key = '${row['crop_id']}_${row['price_type']}';
         if (!latest.containsKey(key)) {
           latest[key] = PriceRecordModel.fromMap(row);
@@ -72,15 +88,34 @@ class PriceManagementRepository {
   // shows a single market's price. Each (crop, market) keeps its own offline
   // copy. The database still decides which markets the signed-in user can read.
 
+  static List<Map<String, dynamic>> _rpcRows(dynamic res) =>
+      List<Map<String, dynamic>>.from(
+        (res as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+
   Future<List<PriceRecordModel>> fetchTrendForCrop(
     String cropId, {
     int days = 30,
     String? priceType,
   }) async {
     try {
+      final guest = GuestModeService.active;
       final rows = await OfflineCache.load(
-        screen: 'price_trend_${cropId}_${priceType ?? 'all'}_$days',
-        fetch: () => _fetchTrendRows(cropId, days, priceType),
+        screen: guest
+            ? 'guest_price_trend_${cropId}_${priceType ?? 'all'}_$days'
+            : 'price_trend_${cropId}_${priceType ?? 'all'}_$days',
+        fetch: () async => guest
+            ? _rpcRows(
+                await _client.rpc(
+                  'public_price_trend',
+                  params: {
+                    'p_crop_id': cropId,
+                    'p_price_type': priceType,
+                    'p_days': days,
+                  },
+                ),
+              )
+            : await _fetchTrendRows(cropId, days, priceType),
       );
       return rows.map((r) => PriceRecordModel.fromMap(r)).toList();
     } catch (e) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../data/services/connectivity_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -11,8 +10,8 @@ import '../../../data/models/buyer_profile_model.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/app_toast.dart';
-import '../../widgets/suspension_dialogs.dart';
+import '../../widgets/order_status_style.dart';
+import '../../widgets/buyer_status_badge.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
@@ -53,47 +52,6 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
     });
   }
 
-  // ─── Suspend flow — two-step (reason, then confirm), same shape as
-  // FarmerDetailsScreen's flow and BuyerManagementScreen's copy — all
-  // three now share promptSuspension from suspension_dialogs.dart.
-  // Reactivate stays single-tap, also matching Farmer. Replaces the
-  // previous direct, no-confirmation toggle this bottom-bar button used
-  // to perform.
-
-  Future<void> _suspendOrReactivate() async {
-    final l10n = AppLocalizations.of(context);
-    final buyer = _buyer!;
-    if (buyer.isActive) {
-      final request = await promptSuspension(
-        context: context,
-        role: 'buyer',
-        displayName: buyer.fullName,
-      );
-      if (request == null || !mounted) return;
-      try {
-        await _repo.setBuyerStatus(
-          buyerId: buyer.userId,
-          status: 'suspended',
-          reason: request.reason,
-          suspendedUntil: request.suspendedUntil,
-        );
-      } catch (_) {
-        if (mounted)
-          AppToast.show(context, l10n.suspendActionError, isError: true);
-        return;
-      }
-    } else {
-      try {
-        await _repo.setBuyerStatus(buyerId: buyer.userId, status: 'active');
-      } catch (_) {
-        if (mounted)
-          AppToast.show(context, l10n.suspendActionError, isError: true);
-        return;
-      }
-    }
-    _load();
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n   = AppLocalizations.of(context);
@@ -102,10 +60,9 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      // The bottom inset belongs to the pinned action bar below, so the
-      // content area only keeps the top (status bar) inset.
+      // Read-only: Buyer Details only shows the buyer. Send Notification and
+      // View Orders live in the Buyer Management three-dot menu.
       body: SafeArea(
-        bottom: false,
         child: Column(
           children: [
             _TopBar(
@@ -124,7 +81,7 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
                           child: ListView(
                             padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                             children: [
-                          _IdentityCard(buyer: _buyer!, cs: cs, sagana: sagana),
+                          BuyerIdentityCard(buyer: _buyer!, cs: cs, sagana: sagana),
                               const SizedBox(height: 16),
                           _StatsRow(buyer: _buyer!, cs: cs, sagana: sagana),
                               const SizedBox(height: 16),
@@ -152,105 +109,6 @@ class _BuyerDetailsScreenState extends State<BuyerDetailsScreen> {
           ],
         ),
       ),
-      // Notify / Suspend are pinned to the bottom of the screen: a Scaffold
-      // bottom bar sits outside the scrolling list, so it stays put while the
-      // buyer's details scroll above it. It has its own surface and a top
-      // divider so scrolled content never reads as running underneath it, and
-      // it applies the device's bottom inset itself.
-      bottomNavigationBar: _buyer == null
-          ? null
-          : _PinnedActionBar(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => context.push(
-                        AppRoutes.announcementDashboard,
-                        extra: {
-                          'buyerId': _buyer!.userId,
-                          'buyerName': _buyer!.fullName,
-                        },
-                      ),
-                      icon: const Icon(Icons.campaign_outlined, size: 18),
-                      label: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          l10n.farmerDetailsNotifyAction,
-                          maxLines: 1,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: ConnectivityService.instance.isOnline
-                          ? _suspendOrReactivate
-                          : null,
-                      style: _buyer!.isActive
-                          ? ElevatedButton.styleFrom(
-                              backgroundColor: AppConstants.errorRed,
-                            )
-                          : null,
-                      icon: Icon(
-                        _buyer!.isActive
-                            ? Icons.block_rounded
-                            : Icons.check_circle_outline_rounded,
-                        size: 18,
-                      ),
-                      label: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          _buyer!.isActive
-                              ? l10n.buyerDetailsSuspendAction
-                              : l10n.buyerDetailsReactivateAction,
-                          maxLines: 1,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-}
-
-/// Fixed footer for the Buyer Details actions. Not part of the scroll view.
-class _PinnedActionBar extends StatelessWidget {
-  final Widget child;
-  const _PinnedActionBar({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.saganaColors.cardBackground,
-        border: Border(
-          top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: child,
-        ),
-      ),
     );
   }
 }
@@ -267,13 +125,14 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// Badge sits in its own full-width Row, not a Positioned-in-Stack — built
-// correctly from the start this time, same fix as farmer_details_screen.dart.
-class _IdentityCard extends StatelessWidget {
+// Photo and name, centred in one compact card, with the status badge in its
+// top-right corner. No e-mail or phone: contact details are reached through the
+// order workflows, not repeated here (they stay stored, and are not read).
+class BuyerIdentityCard extends StatelessWidget {
   final BuyerProfileModel buyer;
   final ColorScheme cs;
   final SaganaColors sagana;
-  const _IdentityCard({
+  const BuyerIdentityCard({
     required this.buyer,
     required this.cs,
     required this.sagana,
@@ -282,174 +141,93 @@ class _IdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final status = buyerStatusOf(buyer);
+    final statusColor = buyerStatusColor(context, status);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+        ],
       ),
-      child: Column(
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Spans the whole card, so the photo and name are centred in it
+          // while the status badge below stays in the corner.
+          SizedBox(
+            width: double.infinity,
+            child: Column(
             children: [
+              // The ring takes the status colour, so the state reads at a glance.
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                width: 88,
+                height: 88,
                 decoration: BoxDecoration(
-                  color: _badgeColor(buyer, cs).withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  shape: BoxShape.circle,
+                  color: statusColor.withValues(alpha: 0.08),
+                  border: Border.all(color: statusColor, width: 3),
                 ),
-                child: Text(
-                  _badgeLabel(l10n, buyer),
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: _badgeColor(buyer, cs),
-                  ),
+                child: buyer.hasPhoto
+                    ? ClipOval(
+                        child: Image.network(
+                          buyer.profilePhotoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallback(statusColor),
+                        ),
+                      )
+                    : _fallback(statusColor),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                buyer.fullName,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppConstants.buyerBlue.withValues(alpha: 0.10),
-              border: Border.all(color: AppConstants.buyerBlue, width: 3),
-            ),
-            child: buyer.hasPhoto
-                ? ClipOval(
-                    child: Image.network(
-                      buyer.profilePhotoUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _fallback(),
-                    ),
-                  )
-                : _fallback(),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            buyer.fullName,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-          ),
-          ),
-          // "Buyer since <date>" removed — not meaningful info for this
-          // card (Admin Buyer Management redesign).
-          const SizedBox(height: 16),
-          // Email and phone are shown here. Date of birth and gender are
-          // not shown on this screen.
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _fieldTile(
-                    Icons.email_rounded,
-                    l10n.emailAddress,
-                    buyer.contactEmail,
-                    cs,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _fieldTile(
-                    Icons.phone_rounded,
-                    l10n.adminProfilePhoneNumber,
-                    buyer.phoneNumber,
-                    cs,
-                  ),
+              // Why the account is Inactive, only when it is.
+              if (status == BuyerStatus.inactive) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.buyerStatusInactiveNote,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _fieldTile(
-    IconData icon,
-    String label,
-    String? value,
-    ColorScheme cs,
-  ) {
-    final hasValue = value != null && value.isNotEmpty;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cs.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: hasValue ? cs.primary : cs.outline),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
             ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            hasValue ? value : '–',
-            style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              color: hasValue ? cs.onSurface : cs.onSurfaceVariant,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          ),
+          // The status badge sits in the top-right corner of the card. It is laid
+          // over the card rather than in its own row, so it adds no height.
+          Positioned(
+            top: 0,
+            right: 0,
+            child: BuyerStatusBadge(status: status),
           ),
         ],
       ),
     );
   }
 
-  Widget _fallback() {
+  Widget _fallback(Color color) {
     return Center(
       child: Text(
         buyer.initials,
         style: GoogleFonts.poppins(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-          color: AppConstants.buyerBlue,
+          fontSize: 26,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
       ),
     );
-  }
-
-  String _badgeLabel(AppLocalizations l10n, BuyerProfileModel buyer) {
-    if (!buyer.isActive) return l10n.farmerMgmtStatusSuspendedLabel;
-    if (buyer.isInactive) return l10n.analyticsInactive;
-    return l10n.buyerDetailsActiveBadge;
-  }
-
-  Color _badgeColor(BuyerProfileModel buyer, ColorScheme cs) {
-    if (!buyer.isActive) return cs.outline;
-    if (buyer.isInactive) return AppConstants.warningAmber;
-    return AppConstants.successGreen;
   }
 }
 
@@ -613,13 +391,14 @@ class _RecentOrdersSection extends StatelessWidget {
             ),
           )
         else
-          // Bounded height with its own internal scroll — up to 10 rows
-          // rendered, but this section no longer stretches the whole page
-          // to fit them all; only ~4-5 show at once, the rest scroll
-          // within this box.
-          SizedBox(
-            height: 320,
+          // As tall as its rows, capped at 320: a Buyer with two orders no
+          // longer gets a mostly empty box, and one with ten scrolls inside it.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
             child: ListView.separated(
+              shrinkWrap: true,
+              // No automatic status-bar padding: this list sits inside a bigger scroll view.
+              padding: EdgeInsets.zero,
               itemCount: orders.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) => _RecentOrderRow(
@@ -647,20 +426,7 @@ class _RecentOrderRow extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _statusColor {
-    switch (order.status) {
-      case 'approved':
-        return AppConstants.successGreen;
-      case 'pending':
-        return AppConstants.warningAmber;
-      case 'completed':
-        return AppConstants.primaryGreen;
-      case 'cancelled':
-        return AppConstants.errorRed;
-      default:
-        return AppConstants.outline;
-    }
-  }
+  Color get _statusColor => orderStatusColor(order.status);
 
   @override
   Widget build(BuildContext context) {

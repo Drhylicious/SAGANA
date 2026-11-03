@@ -125,7 +125,8 @@ class BuyerOrderRepository {
               'status, notes, created_at, updated_at, '
               'fulfillment_method, delivery_address, delivery_latitude, '
               'delivery_longitude, delivery_contact_number, delivery_notes, '
-              'delivery_recipient_name, delivery_label',
+              'delivery_recipient_name, delivery_label, ready_at, out_for_delivery_at, '
+              'delivered_at, delivery_photo_url, delivery_evidence_note',
             )
             .eq('id', orderId)
             .eq('buyer_id', _userId)
@@ -237,6 +238,17 @@ class BuyerOrderRepository {
       'cancel_my_order',
       params: {'p_order_id': orderId, 'p_reason': reason},
     );
+  }
+
+  // ─── Confirm receipt (approved orders only) ───────────────────────────────
+  // The consumer (Buyer or Farmer) who placed the order confirms they have it.
+  // That, and only that, completes the order: the database records the sale and
+  // moves the kg from reserved to sold. confirm_order_received() re-checks the
+  // owner and the 'approved' status and refuses a second confirmation.
+
+  Future<void> confirmReceived(String orderId) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('confirm_order_received', params: {'p_order_id': orderId});
   }
 
   // setFulfillment() removed (Checkout + My Addresses, Phase 6c) — fulfillment

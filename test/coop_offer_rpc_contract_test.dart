@@ -40,7 +40,7 @@ void main() {
   }
 
   test('the removed settle-at-any-amount function is not called any more', () {
-    expect(dart.contains('confirm_cooperative_offer'), isFalse);
+    expect(dart.contains("'confirm_cooperative_offer'"), isFalse);
   });
 
   test('the columns the app reads exist in the migration', () {

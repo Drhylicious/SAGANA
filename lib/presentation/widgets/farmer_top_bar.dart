@@ -1,6 +1,7 @@
 import '../../core/l10n/app_localizations.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'shell_drawer_scope.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_constants.dart';
@@ -9,6 +10,7 @@ import '../../data/services/auth_service.dart';
 import '../../data/services/profile_state_service.dart';
 import '../../routes/app_routes.dart';
 import 'app_dialog.dart';
+import 'sagana_logo_mark.dart';
 import 'shared_widgets.dart';
 
 /// Shared Sign Out confirmation for every Farmer screen that hosts the
@@ -31,7 +33,7 @@ Future<void> confirmFarmerSignOut(BuildContext context) async {
   if (confirmed == true) {
     FarmerProfileStateService.instance.clear();
     await AuthService.logout();
-    if (context.mounted) GoRouter.of(context).go(AppRoutes.login);
+    if (context.mounted) GoRouter.of(context).go(AppRoutes.welcome);
   }
 }
 
@@ -160,38 +162,22 @@ class _FarmerTopBarState extends State<FarmerTopBar> {
               ),
             )
           else
-            GestureDetector(
+            SaganaLogoMark(
+              overlay: widget.overlay,
               onTap: widget.enableMenu
-                  ? () => Scaffold.of(context).openDrawer()
+                  ? () => openNavigationDrawer(context)
                   : null,
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.95),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.45),
-                    width: 1,
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/sagana_icon.png',
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
-                ),
-              ),
             ),
 
           // Center: Title (if provided) — left-aligned next to the
           // logo/back button, matching AdminTopBar's layout, rather
           // than centered in the remaining row space.
           if (widget.title != null) ...[
-            const SizedBox(width: 12),
+            // Primary (root) screens: logo | title.
+            if (widget.onBack == null && widget.enableMenu)
+              SaganaLogoDivider(overlay: widget.overlay)
+            else
+              const SizedBox(width: 12),
             Expanded(
               child: Text(
                 widget.title!,

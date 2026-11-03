@@ -117,10 +117,20 @@ class BuyerProfileModel {
     verifiedEmail: verifiedContactEmail,
   );
 
-  bool get isInactive =>
+  /// An Active account with no activity for longer than this is shown as
+  /// Inactive. The same 30 days Members use.
+  static const Duration inactiveAfter = Duration(days: 30);
+
+  /// Inactive at [now]: an Active (not suspended) account whose last recorded
+  /// activity is more than [inactiveAfter] ago. An account with no recorded
+  /// activity yet counts as Active, as before (see user_information.last_active_at:
+  /// NULL = Active until the first sign-in or app start under this rule).
+  bool isInactiveAt(DateTime now) =>
       accountStatus == 'active' &&
       lastActiveAt != null &&
-      DateTime.now().difference(lastActiveAt!) > const Duration(days: 30);
+      now.difference(lastActiveAt!) > inactiveAfter;
+
+  bool get isInactive => isInactiveAt(DateTime.now());
 
   bool get hasPhoto => profilePhotoUrl != null && profilePhotoUrl!.isNotEmpty;
 

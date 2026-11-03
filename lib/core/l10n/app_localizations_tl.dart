@@ -717,6 +717,45 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
+  String reportsYearSettingsTitle(int year) {
+    return 'Mga Takda ng Kooperatiba ($year)';
+  }
+
+  @override
+  String get reportsYearSettingsReadOnly => 'Pagtingin lamang';
+
+  @override
+  String get reportsYearSettingsNotEntered =>
+      'Wala pang naitala para sa taong ito.';
+
+  @override
+  String get reportsYearSettingsSurplus => 'Maipapamahaging Sobra';
+
+  @override
+  String get reportsYearSettingsInterest => 'Interes sa Kapital';
+
+  @override
+  String get reportsYearSettingsStatement => 'Taunang Pahayag';
+
+  @override
+  String get reportsYearSettingsFinal => 'Pinal na';
+
+  @override
+  String get reportsYearSettingsDraft => 'Hindi pa pinal';
+
+  @override
+  String get reportsYearSettingsProgram => 'Programa sa Pagbebenta ng Produkto';
+
+  @override
+  String reportsYearSettingsProgramValue(String sales, String surplus) {
+    return 'Benta $sales · Sobra $surplus';
+  }
+
+  @override
+  String get reportsYearSettingsFootnote =>
+      'Inilalagay ng Manager sa Balik-Tangkilik Management.';
+
+  @override
   String get reportsContributingMembers => 'Mga Miyembrong Nag-aambag';
 
   @override
@@ -945,6 +984,43 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get exportGenerateButton => 'Bumuo ng Export';
+
+  @override
+  String get exportGenerateDownloadButton => 'Bumuo at I-download';
+
+  @override
+  String get exportDownloadButton => 'I-download';
+
+  @override
+  String get exportShareButton => 'Ibahagi';
+
+  @override
+  String get exportDownloading => 'Sine-save...';
+
+  @override
+  String exportDownloadSavedMany(int count) {
+    return '$count ulat ang na-save sa Downloads.';
+  }
+
+  @override
+  String get exportDeleteButton => 'Burahin';
+
+  @override
+  String exportDownloadSaved(String files) {
+    return 'Na-save sa Downloads: $files';
+  }
+
+  @override
+  String get exportDownloadPermissionDenied =>
+      'Kailangan ng pahintulot sa storage para mag-save sa Downloads. Payagan ito sa Settings > Apps > SAGANA > Permissions, saka pindutin muli ang I-download. Nandito pa rin ang nabuong ulat.';
+
+  @override
+  String get exportDownloadUnsupported =>
+      'Available ang direktang pag-download sa Android app. Handa na ang ulat; maaari mong gamitin ang hiwalay na Ibahagi button sa device na ito.';
+
+  @override
+  String get exportDownloadError =>
+      'Hindi ma-save sa Downloads. Tingnan kung may sapat na storage at subukang mag-download muli. Nandito pa rin ang nabuong ulat.';
 
   @override
   String exportGenerated(int count) {
@@ -1255,6 +1331,9 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get issueLoanSelectItem => 'Pumili ng Item';
+
+  @override
+  String get issueLoanItemOutOfStock => 'Walang stock';
 
   @override
   String get issueLoanQuantity => 'Dami';
@@ -1927,24 +2006,23 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String buyerOrdersPickupBannerBody(int count, String cooperative) {
-    return 'May $count aprubadong order kang hinihintay kunin sa $cooperative.';
+    return 'May $count order kang handa nang kunin sa $cooperative. Kumpirmahin ang pagtanggap pagkakuha mo.';
   }
 
   @override
-  String get buyerOrdersDeliveryBannerTitle =>
-      'Naaprubahan ang Order — Padating Na!';
+  String get buyerOrdersDeliveryBannerTitle => 'Padating Na ang Order!';
 
   @override
   String buyerOrdersDeliveryBannerBody(int count) {
-    return 'May $count aprubadong order na inihahanda para ihatid.';
+    return 'May $count order na ihinahatid na o naihatid na. Kumpirmahin ang pagtanggap kapag nasa iyo na.';
   }
 
   @override
-  String get buyerOrdersMixedBannerTitle => 'Naaprubahan ang mga Order!';
+  String get buyerOrdersMixedBannerTitle => 'Handa na ang mga Order!';
 
   @override
   String buyerOrdersMixedBannerBody(int count) {
-    return 'May $count aprubadong order — ang iba ay kukunin, ang iba ay ihahatid. Tingnan ang bawat order para sa detalye.';
+    return 'May $count order na kukunin o tatanggapin. Buksan ang bawat order para kumpirmahin ang pagtanggap.';
   }
 
   @override
@@ -1956,11 +2034,6 @@ class AppLocalizationsTl extends AppLocalizations {
   @override
   String buyerOrdersCancelledOn(String date) {
     return 'Kinansela noong $date';
-  }
-
-  @override
-  String buyerOrdersRejectedOn(String date) {
-    return 'Hindi inaprubahan noong $date';
   }
 
   @override
@@ -2291,6 +2364,19 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get buyerNotifMenuClearAll => 'Burahin lahat';
+
+  @override
+  String get notifMenuMarkAllUnread =>
+      'Markahan lahat bilang hindi pa nababasa';
+
+  @override
+  String get notifItemMarkUnread => 'Markahan bilang hindi pa nababasa';
+
+  @override
+  String get notifItemMarkRead => 'Markahan bilang nabasa na';
+
+  @override
+  String get notifMenuTooltip => 'Mga opsyon sa notification';
 
   @override
   String get buyerNotifEmptyTitle => 'Walang notification';
@@ -3515,7 +3601,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get createOfficerNotice =>
-      'Nakukuha ng Officer ang lahat ng Manager module maliban sa Members tab. Dito ginagawa ng Manager ang mga Officer account.';
+      'Maaaring buksan ng Officer ang lahat ng Manager module. Piliin sa ibaba kung aling mga module ang maaaring pamahalaan ng Officer na ito; ang iba ay mananatiling View Only.';
 
   @override
   String get createOfficerSectionOfficer => 'Officer';
@@ -4003,6 +4089,96 @@ class AppLocalizationsTl extends AppLocalizations {
   String get farmerDetailsRecordAction => 'Itala';
 
   @override
+  String get farmerDetailsReverseContribution => 'Kanselahin ang Kontribusyon';
+
+  @override
+  String get farmerDetailsContributionDetails => 'Detalye ng Kontribusyon';
+
+  @override
+  String get farmerDetailsContributionHistory => 'Kasaysayan ng Kontribusyon';
+
+  @override
+  String farmerDetailsViewAllEntries(int count) {
+    return 'Tingnan ang lahat ng tala ($count)';
+  }
+
+  @override
+  String farmerDetailsRecordedByOn(String name, String date) {
+    return 'Itinala ni $name · $date';
+  }
+
+  @override
+  String farmerDetailsReversedByOn(String name, String date) {
+    return 'Kinansela ni $name · $date';
+  }
+
+  @override
+  String farmerDetailsCancelsEntry(String amount, String name, String date) {
+    return 'Kinakansela ang talang $amount na itinala ni $name · $date';
+  }
+
+  @override
+  String farmerDetailsReversalReason(String reason) {
+    return 'Dahilan: $reason';
+  }
+
+  @override
+  String farmerDetailsNoteLine(String note) {
+    return 'Tala: $note';
+  }
+
+  @override
+  String get farmerDetailsReversedTag => 'Nakansela';
+
+  @override
+  String get farmerDetailsReversalTag => 'Pagkansela';
+
+  @override
+  String get farmerDetailsRecordedBySystem => 'ang sistema';
+
+  @override
+  String get farmerDetailsReversalReasonLabel => 'Dahilan ng pagkansela';
+
+  @override
+  String get farmerDetailsReversalReasonHint => 'Bakit ito kinakansela?';
+
+  @override
+  String get farmerDetailsReversalReasonRequired =>
+      'Maglagay ng dahilan (hindi bababa sa 3 titik).';
+
+  @override
+  String farmerDetailsReverseExplain(String amount) {
+    return 'Kakanselahin nito ang talang $amount sa pamamagitan ng katapat na tala para sa miyembrong ito. Mananatili sa kasaysayan ang orihinal na tala.';
+  }
+
+  @override
+  String get farmerDetailsReverseAction => 'Kanselahin ang Kontribusyon';
+
+  @override
+  String get farmerDetailsKeepContribution => 'Panatilihin ang Kontribusyon';
+
+  @override
+  String get farmerDetailsContributionReversed => 'Nakansela ang kontribusyon.';
+
+  @override
+  String get farmerDetailsReverseNeedsInternet =>
+      'Kailangan ng internet para makansela ang kontribusyon.';
+
+  @override
+  String get farmerDetailsReverseElsewhere =>
+      'Ang payout na idinagdag sa capital ay kinakansela sa Balik-Tangkilik, hindi dito.';
+
+  @override
+  String staffActContributionReversed(String amount, String name) {
+    return 'Kinansela ang ambag na $amount para kay $name';
+  }
+
+  @override
+  String adminLogContributionReversed(String amount) {
+    return 'Kinansela ang kontribusyon sa capital (₱$amount).';
+  }
+
+  @override
   String get farmerDetailsStatusHistoryTitle => 'Kasaysayan ng Status';
 
   @override
@@ -4046,7 +4222,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get manageAccountsFarmersTab => 'Mga Magsasaka';
 
   @override
-  String get manageAccountsOfficersTab => 'Mga Officer';
+  String get manageAccountsManagementTab => 'Pamamahala';
 
   @override
   String get manageAccountsRequestsHeader =>
@@ -4271,6 +4447,14 @@ class AppLocalizationsTl extends AppLocalizations {
   String get adminInvLoanPriceLabel => 'Presyo sa Pautang (₱) *';
 
   @override
+  String get adminInvLoanArchivedNote =>
+      'Naka-archive sa Katalogo ng Item para sa Pautang, kaya hindi iaalok sa mga bagong pautang. Hindi ito maibabalik ng pag-restock o pagbabago ng presyo; ibalik ito mula sa Katalogo ng Item para sa Pautang → Naka-archive.';
+
+  @override
+  String get adminInvDeleteLoanWarning =>
+      'Nasa Katalogo ng Item para sa Pautang ang item na ito. Ang pagbura rito ay ganap na aalisin ito sa katalogo. Kung gusto mo lang itong ihinto sa mga bagong pautang, i-archive ito sa Katalogo ng Item para sa Pautang.';
+
+  @override
   String get adminInvWriteOffLossDamage => 'Write-off (nawala/nasira)';
 
   @override
@@ -4306,26 +4490,10 @@ class AppLocalizationsTl extends AppLocalizations {
       'Naitakda ang order bilang kumpleto';
 
   @override
-  String get adminOrderDetailCancelTitle => 'Huwag Aprubahan ang Order';
-
-  @override
-  String get adminOrderDetailCancelSubtitle => 'Hindi na ito maibabalik.';
-
-  @override
-  String get adminOrderDetailCancelBody =>
-      'Ibabalik ng hindi pag-apruba ang nakalaang imbakan pabalik sa batch. Aabisuhan ang buyer ng dahilan sa ibaba.';
-
-  @override
   String get adminOrderDetailReasonLabel => 'Dahilan';
 
   @override
-  String get adminOrderDetailReasonHint => 'Makikita ito ng buyer';
-
-  @override
   String get adminOrderDetailFailedTryAgain => 'Nabigo. Pakisubukang muli.';
-
-  @override
-  String get adminOrderDetailCancelledToast => 'Hindi inaprubahan ang order';
 
   @override
   String adminOrderDetailOrderNumber(String reference) {
@@ -4406,6 +4574,9 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get listingFilterPending => 'Naghihintay';
+
+  @override
+  String get buyerStatusInactiveNote => 'Walang aktibidad nang mahigit 30 araw';
 
   @override
   String get coopMyOffersSearchHint => 'Maghanap ng pananim...';
@@ -4523,7 +4694,7 @@ class AppLocalizationsTl extends AppLocalizations {
   String get buyerDetailsNotFound => 'Hindi nahanap ang buyer';
 
   @override
-  String get buyerMgmtSearchHint => 'Maghanap ng pangalan o numero ng buyer...';
+  String get buyerMgmtSearchHint => 'Maghanap ng pangalan ng buyer...';
 
   @override
   String get buyerMgmtTitle => 'Pamamahala ng Buyer';
@@ -4656,6 +4827,38 @@ class AppLocalizationsTl extends AppLocalizations {
   String get cropMgmtNoArchivedCrops => 'Walang naka-archive na pananim';
 
   @override
+  String get cropMgmtNoArchivedBody =>
+      'Lalabas dito ang mga pananim na iyong ia-archive, at maaari silang ibalik.';
+
+  @override
+  String get cropMgmtArchivedInfo =>
+      'Hindi mapipili ang mga naka-archive na pananim para sa bagong reference price o bagong crop request hangga\'t hindi naibabalik. Hindi apektado ang mga umiiral na presyo at talaan.';
+
+  @override
+  String get cropMgmtArchiveCropAction => 'I-archive ang Pananim';
+
+  @override
+  String get cropMgmtArchiveHint =>
+      'Ang pag-archive ay itatago ang pananim na ito sa mga bagong reference price at bagong crop request. Maaari itong ibalik mamaya.';
+
+  @override
+  String cropMgmtArchiveTitle(String name) {
+    return 'I-archive ang \"$name\"?';
+  }
+
+  @override
+  String get cropMgmtArchiveBody =>
+      'Hindi na iaalok ang pananim na ito sa paggawa ng bagong reference price o kapag humiling ng pananim ang isang Magsasaka.\n\nHindi apektado ang mga umiiral na presyo at talaan, at maaari pa rin itong i-edit. Maaari mo itong ibalik anumang oras mula sa Mga Naka-archive na Pananim.';
+
+  @override
+  String get cropMgmtArchiveConfirm => 'I-archive';
+
+  @override
+  String cropMgmtArchivedSuccess(String name) {
+    return 'Na-archive ang \"$name\"';
+  }
+
+  @override
   String cropMgmtCannotDeleteTitle(String name) {
     return 'Hindi Mabubura ang \"$name\"';
   }
@@ -4758,9 +4961,6 @@ class AppLocalizationsTl extends AppLocalizations {
       'Iminungkahi ng magsasaka — kumpirmahin o baguhin bago aprubahan';
 
   @override
-  String get loanItemRulesUpdated => 'Na-update ang mga alituntunin sa pautang';
-
-  @override
   String get loanItemFailedTryAgain => 'Nabigo. Subukan ulit.';
 
   @override
@@ -4776,14 +4976,84 @@ class AppLocalizationsTl extends AppLocalizations {
   String get loanItemAvailableInStock => 'Available sa stock';
 
   @override
-  String get loanItemAvailableForIssuance =>
-      'Available para sa pag-isyu ng pautang';
-
-  @override
   String get loanItemUnitPriceLabel => 'Presyo ng Yunit (₱) *';
 
   @override
   String get loanItemCatalogTitle => 'Katalogo ng Item para sa Pautang';
+
+  @override
+  String get loanItemNoMatches =>
+      'Walang item sa pautang na tumutugma sa iyong paghahanap';
+
+  @override
+  String get loanItemKpiActive => 'Aktibo';
+
+  @override
+  String get loanItemKpiArchived => 'Naka-archive';
+
+  @override
+  String get loanItemViewArchived =>
+      'Tingnan ang mga naka-archive na item sa pautang';
+
+  @override
+  String get loanItemArchivedTitle => 'Mga Naka-archive na Item sa Pautang';
+
+  @override
+  String loanItemArchivedCount(int count) {
+    return '$count naka-archive';
+  }
+
+  @override
+  String get loanItemNoArchived => 'Walang naka-archive na item sa pautang';
+
+  @override
+  String get loanItemNoArchivedBody =>
+      'Lalabas dito ang mga item na iyong ia-archive, at maaari silang ibalik.';
+
+  @override
+  String get loanItemArchivedInfo =>
+      'Hindi iaalok ang mga naka-archive na item sa paggawa ng bagong pautang. Hindi apektado ang mga umiiral na pautang na may kasamang item na ito.';
+
+  @override
+  String get loanItemAllArchived =>
+      'Naka-archive na ang lahat ng item sa pautang. Magbalik ng isa gamit ang archive button sa itaas.';
+
+  @override
+  String get loanItemArchiveAction => 'I-archive ang Item sa Pautang';
+
+  @override
+  String get loanItemArchiveHint =>
+      'Aalisin ng pag-archive ang item na ito sa mga bagong pautang. Maaari itong ibalik mamaya.';
+
+  @override
+  String loanItemArchiveTitle(String name) {
+    return 'I-archive ang \"$name\"?';
+  }
+
+  @override
+  String get loanItemArchiveBody =>
+      'Hindi na iaalok ang item na ito sa paggawa ng bagong pautang.\n\nHindi apektado ang mga umiiral na pautang na may kasamang item na ito. Maaari mo itong ibalik anumang oras mula sa Mga Naka-archive na Item sa Pautang.';
+
+  @override
+  String get loanItemArchiveConfirm => 'I-archive';
+
+  @override
+  String loanItemArchivedSuccess(String name) {
+    return 'Na-archive ang \"$name\"';
+  }
+
+  @override
+  String loanItemRestoredSuccess(String name) {
+    return 'Naibalik ang \"$name\"';
+  }
+
+  @override
+  String get adminLogLoanItemArchived =>
+      'Na-archive ang isang item sa loan catalog.';
+
+  @override
+  String get adminLogLoanItemRestored =>
+      'Naibalik ang isang item sa loan catalog.';
 
   @override
   String get loanItemSearchHint => 'Maghanap sa katalogo...';
@@ -4793,9 +5063,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get loanItemPublishFromInventory => 'I-publish mula sa Imbakan';
-
-  @override
-  String get loanItemNotEligibleBadge => 'HINDI KWALIPIKADO';
 
   @override
   String get issueLoanPublishFirstHint =>
@@ -5137,12 +5404,6 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String get buyerDetailsTitle => 'Detalye ng Buyer';
-
-  @override
-  String get buyerDetailsSuspendAction => 'I-suspindi';
-
-  @override
-  String get buyerDetailsReactivateAction => 'I-reactivate';
 
   @override
   String get buyerDetailsActiveBadge => 'Aktibong Buyer';
@@ -6191,22 +6452,6 @@ class AppLocalizationsTl extends AppLocalizations {
   String get notifGroupEarlier => 'Mas maaga';
 
   @override
-  String get orderStatusRejected => 'Hindi Inaprubahan';
-
-  @override
-  String get buyerOrdersEmptyRejected => 'Walang hindi inaprubahang order.';
-
-  @override
-  String get buyerOrderDetailRejectedStatus => 'Hindi Inaprubahan';
-
-  @override
-  String get buyerOrderDetailMsgRejected =>
-      'Hindi inaprubahan ng kooperatiba ang order na ito.';
-
-  @override
-  String get adminOrderNoteRejectedByCoop => 'Hindi inaprubahan ng kooperatiba';
-
-  @override
   String get buyerOrderCancelTitle => 'Kanselahin ang order na ito?';
 
   @override
@@ -6580,7 +6825,7 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String adminLogCoopOfferConfirmed(String kg, String amount) {
-    return 'Kinumpirma ang alok sa kooperatiba para sa ${kg}kg (₱$amount).';
+    return 'Kinumpirma ang alok sa kooperatiba para sa $kg (₱$amount).';
   }
 
   @override
@@ -6588,8 +6833,8 @@ class AppLocalizationsTl extends AppLocalizations {
       'Tinanggihan ang alok sa kooperatiba.';
 
   @override
-  String adminLogCoopOfferCountered(String price) {
-    return 'Nagpadala ng kontra-alok sa kooperatiba na ₱$price/kg.';
+  String adminLogCoopOfferCountered(String price, String unit) {
+    return 'Nagpadala ng kontra-alok sa kooperatiba na ₱$price bawat $unit.';
   }
 
   @override
@@ -7189,11 +7434,11 @@ class AppLocalizationsTl extends AppLocalizations {
 
   @override
   String coopAcceptBody(String price, String qty, String crop, String total) {
-    return 'Tinatanggap mo ang $price para sa $qty ng $crop. Kabuuan: $total. Pinal na ang bentang ito at hindi na mababawi.';
+    return 'Tinatanggap mo ang $price para sa $qty ng $crop. Kabuuan: $total. Pinal na ang presyo at hindi na mababawi. Ihahatid pagkatapos ng magsasaka ang ani; maitatala lang ang benta kapag kinumpirma ng kooperatiba na natanggap nito ito.';
   }
 
   @override
-  String get coopAcceptConfirm => 'Tanggapin at Gawing Pinal';
+  String get coopAcceptConfirm => 'Tanggapin ang Alok';
 
   @override
   String get coopCounterTitle => 'Magpadala ng Kontra-alok';
@@ -7263,7 +7508,8 @@ class AppLocalizationsTl extends AppLocalizations {
   String get coopToastCountered => 'Naipadala ang kontra-alok.';
 
   @override
-  String get coopToastAccepted => 'Tinanggap ang presyo. Pinal na ang benta.';
+  String get coopToastAccepted =>
+      'Tinanggap ang alok. Hinihintay ang paghahatid.';
 
   @override
   String get coopToastDeclined => 'Tinanggihan ang alok.';
@@ -7803,6 +8049,12 @@ class AppLocalizationsTl extends AppLocalizations {
   String get memberProfileFarmInfoTitle => 'Impormasyon ng Sakahan';
 
   @override
+  String get memberProfileFarmDetailsTitle => 'Detalye ng Sakahan';
+
+  @override
+  String get memberProfileCompleteAddress => 'Kumpletong Address';
+
+  @override
   String get memberProfileFarmName => 'Pangalan ng Sakahan';
 
   @override
@@ -7979,6 +8231,2704 @@ class AppLocalizationsTl extends AppLocalizations {
   }
 
   @override
+  String emailSignInEnabled(String email) {
+    return 'Na-verify na ang $email. Magagamit mo na ito o ang username mo sa pag-sign in.';
+  }
+
+  @override
+  String get loginEmailNotVerifiedHint =>
+      'Maling email o password. Ang email ay magagamit lang sa pag-sign in kapag na-verify na ito. Kung hindi pa na-verify ang sa iyo, mag-sign in gamit ang username, tapos i-verify ito sa Edit Profile.';
+
+  @override
   String get emailCannotBeEmpty =>
       'Ang email ng Manager ang ginagamit sa pag-sign in, kaya hindi ito puwedeng iwanang blangko.';
+
+  @override
+  String get mlkStatusWaiting => 'Naghihintay ng mamimili';
+
+  @override
+  String get mlkStatusBuyerFound => 'May nakitang mamimili';
+
+  @override
+  String get mlkStatusCancelled => 'Kinansela';
+
+  @override
+  String get mlkFilterAll => 'Lahat';
+
+  @override
+  String get mlkInProgress => 'Kasalukuyan';
+
+  @override
+  String get mlkManageEnrollments => 'Pamahalaan ang mga Enrollment';
+
+  @override
+  String get mlkReceivedSoFar => 'Natanggap na';
+
+  @override
+  String get mlkStatKgSold => 'Nabenta';
+
+  @override
+  String mlkHintWaiting(String crop) {
+    return 'Hinahanapan ng SP3 ng mamimili ang iyong $crop. Aabisuhan ka namin kapag nabenta na.';
+  }
+
+  @override
+  String get mlkHintBuyerFound =>
+      'May nakahandang mamimili. Lalabas dito ang bawat benta kapag naitala na.';
+
+  @override
+  String mlkSoldOfTotal(String sold, String total) {
+    return 'Nabenta ang $sold sa $total';
+  }
+
+  @override
+  String mlkLeftToSell(String amount) {
+    return '$amount na lang ang ibebenta';
+  }
+
+  @override
+  String mlkReturnedToStock(String amount) {
+    return '$amount ang ibinalik sa stock';
+  }
+
+  @override
+  String get mlkFullySold => 'Naibenta lahat';
+
+  @override
+  String mlkSalesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count benta',
+      one: '1 benta',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String mlkReceivedAmount(String amount) {
+    return '$amount ang natanggap';
+  }
+
+  @override
+  String mlkShowAllSales(int count) {
+    return 'Ipakita ang lahat ng $count benta';
+  }
+
+  @override
+  String get mlkShowLess => 'Ipakita nang kaunti';
+
+  @override
+  String get mlkCancelledBackInStock =>
+      'Kinansela. Naibalik na sa stock mo ang dami.';
+
+  @override
+  String mlkCancelledWithReason(String reason) {
+    return 'Kinansela: $reason. Naibalik na sa stock mo ang dami.';
+  }
+
+  @override
+  String get mlkActionCompleteSale => 'Kumpletuhin ang Benta';
+
+  @override
+  String mlkPhotoCaption(String crop, String farmer) {
+    return 'Aktuwal na larawan ng $crop ni $farmer';
+  }
+
+  @override
+  String mlkSaleQty(String unit) {
+    return 'Dami ng binili ($unit) *';
+  }
+
+  @override
+  String mlkSalePrice(String unit) {
+    return 'Napagkasunduang presyo bawat $unit *';
+  }
+
+  @override
+  String get mlkSaleTotal => 'Kabuuang halaga ng benta';
+
+  @override
+  String mlkSaleAfter(String amount) {
+    return 'Pagkatapos ng benta: $amount ang natitira sa kahilingan';
+  }
+
+  @override
+  String get mlkSaleCompletesRequest =>
+      'Ito na ang huling bahagi at makukumpleto na ang kahilingan';
+
+  @override
+  String get mlkSaleNotes => 'Mga tala (opsyonal)';
+
+  @override
+  String get mlkSaleNotesHint => 'Anumang dapat tandaan tungkol sa bentang ito';
+
+  @override
+  String get mlkSaleOwnerNote =>
+      'Pag-aari ng magsasaka ang pananim at siya ang tatanggap ng bayad. Naitatala ito bilang benta ng magsasaka; hindi ito nagiging stock o kita ng Kooperatiba.';
+
+  @override
+  String mlkSaleLeftOf(String left, String total) {
+    return '$left ang natitira sa $total na isinumite';
+  }
+
+  @override
+  String get mlkSaleQtyLabel => 'Dami ng binili';
+
+  @override
+  String get mlkSalePriceLabel => 'Napagkasunduang presyo';
+
+  @override
+  String mlkSaleDoneMore(String qty, String left) {
+    return 'Nabenta ang $qty. $left pa ang natitira sa kahilingang ito.';
+  }
+
+  @override
+  String mlkSaleDoneAll(String qty, String total) {
+    return 'Kumpleto na ang benta: $qty ang nabenta sa halagang $total.';
+  }
+
+  @override
+  String get mlkSaleFailed => 'Hindi naitala ang benta. Pakisubukang muli.';
+
+  @override
+  String get mlkEmptyFiltered => 'Wala pa rito sa ngayon.';
+
+  @override
+  String get mlkStatusCancellationRequested => 'Hiniling na Kanselahin';
+
+  @override
+  String get mlkStageRequest => 'Kahilingan';
+
+  @override
+  String get mlkStageBuyer => 'Detalye ng Mamimili';
+
+  @override
+  String get mlkStageSale => 'Kumpletuhin ang Benta';
+
+  @override
+  String get mlkFilterCancellationRequests => 'Mga hiling na kanselahin';
+
+  @override
+  String get mlkHintAddBuyer =>
+      'Humanap ng mamimili, saka i-save ang detalye nito.';
+
+  @override
+  String get mlkHintCompleteSale =>
+      'Nai-save na ang mamimili. Kumpletuhin ang benta kapag kumpirmado na ang pagbili.';
+
+  @override
+  String get mlkActionAddBuyer => 'Idagdag ang Detalye ng Mamimili';
+
+  @override
+  String get mlkActionEditBuyer => 'I-edit ang detalye ng mamimili';
+
+  @override
+  String get mlkBuyerTitle => 'Detalye ng Mamimili';
+
+  @override
+  String get mlkBuyerNote =>
+      'Kung sino lang ang mamimili. Ilalagay ang dami at presyo mamaya, sa Kumpletuhin ang Benta.';
+
+  @override
+  String get mlkBuyerFullName => 'Buong pangalan ng mamimili *';
+
+  @override
+  String get mlkBuyerFullNameHint => 'Buong pangalan ng mamimili';
+
+  @override
+  String get mlkBuyerContact => 'Contact number *';
+
+  @override
+  String get mlkBuyerContactHint => 'Numero ng telepono';
+
+  @override
+  String get mlkBuyerEmail => 'Email address (opsyonal)';
+
+  @override
+  String get mlkBuyerEmailHint => 'pangalan@example.com';
+
+  @override
+  String get mlkBuyerNameRequired => 'Ilagay ang buong pangalan ng mamimili';
+
+  @override
+  String get mlkBuyerContactRequired => 'Ilagay ang contact number ng mamimili';
+
+  @override
+  String get mlkBuyerEmailInvalid =>
+      'Maglagay ng wastong email address, o iwanang blangko';
+
+  @override
+  String get mlkBuyerSave => 'I-save ang Detalye ng Mamimili';
+
+  @override
+  String get mlkBuyerSaved =>
+      'Nai-save na ang detalye ng mamimili. Maaari mo nang kumpletuhin ang benta.';
+
+  @override
+  String get mlkBuyerSaveFailed =>
+      'Hindi na-save ang detalye ng mamimili. Pakisubukang muli.';
+
+  @override
+  String get mlkSaleBuyerLabel => 'Mamimili';
+
+  @override
+  String get mlkSaleBatchLabel => 'Batch ng ani';
+
+  @override
+  String get mlkSaleReviewNote =>
+      'Suriin ang detalye. Magbabago lang ang stock kapag pinindot mo ang Kumpletuhin ang Benta.';
+
+  @override
+  String get mlkRequestCancellation => 'Humiling na Kanselahin';
+
+  @override
+  String get mlkCancelDialogTitle => 'Kanselahin ang kahilingang ito?';
+
+  @override
+  String get mlkCancelDialogBody =>
+      'Sabihin ang dahilan. Rerepasuhin ito ng SP3 at walang magbabago hangga\'t hindi naaprubahan.';
+
+  @override
+  String get mlkCancelReasonLabel => 'Dahilan *';
+
+  @override
+  String get mlkCancelReasonHint => 'Bakit mo ito gustong kanselahin?';
+
+  @override
+  String get mlkCancelReasonRequired => 'Pakilagay ang dahilan';
+
+  @override
+  String get mlkCancelSend => 'Ipadala ang Kahilingan';
+
+  @override
+  String get mlkCancelSent =>
+      'Naipadala na ang hiling na kanselahin. Rerepasuhin ito ng SP3.';
+
+  @override
+  String get mlkCancelFailed =>
+      'Hindi naipadala ang kahilingan. Pakisubukang muli.';
+
+  @override
+  String get mlkCancelOffline =>
+      'Kailangan ng internet para humiling na kanselahin.';
+
+  @override
+  String mlkCancelUnderReview(String reason) {
+    return 'Nirerepaso ang hiling mong kanselahin. Ang dahilan mo: $reason';
+  }
+
+  @override
+  String mlkCancelDeclinedNote(String notes) {
+    return 'Tinanggihan ang hiling mong kanselahin: $notes';
+  }
+
+  @override
+  String mlkCancelBanner(String reason) {
+    return 'Humiling ang magsasaka na kanselahin ito. Dahilan: $reason';
+  }
+
+  @override
+  String get mlkApproveCancellation => 'Aprubahan';
+
+  @override
+  String get mlkDeclineCancellation => 'Tanggihan';
+
+  @override
+  String get mlkApproveTitle => 'Aprubahan ang pagkansela';
+
+  @override
+  String get mlkApproveBody =>
+      'Ang hindi pa nabentang bahagi ng kahilingang ito ay ibabalik sa stock ng magsasaka. Mananatili ang mga benta na naitala.';
+
+  @override
+  String get mlkApproveConfirm => 'Aprubahan ang Pagkansela';
+
+  @override
+  String get mlkDeclineTitle => 'Tanggihan ang pagkansela';
+
+  @override
+  String get mlkDeclineReasonLabel => 'Dahilan ng pagtanggi *';
+
+  @override
+  String get mlkDeclineReasonHint => 'Makikita ito ng magsasaka';
+
+  @override
+  String get mlkDeclineReasonRequired => 'Maglagay ng dahilan ng pagtanggi';
+
+  @override
+  String get mlkDeclineConfirm => 'Tanggihan ang Pagkansela';
+
+  @override
+  String get mlkCancelApproved => 'Naaprubahan ang pagkansela.';
+
+  @override
+  String get mlkCancelDeclinedToast =>
+      'Tinanggihan ang pagkansela. Nasabihan na ang magsasaka kung bakit.';
+
+  @override
+  String get mlkCancelReviewFailed =>
+      'Hindi nakumpleto ang pagrepaso. Pakisubukang muli.';
+
+  @override
+  String get mlkStatInProgress => 'Kasalukuyan';
+
+  @override
+  String get mlkStatKgRemaining => 'Natitira';
+
+  @override
+  String get mlkEmptyInProgress => 'Walang kasalukuyang kahilingan';
+
+  @override
+  String get mlkEmptyInProgressBody =>
+      'Magsumite ng Ginger mula sa Manage Inventory para magsimula ng kahilingan sa Market Linking.';
+
+  @override
+  String get mlkEmptyCompleted => 'Wala pang nakumpletong kahilingan';
+
+  @override
+  String get mlkEmptyCompletedBody =>
+      'Lalabas dito ang mga nakumpletong benta.';
+
+  @override
+  String get mlkAwaitingBuyer => 'Naghihintay ng Detalye ng Mamimili';
+
+  @override
+  String get mlkAwaitingBuyerBody =>
+      'Idaragdag ng SP3 dito ang detalye ng mamimili kapag may nakitang mamimili.';
+
+  @override
+  String get mlkDetailBuyer => 'Ibinenta kay';
+
+  @override
+  String get mlkDetailAgreedPrice => 'Napagkasunduang presyo';
+
+  @override
+  String get mlkDetailBuyerContact => 'Contact ng mamimili';
+
+  @override
+  String get mlkDetailBuyerEmail => 'Email ng mamimili';
+
+  @override
+  String marketDashCancellationRequests(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Hiling na Kanselahin sa Market Linking',
+      one: '1 Hiling na Kanselahin sa Market Linking',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get marketDashCancellationNote =>
+      'Humiling ang mga magsasaka na kanselahin ang kahilingan';
+
+  @override
+  String get mlkSearchHint => 'Maghanap ng magsasaka, mamimili o batch';
+
+  @override
+  String get mlkSearchClear => 'I-clear ang paghahanap';
+
+  @override
+  String get mlkNoSearchResults =>
+      'Walang kahilingang tumutugma sa paghahanap mo.';
+
+  @override
+  String get orderMgmtChipPending => 'Mga Nakabinbing Order';
+
+  @override
+  String get mlEnrollTitle => 'Mga Enrollment sa Market Linking';
+
+  @override
+  String get mlEnrollPending => 'Nakabinbin';
+
+  @override
+  String get mlEnrollStatusPending => 'Naghihintay ng pagsusuri';
+
+  @override
+  String get mlEnrollStatusDeclined => 'Tinanggihan';
+
+  @override
+  String get mlEnrollStatusEnrolled => 'Naka-enroll';
+
+  @override
+  String get mlEnrollProgram => 'Luya · DA-AMAD Market Linking';
+
+  @override
+  String mlEnrollApplied(String date) {
+    return 'Nag-apply noong $date';
+  }
+
+  @override
+  String mlEnrollReviewedOn(String date) {
+    return 'Sinuri noong $date';
+  }
+
+  @override
+  String mlEnrollReviewedBy(String name) {
+    return 'ni $name';
+  }
+
+  @override
+  String mlEnrollRequests(int count) {
+    return 'Mga kahilingan sa pagbebenta: $count';
+  }
+
+  @override
+  String get mlEnrollEarlier =>
+      'Naunang aplikasyon. Nag-apply muli ang magsasakang ito.';
+
+  @override
+  String get mlEnrollEnrolledNote =>
+      'Nasa Market Linking na. Sumali bago kinailangang suriin ang enrollment.';
+
+  @override
+  String mlEnrollReason(String reason) {
+    return 'Dahilan: $reason';
+  }
+
+  @override
+  String mlEnrollNote(String note) {
+    return 'Tala: $note';
+  }
+
+  @override
+  String get mlEnrollEmptyPending => 'Walang nakabinbing enrollment.';
+
+  @override
+  String get mlEnrollLoadFailed =>
+      'Hindi ma-load ang mga enrollment. I-pull down para subukan muli.';
+
+  @override
+  String get mlEnrollModalProgram => 'DA-AMAD Ginger Market Linking';
+
+  @override
+  String get mlEnrollModalBody =>
+      'Kapag inaprubahan, maaari nang magsumite ang magsasakang ito ng ani ng Luya para ibenta sa Market Linking. May Luya na ang magsasakang ito sa kanyang Crop Roster, na na-verify noong nag-apply siya.';
+
+  @override
+  String get mlEnrollNotesLabel => 'Tala (kailangan kapag tatanggihan)';
+
+  @override
+  String get mlEnrollNotesHint =>
+      'Dahilang makikita ng magsasaka kung tinanggihan';
+
+  @override
+  String get mlEnrollReasonRequired => 'Maglagay ng dahilan.';
+
+  @override
+  String get mlEnrollApprove => 'Aprubahan';
+
+  @override
+  String get mlEnrollDecline => 'Tanggihan';
+
+  @override
+  String get mlEnrollApprovedToast => 'Naaprubahan ang enrollment.';
+
+  @override
+  String get mlEnrollDeclinedToast => 'Tinanggihan ang enrollment.';
+
+  @override
+  String get mlEnrollReviewAction => 'Suriin ang aplikasyon';
+
+  @override
+  String get mlEnrollEnrolled => 'Naka-enroll';
+
+  @override
+  String get mlEnrollEmptyEnrolled => 'Wala pang naka-enroll na magsasaka.';
+
+  @override
+  String mlEnrollApprovedOn(String date) {
+    return 'Inaprubahan noong $date';
+  }
+
+  @override
+  String get coopStatusApproved => 'Tinanggap';
+
+  @override
+  String get coopStatusDelivered => 'Naihatid na';
+
+  @override
+  String get coopStatusCompleted => 'Tapos na';
+
+  @override
+  String get coopStatusDeliverNow => 'Ihatid na';
+
+  @override
+  String get coopStatusApprovedWaitingDelivery =>
+      'Tinanggap Â· hinihintay ang paghahatid';
+
+  @override
+  String get coopStatusDeliveredWaiting =>
+      'Naihatid · hinihintay ang pagtanggap';
+
+  @override
+  String get coopStatusConfirmReceipt => 'Kumpirmahin ang pagtanggap';
+
+  @override
+  String get coopAgreedTotalLabel => 'Napagkasunduang kabuuan';
+
+  @override
+  String get coopEventDelivered => 'Inihatid sa kooperatiba';
+
+  @override
+  String get coopEventReceived => 'Nakumpirma ang pagtanggap';
+
+  @override
+  String get coopApprovedFarmerMsg =>
+      'Napagkasunduan na ang presyo. Ihatid ang ani sa kooperatiba at mag-upload ng larawan ng paghahatid. Hindi pa ito naibebenta.';
+
+  @override
+  String get coopApprovedStaffMsg =>
+      'Napagkasunduan na ang presyo. Hinihintay na ihatid ng magsasaka ang ani at mag-upload ng larawan. Walang maibebenta o maitatala hangga\'t hindi mo kinukumpirma ang pagtanggap.';
+
+  @override
+  String get coopDeliveredFarmerMsg =>
+      'Naihatid na. Hinihintay na kumpirmahin ng kooperatiba na natanggap nito ang ani.';
+
+  @override
+  String get coopDeliveredStaffMsg =>
+      'Inihatid na ng magsasaka ang ani. Tingnan ang larawan at ang paghahatid, saka kumpirmahin ang pagtanggap.';
+
+  @override
+  String get coopClosedCompleted =>
+      'Nakumpirma na ang pagtanggap. Nasa Kasaysayan ng Transaksyon at Ulat sa Benta na ang bentang ito, at nasa imbentaryo na ng kooperatiba ang ani.';
+
+  @override
+  String get coopActionDeliver => 'Markahan bilang Naihatid';
+
+  @override
+  String get coopDeliverTitle => 'Ihatid sa Kooperatiba';
+
+  @override
+  String get coopDeliverBody =>
+      'Kumuha ng larawan ng ani na ibibigay mo. Susuriin ito ng kooperatiba sa pagtanggap ng paghahatid.';
+
+  @override
+  String get coopDeliverTakePhoto => 'Kumuha ng larawan';
+
+  @override
+  String get coopDeliverRetake => 'Ulitin ang larawan';
+
+  @override
+  String get coopDeliverPhotoRequired =>
+      'Kumuha muna ng larawan ng paghahatid.';
+
+  @override
+  String get coopDeliverConfirm => 'Isumite ang paghahatid';
+
+  @override
+  String get coopToastDelivered =>
+      'Naipadala ang paghahatid. Hinihintay ang kumpirmasyon ng kooperatiba.';
+
+  @override
+  String get coopActionConfirmReceipt => 'Kumpirmahin ang Pagtanggap';
+
+  @override
+  String get coopReceiptTitle => 'Kumpirmahin ang pagtanggap';
+
+  @override
+  String coopReceiptBody(
+    String quantity,
+    String crop,
+    String farmer,
+    String amount,
+  ) {
+    return 'Kumpirmahin na pisikal mong natanggap ang $quantity ng $crop mula kay $farmer. Itatala nito ang bentang $amount at idadagdag ang ani sa imbentaryo ng kooperatiba. Hindi na ito mababawi.';
+  }
+
+  @override
+  String get coopReceiptConfirm => 'Kumpirmahin ang pagtanggap';
+
+  @override
+  String get coopToastReceived =>
+      'Nakumpirma ang pagtanggap. Naitala ang benta at naidagdag ang stock.';
+
+  @override
+  String get coopDeliveryPhotoTitle => 'Larawan ng paghahatid';
+
+  @override
+  String coopDeliveredOn(String date) {
+    return 'Naihatid noong $date';
+  }
+
+  @override
+  String coopReceivedOn(String date) {
+    return 'Natanggap noong $date';
+  }
+
+  @override
+  String adminLogCoopOfferReceived(String kg, String amount) {
+    return 'Kinumpirma ang pagtanggap ng paghahatid sa kooperatiba na $kg (₱$amount).';
+  }
+
+  @override
+  String get buyerOrderReceivedCardTitle =>
+      'Natanggap mo na ba ang iyong order?';
+
+  @override
+  String get buyerOrderReceivedCardBody =>
+      'Kapag nasa iyo na ang iyong order, kumpirmahin ito rito. Makukumpleto na ang order at hindi na ito mababago.';
+
+  @override
+  String get buyerOrderReceivedAction => 'Kumpirmahin ang Pagtanggap';
+
+  @override
+  String get buyerOrderReceivedDialogTitle => 'Kumpirmahin na natanggap mo na';
+
+  @override
+  String buyerOrderReceivedDialogBody(String quantity, String crop) {
+    return 'Kumpirmahin na natanggap mo ang $quantity ng $crop. Makukumpleto ang order at hindi na ito mababago pagkatapos.';
+  }
+
+  @override
+  String get buyerOrderReceivedConfirm => 'Oo, natanggap ko na';
+
+  @override
+  String get buyerOrderReceivedToast => 'Salamat! Kumpleto na ang iyong order.';
+
+  @override
+  String get buyerOrderReceivedOffline =>
+      'Kailangan ng internet para makumpirma ang pagtanggap.';
+
+  @override
+  String get adminOrderWaitingForBuyer =>
+      'Aprubado — hinihintay na kumpirmahin ng bumili na natanggap na niya';
+
+  @override
+  String get adminOrderWaitingForBuyerNote =>
+      'Nakukumpleto ang order kapag kinumpirma ng bumili o magsasaka na nag-order ang pagtanggap. Walang maibebenta hangga\'t hindi pa ito nangyayari.';
+
+  @override
+  String get stockHistoryButton => 'Kasaysayan ng Stock';
+
+  @override
+  String get stockHistoryTitle => 'Kasaysayan ng Stock';
+
+  @override
+  String get stockHistoryEmpty => 'Wala pang galaw ng stock.';
+
+  @override
+  String get stockHistoryLoadError =>
+      'Hindi ma-load ang kasaysayan ng stock. Subukan muli.';
+
+  @override
+  String get stockFigureTotal => 'Naani';
+
+  @override
+  String get stockFigureAvailable => 'Available';
+
+  @override
+  String get stockFigureReserved => 'Naka-reserba';
+
+  @override
+  String get stockFigureSold => 'Naibenta';
+
+  @override
+  String get stockFigureAdjusted => 'Inayos';
+
+  @override
+  String get stockMovHarvested => 'Naani';
+
+  @override
+  String get stockMovReserved => 'Na-reserba';
+
+  @override
+  String get stockMovReleased => 'Ibinalik';
+
+  @override
+  String get stockMovSold => 'Naibenta';
+
+  @override
+  String get stockMovSaleReversed => 'Binawi ang benta';
+
+  @override
+  String get stockMovAdjusted => 'Inayos';
+
+  @override
+  String get stockMovAdjustmentReversed => 'Binawi ang pagsasaayos';
+
+  @override
+  String get stockMovQuantityChanged => 'Nagbago ang dami';
+
+  @override
+  String get stockChanMarketplace => 'Marketplace';
+
+  @override
+  String get stockChanCoopOffer => 'Alok sa Kooperatiba';
+
+  @override
+  String get stockChanInformal => 'Impormal na Benta';
+
+  @override
+  String get stockChanMarketLinking => 'DA-AMAD Market Linking';
+
+  @override
+  String get stockChanManual => 'Manu-manong pagbabago';
+
+  @override
+  String stockBalanceLine(String available, String reserved, String sold) {
+    return 'Available $available · Naka-reserba $reserved · Naibenta $sold';
+  }
+
+  @override
+  String get coopActionAcceptOffer => 'Tanggapin ang Alok';
+
+  @override
+  String get coopActionSubmitCounter => 'Magsumite ng Kontra-alok';
+
+  @override
+  String get orderStatusReadyForPickup => 'Handa nang Kunin';
+
+  @override
+  String get orderStatusOutForDelivery => 'Ihinahatid na';
+
+  @override
+  String get orderStatusDelivered => 'Naihatid na';
+
+  @override
+  String ordersEmptyStatus(String status) {
+    return 'Walang order na $status';
+  }
+
+  @override
+  String get adminLogOrderReadyForPickup =>
+      'Minarkahan ang isang order na Handa nang Kunin.';
+
+  @override
+  String get adminLogOrderOutForDelivery =>
+      'Minarkahan ang isang order na Ihinahatid na.';
+
+  @override
+  String get adminLogOrderDelivered =>
+      'Minarkahan ang isang order na Naihatid na may larawang ebidensya.';
+
+  @override
+  String get orderActionReadyForPickup => 'Handa nang Kunin';
+
+  @override
+  String get orderActionOutForDelivery => 'Ihinahatid na';
+
+  @override
+  String get orderActionMarkDelivered => 'Markahan bilang Naihatid';
+
+  @override
+  String get orderReadyDialogTitle => 'Markahan na Handa nang Kunin';
+
+  @override
+  String get orderReadyDialogBody =>
+      'Handa nang kunin ang order sa Barangay Payanas. Aabisuhan ang bumili, at makukumpirma niya ang pagtanggap pagkatapos niyang kunin ito.';
+
+  @override
+  String get orderOutDialogTitle => 'Markahan na Ihinahatid na';
+
+  @override
+  String get orderOutDialogBody =>
+      'Papunta na ang order sa address ng paghahatid. Aabisuhan ang bumili.';
+
+  @override
+  String get orderDeliveredDialogTitle => 'Markahan bilang Naihatid';
+
+  @override
+  String get orderDeliveredDialogBody =>
+      'Kumuha ng larawan bilang ebidensya ng paghahatid. Kailangan ito. Hihilingin pagkatapos sa bumili na kumpirmahin ang pagtanggap.';
+
+  @override
+  String get orderToastReady => 'Minarkahang Handa nang Kunin.';
+
+  @override
+  String get orderToastOut => 'Minarkahang Ihinahatid na.';
+
+  @override
+  String get orderToastDelivered =>
+      'Minarkahang Naihatid. Hinihintay ang kumpirmasyon ng bumili.';
+
+  @override
+  String get adminOrderNextReady =>
+      'Aprubado — susunod: markahang Handa nang Kunin';
+
+  @override
+  String get adminOrderNextOut => 'Aprubado — susunod: markahang Ihinahatid na';
+
+  @override
+  String get adminOrderNextDelivered =>
+      'Ihinahatid na — markahang Naihatid na may larawan';
+
+  @override
+  String get adminOrderWaitingPickup =>
+      'Handa nang Kunin — hinihintay na kunin at kumpirmahin ng bumili';
+
+  @override
+  String get adminOrderWaitingReceipt =>
+      'Naihatid na — hinihintay na kumpirmahin ng bumili ang pagtanggap';
+
+  @override
+  String buyerOrderMsgApprovedPickup(String cooperative) {
+    return 'Inaprubahan ng $cooperative ang iyong order. Mamarkahan itong Handa nang Kunin kapag maaari na itong kunin sa Barangay Payanas.';
+  }
+
+  @override
+  String buyerOrderMsgApprovedDelivery(String cooperative) {
+    return 'Inaprubahan ng $cooperative ang iyong order. Mamarkahan itong Ihinahatid na kapag papunta na ito sa iyo.';
+  }
+
+  @override
+  String get buyerOrderMsgReady =>
+      'Handa na ang iyong order. Kunin ito sa Barangay Payanas, saka pindutin ang Kumpirmahin ang Pagtanggap.';
+
+  @override
+  String get buyerOrderMsgOut =>
+      'Ihinahatid na ang iyong order. Aabisuhan ka kapag naihatid na ito.';
+
+  @override
+  String get buyerOrderMsgDelivered =>
+      'Naihatid na ang iyong order. Suriin ito, saka pindutin ang Kumpirmahin ang Pagtanggap.';
+
+  @override
+  String get buyerOrderSubtitleOut => 'Padating na';
+
+  @override
+  String get buyerOrderSubtitleDelivered => 'Naihatid na — pakikumpirma';
+
+  @override
+  String get buyerOrderStepReadyForPickup => 'Handa nang Kunin';
+
+  @override
+  String get buyerOrderStepOutForDelivery => 'Ihinahatid na';
+
+  @override
+  String get buyerOrderStepDelivered => 'Naihatid na';
+
+  @override
+  String get buyerOrderDeliveryPhotoTitle => 'Larawan ng paghahatid';
+
+  @override
+  String get buyerOrderConfirmAfterReady =>
+      'Kunin ang iyong order, saka kumpirmahin na natanggap mo ito.';
+
+  @override
+  String get buyerOrderConfirmAfterDelivered =>
+      'Suriin ang inihatid, saka kumpirmahin na natanggap mo ito.';
+
+  @override
+  String get buyerOrdersViewDetails => 'Tingnan ang Detalye';
+
+  @override
+  String get coopInvOriginalQuantity => 'Orihinal na dami';
+
+  @override
+  String get coopInvFarmer => 'Pinagmulang Magsasaka';
+
+  @override
+  String get coopInvBatch => 'Batch';
+
+  @override
+  String get coopInvHarvestDate => 'Petsa ng ani';
+
+  @override
+  String get coopInvStorage => 'Lokasyon ng imbakan';
+
+  @override
+  String get coopInvOffer => 'Alok';
+
+  @override
+  String get coopInvTransaction => 'Transaksyon';
+
+  @override
+  String get coopInvReference => 'Kaugnay na tala';
+
+  @override
+  String get coopInvNotRecorded => 'Hindi naitala';
+
+  @override
+  String get coopInvResponsible => 'Responsableng user';
+
+  @override
+  String get coopInvCreated => 'Nagawa ang item';
+
+  @override
+  String get coopInvEdited => 'Na-edit ang item';
+
+  @override
+  String get coopInvArchived => 'Na-archive ang item';
+
+  @override
+  String get coopInvRestored => 'Naibalik ang item';
+
+  @override
+  String get coopInvPublished => 'Na-publish';
+
+  @override
+  String get coopInvUnpublished => 'Inalis sa pag-publish';
+
+  @override
+  String get coopInvDistributed => 'Pamamahagi ng programa';
+
+  @override
+  String get coopInvCrop => 'Pananim';
+
+  @override
+  String get coopInvUnitCost => 'Halaga bawat yunit';
+
+  @override
+  String get coopInvPhoto => 'Larawan';
+
+  @override
+  String get coopInvActive => 'Aktibo';
+
+  @override
+  String get coopInvBatches => 'Mga batch ng ani';
+
+  @override
+  String get coopInvBatchExplanation =>
+      'Pinapanatili ang orihinal na dami ng natanggap. Binabago ng mga pagsasaayos ang kasalukuyang stock at makikita sa Kasaysayan.';
+
+  @override
+  String get coopInvLoadError =>
+      'Hindi ma-load ang mga tala ng imbentaryo. Subukang muli.';
+
+  @override
+  String get coopInvRetry => 'Subukang muli';
+
+  @override
+  String get coopInvLoadMore => 'Mag-load pa';
+
+  @override
+  String get coopInvArchiveStockFirst =>
+      'Gamitin o isaayos ang natitirang stock bago i-archive. Kailangang i-release muna ang nakareserbang stock.';
+
+  @override
+  String get coopInvArchiveTitle => 'I-archive ang item sa imbentaryo?';
+
+  @override
+  String get coopInvArchiveExplanation =>
+      'Aalisin ito sa aktibong imbentaryo at sa mga katalogo. Mananatili ang lahat ng batch at kasaysayan sa Na-archive. Ibabalik ng bagong nakumpletong alok ang parehong item ng Magsasaka–Pananim.';
+
+  @override
+  String get coopInvShowArchived =>
+      'Ipakita ang mga na-archive / hindi aktibong item';
+
+  @override
+  String get coopInvCropTotals => 'Stock ng ani ayon sa pananim at yunit';
+
+  @override
+  String get coopInvIdentityLocked =>
+      'Pinapanatili ang pinagmulang Magsasaka, pananim at yunit mula sa natanggap na alok.';
+
+  @override
+  String get coopInvInvalidAdjustment =>
+      'Maglagay ng positibong dami na may hanggang dalawang decimal. Hindi maaaring lumampas sa available na stock ang bawas.';
+
+  @override
+  String get coopInvShowActive => 'Ipakita ang mga aktibong item';
+
+  @override
+  String get coopInvViewingArchived =>
+      'Tinitingnan ang mga naka-archive / hindi aktibong item';
+
+  @override
+  String get coopInvQuantityZero =>
+      'Hindi maaaring zero ang dami. Maglagay ng halagang higit sa 0.';
+
+  @override
+  String get coopInvManualAddition => 'Manu-manong Pagdagdag ng Stock';
+
+  @override
+  String get coopInvAdjustmentRetry =>
+      'Hindi makumpirma ang resulta. Subukang muli ang parehong kahilingan upang hindi madoble ang dagdag na stock.';
+
+  @override
+  String marketDashOrdersNeedAction(int count) {
+    return '$count Order ang Kailangan ng Aksyon';
+  }
+
+  @override
+  String get marketDashOrdersNeedActionNote =>
+      'Mga order na aaprubahan, ibibigay, o ihinahatid na. Hindi kasama ang mga order na hinihintay lang ang kumpirmasyon ng bumili.';
+
+  @override
+  String marketDashNeedActionBadge(int count) {
+    return '$count kailangan ng aksyon';
+  }
+
+  @override
+  String get orderMgmtChipNeedsAction => 'Kailangan ng Aksyon';
+
+  @override
+  String get orderMgmtNoNeedsAction =>
+      'Walang order na kailangan ng aksyon ngayon';
+
+  @override
+  String get guestWelcomeTitle => 'Maligayang pagdating sa SAGANA!';
+
+  @override
+  String get guestWelcomeSubtitle => 'Paano mo gustong mag-explore?';
+
+  @override
+  String get guestExploreAsBuyer => 'Mag-explore bilang Mamimili';
+
+  @override
+  String get guestExploreAsBuyerHint =>
+      'Mag-browse sa palengke at tingnan ang presyo ng pananim';
+
+  @override
+  String get guestExploreAsFarmer => 'Mag-explore bilang Magsasaka';
+
+  @override
+  String get guestExploreAsFarmerHint =>
+      'Silipin ang mga gamit ng Magsasaka gamit ang sample na datos';
+
+  @override
+  String get guestAlreadyHaveAccount => 'May account ka na?';
+
+  @override
+  String get guestLogin => 'Mag-login';
+
+  @override
+  String get guestRegister => 'Magparehistro';
+
+  @override
+  String get guestContinueBrowsing => 'Magpatuloy sa Pag-browse';
+
+  @override
+  String get guestContinueExploring => 'Magpatuloy sa Pag-explore';
+
+  @override
+  String get guestName => 'Bisita';
+
+  @override
+  String get guestBackToWelcome => 'Bumalik sa Welcome';
+
+  @override
+  String get guestSampleBanner =>
+      'Sample na datos. Nag-e-explore ka bilang bisita, kaya walang totoong tala dito.';
+
+  @override
+  String get guestProfileTitle => 'Maligayang pagdating sa SAGANA!';
+
+  @override
+  String get guestProfileMessage =>
+      'Mag-login o gumawa ng account para magamit ang higit pang features at mapamahalaan ang iyong SAGANA profile.';
+
+  @override
+  String get guestSwitchToFarmer => 'Lumipat sa Mag-explore bilang Magsasaka';
+
+  @override
+  String get guestSwitchToBuyer => 'Lumipat sa Mag-explore bilang Mamimili';
+
+  @override
+  String get guestCartTitle => 'Handa ka na bang magdagdag sa cart?';
+
+  @override
+  String get guestCartMessage =>
+      'Mag-login o gumawa ng account para mai-save ang mga produkto sa iyong cart at makapagpatuloy sa pamimili.';
+
+  @override
+  String get guestBuyNowTitle => 'Handa ka na bang mag-order?';
+
+  @override
+  String get guestBuyNowMessage =>
+      'Mag-login o gumawa ng account para mabili ang produktong ito.';
+
+  @override
+  String get guestOrdersTitle => 'Handa ka na bang gawin ang una mong order?';
+
+  @override
+  String get guestOrdersMessage =>
+      'Mag-login o gumawa ng account para makapag-order ng mga produktong pang-agrikultura at masubaybayan ang iyong mga binili.';
+
+  @override
+  String get guestNotificationsTitle =>
+      'Gusto mo bang makita ang iyong mga abiso?';
+
+  @override
+  String get guestNotificationsMessage =>
+      'Mag-login o gumawa ng account para makatanggap at mabasa ang iyong mga abiso.';
+
+  @override
+  String get guestMarketRatesTitle =>
+      'Gusto mo bang makita ang buong market rates?';
+
+  @override
+  String get guestMarketRatesMessage =>
+      'Mag-login gamit ang iyong Farmer account para makita ang pinakabagong market rates at mga detalye nito.';
+
+  @override
+  String get guestActivityTitle => 'Gusto mo bang makita ang iyong aktibidad?';
+
+  @override
+  String get guestActivityMessage =>
+      'Mag-login o magparehistro para masubaybayan ang sarili mong aktibidad sa ani, listing at profile.';
+
+  @override
+  String get guestPriorityTitle =>
+      'Gusto mo bang makita ang iyong mga priyoridad?';
+
+  @override
+  String get guestPriorityMessage =>
+      'Mag-login para makita ang mga paalala sa utang, listing at sync na para sa iyong account.';
+
+  @override
+  String get guestRecordHarvestTitle => 'Handa ka na bang itala ang iyong ani?';
+
+  @override
+  String get guestRecordHarvestMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para maitala ang iyong mga ani at mapanatili ang mga tala ng pananim.';
+
+  @override
+  String get guestMyCropsTitle =>
+      'Handa ka na bang pamahalaan ang iyong mga pananim?';
+
+  @override
+  String get guestMyCropsMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para makita at mapamahalaan ang mga pananim na itinatanim mo.';
+
+  @override
+  String get guestInventoryTitle =>
+      'Handa ka na bang pamahalaan ang iyong stock?';
+
+  @override
+  String get guestInventoryMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para masubaybayan ang stock mula sa iyong mga ani.';
+
+  @override
+  String get guestHarvestHistoryTitle =>
+      'Gusto mo bang makita ang iyong kasaysayan ng ani?';
+
+  @override
+  String get guestHarvestHistoryMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para makita at ma-edit ang sarili mong mga tala ng ani.';
+
+  @override
+  String get guestCreateListingTitle =>
+      'Handa ka na bang magbenta ng iyong ani?';
+
+  @override
+  String get guestCreateListingMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para makagawa ng listing para sa iyong ani.';
+
+  @override
+  String get guestManageListingTitle =>
+      'Handa ka na bang pamahalaan ang iyong mga listing?';
+
+  @override
+  String get guestManageListingMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para makita, ma-edit o bawiin ang sarili mong mga listing.';
+
+  @override
+  String get guestTransactionsTitle =>
+      'Gusto mo bang makita ang iyong mga transaksyon?';
+
+  @override
+  String get guestTransactionsMessage =>
+      'Mag-login o magparehistro bilang Magsasaka para makita ang sarili mong kasaysayan ng transaksyon.';
+
+  @override
+  String get editListingTitle => 'I-edit ang Listing';
+
+  @override
+  String get editListingAction => 'I-edit ang Listing';
+
+  @override
+  String get editListingCropLocked =>
+      'Nakatakda na ang pananim at ang unit nito at hindi na mababago.';
+
+  @override
+  String get editListingApprovedNote =>
+      'Nakalathala ang listing na ito. Ipapadala sa Manager o Officer ang iyong mga pagbabago para sa pag-apruba. Hangga\'t hindi pa ito naaprubahan, mananatili ang iyong listing at hindi maaapektuhan ang mga order na nailagay na.';
+
+  @override
+  String get editListingPendingNote =>
+      'Naghihintay pa ng pag-apruba ang listing na ito. Makikita ng Manager ang iyong mga pagbabago sa pagsusuri.';
+
+  @override
+  String editListingOrdered(String qty) {
+    return 'Naorder na: $qty';
+  }
+
+  @override
+  String editListingMaxHint(String qty) {
+    return 'Hanggang $qty';
+  }
+
+  @override
+  String editListingQtyTooLow(String qty) {
+    return 'Dapat mas mataas ang dami kaysa sa $qty na naorder na.';
+  }
+
+  @override
+  String get editListingSave => 'I-save ang mga Pagbabago';
+
+  @override
+  String get editListingSaved => 'Na-update ang listing.';
+
+  @override
+  String get editListingNoChanges => 'Wala ka pang binabago.';
+
+  @override
+  String get editListingRetakePhoto => 'Kumuha Muli ng Larawan';
+
+  @override
+  String get editListingPhotoPending =>
+      'Ise-save ang bagong larawan kasabay ng iyong mga pagbabago.';
+
+  @override
+  String get editListingPhotoNote =>
+      'Papalitan ng bagong larawan ang larawan ng iyong pananim sa Crop Roster.';
+
+  @override
+  String get editListingOffline =>
+      'Offline ka — maaari mong i-edit ang listing kapag nakakonekta ka na ulit.';
+
+  @override
+  String get editListingFailed =>
+      'Hindi ma-save ang iyong mga pagbabago. Pakisubukan muli.';
+
+  @override
+  String get editListingEstimatedTotal => 'Tinatayang kabuuan';
+
+  @override
+  String get editListingNotEditable =>
+      'Hindi na maaaring i-edit ang listing na ito.';
+
+  @override
+  String get editListingFieldProduct => 'Produkto';
+
+  @override
+  String editListingFieldQuantity(String unit) {
+    return 'Dami ($unit)';
+  }
+
+  @override
+  String get editListingFieldPrice => 'Hinihinging Presyo';
+
+  @override
+  String get editListingFieldDescription => 'Paglalarawan';
+
+  @override
+  String get editListingFieldPhoto => 'Larawan ng Produkto';
+
+  @override
+  String get editListingDescriptionHint =>
+      'Ilarawan ang iyong produkto — kalidad, pinagmulan, tuyo sa araw, atbp.';
+
+  @override
+  String get editListingDescriptionRequired =>
+      'Maglagay ng paglalarawan para sa listing na ito.';
+
+  @override
+  String get leRequestTitle => 'Humiling ng Pagbabago';
+
+  @override
+  String get leSubmitRequest => 'Ipadala para sa Pag-apruba';
+
+  @override
+  String get leRequestSent =>
+      'Naipadala para sa pag-apruba. Mananatili ang iyong listing hanggang maaprubahan ito.';
+
+  @override
+  String get leCancelRequest => 'Kanselahin ang Kahilingan';
+
+  @override
+  String get leCancelRequestTitle => 'Kanselahin ang kahilingang ito?';
+
+  @override
+  String get leCancelRequestBody =>
+      'Mananatiling nakalathala ang iyong listing. Maaari kang magpadala ng bagong kahilingan anumang oras.';
+
+  @override
+  String get leRequestCancelled => 'Nakansela ang kahilingan.';
+
+  @override
+  String get leRequestFailed =>
+      'Hindi maipadala ang iyong kahilingan. Pakisubukan muli.';
+
+  @override
+  String get lePhotoUploadFailed =>
+      'Hindi ma-upload ang larawan. Suriin ang koneksyon at subukan muli.';
+
+  @override
+  String get lePendingBannerTitle =>
+      'Naghihintay ng pag-apruba ang mga pagbabago';
+
+  @override
+  String get lePendingBannerBody =>
+      'Nakalathala pa rin ang iyong listing gaya ng dati. Maaari kang magpadala ng bagong kahilingan kapag nakapagpasya na ang Manager o Officer.';
+
+  @override
+  String get leRejectedBannerTitle =>
+      'Hindi naaprubahan ang huli mong mga pagbabago';
+
+  @override
+  String leRejectedReason(String reason) {
+    return 'Dahilan: $reason';
+  }
+
+  @override
+  String get leViewHistory => 'Kasaysayan ng Listing';
+
+  @override
+  String get leHistoryTitle => 'Kasaysayan ng Listing';
+
+  @override
+  String get leHistoryEmpty => 'Wala pang naitala para sa listing na ito.';
+
+  @override
+  String get leRequestedChanges => 'Hiniling na mga pagbabago';
+
+  @override
+  String get leCurrent => 'Kasalukuyang nakalathala';
+
+  @override
+  String get leProposed => 'Hiniling';
+
+  @override
+  String get leNoChange => 'Walang pagbabago';
+
+  @override
+  String get lePhotoChanged => 'Bagong larawan';
+
+  @override
+  String get lePhotoUnchanged => 'Hindi nagbago ang larawan';
+
+  @override
+  String get lePendingTabNew => 'Mga Bagong Listing';
+
+  @override
+  String get lePendingTabEdits => 'Mga Kahilingan sa Pag-edit';
+
+  @override
+  String get leEditRequestTitle => 'Kahilingan sa Pag-edit ng Listing';
+
+  @override
+  String get leEditRequestBadge => 'Kahilingan sa pag-edit';
+
+  @override
+  String get leStaysPublished =>
+      'Mananatiling nakalathala ang listing nang walang pagbabago hanggang makapagpasya ka.';
+
+  @override
+  String get leApproveTitle => 'Aprubahan ang mga pagbabagong ito?';
+
+  @override
+  String get leApproveBody =>
+      'Agad na maa-update ang nakalathalang listing. Ang mga order na nailagay na ay mananatili sa kanilang dami at presyo.';
+
+  @override
+  String get leApproveAction => 'Aprubahan at Ipatupad';
+
+  @override
+  String get leDisapproveAction => 'Hindi Aprubahan';
+
+  @override
+  String get leDisapproveTitle =>
+      'Hindi aprubahan ang kahilingang ito sa pag-edit';
+
+  @override
+  String get leDisapproveHint => 'Dahilan para sa Magsasaka (kailangan)';
+
+  @override
+  String get leDisapproveConfirm => 'Kumpirmahin ang Pagtanggi';
+
+  @override
+  String get leReasonRequired => 'Ilagay muna ang dahilan.';
+
+  @override
+  String get leApprovedToast => 'Naaprubahan at naipatupad ang mga pagbabago.';
+
+  @override
+  String get leDisapprovedToast =>
+      'Hindi inaprubahan ang kahilingan. Walang nagbago sa listing.';
+
+  @override
+  String get leDecisionFailed =>
+      'Hindi ma-save ang desisyon. Pakisubukan muli.';
+
+  @override
+  String leBatchFree(String qty) {
+    return 'Libre sa batch: $qty';
+  }
+
+  @override
+  String leDecidedBy(String name) {
+    return 'Pinagpasyahan ni $name';
+  }
+
+  @override
+  String get leStatusCancelled => 'Kinansela';
+
+  @override
+  String get leEmptyEdits => 'Walang kahilingan sa pag-edit.';
+
+  @override
+  String leRequestedOn(String date) {
+    return 'Hiniling noong $date';
+  }
+
+  @override
+  String get wfRoleAdmin => 'Manager';
+
+  @override
+  String get wfRoleOfficer => 'Officer';
+
+  @override
+  String get wfRoleFarmer => 'Magsasaka';
+
+  @override
+  String get wfRoleBuyer => 'Mamimili';
+
+  @override
+  String get wfRoleSystem => 'Sistema';
+
+  @override
+  String get wfByYou => 'Ikaw';
+
+  @override
+  String get wfByCooperative => 'SP3 Cooperative';
+
+  @override
+  String get wfBySystem => 'Sistema';
+
+  @override
+  String get wfActSubmitted => 'Isinumite';
+
+  @override
+  String get wfActApproved => 'Naaprubahan';
+
+  @override
+  String get wfActDisapproved => 'Hindi Naaprubahan';
+
+  @override
+  String get wfActWithdrawn => 'Binawi';
+
+  @override
+  String get wfActEdited => 'Na-edit ang detalye';
+
+  @override
+  String get wfActEditRequested => 'Hiniling ang pag-edit';
+
+  @override
+  String get wfActEditApproved => 'Naaprubahan ang pag-edit';
+
+  @override
+  String get wfActEditRejected => 'Hindi naaprubahan ang pag-edit';
+
+  @override
+  String get wfActEditCancelled => 'Kinansela ang kahilingan sa pag-edit';
+
+  @override
+  String get wfActSoldOut => 'Naubos na';
+
+  @override
+  String get wfActReopened => 'Available muli';
+
+  @override
+  String get wfActPlaced => 'Nailagay ang order';
+
+  @override
+  String get wfActReadyForPickup => 'Handa nang kunin';
+
+  @override
+  String get wfActOutForDelivery => 'Ipinapadala na';
+
+  @override
+  String get wfActDelivered => 'Naihatid';
+
+  @override
+  String get wfActCompleted => 'Nakumpleto';
+
+  @override
+  String get wfActCancelled => 'Kinansela';
+
+  @override
+  String get wfActBuyerFound => 'May nakitang mamimili';
+
+  @override
+  String get wfActBuyerDetails => 'Na-save ang detalye ng mamimili';
+
+  @override
+  String get wfActSaleRecorded => 'Naitala ang benta';
+
+  @override
+  String get wfActCancellationRequested => 'Hiniling ang pagkansela';
+
+  @override
+  String get wfActCancellationApproved => 'Inaprubahan ang pagkansela';
+
+  @override
+  String get wfActCancellationDeclined => 'Tinanggihan ang pagkansela';
+
+  @override
+  String get wfActCancellationWithdrawn => 'Binawi ang pagkansela';
+
+  @override
+  String get wfActStatusChanged => 'Nagbago ang katayuan';
+
+  @override
+  String wfDetailQuantity(String from, String to) {
+    return 'Dami: $from → $to';
+  }
+
+  @override
+  String wfDetailPrice(String from, String to) {
+    return 'Presyo: $from → $to';
+  }
+
+  @override
+  String get wfDetailDescription => 'Na-update ang paglalarawan';
+
+  @override
+  String get wfDetailPhoto => 'Napalitan ang larawan';
+
+  @override
+  String wfDetailSale(String quantity, String buyer, String total) {
+    return '$quantity ang naibenta kay $buyer sa halagang $total';
+  }
+
+  @override
+  String wfDetailPlaced(String quantity, String price) {
+    return '$quantity sa $price';
+  }
+
+  @override
+  String get wfActivityTitle => 'Aktibidad ng staff';
+
+  @override
+  String get wfActivityEmpty =>
+      'Wala pang naitalang aktibidad. Nagsisimula ang kasaysayan mula nang i-on ang pagsubaybay.';
+
+  @override
+  String wfActivityBy(String role, String name) {
+    return '$role $name';
+  }
+
+  @override
+  String get wfHistoryAction => 'Kasaysayan';
+
+  @override
+  String get profileAnnualSummary => 'Taunang Buod';
+
+  @override
+  String get profileAnnualPrevYear => 'Nakaraang taon';
+
+  @override
+  String get profileAnnualNextYear => 'Susunod na taon';
+
+  @override
+  String profileAnnualHint(int year) {
+    return 'Mga ani at natapos na benta na may petsang $year';
+  }
+
+  @override
+  String profileLoansOutstanding(String amount) {
+    return '₱$amount ang natitirang balanse';
+  }
+
+  @override
+  String get profileLoansNone => 'Walang natitirang pautang';
+
+  @override
+  String profileLoansPending(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count kahilingang naghihintay',
+      one: '1 kahilingang naghihintay',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String profileExpensesSubtitle(String amount) {
+    return '₱$amount ang nagastos ngayong buwan';
+  }
+
+  @override
+  String get profileTransactionsSubtitle =>
+      'Mga natapos ninyong benta sa lahat ng paraan ng pagbebenta';
+
+  @override
+  String get profileOrdersSubtitle =>
+      'Mga order ninyo sa Marketplace at ang kanilang katayuan';
+
+  @override
+  String get profileMlkSubtitleJoin =>
+      'Sumali para maibenta ang inyong Luya sa mga mamimili ng DA-AMAD sa pamamagitan ng SP3';
+
+  @override
+  String get profileMlkSubtitlePending =>
+      'Sinusuri ng SP3 ang inyong enrollment';
+
+  @override
+  String get profileMlkSubtitleDeclined =>
+      'Hindi naaprubahan ang enrollment · pindutin para makita ang dahilan at mag-apply muli';
+
+  @override
+  String get profileMlkSubtitleApproved =>
+      'Naaprubahan ang enrollment · pindutin para magpatuloy';
+
+  @override
+  String get profileMlkSubtitleEnrolled =>
+      'Naka-enroll · magsumite ng ani ng Luya para makahanap ng mamimili';
+
+  @override
+  String profileMlkSubtitleActive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Naka-enroll · $count aktibong kahilingan',
+      one: 'Naka-enroll · 1 aktibong kahilingan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get profileMlkSubtitleDefault =>
+      'Tingnan ang inyong mga kahilingan at benta sa Market Linking';
+
+  @override
+  String get loanReqTitle => 'Humiling ng Pautang';
+
+  @override
+  String get loanReqOffline =>
+      'Kumonekta sa internet para makita ang magagamit na stock at makapagpadala ng kahilingan sa pautang.';
+
+  @override
+  String get loanReqLoadFailed => 'Hindi ma-load ang katalogo ng pautang';
+
+  @override
+  String get loanReqLoadFailedBody =>
+      'Pakisuri ang inyong koneksyon at subukan muli.';
+
+  @override
+  String get loanReqNoItems => 'Walang magagamit na item sa pautang sa ngayon';
+
+  @override
+  String get loanReqNoItemsBody =>
+      'Walang laman ang katalogo ng pautang sa ngayon. Bumalik mamaya o magtanong sa SP3.';
+
+  @override
+  String get loanReqSearchHint => 'Maghanap ng item sa pautang';
+
+  @override
+  String get loanReqAll => 'Lahat';
+
+  @override
+  String get loanReqNoMatch => 'Walang tugmang item';
+
+  @override
+  String get loanReqNoMatchBody => 'Subukan ang ibang hanap o kategorya.';
+
+  @override
+  String loanReqInStock(String qty) {
+    return '$qty ang stock';
+  }
+
+  @override
+  String get loanReqOutOfStock => 'Walang stock';
+
+  @override
+  String get loanReqAdd => 'Idagdag';
+
+  @override
+  String get loanReqEdit => 'Baguhin';
+
+  @override
+  String get loanReqRemove => 'Alisin';
+
+  @override
+  String loanReqItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count item',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanReqReview => 'Suriin ang kahilingan';
+
+  @override
+  String get loanReqReviewTitle => 'Suriin ang inyong kahilingan';
+
+  @override
+  String get loanReqTotal => 'Kabuuan';
+
+  @override
+  String get loanReqQtyRequired => 'Maglagay ng dami na higit sa zero.';
+
+  @override
+  String loanReqQtyTooMuch(String qty) {
+    return '$qty lamang ang magagamit.';
+  }
+
+  @override
+  String loanReqQtyAvailable(String qty) {
+    return 'Magagamit: $qty';
+  }
+
+  @override
+  String loanReqQtyLabel(String unit) {
+    return 'Dami ($unit)';
+  }
+
+  @override
+  String loanReqLineTotal(String amount) {
+    return 'Kabuuan ng item: ₱$amount';
+  }
+
+  @override
+  String get loanReqNotesLabel => 'Paalala para sa SP3 (opsyonal)';
+
+  @override
+  String get loanReqNotesHint => 'hal. kailangan bago magtanim';
+
+  @override
+  String get loanReqPaymentNote =>
+      'Kapag naaprubahan, itatakda ng SP3 ang inyong buwanang bayad at unang petsa ng bayad, at ibibigay sa inyo ang mga item bilang pautang.';
+
+  @override
+  String get loanReqSubmit => 'Ipadala ang kahilingan';
+
+  @override
+  String loanReqSent(String no) {
+    return 'Naipadala ang kahilingan $no. Susuriin ito ng SP3.';
+  }
+
+  @override
+  String get loanReqFailed =>
+      'Hindi naipadala ang inyong kahilingan. Pakisubukan muli.';
+
+  @override
+  String get loanReqRequestButton => 'Humiling ng Pautang';
+
+  @override
+  String get loanReqSectionTitle => 'Aking mga Kahilingan sa Pautang';
+
+  @override
+  String get loanReqStatusPending => 'Naghihintay';
+
+  @override
+  String get loanReqStatusApproved => 'Naaprubahan';
+
+  @override
+  String get loanReqStatusDisapproved => 'Hindi naaprubahan';
+
+  @override
+  String get loanReqStatusCancelled => 'Kinansela';
+
+  @override
+  String loanReqRequestedOn(String date) {
+    return 'Hiniling noong $date';
+  }
+
+  @override
+  String get loanReqDetailTitle => 'Kahilingan sa pautang';
+
+  @override
+  String get loanReqYourNote => 'Inyong paalala';
+
+  @override
+  String get loanReqDecisionReason => 'Dahilan';
+
+  @override
+  String get loanReqDecisionNote => 'Paalala mula sa SP3';
+
+  @override
+  String loanReqDecidedOn(String date) {
+    return 'Napagpasyahan noong $date';
+  }
+
+  @override
+  String loanReqLoanIssued(String ref) {
+    return 'Naibigay sa inyo ang pautang na $ref.';
+  }
+
+  @override
+  String get loanReqWaiting =>
+      'Naghihintay ng pagsusuri ng isang Manager o Officer.';
+
+  @override
+  String get loanReqCancel => 'Kanselahin ang kahilingan';
+
+  @override
+  String get loanReqCancelBody =>
+      'Aalisin nito ang inyong kahilingan. Maaari kayong magpadala ng bago anumang oras.';
+
+  @override
+  String get loanReqCancelled => 'Nakansela ang kahilingan.';
+
+  @override
+  String get loanReqCancelFailed =>
+      'Hindi makansela ang kahilingan. Pakisubukan muli.';
+
+  @override
+  String get loanStatusPaid => 'Bayad na';
+
+  @override
+  String get loanReqAdminTitle => 'Mga Kahilingan sa Pautang';
+
+  @override
+  String get loanReqNeedsOnline =>
+      'Kumonekta sa internet para aprubahan o hindi aprubahan ang kahilingan.';
+
+  @override
+  String get loanReqAdminLoadFailed =>
+      'Hindi ma-load ang mga kahilingan sa pautang';
+
+  @override
+  String get loanReqAdminEmpty => 'Walang kahilingan sa pautang dito';
+
+  @override
+  String get loanReqAdminEmptyBody =>
+      'Lalabas dito ang mga kahilingan ng mga magsasaka.';
+
+  @override
+  String loanReqStockShort(String qty) {
+    return '$qty lamang ang stock';
+  }
+
+  @override
+  String get loanReqStockWarning =>
+      'Kulang ang stock ng kahit isang item. Hindi maaaring aprubahan ang kahilingan hangga\'t hindi nare-restock; maaari itong hindi aprubahan na may dahilan.';
+
+  @override
+  String get loanReqFarmerNote => 'Paalala ng magsasaka';
+
+  @override
+  String get loanReqApprove => 'Aprubahan';
+
+  @override
+  String get loanReqDisapprove => 'Huwag aprubahan';
+
+  @override
+  String loanReqApprovedBy(String name, String date) {
+    return 'Inaprubahan ni $name · $date';
+  }
+
+  @override
+  String loanReqDisapprovedBy(String name, String date) {
+    return 'Hindi inaprubahan ni $name · $date';
+  }
+
+  @override
+  String loanReqLoanIssuedRef(String ref) {
+    return 'Naibigay na pautang: $ref';
+  }
+
+  @override
+  String get loanReqApproveTitle => 'Aprubahan ang kahilingan sa pautang';
+
+  @override
+  String get loanReqMonthlyLabel => 'Buwanang bayad';
+
+  @override
+  String get loanReqMonthlyInvalid =>
+      'Maglagay ng buwanang bayad na higit sa zero at hindi lalampas sa kabuuang pautang.';
+
+  @override
+  String loanReqFirstPayment(String date) {
+    return 'Unang bayad: $date (susunod na BOD meeting)';
+  }
+
+  @override
+  String get loanReqApproveNote => 'Paalala para sa magsasaka (opsyonal)';
+
+  @override
+  String get loanReqApproveHint =>
+      'Ang pag-apruba ay magbibigay agad ng pautang at aalisin ang mga item sa imbentaryo. Hindi ito maibabalik dito.';
+
+  @override
+  String loanReqApprovedDone(String ref) {
+    return 'Naaprubahan ang kahilingan. Naibigay ang pautang na $ref.';
+  }
+
+  @override
+  String get loanReqDisapproveTitle =>
+      'Huwag aprubahan ang kahilingan sa pautang';
+
+  @override
+  String get loanReqDisapproveReasonLabel => 'Dahilan (makikita ng magsasaka)';
+
+  @override
+  String get loanReqReasonRequired =>
+      'Ilagay ang dahilan ng hindi pag-apruba sa kahilingang ito.';
+
+  @override
+  String get loanReqDisapprovedDone =>
+      'Hindi inaprubahan ang kahilingan. Naabisuhan ang magsasaka.';
+
+  @override
+  String get loanDashActionRequests => 'Mga Kahilingan sa Pautang';
+
+  @override
+  String loanDashActionRequestsCount(int count) {
+    return 'Mga Kahilingan sa Pautang ($count)';
+  }
+
+  @override
+  String adminLogLoanRequestApproved(String request, String reference) {
+    return 'Inaprubahan ang kahilingan sa pautang na $request at inilabas ang pautang na $reference.';
+  }
+
+  @override
+  String adminLogLoanRequestDisapproved(String request) {
+    return 'Hindi inaprubahan ang kahilingan sa pautang na $request.';
+  }
+
+  @override
+  String get wfActIssued => 'Naibigay ang pautang';
+
+  @override
+  String get wfActPaymentRecorded => 'Naitala ang bayad';
+
+  @override
+  String get wfActOverdue => 'Minarkahang lampas na sa takdang petsa';
+
+  @override
+  String get wfActPaid => 'Bayad na lahat';
+
+  @override
+  String wfDetailLoanIssued(String reference, String total) {
+    return 'Pautang $reference · ₱$total';
+  }
+
+  @override
+  String wfDetailLoanPayment(String amount, String balance) {
+    return 'Nabayaran ₱$amount · natitira ₱$balance';
+  }
+
+  @override
+  String wfDetailLoanFromRequest(String reference, String monthly) {
+    return 'Naibigay ang pautang $reference · ₱$monthly/buwan';
+  }
+
+  @override
+  String get txnCropCategory => 'Kategorya ng Pananim';
+
+  @override
+  String get txnPrice => 'Presyo';
+
+  @override
+  String get txnRecordedBy => 'Itinala ni';
+
+  @override
+  String get txnHarvestBatch => 'Batch ng Ani';
+
+  @override
+  String get txnFulfillment => 'Paraan ng Pagtanggap';
+
+  @override
+  String get txnPickup => 'Pick-up';
+
+  @override
+  String get txnDelivery => 'Delivery';
+
+  @override
+  String get txnDeliveredOn => 'Naihatid sa SP3';
+
+  @override
+  String get txnCompletedOn => 'Natapos';
+
+  @override
+  String get txnEmptyTitle => 'Wala Pang Transaksyon';
+
+  @override
+  String get txnEmptyBody =>
+      'Lalabas dito ang inyong mga natapos na benta sa bawat paraan ng pagbebenta.';
+
+  @override
+  String get txnNoMatchTitle => 'Walang Tugmang Transaksyon';
+
+  @override
+  String get txnNoMatchBody =>
+      'Subukan ang ibang hanap o paraan ng pagbebenta.';
+
+  @override
+  String get txnSearchHint => 'Maghanap ayon sa pananim...';
+
+  @override
+  String get expnScreenTitle => 'Aking mga Gastos';
+
+  @override
+  String get expnAddTooltip => 'Magdagdag ng gastos';
+
+  @override
+  String get expnTotalSpent => 'Kabuuang Nagastos';
+
+  @override
+  String get expnEntries => 'Mga Tala';
+
+  @override
+  String get expnTopCategory => 'Pinakamalaking Kategorya';
+
+  @override
+  String get expnNoneYet => 'Wala pa';
+
+  @override
+  String get expnByCategory => 'Gastos ayon sa Kategorya';
+
+  @override
+  String expnSharePercent(int percent) {
+    return '$percent% ng gastos';
+  }
+
+  @override
+  String expnSubsidyNote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count inputs na sakop ng subsidiya sa panahong ito. Hindi ito kasama sa inyong kabuuan.',
+      one:
+          '1 inputs na sakop ng subsidiya sa panahong ito. Hindi ito kasama sa inyong kabuuan.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expnListTitle => 'Mga Gastos';
+
+  @override
+  String expnEntryCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tala',
+      one: '1 tala',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expnEmptyTitle => 'Walang naitalang gastos';
+
+  @override
+  String get expnEmptyBody =>
+      'Pindutin ang + button para idagdag ang inyong unang gastos.';
+
+  @override
+  String get expnSubsidyTag => 'SUBSIDIYA';
+
+  @override
+  String get expnPendingSync => 'Hinihintay i-sync';
+
+  @override
+  String get expnDetailCategory => 'Kategorya';
+
+  @override
+  String get expnDetailDescription => 'Paglalarawan';
+
+  @override
+  String get expnDetailDate => 'Petsa';
+
+  @override
+  String get expnDetailSubsidy => 'Subsidiya';
+
+  @override
+  String get expnSubsidyYes => 'Sakop · hindi kasama sa kabuuan';
+
+  @override
+  String get expnSubsidyNo => 'Hindi sakop';
+
+  @override
+  String get expnDetailSync => 'Sync';
+
+  @override
+  String get expnWaitingToSync => 'Naghihintay i-sync';
+
+  @override
+  String get loanMyScreenTitle => 'Aking mga Pautang sa Input';
+
+  @override
+  String get loanMyOutstandingTitle => 'Natitirang Pautang';
+
+  @override
+  String get loanMyAllPaid => 'Bayad na lahat ng pautang.';
+
+  @override
+  String get loanMyNextPaymentTitle => 'Susunod na Bayad';
+
+  @override
+  String get loanMyNoPaymentDue => 'Walang kailangang bayaran';
+
+  @override
+  String loanMyNoPaymentDueBody(String date) {
+    return 'Wala kayong hindi pa nababayarang pautang. Ang susunod na BOD meeting ay sa $date.';
+  }
+
+  @override
+  String loanMyExpected(String amount) {
+    return 'Inaasahang bayad: ₱$amount';
+  }
+
+  @override
+  String loanMyOverdueTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pautang na lampas na sa takdang petsa',
+      one: '1 pautang na lampas na sa takdang petsa',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanMyOverdueBody =>
+      'Balanseng lampas na sa takdang petsa. Pakibayaran ito sa susunod na BOD meeting.';
+
+  @override
+  String get loanMyBodNote =>
+      'Sinusuri ang mga bayad sa SP3 BOD Meeting tuwing unang Sabado ng buwan.';
+
+  @override
+  String get loanMyDueToday => 'NGAYON ANG BAYAD';
+
+  @override
+  String get loanMyDueInOneDay => 'SA 1 ARAW';
+
+  @override
+  String loanMyDueInDays(int days) {
+    return 'SA $days ARAW';
+  }
+
+  @override
+  String get loanMyInfoTitle => 'Pautang sa Input Lamang';
+
+  @override
+  String get loanMyInfoBody =>
+      'Ang mga pautang sa SAGANA ay mga aktuwal na input sa pagsasaka (binhi, pataba, kagamitan, atbp.) at hindi kailanman cash.';
+
+  @override
+  String get loanMyHistoryTitle => 'Kasaysayan ng Pautang';
+
+  @override
+  String get loanMyNoLoans =>
+      'Wala pa kayong pautang. Pindutin ang + para humiling ng input.';
+
+  @override
+  String get loanMyNoLoansForFilter =>
+      'Walang pautang na may ganitong katayuan.';
+
+  @override
+  String get loanMyPaymentsTitle => 'Kasaysayan ng Bayad';
+
+  @override
+  String get loanMyNoPayments => 'Wala pang naitalang bayad.';
+
+  @override
+  String loanMyPaymentLoan(String ref) {
+    return 'Pautang $ref';
+  }
+
+  @override
+  String loanMyIssued(String date) {
+    return 'Inilabas noong $date';
+  }
+
+  @override
+  String loanMyNextPayment(String date, String amount) {
+    return 'Susunod na bayad $date · ₱$amount';
+  }
+
+  @override
+  String get loanMyTotalValue => 'Kabuuang Halaga';
+
+  @override
+  String get loanMyRemaining => 'Natitira';
+
+  @override
+  String loanMyRepaid(int percent) {
+    return '$percent% ang nabayaran';
+  }
+
+  @override
+  String loanMyFromProgram(String name) {
+    return 'Mula sa Distribusyon ng Programa: $name';
+  }
+
+  @override
+  String get loanStatusActive => 'Aktibo';
+
+  @override
+  String get loanStatusOverdue => 'Lampas na sa takdang petsa';
+
+  @override
+  String loanReqFilterAllCount(int count) {
+    return 'Lahat ($count)';
+  }
+
+  @override
+  String loanReqFilterPendingCount(int count) {
+    return 'Naghihintay ($count)';
+  }
+
+  @override
+  String loanReqFilterApprovedCount(int count) {
+    return 'Naaprubahan ($count)';
+  }
+
+  @override
+  String loanReqFilterDisapprovedCount(int count) {
+    return 'Hindi naaprubahan ($count)';
+  }
+
+  @override
+  String get loanReqHistoryTooltip => 'Aking mga kahilingan sa pautang';
+
+  @override
+  String get loanReqMyEmpty =>
+      'Wala pang kahilingan sa pautang. Bumalik at pindutin ang + sa Mga Pautang sa Input, saka piliin ang mga input na kailangan ninyo.';
+
+  @override
+  String get loanReqMyEmptyForFilter =>
+      'Walang kahilingan na may ganitong katayuan.';
+
+  @override
+  String get loanReqAdminSearchHint =>
+      'Maghanap ng magsasaka, kahilingan o item';
+
+  @override
+  String get loanMyViewAll => 'Tingnan Lahat';
+
+  @override
+  String loanMyMoreItems(int count) {
+    return '+$count pa';
+  }
+
+  @override
+  String loanMyRepaidAmount(String amount) {
+    return '₱$amount ang nabayaran';
+  }
+
+  @override
+  String loanMyOfBorrowed(String amount) {
+    return 'mula sa ₱$amount';
+  }
+
+  @override
+  String get loanMyTotalPaid => 'Kabuuang Nabayaran';
+
+  @override
+  String loanMyPaymentCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count bayad',
+      one: '1 bayad',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanMySearchHint => 'Maghanap gamit ang Loan ID';
+
+  @override
+  String get loanMySearchNoMatch =>
+      'Walang pautang na tugma sa Loan ID na ito.';
+
+  @override
+  String get staffAccessSectionTitle => 'Access sa Module';
+
+  @override
+  String get staffAccessSectionHint =>
+      'Maaaring buksan at tingnan ng bawat Officer ang lahat ng module. Piliin ang mga module na maaari ring pamahalaan ng Officer na ito; ang iba ay mananatiling View Only.';
+
+  @override
+  String get staffAccessView => 'View Only';
+
+  @override
+  String get staffAccessManage => 'Pamahalaan';
+
+  @override
+  String get staffModuleDashboardDesc =>
+      'Imbentaryo, pananim, programa, loan item, presyo';
+
+  @override
+  String get staffModuleMembersDesc =>
+      'Mga account ng miyembro at Officer, pag-apruba, kapital';
+
+  @override
+  String get staffModuleMarketplaceDesc =>
+      'Mga listing, order, alok sa kooperatiba, market linking';
+
+  @override
+  String get staffModuleLoansDesc =>
+      'Pagpapautang, bayad, kahilingan sa pautang';
+
+  @override
+  String get staffModuleReportsDesc => 'Pag-export ng mga ulat';
+
+  @override
+  String get staffAccessEdit => 'Baguhin ang Access';
+
+  @override
+  String staffAccessEditTitle(String name) {
+    return 'Access sa module — $name';
+  }
+
+  @override
+  String get staffAccessSave => 'I-save ang Access';
+
+  @override
+  String get staffAccessSaving => 'Sine-save...';
+
+  @override
+  String get staffAccessSaved => 'Na-update ang access sa module.';
+
+  @override
+  String get staffAccessLoadError =>
+      'Hindi ma-load ang access ng Officer na ito.';
+
+  @override
+  String get staffViewOnlyBanner =>
+      'View Only — maaari mong tingnan ang module na ito pero wala kang mababago rito. Humingi ng Manage access sa Manager.';
+
+  @override
+  String get staffViewOnlyAction =>
+      'View-only lang ang access mo sa module na ito.';
+
+  @override
+  String get staffLogFeatureAll => 'Lahat';
+
+  @override
+  String get staffLogSystem => 'Sistema';
+
+  @override
+  String get staffLogBroadcast => 'Broadcast';
+
+  @override
+  String get staffLogFeatureAccounts => 'Mga Account';
+
+  @override
+  String get staffLogFeatureContributions => 'Mga Kontribusyon';
+
+  @override
+  String get staffLogFeatureOfficerAccess => 'Access ng Officer';
+
+  @override
+  String get staffLogFeatureLoansIssued => 'Mga naibigay na pautang';
+
+  @override
+  String get staffLogFeaturePayments => 'Mga Bayad';
+
+  @override
+  String get staffLogFeatureLoanRequests => 'Mga Kahilingan';
+
+  @override
+  String get staffLogFeatureLoanPolicy => 'Patakaran sa pautang';
+
+  @override
+  String staffLogStatusChange(String from, String to) {
+    return 'Katayuan: $from → $to';
+  }
+
+  @override
+  String staffActGenericAdded(String thing, String ref) {
+    return 'Nagdagdag ng $thing: $ref';
+  }
+
+  @override
+  String staffActGenericChanged(String thing, String ref) {
+    return 'Binago ang $thing: $ref';
+  }
+
+  @override
+  String staffActGenericDeleted(String thing, String ref) {
+    return 'Binura ang $thing: $ref';
+  }
+
+  @override
+  String staffActGenericAddedNoRef(String thing) {
+    return 'Nagdagdag ng $thing';
+  }
+
+  @override
+  String staffActGenericChangedNoRef(String thing) {
+    return 'Binago ang $thing';
+  }
+
+  @override
+  String staffActGenericDeletedNoRef(String thing) {
+    return 'Binura ang $thing';
+  }
+
+  @override
+  String staffActBodReminder(String date, int farmers, int staff) {
+    return 'Naipadala ang paalala sa pulong ng BOD para sa $date sa $farmers Farmer at $staff staff';
+  }
+
+  @override
+  String get staffThingCooperativeInventory => 'item sa imbentaryo';
+
+  @override
+  String get staffThingInventoryTransactions => 'galaw ng stock';
+
+  @override
+  String get staffThingInventoryCategories => 'kategorya ng imbentaryo';
+
+  @override
+  String get staffThingUnits => 'yunit';
+
+  @override
+  String get staffThingCropMaster => 'pananim';
+
+  @override
+  String get staffThingCropCategories => 'kategorya ng pananim';
+
+  @override
+  String get staffThingCropRequests => 'kahilingan sa pananim';
+
+  @override
+  String get staffThingCooperativePrograms => 'programa';
+
+  @override
+  String get staffThingProgramActivities => 'aktibidad ng programa';
+
+  @override
+  String get staffThingProgramMembers => 'miyembro ng programa';
+
+  @override
+  String get staffThingProgramProducts => 'produkto ng programa';
+
+  @override
+  String get staffThingProgramProductPurchases => 'pagbili sa programa';
+
+  @override
+  String get staffThingProgramEnrollmentRequests =>
+      'kahilingan sa pag-enroll sa programa';
+
+  @override
+  String get staffThingPriceRecords => 'presyo';
+
+  @override
+  String get staffThingLoanItemsMaster => 'item ng pautang';
+
+  @override
+  String get staffThingUserRoles => 'account';
+
+  @override
+  String get staffThingUserInformation => 'impormasyon ng miyembro';
+
+  @override
+  String get staffThingFarmerProfiles => 'detalye ng sakahan';
+
+  @override
+  String get staffThingPasswordResetRequests =>
+      'kahilingan sa tulong sa password';
+
+  @override
+  String get staffThingAccountCreationRequests => 'kahilingan sa account';
+
+  @override
+  String get staffThingCapitalContributionEvents => 'kontribusyon';
+
+  @override
+  String get staffThingMemberCapitalShares => 'kabuuang capital';
+
+  @override
+  String get staffThingOfficerPermissions => 'access ng Officer';
+
+  @override
+  String get staffThingMarketplaceListings => 'listing';
+
+  @override
+  String get staffThingListingEditRequests =>
+      'kahilingan sa pag-edit ng listing';
+
+  @override
+  String get staffThingOrders => 'order';
+
+  @override
+  String get staffThingCooperativePurchaseOffers => 'alok sa kooperatiba';
+
+  @override
+  String get staffThingMemberSalesTransactions => 'benta ng miyembro';
+
+  @override
+  String get staffThingMarketLinkingPrograms => 'programa sa market linking';
+
+  @override
+  String get staffThingMarketLinkingSales => 'benta sa market linking';
+
+  @override
+  String get staffThingDaAmadEnrollments => 'enrollment sa DA-AMAD';
+
+  @override
+  String get staffThingFarmerLoans => 'pautang';
+
+  @override
+  String get staffThingFarmerLoanPayments => 'bayad sa pautang';
+
+  @override
+  String get staffThingLoanRequests => 'kahilingan sa pautang';
+
+  @override
+  String get staffThingLoanPolicySettings => 'patakaran sa pautang';
+
+  @override
+  String get staffThingCooperativeAnnualTotals =>
+      'takda ng taon sa Balik-Tangkilik';
+
+  @override
+  String get staffThingMemberContributions => 'payout sa Balik-Tangkilik';
+
+  @override
+  String get staffThingBroadcastLogs => 'broadcast';
+
+  @override
+  String get staffAccountabilityTitle => 'Pananagutan ng Staff';
+
+  @override
+  String get staffAccountabilitySubtitle => 'Sino ang gumawa ng ano, at kailan';
+
+  @override
+  String get staffAccountabilityEmpty => 'Wala pang naitalang aksyon ng staff.';
+
+  @override
+  String get staffAccountabilityLoadError =>
+      'Hindi ma-load ang talaan. I-pull down para subukan ulit.';
+
+  @override
+  String get staffAccountabilityAllStaff => 'Lahat ng staff';
+
+  @override
+  String get staffAccountabilityAllModules => 'Lahat ng module';
+
+  @override
+  String get staffAccountabilityBefore => 'Dati';
+
+  @override
+  String get staffAccountabilityAfter => 'Ngayon';
+
+  @override
+  String get staffAccountabilityRecord => 'Talaan';
+
+  @override
+  String get staffAccountabilityActionCreated => 'Ginawa';
+
+  @override
+  String get staffAccountabilityActionUpdated => 'In-update';
+
+  @override
+  String get staffAccountabilityActionDeleted => 'Binura';
+
+  @override
+  String staffActCreatedFarmer(String name) {
+    return 'Gumawa ng account ng magsasaka: $name';
+  }
+
+  @override
+  String staffActCreatedOfficer(String name) {
+    return 'Gumawa ng account ng Officer: $name';
+  }
+
+  @override
+  String staffActApproved(String name) {
+    return 'Inaprubahan ang pagiging miyembro ni $name';
+  }
+
+  @override
+  String staffActDisapproved(String name) {
+    return 'Hindi inaprubahan ang aplikasyon ni $name';
+  }
+
+  @override
+  String staffActSuspended(String name) {
+    return 'Sinuspinde si $name';
+  }
+
+  @override
+  String staffActReactivated(String name) {
+    return 'Ibinalik sa aktibo si $name';
+  }
+
+  @override
+  String staffActPasswordReset(String name) {
+    return 'Nag-reset ng password ni $name';
+  }
+
+  @override
+  String staffActDeletedAccount(String name) {
+    return 'Binura ang account ni $name';
+  }
+
+  @override
+  String staffActContribution(String amount, String name) {
+    return 'Nagtala ng ambag na $amount para kay $name';
+  }
+
+  @override
+  String staffActAccessChanged(String name, String module, String level) {
+    return 'Pinalitan ang $module access ni $name sa $level';
+  }
+
+  @override
+  String staffActPasswordRequest(String name) {
+    return 'Inasikaso ang hiling na tulong sa password ni $name';
+  }
+
+  @override
+  String staffActInfoEdited(String name) {
+    return 'Binago ang impormasyon ni $name';
+  }
+
+  @override
+  String staffActReason(String reason) {
+    return 'Dahilan: $reason';
+  }
+
+  @override
+  String staffActNote(String note) {
+    return 'Tala: $note';
+  }
+
+  @override
+  String get staffRoleManager => 'Manager';
+
+  @override
+  String get staffRoleOfficer => 'Officer';
+
+  @override
+  String get createAccountSubmitTitle => 'Isumite para sa apruba ng Manager?';
+
+  @override
+  String get createAccountSubmitBody =>
+      'Ipapadala ang account na ito sa Manager. Hindi pa magagamit ng magsasaka ang mga feature hangga\'t hindi ito inaaprubahan ng Manager.';
+
+  @override
+  String get createAccountSubmitConfirm => 'Isumite';
+
+  @override
+  String get createAccountSubmitted =>
+      'Naisumite ang account para sa apruba ng Manager.';
+
+  @override
+  String addMemberCreatedDialogBody(String username) {
+    return 'Matagumpay na nagawa ang account.\n\nAng username ay:\n$username';
+  }
+
+  @override
+  String get addMemberCreatedManagerNote =>
+      'Maaaring mag-sign in ang magsasaka gamit ang pansamantalang password. Hihilingin muna sa kanya na magpalit ng bagong password.';
+
+  @override
+  String get addMemberCreatedOfficerNote =>
+      'Naghihintay pa ng apruba ng Manager ang account na ito. Makaka-sign in ang magsasaka, pero hindi pa niya magagamit ang mga feature hangga\'t hindi ito naaprubahan.';
+
+  @override
+  String farmerMgmtCreatedByOfficer(String name) {
+    return 'Ginawa ni $name';
+  }
+
+  @override
+  String get farmerMgmtCreatedByOfficerNoName => 'Ginawa ng isang Officer';
+
+  @override
+  String farmerDetailsHistoryBy(String name, String role) {
+    return 'Ni $name ($role)';
+  }
 }

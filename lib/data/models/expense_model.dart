@@ -39,69 +39,105 @@ extension ExpensePeriodExt on ExpensePeriod {
 }
 
 // ─── Expense Categories ───────────────────────────────────────────────────────
-// Category names now come from CategoryRepository.fetchExpenseCategories()
+// Category names come from CategoryRepository.fetchExpenseCategories()
 // (expense_categories lookup table, supabase_schema_expense_categories.sql)
 // instead of a hardcoded list — a farmer can add a new one inline from the
-// Add Expense dropdown. categoryIcon()/categoryColor()/categoryBgColor()
-// below still switch on the raw string, with a generic fallback, so a
-// newly-added category displays sensibly without a code change.
+// Add Expense dropdown. The icon and colours below are picked by what the
+// category's NAME says (case-insensitive), so a category added later
+// ("Pesticide", "Fuel", "Animal Feeds") gets a fitting icon with no code change,
+// and anything unrecognised falls back to a neutral receipt icon. Every icon is
+// a rounded Material icon so the whole set reads as one family. Expenses carry
+// no photo: the category icon is the only picture a record has.
 
-IconData categoryIcon(String category) {
-  switch (category) {
-    case 'Fertilizer':
-      return Icons.science_rounded;
-    case 'Labor':
-      return Icons.groups_rounded;
-    case 'Seeds':
-      return Icons.eco_rounded;
-    case 'Tools':
-      return Icons.build_rounded;
-    case 'Irrigation':
-      return Icons.water_drop_rounded;
-    case 'Transport':
-      return Icons.local_shipping_rounded;
-    default:
-      return Icons.category_rounded;
-  }
+class _CategoryStyle {
+  final IconData icon;
+  final Color color;
+  final Color background;
+  const _CategoryStyle(this.icon, this.color, this.background);
 }
 
-Color categoryColor(String category) {
-  switch (category) {
-    case 'Fertilizer':
-      return const Color(0xFF00450D); // primary green
-    case 'Labor':
-      return const Color(0xFF835400); // secondary amber
-    case 'Seeds':
-      return const Color(0xFF00460E); // tertiary
-    case 'Tools':
-      return const Color(0xFFE65100); // orange
-    case 'Irrigation':
-      return const Color(0xFF01579B); // blue
-    case 'Transport':
-      return const Color(0xFF4A148C); // purple
-    default:
-      return const Color(0xFF717A6D); // outline
+const _CategoryStyle _kFallbackStyle = _CategoryStyle(
+  Icons.receipt_long_rounded,
+  Color(0xFF546E7A),
+  Color(0xFFDCE6EC),
+);
+
+/// (words that identify the category, its style). First match wins.
+const List<(List<String>, _CategoryStyle)> _kCategoryStyles = [
+  (
+    ['fertilizer', 'fertiliser', 'compost', 'manure', 'abono'],
+    _CategoryStyle(Icons.compost_rounded, Color(0xFF00450D), Color(0xFFACF4A4)),
+  ),
+  (
+    ['pesticide', 'herbicide', 'insecticide', 'chemical', 'spray', 'fungicide'],
+    _CategoryStyle(Icons.bug_report_rounded, Color(0xFFB71C1C), Color(0xFFFFCDD2)),
+  ),
+  (
+    ['seed', 'seedling', 'planting'],
+    _CategoryStyle(Icons.spa_rounded, Color(0xFF2E7D32), Color(0xFFC8E6C9)),
+  ),
+  (
+    ['labor', 'labour', 'worker', 'wage', 'hired'],
+    _CategoryStyle(Icons.engineering_rounded, Color(0xFF835400), Color(0xFFFFDDB5)),
+  ),
+  (
+    ['tool', 'equipment', 'machine', 'implement'],
+    _CategoryStyle(Icons.handyman_rounded, Color(0xFFE65100), Color(0xFFFFCCBC)),
+  ),
+  (
+    ['irrigation', 'water'],
+    _CategoryStyle(Icons.water_drop_rounded, Color(0xFF01579B), Color(0xFFB3E5FC)),
+  ),
+  (
+    ['transport', 'delivery', 'hauling', 'freight', 'fare'],
+    _CategoryStyle(Icons.local_shipping_rounded, Color(0xFF4A148C), Color(0xFFE1BEE7)),
+  ),
+  (
+    ['feed', 'livestock', 'animal', 'poultry'],
+    _CategoryStyle(Icons.pets_rounded, Color(0xFF6D4C41), Color(0xFFD7CCC8)),
+  ),
+  (
+    ['fuel', 'gas', 'diesel', 'gasoline', 'oil'],
+    _CategoryStyle(Icons.local_gas_station_rounded, Color(0xFFC62828), Color(0xFFFFCDD2)),
+  ),
+  (
+    ['rent', 'land', 'lease'],
+    _CategoryStyle(Icons.landscape_rounded, Color(0xFF558B2F), Color(0xFFDCEDC8)),
+  ),
+  (
+    ['repair', 'maintenance'],
+    _CategoryStyle(Icons.build_circle_rounded, Color(0xFF455A64), Color(0xFFCFD8DC)),
+  ),
+  (
+    ['packag', 'sack', 'packing'],
+    _CategoryStyle(Icons.inventory_2_rounded, Color(0xFF8D6E63), Color(0xFFEFEBE9)),
+  ),
+  (
+    ['electric', 'utility', 'utilities', 'power'],
+    _CategoryStyle(Icons.bolt_rounded, Color(0xFFF9A825), Color(0xFFFFF3C4)),
+  ),
+];
+
+_CategoryStyle _styleFor(String category) {
+  // Matched on whole words (a word may START with a keyword: "Fertilizers",
+  // "Rental"), so "Soil prep" is not mistaken for "oil" and "Current" for "rent".
+  final tokens = category
+      .toLowerCase()
+      .split(RegExp(r'[^a-z]+'))
+      .where((t) => t.isNotEmpty)
+      .toList();
+  if (tokens.isEmpty) return _kFallbackStyle;
+  for (final (words, style) in _kCategoryStyles) {
+    if (words.any((w) => tokens.any((t) => t.startsWith(w)))) return style;
   }
+  return _kFallbackStyle;
 }
 
-Color categoryBgColor(String category) {
-  switch (category) {
-    case 'Fertilizer':
-      return const Color(0xFFACF4A4);
-    case 'Labor':
-      return const Color(0xFFFFDDB5);
-    case 'Seeds':
-      return const Color(0xFF98F994);
-    case 'Tools':
-      return const Color(0xFFFFCCBC);
-    case 'Irrigation':
-      return const Color(0xFFB3E5FC);
-    case 'Transport':
-      return const Color(0xFFE1BEE7);
-    default:
-      return const Color(0xFFCFE6F2);
-  }
-}
+IconData categoryIcon(String category) => _styleFor(category).icon;
+
+Color categoryColor(String category) => _styleFor(category).color;
+
+Color categoryBgColor(String category) => _styleFor(category).background;
 
 // ─── Expense Model ────────────────────────────────────────────────────────────
 

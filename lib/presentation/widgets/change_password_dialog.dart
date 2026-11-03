@@ -79,7 +79,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       PostActionFeedback.success(context, l10n.passwordUpdatedSigningOut);
       Navigator.pop(context);
       await AuthService.logout();
-      if (mounted) context.go(AppRoutes.login);
+      if (mounted) context.go(AppRoutes.welcome);
     } catch (e) {
       if (!mounted) return;
       setState(() {

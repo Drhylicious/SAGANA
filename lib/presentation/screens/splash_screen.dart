@@ -236,7 +236,8 @@ class _SplashScreenState extends State<SplashScreen>
           }
         }
       } else {
-        targetRoute = AppRoutes.login;
+        // No session at all: the public Welcome screen.
+        targetRoute = AppRoutes.welcome;
       }
     }
 

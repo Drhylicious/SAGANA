@@ -399,7 +399,9 @@ class ProgramRepository {
   Future<List<DistributionItem>> fetchDistributionItems() async {
     final rows = await _client
         .from('cooperative_inventory')
-        .select('id, item_name, category, unit, quantity_on_hand')
+        .select(
+          'id, item_name, category, unit, quantity_on_hand, source, source_farmer_id',
+        )
         .eq('is_active', true)
         .order('item_name');
     return rows.map((r) => DistributionItem.fromMap(r)).toList();
@@ -474,7 +476,9 @@ class ProgramRepository {
       final results = await Future.wait([
         _client
             .from('cooperative_inventory')
-            .select('id, item_name, category, unit, quantity_on_hand')
+            .select(
+              'id, item_name, category, unit, quantity_on_hand, source, source_farmer_id',
+            )
             .eq('is_active', true)
             .order('item_name'),
         _client.from('loan_items_master').select('inventory_item_id'),

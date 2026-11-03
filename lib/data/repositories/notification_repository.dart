@@ -102,6 +102,8 @@ class NotificationRepository {
   // ─── Unread count ─────────────────────────────────────────────────────────
 
   Future<int> fetchUnreadCount() async {
+    // A signed-out guest has no notifications (and no user id to ask for).
+    if (_client.auth.currentUser == null) return 0;
     try {
       final rows = await _client
           .from('notifications')
@@ -160,6 +162,53 @@ class NotificationRepository {
           .eq('is_read', false);
     } catch (e) {
       debugPrint('NotificationRepository.markAllAsRead failed: $e');
+    }
+  }
+
+  // ─── Mark as unread (the reverse of the two above) ────────────────────────
+
+  /// Marks one notification unread again now, or on the next Sync when offline.
+  Future<SaveOutcome> markAsUnread(
+    String notificationId, {
+    bool queueWhenOffline = true,
+  }) => OfflineActions.run(
+    kind: 'notification_unread',
+    payload: {'id': notificationId},
+    queueWhenOffline: queueWhenOffline,
+    online: () => markAsUnreadOnline(notificationId),
+  );
+
+  Future<void> markAsUnreadOnline(String notificationId) async {
+    try {
+      await _client
+          .from('notifications')
+          .update({'is_read': false})
+          .eq('id', notificationId)
+          .eq('user_id', _userId);
+    } catch (e) {
+      debugPrint('NotificationRepository.markAsUnread failed: $e');
+    }
+  }
+
+  /// Marks every read notification unread again now, or on the next Sync when
+  /// offline.
+  Future<SaveOutcome> markAllAsUnread({bool queueWhenOffline = true}) =>
+      OfflineActions.run(
+        kind: 'notification_unread_all',
+        payload: const {},
+        queueWhenOffline: queueWhenOffline,
+        online: markAllAsUnreadOnline,
+      );
+
+  Future<void> markAllAsUnreadOnline() async {
+    try {
+      await _client
+          .from('notifications')
+          .update({'is_read': false})
+          .eq('user_id', _userId)
+          .eq('is_read', true);
+    } catch (e) {
+      debugPrint('NotificationRepository.markAllAsUnread failed: $e');
     }
   }
 

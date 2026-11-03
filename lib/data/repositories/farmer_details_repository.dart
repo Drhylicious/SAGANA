@@ -492,7 +492,7 @@ class FarmerDetailsRepository {
         screen: 'fd_status_history_$farmerId',
         fetch: () => _client
             .from('member_status_events')
-            .select('from_status, to_status, reason, created_at')
+            .select('from_status, to_status, reason, created_at, actor_name, actor_role')
             .eq('member_id', farmerId)
             .order('created_at', ascending: false),
       );

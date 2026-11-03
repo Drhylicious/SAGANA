@@ -2,21 +2,27 @@ import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
-/// Accent colour for a stored order status ('pending' | 'approved' |
-/// 'completed' | 'cancelled' | 'rejected'). Shared by Buyer, Farmer and Admin
-/// order screens so one status reads the same colour everywhere.
-/// Cancelled and rejected both use the error red: each is an order that will
-/// not be fulfilled.
+/// Accent colour for a stored order status (see kOrderStatuses). Shared by Buyer,
+/// Farmer and Admin order screens
+/// so one status reads the same colour everywhere. Cancelled uses the error red:
+/// an order that will not be fulfilled. (An old stored 'rejected' is read as
+/// cancelled, see canonicalOrderStatus.)
 Color orderStatusColor(String status) {
   switch (status) {
     case 'pending':
       return AppConstants.warningAmber;
     case 'approved':
       return AppConstants.successGreen;
+    case 'ready_for_pickup':
+      return AppConstants.buyerBlue;
+    case 'out_for_delivery':
+      return AppConstants.programPurple;
+    case 'delivered':
+      return AppConstants.midGreen;
     case 'completed':
       return AppConstants.primaryGreen;
     case 'cancelled':
-    case 'rejected':
+    case 'rejected': // legacy stored value, shown as cancelled
       return AppConstants.errorRed;
     default:
       return AppConstants.outline;
@@ -31,12 +37,17 @@ String buyerOrderStatusLabel(String status, AppLocalizations l10n) {
       return l10n.buyerOrdersStatusPending;
     case 'approved':
       return l10n.buyerOrdersStatusApproved;
+    case 'ready_for_pickup':
+      return l10n.orderStatusReadyForPickup;
+    case 'out_for_delivery':
+      return l10n.orderStatusOutForDelivery;
+    case 'delivered':
+      return l10n.orderStatusDelivered;
     case 'completed':
       return l10n.buyerOrdersStatusCompleted;
     case 'cancelled':
+    case 'rejected': // legacy stored value, shown as cancelled
       return l10n.buyerOrdersStatusCancelled;
-    case 'rejected':
-      return l10n.orderStatusRejected;
     default:
       return status.toUpperCase();
   }

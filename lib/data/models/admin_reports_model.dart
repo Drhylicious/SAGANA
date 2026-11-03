@@ -200,7 +200,28 @@ class SalesTransactionRow {
     this.marketType,
     this.buyerName,
     this.orderStatus,
+    this.pricePerKg,
+    this.buyerContact,
+    this.buyerEmail,
+    this.cropCategory,
+    this.recordedBy,
   });
+
+  /// The agreed / charged price per unit (Offer to Cooperative, Marketplace and
+  /// DA-AMAD Market Linking), and — for Market Linking — the buyer's contact
+  /// number and email as saved when the sale was recorded.
+  final double? pricePerKg;
+  final String? buyerContact;
+  final String? buyerEmail;
+
+  /// The crop's category (Vegetable, Fruit, ...), from the crop catalog.
+  final String? cropCategory;
+
+  /// The Manager / Officer who recorded the sale: who confirmed the receipt of a
+  /// cooperative delivery, or recorded a Market Linking sale. Staff see this; it
+  /// is never sent to a Farmer. Null when the channel has no staff step (Informal
+  /// Sale) or the sale predates the record.
+  final String? recordedBy;
 
   /// Plain-map form, so a channel's rows can be cached offline.
   Map<String, dynamic> toMap() => {
@@ -217,6 +238,11 @@ class SalesTransactionRow {
     'marketType': marketType,
     'buyerName': buyerName,
     'orderStatus': orderStatus,
+    'pricePerKg': pricePerKg,
+    'buyerContact': buyerContact,
+    'buyerEmail': buyerEmail,
+    'cropCategory': cropCategory,
+    'recordedBy': recordedBy,
   };
 
   factory SalesTransactionRow.fromMap(Map<String, dynamic> map) =>
@@ -235,14 +261,21 @@ class SalesTransactionRow {
         referenceNo: map['referenceNo'] as String?,
         sellingType: map['sellingType'] as String,
         // Older offline snapshots stored "DA-AMAD Market" here, but DA-AMAD
-        // is a selling channel and has no market type.
-        marketType: map['sellingType'] == 'da_amad_market_linking'
+        // is a selling channel and has no market type: that label is dropped.
+        // The crop's real market type (Public / Cooperative) is kept.
+        marketType: map['marketType'] == 'DA-AMAD Market'
             ? null
             : map['marketType'] as String?,
         buyerName: map['buyerName'] as String?,
         orderStatus: map['orderStatus'] as String?,
+        pricePerKg: (map['pricePerKg'] as num?)?.toDouble(),
+        buyerContact: map['buyerContact'] as String?,
+        buyerEmail: map['buyerEmail'] as String?,
+        cropCategory: map['cropCategory'] as String?,
+        recordedBy: map['recordedBy'] as String?,
       );
 }
+
 
 /// Combines the four selling channels' completed sales into the Sales Report.
 ///
@@ -465,15 +498,17 @@ class MemberContributionReportData {
 // ─── Inventory Report ───────────────────────────────────────────────────────
 
 /// Kilograms of a batch already committed to a Marketplace listing, a
-/// cooperative offer or a sale that is not yet completed. The reservation
-/// model lowers `available_kg` when stock is committed and never touches the
-/// stored `reserved_kg` column (it stays 0), so the committed amount is what
-/// is left of the harvested quantity after available and sold stock.
+/// cooperative offer or a sale that is not yet completed: what is left of the
+/// harvested quantity after available, sold and adjusted (taken out by the
+/// Farmer) stock. The database keeps `inventory_batches.reserved_kg` equal to
+/// this (supabase_schema_farmer_stock_management.sql); this is the same rule
+/// for rows read without that column.
 double committedBatchKg({
   required double quantityKg,
   required double availableKg,
   required double soldKg,
-}) => (quantityKg - availableKg - soldKg).clamp(0.0, double.infinity);
+  double adjustedKg = 0,
+}) => (quantityKg - availableKg - soldKg - adjustedKg).clamp(0.0, double.infinity);
 
 /// One row in Inventory Report's batch table. Available and Sold are real
 /// stored columns on inventory_batches. [reservedKg] is the committed amount

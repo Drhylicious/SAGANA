@@ -148,17 +148,20 @@ void main() {
   });
 
   group('Farmer and Manager read the same DA-AMAD rule', () {
-    test('both use confirmed, then requested, then enrolled volume', () {
+    test('all read the one Market Linking sales ledger, one row per sale', () {
       for (final f in [
         'lib/data/repositories/admin_reports_repository.dart',
         'lib/data/repositories/farmer_transaction_repository.dart',
         'lib/data/repositories/dashboard_repository.dart',
+        'lib/data/repositories/analytics_repository.dart',
       ]) {
         final src = read(f);
+        expect(src, contains(".from('market_linking_sales')"), reason: f);
         expect(src, contains('confirmed_volume_kg'), reason: f);
-        expect(src, contains('requested_volume_kg'), reason: f);
+
       }
     });
+
 
     test('both compute the amount with the centavo-exact helper', () {
       expect(read('lib/data/repositories/admin_reports_repository.dart'),
@@ -189,12 +192,17 @@ void main() {
       }
     });
 
-    test('a buyer needs a price and a quantity before it can be saved', () {
+    test('a sale needs a valid quantity and price (Complete Sale); the buyer step needs neither', () {
       final src = read('lib/presentation/screens/admin/market_linking_screen.dart');
-      expect(src, contains('parseDecimal(_priceCtrl.text)'));
-      expect(src, contains('parseDecimal(_requestedVolumeCtrl.text)'));
-      expect(src, contains('l10n.marketLinkPriceRequired'));
+      final sale = src.substring(src.indexOf('class _CompleteSaleSheetState'));
+      expect(sale, contains('parseDecimal(_priceCtrl.text)'));
+      expect(sale, contains('priceErrorText(_priceCtrl.text'));
+      expect(sale, contains('quantityErrorText('));
+      final buyer = src.substring(src.indexOf('class _BuyerDetailsSheetState'),
+          src.indexOf('class _ReviewCancellationSheet '));
+      expect(buyer, isNot(contains('parseDecimal')));
     });
+
   });
 
   group('the integrity migration', () {
@@ -255,7 +263,7 @@ void main() {
         'create_listing_with_reservation',
         'approve_listing',
         'place_order',
-        'complete_order',
+        'confirm_order_received',
         'offer_batch_to_cooperative',
         'accept_cooperative_offer',
         'record_informal_sale',

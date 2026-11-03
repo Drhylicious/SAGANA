@@ -14,6 +14,7 @@ import 'data/services/connectivity_service.dart';
 import 'data/services/hive_service.dart';
 import 'data/services/market_types_service.dart';
 import 'data/services/profile_state_service.dart';
+import 'data/services/staff_permission_service.dart';
 import 'presentation/navigation/app_router.dart';
 import 'presentation/widgets/suspension_dialogs.dart';
 import 'routes/app_routes.dart';
@@ -40,7 +41,11 @@ Future<void> main() async {
     MarketTypes.instance.start();
     await FarmerProfileStateService.instance.refresh();
     await AdminProfileStateService.instance.refresh();
+    await StaffPermissions.instance.refresh();
+    StaffPermissions.instance.start();
     AccountStatusWatcher.instance.start();
+    // A saved session never goes through sign-in, so record the activity here.
+    AuthService.touchLastActive();
   }
 
 
@@ -84,7 +89,11 @@ class _SAGANAAppState extends State<SAGANAApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(AccountStatusWatcher.instance.checkNow());
-      if (AuthService.isLoggedIn) unawaited(MarketTypes.instance.refresh());
+      if (AuthService.isLoggedIn) {
+        unawaited(MarketTypes.instance.refresh());
+        unawaited(StaffPermissions.instance.refresh());
+      }
+      AuthService.touchLastActive();
     }
   }
 

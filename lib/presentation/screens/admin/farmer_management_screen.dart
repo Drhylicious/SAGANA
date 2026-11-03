@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,17 +11,17 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../../widgets/suspension_dialogs.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/member_title_row.dart';
 import '../../widgets/members_controls.dart';
 import '../../widgets/reason_dialogs.dart';
+import '../../../data/models/account_source_model.dart';
 import '../../../data/models/farmer_member_model.dart';
 import '../../../data/repositories/account_management_repository.dart';
 import '../../../data/repositories/farmer_management_repository.dart';
-import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/temp_password_dialog.dart';
@@ -82,6 +84,10 @@ class FarmerManagementScreen extends StatefulWidget {
 class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   final _repo        = FarmerManagementRepository();
   final _accountRepo = AccountManagementRepository();
+
+  // Applicants an Officer created: user id -> who created the account and when.
+  // Self-registered applicants have no entry.
+  Map<String, AccountSource> _sources = {};
   final _searchCtrl  = TextEditingController();
 
   List<FarmerMemberModel> _allFarmers = [];
@@ -156,11 +162,13 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
     final results = await Future.wait([
       _repo.fetchFarmers(),
       _repo.fetchDistinctCrops(),
+      _repo.fetchOfficerCreatedSources(),
     ]);
     if (!mounted) return;
     setState(() {
       _allFarmers = results[0] as List<FarmerMemberModel>;
       _cropNames  = results[1] as List<String>;
+      _sources    = results[2] as Map<String, AccountSource>;
       _isLoading  = false;
     });
   }
@@ -178,6 +186,12 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   void _showAddMemberTypeSheet() {
+    if (!requireManage(context, StaffModule.members)) return;
+    // An Officer can create Farmer accounts only: there is no choice to make.
+    if (HiveService.isOfficer) {
+      context.push(AppRoutes.addNewMember).then((_) => _loadAll());
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     showManagementModal(
       context: context,
@@ -232,6 +246,17 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   /// Every ⋯ menu action, for every status. The card only builds the
   /// entries; what each one does lives here.
   Future<void> _onMenuSelected(FarmerMemberModel farmer, String value) async {
+    // View and notice are open to everyone; every other entry changes data in
+    // Members (or Loans, for payment / issue loan), so a View Only Officer is
+    // told why instead of being sent to a screen they cannot use.
+    const loanActions = {'payment', 'issueLoan'};
+    const readOnlyActions = {'view', 'notice'};
+    if (!readOnlyActions.contains(value)) {
+      final module = loanActions.contains(value)
+          ? StaffModule.loans
+          : StaffModule.members;
+      if (!requireManage(context, module)) return;
+    }
     switch (value) {
       case 'view':
         context.push(AppRoutes.farmerDetails, extra: farmer.userId);
@@ -253,10 +278,13 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
       case 'issueLoan':
         context.push(AppRoutes.issueNewLoan, extra: farmer.userId);
       case 'approve':
+        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;
         await _approveMember(farmer);
       case 'reject':
+        if (HiveService.isOfficer && _sources.containsKey(farmer.userId)) return;
         await _rejectMember(farmer);
       case 'delete':
+        if (HiveService.isOfficer) return;
         await _confirmDeleteRejected(farmer);
     }
   }
@@ -286,6 +314,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   /// Rejected applicants only. The RPC enforces the same rule, so this
   /// confirmation is the UI step, not the only guard.
   Future<void> _confirmDeleteRejected(FarmerMemberModel farmer) async {
+    if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -330,6 +359,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   Future<void> _approveMember(FarmerMemberModel farmer) async {
+    if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -397,6 +427,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   Future<void> _rejectMember(FarmerMemberModel farmer) async {
+    if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
     // Step 1 — reason (required).
     final reason = await promptReason(
@@ -446,6 +477,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
   }
 
   Future<void> _suspendMemberFlow(FarmerMemberModel farmer) async {
+    if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
     final request = await promptSuspension(
       context: context,
@@ -491,27 +523,6 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: AnimatedBuilder(
-        animation: AdminProfileStateService.instance,
-        builder: (context, _) {
-          final profile = AdminProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Manager',
-            contactEmail: profile?.contactEmail ?? profile?.email,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.push(AppRoutes.adminEditProfile);
-            },
-            onSignOut: () => confirmAdminSignOut(context),
-            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           // ── Top App Bar ─────────────────────────────────────────────────
@@ -545,9 +556,6 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                           addLabel: l10n.farmerMgmtAddMember,
                           manageLabel: l10n.manageAccountsTitle,
                           onAddTap: _showAddMemberTypeSheet,
-                          // Members tab is Admin-only (Decision D19) — an
-                          // Officer never reaches this screen, so this is
-                          // simply always available here.
                           onManageTap: () =>
                               context.push(AppRoutes.manageAdminAccounts),
                           searchController: _searchCtrl,
@@ -605,6 +613,7 @@ class _FarmerManagementScreenState extends State<FarmerManagementScreen> {
                                         AppRoutes.farmerDetails,
                                         extra: f.userId,
                                       ),
+                                      source: _sources[f.userId],
                                       onMenuSelected: (value) =>
                                           _onMenuSelected(f, value),
                                     ),
@@ -674,7 +683,12 @@ class _FarmerCard extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<String> onMenuSelected;
 
+  /// Who created this applicant, when an Officer did; null for a Farmer who
+  /// registered on their own.
+  final AccountSource? source;
+
   const _FarmerCard({
+    this.source,
     required this.farmer,
     required this.cs,
     required this.sagana,
@@ -690,8 +704,11 @@ class _FarmerCard extends StatelessWidget {
     final status = farmer.memberStatus;
     final entries = <PopupMenuEntry<String>>[];
 
-    // What each status gets is decided in one place: MemberStatus.listActions.
-    for (final action in status.listActions) {
+    // What each status gets is decided in one place: MemberStatus.listActionsFor.
+    for (final action in status.listActionsFor(
+      isOfficer: HiveService.isOfficer,
+      officerCreated: source != null,
+    )) {
       switch (action) {
         case MemberListAction.viewProfile:
           entries.add(_menuItem('view', Icons.person_outline_rounded,
@@ -866,6 +883,12 @@ class _FarmerCard extends StatelessWidget {
                             color: cs.outline,
                           ),
                         ),
+                      ],
+                      if (source != null &&
+                          (farmer.memberStatus == MemberStatus.pending ||
+                              farmer.memberStatus == MemberStatus.rejected)) ...[
+                        const SizedBox(height: 6),
+                        _SourceChip(source: source!),
                       ],
                     ],
                   ),
@@ -1348,6 +1371,8 @@ class _FilterSheetState extends State<_FilterSheet> {
             _FilterSectionLabel(label: l10n.farmerMgmtSortBySectionLabel, cs: cs),
             GridView.count(
               shrinkWrap: true,
+              // No automatic status-bar padding: this list sits inside a bigger scroll view.
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
               crossAxisSpacing: 8,
@@ -1571,6 +1596,39 @@ class _AddTypeCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Accounts waiting for the Manager ─────────────────────────────────────────
+
+/// Tag on an applicant card that an Officer created, so the Manager can tell it
+/// apart from a Farmer who registered on their own.
+class _SourceChip extends StatelessWidget {
+  final AccountSource source;
+
+  const _SourceChip({required this.source});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final name = source.createdByName?.trim();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppConstants.snackbarWarning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Text(
+        name == null || name.isEmpty
+            ? l10n.farmerMgmtCreatedByOfficerNoName
+            : l10n.farmerMgmtCreatedByOfficer(name),
+        style: GoogleFonts.inter(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: AppConstants.snackbarWarning,
         ),
       ),
     );

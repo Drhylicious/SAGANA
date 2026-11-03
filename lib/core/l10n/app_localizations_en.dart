@@ -704,6 +704,44 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String reportsYearSettingsTitle(int year) {
+    return 'Cooperative Year Settings ($year)';
+  }
+
+  @override
+  String get reportsYearSettingsReadOnly => 'Read-only';
+
+  @override
+  String get reportsYearSettingsNotEntered => 'Not entered yet for this year.';
+
+  @override
+  String get reportsYearSettingsSurplus => 'Distributable Surplus';
+
+  @override
+  String get reportsYearSettingsInterest => 'Interest on Capital';
+
+  @override
+  String get reportsYearSettingsStatement => 'Annual Statement';
+
+  @override
+  String get reportsYearSettingsFinal => 'Final';
+
+  @override
+  String get reportsYearSettingsDraft => 'Not final';
+
+  @override
+  String get reportsYearSettingsProgram => 'Product Sales Program';
+
+  @override
+  String reportsYearSettingsProgramValue(String sales, String surplus) {
+    return 'Sales $sales · Surplus $surplus';
+  }
+
+  @override
+  String get reportsYearSettingsFootnote =>
+      'Entered by the Manager in Balik-Tangkilik Management.';
+
+  @override
   String get reportsContributingMembers => 'Contributing Members';
 
   @override
@@ -930,6 +968,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportGenerateButton => 'Generate Export';
+
+  @override
+  String get exportGenerateDownloadButton => 'Generate & Download';
+
+  @override
+  String get exportDownloadButton => 'Download';
+
+  @override
+  String get exportShareButton => 'Share';
+
+  @override
+  String get exportDownloading => 'Saving...';
+
+  @override
+  String exportDownloadSavedMany(int count) {
+    return '$count reports saved to Downloads.';
+  }
+
+  @override
+  String get exportDeleteButton => 'Delete';
+
+  @override
+  String exportDownloadSaved(String files) {
+    return 'Saved to Downloads: $files';
+  }
+
+  @override
+  String get exportDownloadPermissionDenied =>
+      'Storage permission is needed to save to Downloads. Allow it in Settings > Apps > SAGANA > Permissions, then tap Download again. Your generated report is still available here.';
+
+  @override
+  String get exportDownloadUnsupported =>
+      'Direct download is available in the Android app. Your report is ready; you can use the separate Share button on this device.';
+
+  @override
+  String get exportDownloadError =>
+      'Could not save to Downloads. Check available device storage and try Download again. Your generated report is still available here.';
 
   @override
   String exportGenerated(int count) {
@@ -1236,6 +1311,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get issueLoanSelectItem => 'Select Item';
+
+  @override
+  String get issueLoanItemOutOfStock => 'Out of stock';
 
   @override
   String get issueLoanQuantity => 'Quantity';
@@ -1904,23 +1982,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String buyerOrdersPickupBannerBody(int count, String cooperative) {
-    return 'You have $count approved orders waiting for pickup at $cooperative.';
+    return 'You have $count orders ready for pickup at $cooperative. Confirm receipt after you collect them.';
   }
 
   @override
-  String get buyerOrdersDeliveryBannerTitle => 'Order Approved — On Its Way!';
+  String get buyerOrdersDeliveryBannerTitle => 'Order On Its Way!';
 
   @override
   String buyerOrdersDeliveryBannerBody(int count) {
-    return 'You have $count approved orders being prepared for delivery.';
+    return 'You have $count orders out for delivery or delivered. Confirm receipt once you have them.';
   }
 
   @override
-  String get buyerOrdersMixedBannerTitle => 'Orders Approved!';
+  String get buyerOrdersMixedBannerTitle => 'Orders Ready!';
 
   @override
   String buyerOrdersMixedBannerBody(int count) {
-    return 'You have $count approved orders — some for pickup, some for delivery. Check each order for details.';
+    return 'You have $count orders to collect or receive. Open each order to confirm receipt.';
   }
 
   @override
@@ -1932,11 +2010,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String buyerOrdersCancelledOn(String date) {
     return 'Cancelled on $date';
-  }
-
-  @override
-  String buyerOrdersRejectedOn(String date) {
-    return 'Disapproved on $date';
   }
 
   @override
@@ -2261,6 +2334,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get buyerNotifMenuClearAll => 'Clear all';
+
+  @override
+  String get notifMenuMarkAllUnread => 'Mark all as unread';
+
+  @override
+  String get notifItemMarkUnread => 'Mark as unread';
+
+  @override
+  String get notifItemMarkRead => 'Mark as read';
+
+  @override
+  String get notifMenuTooltip => 'Notification options';
 
   @override
   String get buyerNotifEmptyTitle => 'No notifications';
@@ -3477,7 +3562,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createOfficerNotice =>
-      'An Officer gets every Manager module except the Members tab. Officer accounts are created here by the Manager.';
+      'An Officer can open every Manager module. Choose below which modules this Officer can manage; the rest stay View Only.';
 
   @override
   String get createOfficerSectionOfficer => 'Officer';
@@ -3956,6 +4041,96 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerDetailsRecordAction => 'Record';
 
   @override
+  String get farmerDetailsReverseContribution => 'Cancel Contribution';
+
+  @override
+  String get farmerDetailsContributionDetails => 'Contribution Details';
+
+  @override
+  String get farmerDetailsContributionHistory => 'Contribution History';
+
+  @override
+  String farmerDetailsViewAllEntries(int count) {
+    return 'View all entries ($count)';
+  }
+
+  @override
+  String farmerDetailsRecordedByOn(String name, String date) {
+    return 'Recorded by $name · $date';
+  }
+
+  @override
+  String farmerDetailsReversedByOn(String name, String date) {
+    return 'Cancelled by $name · $date';
+  }
+
+  @override
+  String farmerDetailsCancelsEntry(String amount, String name, String date) {
+    return 'Cancels the $amount entry recorded by $name · $date';
+  }
+
+  @override
+  String farmerDetailsReversalReason(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String farmerDetailsNoteLine(String note) {
+    return 'Note: $note';
+  }
+
+  @override
+  String get farmerDetailsReversedTag => 'Cancelled';
+
+  @override
+  String get farmerDetailsReversalTag => 'Cancellation';
+
+  @override
+  String get farmerDetailsRecordedBySystem => 'the system';
+
+  @override
+  String get farmerDetailsReversalReasonLabel => 'Reason for cancellation';
+
+  @override
+  String get farmerDetailsReversalReasonHint => 'Why is this being cancelled?';
+
+  @override
+  String get farmerDetailsReversalReasonRequired =>
+      'Enter a reason (at least 3 characters).';
+
+  @override
+  String farmerDetailsReverseExplain(String amount) {
+    return 'This cancels the $amount entry by adding an opposite entry for this member. The original entry stays in the history.';
+  }
+
+  @override
+  String get farmerDetailsReverseAction => 'Cancel Contribution';
+
+  @override
+  String get farmerDetailsKeepContribution => 'Keep Contribution';
+
+  @override
+  String get farmerDetailsContributionReversed => 'Contribution cancelled.';
+
+  @override
+  String get farmerDetailsReverseNeedsInternet =>
+      'Cancelling a contribution needs an internet connection.';
+
+  @override
+  String get farmerDetailsReverseElsewhere =>
+      'A payout added to capital is cancelled through Balik-Tangkilik, not here.';
+
+  @override
+  String staffActContributionReversed(String amount, String name) {
+    return 'Cancelled a contribution of $amount for $name';
+  }
+
+  @override
+  String adminLogContributionReversed(String amount) {
+    return 'Cancelled a capital contribution (₱$amount).';
+  }
+
+  @override
   String get farmerDetailsStatusHistoryTitle => 'Status History';
 
   @override
@@ -3998,7 +4173,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get manageAccountsFarmersTab => 'Farmers';
 
   @override
-  String get manageAccountsOfficersTab => 'Officers';
+  String get manageAccountsManagementTab => 'Management';
 
   @override
   String get manageAccountsRequestsHeader => 'Password Assistance Requests';
@@ -4219,6 +4394,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminInvLoanPriceLabel => 'Loan Price (₱) *';
 
   @override
+  String get adminInvLoanArchivedNote =>
+      'Archived in the Loan Item Catalog, so it is not offered for new loans. Restocking or changing the price does not bring it back; restore it from Loan Item Catalog → Archived.';
+
+  @override
+  String get adminInvDeleteLoanWarning =>
+      'This item is in the Loan Item Catalog. Deleting it removes it from the catalog entirely. To only stop offering it for new loans, archive it in the Loan Item Catalog instead.';
+
+  @override
   String get adminInvWriteOffLossDamage => 'Write-off (loss/damage)';
 
   @override
@@ -4253,26 +4436,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminOrderDetailCompletedToast => 'Order marked complete';
 
   @override
-  String get adminOrderDetailCancelTitle => 'Disapprove Order';
-
-  @override
-  String get adminOrderDetailCancelSubtitle => 'This cannot be undone.';
-
-  @override
-  String get adminOrderDetailCancelBody =>
-      'Disapproving releases the reserved inventory back to the batch. The buyer will be notified with the reason below.';
-
-  @override
   String get adminOrderDetailReasonLabel => 'Reason';
 
   @override
-  String get adminOrderDetailReasonHint => 'Shown to the buyer';
-
-  @override
   String get adminOrderDetailFailedTryAgain => 'Failed. Please try again.';
-
-  @override
-  String get adminOrderDetailCancelledToast => 'Order disapproved';
 
   @override
   String adminOrderDetailOrderNumber(String reference) {
@@ -4353,6 +4520,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get listingFilterPending => 'Pending';
+
+  @override
+  String get buyerStatusInactiveNote => 'No activity for over 30 days';
 
   @override
   String get coopMyOffersSearchHint => 'Search crop...';
@@ -4468,7 +4638,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get buyerDetailsNotFound => 'Buyer not found';
 
   @override
-  String get buyerMgmtSearchHint => 'Search buyer name or phone...';
+  String get buyerMgmtSearchHint => 'Search buyer name...';
 
   @override
   String get buyerMgmtTitle => 'Buyer Management';
@@ -4599,6 +4769,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cropMgmtNoArchivedCrops => 'No archived crops';
 
   @override
+  String get cropMgmtNoArchivedBody =>
+      'Crops you archive appear here, and can be restored.';
+
+  @override
+  String get cropMgmtArchivedInfo =>
+      'Archived crops cannot be picked for a new reference price or a new crop request until restored. Existing prices and records are not affected.';
+
+  @override
+  String get cropMgmtArchiveCropAction => 'Archive Crop';
+
+  @override
+  String get cropMgmtArchiveHint =>
+      'Archiving hides this crop from new reference prices and new crop requests. It can be restored later.';
+
+  @override
+  String cropMgmtArchiveTitle(String name) {
+    return 'Archive \"$name\"?';
+  }
+
+  @override
+  String get cropMgmtArchiveBody =>
+      'This crop will no longer be offered when creating a new reference price or when a Farmer requests a crop.\n\nIts existing prices and records are not affected and stay editable. You can restore it any time from Archived Crops.';
+
+  @override
+  String get cropMgmtArchiveConfirm => 'Archive';
+
+  @override
+  String cropMgmtArchivedSuccess(String name) {
+    return '\"$name\" archived';
+  }
+
+  @override
   String cropMgmtCannotDeleteTitle(String name) {
     return 'Cannot Delete \"$name\"';
   }
@@ -4698,9 +4900,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Farmer-suggested — confirm or change before approving';
 
   @override
-  String get loanItemRulesUpdated => 'Loan rules updated';
-
-  @override
   String get loanItemFailedTryAgain => 'Failed. Try again.';
 
   @override
@@ -4716,13 +4915,80 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loanItemAvailableInStock => 'Available in stock';
 
   @override
-  String get loanItemAvailableForIssuance => 'Available for loan issuance';
-
-  @override
   String get loanItemUnitPriceLabel => 'Unit Price (₱) *';
 
   @override
   String get loanItemCatalogTitle => 'Loan Item Catalog';
+
+  @override
+  String get loanItemNoMatches => 'No loan items match your search';
+
+  @override
+  String get loanItemKpiActive => 'Active';
+
+  @override
+  String get loanItemKpiArchived => 'Archived';
+
+  @override
+  String get loanItemViewArchived => 'View archived loan items';
+
+  @override
+  String get loanItemArchivedTitle => 'Archived Loan Items';
+
+  @override
+  String loanItemArchivedCount(int count) {
+    return '$count archived';
+  }
+
+  @override
+  String get loanItemNoArchived => 'No archived loan items';
+
+  @override
+  String get loanItemNoArchivedBody =>
+      'Loan items you archive appear here, and can be restored.';
+
+  @override
+  String get loanItemArchivedInfo =>
+      'Archived items are not offered when creating a new loan. Existing loans that include them are not affected.';
+
+  @override
+  String get loanItemAllArchived =>
+      'All loan items are archived. Restore one from the archive button above.';
+
+  @override
+  String get loanItemArchiveAction => 'Archive Loan Item';
+
+  @override
+  String get loanItemArchiveHint =>
+      'Archiving removes this item from new loans. It can be restored later.';
+
+  @override
+  String loanItemArchiveTitle(String name) {
+    return 'Archive \"$name\"?';
+  }
+
+  @override
+  String get loanItemArchiveBody =>
+      'This item will no longer be offered when creating a new loan.\n\nExisting loans that include it are not affected. You can restore it any time from Archived Loan Items.';
+
+  @override
+  String get loanItemArchiveConfirm => 'Archive';
+
+  @override
+  String loanItemArchivedSuccess(String name) {
+    return '\"$name\" archived';
+  }
+
+  @override
+  String loanItemRestoredSuccess(String name) {
+    return '\"$name\" restored';
+  }
+
+  @override
+  String get adminLogLoanItemArchived => 'Archived a loan catalog item.';
+
+  @override
+  String get adminLogLoanItemRestored => 'Restored a loan catalog item.';
 
   @override
   String get loanItemSearchHint => 'Search catalog items...';
@@ -4732,9 +4998,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loanItemPublishFromInventory => 'Publish from Inventory';
-
-  @override
-  String get loanItemNotEligibleBadge => 'NOT ELIGIBLE';
 
   @override
   String get issueLoanPublishFirstHint =>
@@ -5070,12 +5333,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get buyerDetailsTitle => 'Buyer Details';
-
-  @override
-  String get buyerDetailsSuspendAction => 'Suspend';
-
-  @override
-  String get buyerDetailsReactivateAction => 'Reactivate';
 
   @override
   String get buyerDetailsActiveBadge => 'Active Buyer';
@@ -6112,22 +6369,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifGroupEarlier => 'Earlier';
 
   @override
-  String get orderStatusRejected => 'Disapproved';
-
-  @override
-  String get buyerOrdersEmptyRejected => 'No disapproved orders.';
-
-  @override
-  String get buyerOrderDetailRejectedStatus => 'Disapproved';
-
-  @override
-  String get buyerOrderDetailMsgRejected =>
-      'The cooperative disapproved this order.';
-
-  @override
-  String get adminOrderNoteRejectedByCoop => 'Disapproved by the cooperative';
-
-  @override
   String get buyerOrderCancelTitle => 'Cancel this order?';
 
   @override
@@ -6488,15 +6729,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String adminLogCoopOfferConfirmed(String kg, String amount) {
-    return 'Confirmed a cooperative offer for ${kg}kg (₱$amount).';
+    return 'Accepted a cooperative offer for $kg (₱$amount).';
   }
 
   @override
   String get adminLogCoopOfferDeclined => 'Declined a cooperative offer.';
 
   @override
-  String adminLogCoopOfferCountered(String price) {
-    return 'Sent a cooperative counteroffer of ₱$price/kg.';
+  String adminLogCoopOfferCountered(String price, String unit) {
+    return 'Sent a cooperative counteroffer of ₱$price per $unit.';
   }
 
   @override
@@ -7087,11 +7328,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String coopAcceptBody(String price, String qty, String crop, String total) {
-    return 'You are accepting $price for $qty of $crop. Total: $total. This finalizes the sale and cannot be undone.';
+    return 'You are accepting $price for $qty of $crop. Total: $total. The price is final and cannot be undone. The farmer then delivers the harvest; the sale is recorded only when the cooperative confirms receiving it.';
   }
 
   @override
-  String get coopAcceptConfirm => 'Accept & Finalize';
+  String get coopAcceptConfirm => 'Accept Offer';
 
   @override
   String get coopCounterTitle => 'Send a Counteroffer';
@@ -7161,7 +7402,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coopToastCountered => 'Counteroffer sent.';
 
   @override
-  String get coopToastAccepted => 'Price accepted. The sale is final.';
+  String get coopToastAccepted => 'Offer accepted. Waiting for the delivery.';
 
   @override
   String get coopToastDeclined => 'Offer declined.';
@@ -7693,6 +7934,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get memberProfileFarmInfoTitle => 'Farm Information';
 
   @override
+  String get memberProfileFarmDetailsTitle => 'Farm Details';
+
+  @override
+  String get memberProfileCompleteAddress => 'Complete Address';
+
+  @override
   String get memberProfileFarmName => 'Farm Name';
 
   @override
@@ -7868,6 +8115,2658 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String emailSignInEnabled(String email) {
+    return '$email is verified. You can now sign in with it or with your username.';
+  }
+
+  @override
+  String get loginEmailNotVerifiedHint =>
+      'Incorrect email or password. An email can only be used to sign in after it has been verified. If yours is not verified yet, sign in with your username, then verify it in Edit Profile.';
+
+  @override
   String get emailCannotBeEmpty =>
       'The Manager\'s email is the address you sign in with, so it cannot be left blank.';
+
+  @override
+  String get mlkStatusWaiting => 'Waiting for a buyer';
+
+  @override
+  String get mlkStatusBuyerFound => 'Buyer found';
+
+  @override
+  String get mlkStatusCancelled => 'Cancelled';
+
+  @override
+  String get mlkFilterAll => 'All';
+
+  @override
+  String get mlkInProgress => 'In Progress';
+
+  @override
+  String get mlkManageEnrollments => 'Manage Enrollments';
+
+  @override
+  String get mlkReceivedSoFar => 'Received so far';
+
+  @override
+  String get mlkStatKgSold => 'Sold';
+
+  @override
+  String mlkHintWaiting(String crop) {
+    return 'SP3 is finding a buyer for your $crop. We\'ll tell you when it sells.';
+  }
+
+  @override
+  String get mlkHintBuyerFound =>
+      'A buyer is lined up. Each sale shows here once it is recorded.';
+
+  @override
+  String mlkSoldOfTotal(String sold, String total) {
+    return 'Sold $sold of $total';
+  }
+
+  @override
+  String mlkLeftToSell(String amount) {
+    return '$amount left to sell';
+  }
+
+  @override
+  String mlkReturnedToStock(String amount) {
+    return '$amount returned to stock';
+  }
+
+  @override
+  String get mlkFullySold => 'Fully sold';
+
+  @override
+  String mlkSalesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sales',
+      one: '1 sale',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String mlkReceivedAmount(String amount) {
+    return '$amount received';
+  }
+
+  @override
+  String mlkShowAllSales(int count) {
+    return 'Show all $count sales';
+  }
+
+  @override
+  String get mlkShowLess => 'Show less';
+
+  @override
+  String get mlkCancelledBackInStock =>
+      'Cancelled. The quantity is back in your stock.';
+
+  @override
+  String mlkCancelledWithReason(String reason) {
+    return 'Cancelled: $reason. The quantity is back in your stock.';
+  }
+
+  @override
+  String get mlkActionCompleteSale => 'Complete Sale';
+
+  @override
+  String mlkPhotoCaption(String crop, String farmer) {
+    return 'Actual $crop photo by $farmer';
+  }
+
+  @override
+  String mlkSaleQty(String unit) {
+    return 'Quantity purchased ($unit) *';
+  }
+
+  @override
+  String mlkSalePrice(String unit) {
+    return 'Agreed price per $unit *';
+  }
+
+  @override
+  String get mlkSaleTotal => 'Total sale amount';
+
+  @override
+  String mlkSaleAfter(String amount) {
+    return 'After this sale: $amount still in the request';
+  }
+
+  @override
+  String get mlkSaleCompletesRequest =>
+      'This sells the rest and completes the request';
+
+  @override
+  String get mlkSaleNotes => 'Notes (optional)';
+
+  @override
+  String get mlkSaleNotesHint => 'Anything worth remembering about this sale';
+
+  @override
+  String get mlkSaleOwnerNote =>
+      'The farmer owns this crop and receives the payment. This is recorded as the farmer\'s sale; it never becomes Cooperative stock or revenue.';
+
+  @override
+  String mlkSaleLeftOf(String left, String total) {
+    return '$left left of $total submitted';
+  }
+
+  @override
+  String get mlkSaleQtyLabel => 'Quantity purchased';
+
+  @override
+  String get mlkSalePriceLabel => 'Agreed price';
+
+  @override
+  String mlkSaleDoneMore(String qty, String left) {
+    return '$qty sold. $left still in this request.';
+  }
+
+  @override
+  String mlkSaleDoneAll(String qty, String total) {
+    return 'Sale completed: $qty sold for $total.';
+  }
+
+  @override
+  String get mlkSaleFailed => 'Could not record the sale. Please try again.';
+
+  @override
+  String get mlkEmptyFiltered => 'Nothing here right now.';
+
+  @override
+  String get mlkStatusCancellationRequested => 'Cancellation Requested';
+
+  @override
+  String get mlkStageRequest => 'Request';
+
+  @override
+  String get mlkStageBuyer => 'Buyer Details';
+
+  @override
+  String get mlkStageSale => 'Complete Sale';
+
+  @override
+  String get mlkFilterCancellationRequests => 'Cancellation requests';
+
+  @override
+  String get mlkHintAddBuyer => 'Find a buyer, then save the buyer\'s details.';
+
+  @override
+  String get mlkHintCompleteSale =>
+      'Buyer saved. Complete the sale once the purchase is confirmed.';
+
+  @override
+  String get mlkActionAddBuyer => 'Add Buyer Details';
+
+  @override
+  String get mlkActionEditBuyer => 'Edit buyer details';
+
+  @override
+  String get mlkBuyerTitle => 'Buyer Details';
+
+  @override
+  String get mlkBuyerNote =>
+      'Only who the buyer is. The quantity and price are entered later, in Complete Sale.';
+
+  @override
+  String get mlkBuyerFullName => 'Buyer\'s full name *';
+
+  @override
+  String get mlkBuyerFullNameHint => 'Full name of the buyer';
+
+  @override
+  String get mlkBuyerContact => 'Contact number *';
+
+  @override
+  String get mlkBuyerContactHint => 'Phone number';
+
+  @override
+  String get mlkBuyerEmail => 'Email address (optional)';
+
+  @override
+  String get mlkBuyerEmailHint => 'name@example.com';
+
+  @override
+  String get mlkBuyerNameRequired => 'Enter the buyer\'s full name';
+
+  @override
+  String get mlkBuyerContactRequired => 'Enter the buyer\'s contact number';
+
+  @override
+  String get mlkBuyerEmailInvalid =>
+      'Enter a valid email address, or leave it blank';
+
+  @override
+  String get mlkBuyerSave => 'Save Buyer Details';
+
+  @override
+  String get mlkBuyerSaved =>
+      'Buyer details saved. You can now complete the sale.';
+
+  @override
+  String get mlkBuyerSaveFailed =>
+      'Could not save the buyer details. Please try again.';
+
+  @override
+  String get mlkSaleBuyerLabel => 'Buyer';
+
+  @override
+  String get mlkSaleBatchLabel => 'Harvest batch';
+
+  @override
+  String get mlkSaleReviewNote =>
+      'Check the details. Stock changes only when you tap Complete Sale.';
+
+  @override
+  String get mlkRequestCancellation => 'Request Cancellation';
+
+  @override
+  String get mlkCancelDialogTitle => 'Cancel this request?';
+
+  @override
+  String get mlkCancelDialogBody =>
+      'Tell us why. SP3 will review your request, and nothing changes until it is approved.';
+
+  @override
+  String get mlkCancelReasonLabel => 'Reason *';
+
+  @override
+  String get mlkCancelReasonHint => 'Why do you want to cancel?';
+
+  @override
+  String get mlkCancelReasonRequired => 'Please give a reason';
+
+  @override
+  String get mlkCancelSend => 'Send Request';
+
+  @override
+  String get mlkCancelSent => 'Cancellation request sent. SP3 will review it.';
+
+  @override
+  String get mlkCancelFailed => 'Could not send the request. Please try again.';
+
+  @override
+  String get mlkCancelOffline =>
+      'Requesting a cancellation needs an internet connection.';
+
+  @override
+  String mlkCancelUnderReview(String reason) {
+    return 'Your cancellation request is being reviewed. Your reason: $reason';
+  }
+
+  @override
+  String mlkCancelDeclinedNote(String notes) {
+    return 'Your cancellation request was declined: $notes';
+  }
+
+  @override
+  String mlkCancelBanner(String reason) {
+    return 'The farmer asked to cancel. Reason: $reason';
+  }
+
+  @override
+  String get mlkApproveCancellation => 'Approve';
+
+  @override
+  String get mlkDeclineCancellation => 'Decline';
+
+  @override
+  String get mlkApproveTitle => 'Approve cancellation';
+
+  @override
+  String get mlkApproveBody =>
+      'The unsold part of this request goes back to the farmer\'s stock. Sales already recorded stay.';
+
+  @override
+  String get mlkApproveConfirm => 'Approve Cancellation';
+
+  @override
+  String get mlkDeclineTitle => 'Decline cancellation';
+
+  @override
+  String get mlkDeclineReasonLabel => 'Reason for declining *';
+
+  @override
+  String get mlkDeclineReasonHint => 'The farmer will see this reason';
+
+  @override
+  String get mlkDeclineReasonRequired => 'Give a reason for declining';
+
+  @override
+  String get mlkDeclineConfirm => 'Decline Cancellation';
+
+  @override
+  String get mlkCancelApproved => 'Cancellation approved.';
+
+  @override
+  String get mlkCancelDeclinedToast =>
+      'Cancellation declined. The farmer has been told why.';
+
+  @override
+  String get mlkCancelReviewFailed =>
+      'Could not complete the review. Please try again.';
+
+  @override
+  String get mlkStatInProgress => 'In Progress';
+
+  @override
+  String get mlkStatKgRemaining => 'Remaining';
+
+  @override
+  String get mlkEmptyInProgress => 'No requests in progress';
+
+  @override
+  String get mlkEmptyInProgressBody =>
+      'Submit Ginger from Manage Inventory to start a Market Linking request.';
+
+  @override
+  String get mlkEmptyCompleted => 'No completed requests yet';
+
+  @override
+  String get mlkEmptyCompletedBody => 'Completed sales will appear here.';
+
+  @override
+  String get mlkAwaitingBuyer => 'Awaiting Buyer Details';
+
+  @override
+  String get mlkAwaitingBuyerBody =>
+      'SP3 will add the buyer\'s details here once a buyer is found.';
+
+  @override
+  String get mlkDetailBuyer => 'Sold to';
+
+  @override
+  String get mlkDetailAgreedPrice => 'Agreed price';
+
+  @override
+  String get mlkDetailBuyerContact => 'Buyer contact';
+
+  @override
+  String get mlkDetailBuyerEmail => 'Buyer email';
+
+  @override
+  String marketDashCancellationRequests(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Market Linking Cancellation Requests',
+      one: '1 Market Linking Cancellation Request',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get marketDashCancellationNote => 'Farmers asked to cancel a request';
+
+  @override
+  String get mlkSearchHint => 'Search farmer, buyer or batch';
+
+  @override
+  String get mlkSearchClear => 'Clear search';
+
+  @override
+  String get mlkNoSearchResults => 'No requests match your search.';
+
+  @override
+  String get orderMgmtChipPending => 'Pending Orders';
+
+  @override
+  String get mlEnrollTitle => 'Market Linking Enrollments';
+
+  @override
+  String get mlEnrollPending => 'Pending';
+
+  @override
+  String get mlEnrollStatusPending => 'Pending review';
+
+  @override
+  String get mlEnrollStatusDeclined => 'Declined';
+
+  @override
+  String get mlEnrollStatusEnrolled => 'Enrolled';
+
+  @override
+  String get mlEnrollProgram => 'Ginger · DA-AMAD Market Linking';
+
+  @override
+  String mlEnrollApplied(String date) {
+    return 'Applied $date';
+  }
+
+  @override
+  String mlEnrollReviewedOn(String date) {
+    return 'Reviewed $date';
+  }
+
+  @override
+  String mlEnrollReviewedBy(String name) {
+    return 'by $name';
+  }
+
+  @override
+  String mlEnrollRequests(int count) {
+    return 'Sale requests: $count';
+  }
+
+  @override
+  String get mlEnrollEarlier =>
+      'Earlier application. This farmer applied again.';
+
+  @override
+  String get mlEnrollEnrolledNote =>
+      'Already in Market Linking. Joined before enrollment needed review.';
+
+  @override
+  String mlEnrollReason(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String mlEnrollNote(String note) {
+    return 'Note: $note';
+  }
+
+  @override
+  String get mlEnrollEmptyPending => 'No pending enrollments.';
+
+  @override
+  String get mlEnrollLoadFailed =>
+      'Could not load enrollments. Pull down to try again.';
+
+  @override
+  String get mlEnrollModalProgram => 'DA-AMAD Ginger Market Linking';
+
+  @override
+  String get mlEnrollModalBody =>
+      'Approving lets this farmer submit Ginger harvests for sale through Market Linking. This farmer already has a Ginger crop on their Crop Roster, verified when they applied.';
+
+  @override
+  String get mlEnrollNotesLabel => 'Notes (required if declining)';
+
+  @override
+  String get mlEnrollNotesHint => 'Reason shown to the farmer if declined';
+
+  @override
+  String get mlEnrollReasonRequired => 'Please provide a reason.';
+
+  @override
+  String get mlEnrollApprove => 'Approve';
+
+  @override
+  String get mlEnrollDecline => 'Decline';
+
+  @override
+  String get mlEnrollApprovedToast => 'Enrollment approved.';
+
+  @override
+  String get mlEnrollDeclinedToast => 'Enrollment declined.';
+
+  @override
+  String get mlEnrollReviewAction => 'Review application';
+
+  @override
+  String get mlEnrollEnrolled => 'Enrolled';
+
+  @override
+  String get mlEnrollEmptyEnrolled => 'No enrolled farmers yet.';
+
+  @override
+  String mlEnrollApprovedOn(String date) {
+    return 'Approved $date';
+  }
+
+  @override
+  String get coopStatusApproved => 'Accepted';
+
+  @override
+  String get coopStatusDelivered => 'Delivered';
+
+  @override
+  String get coopStatusCompleted => 'Completed';
+
+  @override
+  String get coopStatusDeliverNow => 'Deliver now';
+
+  @override
+  String get coopStatusApprovedWaitingDelivery =>
+      'Accepted Â· awaiting delivery';
+
+  @override
+  String get coopStatusDeliveredWaiting => 'Delivered · awaiting receipt';
+
+  @override
+  String get coopStatusConfirmReceipt => 'Confirm receipt';
+
+  @override
+  String get coopAgreedTotalLabel => 'Agreed total';
+
+  @override
+  String get coopEventDelivered => 'Delivered to the cooperative';
+
+  @override
+  String get coopEventReceived => 'Receipt confirmed';
+
+  @override
+  String get coopApprovedFarmerMsg =>
+      'Price agreed. Deliver the harvest to the cooperative and upload a photo of the delivery. It is not sold yet.';
+
+  @override
+  String get coopApprovedStaffMsg =>
+      'Price agreed. Waiting for the farmer to deliver the harvest and upload a photo. Nothing is sold or recorded until you confirm receipt.';
+
+  @override
+  String get coopDeliveredFarmerMsg =>
+      'Delivered. Waiting for the cooperative to confirm it received the harvest.';
+
+  @override
+  String get coopDeliveredStaffMsg =>
+      'The farmer delivered the harvest. Check the photo and the delivery, then confirm receipt.';
+
+  @override
+  String get coopClosedCompleted =>
+      'Receipt confirmed. The sale is in Transaction History and the Sales Report, and the harvest is now in cooperative inventory.';
+
+  @override
+  String get coopActionDeliver => 'Mark as Delivered';
+
+  @override
+  String get coopDeliverTitle => 'Deliver to the Cooperative';
+
+  @override
+  String get coopDeliverBody =>
+      'Take a photo of the harvest you are handing over. The cooperative checks it when it receives the delivery.';
+
+  @override
+  String get coopDeliverTakePhoto => 'Take photo';
+
+  @override
+  String get coopDeliverRetake => 'Retake photo';
+
+  @override
+  String get coopDeliverPhotoRequired => 'Take a photo of the delivery first.';
+
+  @override
+  String get coopDeliverConfirm => 'Submit delivery';
+
+  @override
+  String get coopToastDelivered =>
+      'Delivery sent. Waiting for the cooperative to confirm.';
+
+  @override
+  String get coopActionConfirmReceipt => 'Confirm Receipt';
+
+  @override
+  String get coopReceiptTitle => 'Confirm receipt';
+
+  @override
+  String coopReceiptBody(
+    String quantity,
+    String crop,
+    String farmer,
+    String amount,
+  ) {
+    return 'Confirm that you physically received $quantity of $crop from $farmer. This records the sale of $amount and adds the harvest to cooperative inventory. It cannot be undone.';
+  }
+
+  @override
+  String get coopReceiptConfirm => 'Confirm receipt';
+
+  @override
+  String get coopToastReceived =>
+      'Receipt confirmed. Sale recorded and stock added.';
+
+  @override
+  String get coopDeliveryPhotoTitle => 'Delivery photo';
+
+  @override
+  String coopDeliveredOn(String date) {
+    return 'Delivered $date';
+  }
+
+  @override
+  String coopReceivedOn(String date) {
+    return 'Received $date';
+  }
+
+  @override
+  String adminLogCoopOfferReceived(String kg, String amount) {
+    return 'Confirmed the receipt of a cooperative delivery of $kg (₱$amount).';
+  }
+
+  @override
+  String get buyerOrderReceivedCardTitle => 'Received your order?';
+
+  @override
+  String get buyerOrderReceivedCardBody =>
+      'Once you have your order, confirm it here. The order is then completed and cannot be changed.';
+
+  @override
+  String get buyerOrderReceivedAction => 'Confirm Receipt';
+
+  @override
+  String get buyerOrderReceivedDialogTitle => 'Confirm you received it';
+
+  @override
+  String buyerOrderReceivedDialogBody(String quantity, String crop) {
+    return 'Confirm that you received $quantity of $crop. The order is completed and cannot be changed afterwards.';
+  }
+
+  @override
+  String get buyerOrderReceivedConfirm => 'Yes, I received it';
+
+  @override
+  String get buyerOrderReceivedToast => 'Thank you! Your order is completed.';
+
+  @override
+  String get buyerOrderReceivedOffline =>
+      'Confirming receipt needs an internet connection.';
+
+  @override
+  String get adminOrderWaitingForBuyer =>
+      'Approved — waiting for the buyer to confirm they received it';
+
+  @override
+  String get adminOrderWaitingForBuyerNote =>
+      'An order is completed when the buyer or farmer who ordered it confirms receipt. Nothing is sold until then.';
+
+  @override
+  String get stockHistoryButton => 'Stock History';
+
+  @override
+  String get stockHistoryTitle => 'Stock History';
+
+  @override
+  String get stockHistoryEmpty => 'No stock movements yet.';
+
+  @override
+  String get stockHistoryLoadError =>
+      'Could not load the stock history. Try again.';
+
+  @override
+  String get stockFigureTotal => 'Harvested';
+
+  @override
+  String get stockFigureAvailable => 'Available';
+
+  @override
+  String get stockFigureReserved => 'Reserved';
+
+  @override
+  String get stockFigureSold => 'Sold';
+
+  @override
+  String get stockFigureAdjusted => 'Adjusted';
+
+  @override
+  String get stockMovHarvested => 'Harvested';
+
+  @override
+  String get stockMovReserved => 'Reserved';
+
+  @override
+  String get stockMovReleased => 'Released';
+
+  @override
+  String get stockMovSold => 'Sold';
+
+  @override
+  String get stockMovSaleReversed => 'Sale reversed';
+
+  @override
+  String get stockMovAdjusted => 'Adjusted';
+
+  @override
+  String get stockMovAdjustmentReversed => 'Adjustment reversed';
+
+  @override
+  String get stockMovQuantityChanged => 'Quantity changed';
+
+  @override
+  String get stockChanMarketplace => 'Marketplace';
+
+  @override
+  String get stockChanCoopOffer => 'Offer to Cooperative';
+
+  @override
+  String get stockChanInformal => 'Informal Sale';
+
+  @override
+  String get stockChanMarketLinking => 'DA-AMAD Market Linking';
+
+  @override
+  String get stockChanManual => 'Manual update';
+
+  @override
+  String stockBalanceLine(String available, String reserved, String sold) {
+    return 'Available $available · Reserved $reserved · Sold $sold';
+  }
+
+  @override
+  String get coopActionAcceptOffer => 'Accept Offer';
+
+  @override
+  String get coopActionSubmitCounter => 'Submit Counteroffer';
+
+  @override
+  String get orderStatusReadyForPickup => 'Ready for Pickup';
+
+  @override
+  String get orderStatusOutForDelivery => 'Out for Delivery';
+
+  @override
+  String get orderStatusDelivered => 'Delivered';
+
+  @override
+  String ordersEmptyStatus(String status) {
+    return 'No $status orders';
+  }
+
+  @override
+  String get adminLogOrderReadyForPickup => 'Marked an order Ready for Pickup.';
+
+  @override
+  String get adminLogOrderOutForDelivery => 'Marked an order Out for Delivery.';
+
+  @override
+  String get adminLogOrderDelivered =>
+      'Marked an order Delivered with photo evidence.';
+
+  @override
+  String get orderActionReadyForPickup => 'Ready for Pickup';
+
+  @override
+  String get orderActionOutForDelivery => 'Out for Delivery';
+
+  @override
+  String get orderActionMarkDelivered => 'Mark as Delivered';
+
+  @override
+  String get orderReadyDialogTitle => 'Mark as Ready for Pickup';
+
+  @override
+  String get orderReadyDialogBody =>
+      'The order is ready to be collected at Barangay Payanas. The buyer is told, and can then confirm receipt after collecting it.';
+
+  @override
+  String get orderOutDialogTitle => 'Mark as Out for Delivery';
+
+  @override
+  String get orderOutDialogBody =>
+      'The order is on its way to the delivery address. The buyer is told.';
+
+  @override
+  String get orderDeliveredDialogTitle => 'Mark as Delivered';
+
+  @override
+  String get orderDeliveredDialogBody =>
+      'Take a photo as evidence of the delivery. It is required. The buyer is then asked to confirm receipt.';
+
+  @override
+  String get orderToastReady => 'Marked Ready for Pickup.';
+
+  @override
+  String get orderToastOut => 'Marked Out for Delivery.';
+
+  @override
+  String get orderToastDelivered =>
+      'Marked Delivered. Waiting for the buyer to confirm.';
+
+  @override
+  String get adminOrderNextReady => 'Approved — next: mark it Ready for Pickup';
+
+  @override
+  String get adminOrderNextOut => 'Approved — next: mark it Out for Delivery';
+
+  @override
+  String get adminOrderNextDelivered =>
+      'Out for delivery — mark it Delivered with a photo';
+
+  @override
+  String get adminOrderWaitingPickup =>
+      'Ready for Pickup — waiting for the buyer to collect it and confirm';
+
+  @override
+  String get adminOrderWaitingReceipt =>
+      'Delivered — waiting for the buyer to confirm receipt';
+
+  @override
+  String buyerOrderMsgApprovedPickup(String cooperative) {
+    return 'Your order was approved by $cooperative. It will be marked Ready for Pickup when it can be collected at Barangay Payanas.';
+  }
+
+  @override
+  String buyerOrderMsgApprovedDelivery(String cooperative) {
+    return 'Your order was approved by $cooperative. It will be marked Out for Delivery when it is on its way to you.';
+  }
+
+  @override
+  String get buyerOrderMsgReady =>
+      'Your order is ready. Collect it at Barangay Payanas, then tap Confirm Receipt.';
+
+  @override
+  String get buyerOrderMsgOut =>
+      'Your order is out for delivery. You will be told when it is delivered.';
+
+  @override
+  String get buyerOrderMsgDelivered =>
+      'Your order was delivered. Check it, then tap Confirm Receipt.';
+
+  @override
+  String get buyerOrderSubtitleOut => 'On its way';
+
+  @override
+  String get buyerOrderSubtitleDelivered => 'Delivered — please confirm';
+
+  @override
+  String get buyerOrderStepReadyForPickup => 'Ready for Pickup';
+
+  @override
+  String get buyerOrderStepOutForDelivery => 'Out for Delivery';
+
+  @override
+  String get buyerOrderStepDelivered => 'Delivered';
+
+  @override
+  String get buyerOrderDeliveryPhotoTitle => 'Delivery photo';
+
+  @override
+  String get buyerOrderConfirmAfterReady =>
+      'Collect your order, then confirm you received it.';
+
+  @override
+  String get buyerOrderConfirmAfterDelivered =>
+      'Check what was delivered, then confirm you received it.';
+
+  @override
+  String get buyerOrdersViewDetails => 'View Details';
+
+  @override
+  String get coopInvOriginalQuantity => 'Original quantity';
+
+  @override
+  String get coopInvFarmer => 'Source Farmer';
+
+  @override
+  String get coopInvBatch => 'Batch';
+
+  @override
+  String get coopInvHarvestDate => 'Harvest date';
+
+  @override
+  String get coopInvStorage => 'Storage location';
+
+  @override
+  String get coopInvOffer => 'Offer';
+
+  @override
+  String get coopInvTransaction => 'Transaction';
+
+  @override
+  String get coopInvReference => 'Related record';
+
+  @override
+  String get coopInvNotRecorded => 'Not recorded';
+
+  @override
+  String get coopInvResponsible => 'Responsible user';
+
+  @override
+  String get coopInvCreated => 'Item created';
+
+  @override
+  String get coopInvEdited => 'Item edited';
+
+  @override
+  String get coopInvArchived => 'Item archived';
+
+  @override
+  String get coopInvRestored => 'Item restored';
+
+  @override
+  String get coopInvPublished => 'Published';
+
+  @override
+  String get coopInvUnpublished => 'Unpublished';
+
+  @override
+  String get coopInvDistributed => 'Program distribution';
+
+  @override
+  String get coopInvCrop => 'Crop';
+
+  @override
+  String get coopInvUnitCost => 'Unit cost';
+
+  @override
+  String get coopInvPhoto => 'Photo';
+
+  @override
+  String get coopInvActive => 'Active';
+
+  @override
+  String get coopInvBatches => 'Harvest batches';
+
+  @override
+  String get coopInvBatchExplanation =>
+      'Original receipt quantities are preserved. Later adjustments change stock on hand and appear in History.';
+
+  @override
+  String get coopInvLoadError =>
+      'Could not load inventory records. Please retry.';
+
+  @override
+  String get coopInvRetry => 'Retry';
+
+  @override
+  String get coopInvLoadMore => 'Load more';
+
+  @override
+  String get coopInvArchiveStockFirst =>
+      'Use or adjust all remaining stock before archiving. Reserved stock must be released first.';
+
+  @override
+  String get coopInvArchiveTitle => 'Archive inventory item?';
+
+  @override
+  String get coopInvArchiveExplanation =>
+      'This removes the item from active inventory and unpublishes its catalog entries. All batches and history remain available under Archived. A new completed offer restores the same Farmer–Crop item.';
+
+  @override
+  String get coopInvShowArchived => 'Show archived / inactive items';
+
+  @override
+  String get coopInvCropTotals => 'Harvest stock by crop and unit';
+
+  @override
+  String get coopInvIdentityLocked =>
+      'The source Farmer, crop and unit are preserved from the received offer.';
+
+  @override
+  String get coopInvInvalidAdjustment =>
+      'Enter a positive quantity with at most two decimal places. A deduction cannot be more than the available stock.';
+
+  @override
+  String get coopInvShowActive => 'Show active items';
+
+  @override
+  String get coopInvViewingArchived => 'Viewing archived / inactive items';
+
+  @override
+  String get coopInvQuantityZero =>
+      'Quantity cannot be zero. Enter an amount greater than 0.';
+
+  @override
+  String get coopInvManualAddition => 'Manual Stock Addition';
+
+  @override
+  String get coopInvAdjustmentRetry =>
+      'The result could not be confirmed. Retry this same request to avoid adding stock twice.';
+
+  @override
+  String marketDashOrdersNeedAction(int count) {
+    return '$count Orders Need Action';
+  }
+
+  @override
+  String get marketDashOrdersNeedActionNote =>
+      'Orders to approve, to hand over, or out for delivery. Orders waiting only for the buyer to confirm are not counted.';
+
+  @override
+  String marketDashNeedActionBadge(int count) {
+    return '$count need action';
+  }
+
+  @override
+  String get orderMgmtChipNeedsAction => 'Needs Action';
+
+  @override
+  String get orderMgmtNoNeedsAction => 'No orders need action right now';
+
+  @override
+  String get guestWelcomeTitle => 'Welcome to SAGANA!';
+
+  @override
+  String get guestWelcomeSubtitle => 'How would you like to explore?';
+
+  @override
+  String get guestExploreAsBuyer => 'Explore as Buyer';
+
+  @override
+  String get guestExploreAsBuyerHint =>
+      'Browse the marketplace and check crop prices';
+
+  @override
+  String get guestExploreAsFarmer => 'Explore as Farmer';
+
+  @override
+  String get guestExploreAsFarmerHint =>
+      'Preview the Farmer tools with sample data';
+
+  @override
+  String get guestAlreadyHaveAccount => 'Already have an account?';
+
+  @override
+  String get guestLogin => 'Login';
+
+  @override
+  String get guestRegister => 'Register';
+
+  @override
+  String get guestContinueBrowsing => 'Continue Browsing';
+
+  @override
+  String get guestContinueExploring => 'Continue Exploring';
+
+  @override
+  String get guestName => 'Guest';
+
+  @override
+  String get guestBackToWelcome => 'Back to Welcome';
+
+  @override
+  String get guestSampleBanner =>
+      'Sample data. You are exploring as a guest, so nothing here is a real record.';
+
+  @override
+  String get guestProfileTitle => 'Welcome to SAGANA!';
+
+  @override
+  String get guestProfileMessage =>
+      'Log in or create an account to access more features and manage your SAGANA profile.';
+
+  @override
+  String get guestSwitchToFarmer => 'Switch to Explore as Farmer';
+
+  @override
+  String get guestSwitchToBuyer => 'Switch to Explore as Buyer';
+
+  @override
+  String get guestCartTitle => 'Ready to add to your cart?';
+
+  @override
+  String get guestCartMessage =>
+      'Log in or create an account to save products to your cart and continue shopping.';
+
+  @override
+  String get guestBuyNowTitle => 'Ready to place an order?';
+
+  @override
+  String get guestBuyNowMessage =>
+      'Log in or create an account to purchase this product.';
+
+  @override
+  String get guestOrdersTitle => 'Ready to place your first order?';
+
+  @override
+  String get guestOrdersMessage =>
+      'Log in or create an account to start ordering agricultural products and track your purchases.';
+
+  @override
+  String get guestNotificationsTitle => 'Want to see your notifications?';
+
+  @override
+  String get guestNotificationsMessage =>
+      'Log in or create an account to receive and read your notifications.';
+
+  @override
+  String get guestMarketRatesTitle => 'Want the full market rates?';
+
+  @override
+  String get guestMarketRatesMessage =>
+      'Log in with your Farmer account to see the latest market rates and their details.';
+
+  @override
+  String get guestActivityTitle => 'Want to see your activity?';
+
+  @override
+  String get guestActivityMessage =>
+      'Log in or register to keep track of your own harvest, listing and profile activity.';
+
+  @override
+  String get guestPriorityTitle => 'Want to see your priorities?';
+
+  @override
+  String get guestPriorityMessage =>
+      'Log in to see the loan, listing and sync reminders that apply to your own account.';
+
+  @override
+  String get guestRecordHarvestTitle => 'Ready to record your harvest?';
+
+  @override
+  String get guestRecordHarvestMessage =>
+      'Log in or register as a Farmer to record your harvests and keep your crop records.';
+
+  @override
+  String get guestMyCropsTitle => 'Ready to manage your crops?';
+
+  @override
+  String get guestMyCropsMessage =>
+      'Log in or register as a Farmer to see and manage the crops you grow.';
+
+  @override
+  String get guestInventoryTitle => 'Ready to manage your stock?';
+
+  @override
+  String get guestInventoryMessage =>
+      'Log in or register as a Farmer to track the stock from your harvests.';
+
+  @override
+  String get guestHarvestHistoryTitle => 'Want to see your harvest history?';
+
+  @override
+  String get guestHarvestHistoryMessage =>
+      'Log in or register as a Farmer to view and edit your own harvest records.';
+
+  @override
+  String get guestCreateListingTitle => 'Ready to sell your harvest?';
+
+  @override
+  String get guestCreateListingMessage =>
+      'Log in or register as a Farmer to create a listing for your harvest.';
+
+  @override
+  String get guestManageListingTitle => 'Ready to manage your listings?';
+
+  @override
+  String get guestManageListingMessage =>
+      'Log in or register as a Farmer to view, edit or withdraw your own listings.';
+
+  @override
+  String get guestTransactionsTitle => 'Want to see your transactions?';
+
+  @override
+  String get guestTransactionsMessage =>
+      'Log in or register as a Farmer to view your own transaction history.';
+
+  @override
+  String get editListingTitle => 'Edit Listing';
+
+  @override
+  String get editListingAction => 'Edit Listing';
+
+  @override
+  String get editListingCropLocked =>
+      'The crop and its unit are fixed and cannot be changed.';
+
+  @override
+  String get editListingApprovedNote =>
+      'This listing is published. Your changes are sent to the Manager or Officer for approval. Until they approve, your listing stays exactly as it is, and orders already placed are not affected.';
+
+  @override
+  String get editListingPendingNote =>
+      'This listing is still waiting for approval. The Manager will see your changes when reviewing it.';
+
+  @override
+  String editListingOrdered(String qty) {
+    return 'Already ordered: $qty';
+  }
+
+  @override
+  String editListingMaxHint(String qty) {
+    return 'Up to $qty';
+  }
+
+  @override
+  String editListingQtyTooLow(String qty) {
+    return 'Quantity must be more than the $qty already ordered.';
+  }
+
+  @override
+  String get editListingSave => 'Save Changes';
+
+  @override
+  String get editListingSaved => 'Listing updated.';
+
+  @override
+  String get editListingNoChanges => 'You have not changed anything yet.';
+
+  @override
+  String get editListingRetakePhoto => 'Retake Photo';
+
+  @override
+  String get editListingPhotoPending =>
+      'The new photo is saved together with your changes.';
+
+  @override
+  String get editListingPhotoNote =>
+      'A new photo replaces your crop photo in Crop Roster.';
+
+  @override
+  String get editListingOffline =>
+      'You\'re offline — you can edit a listing once you\'re reconnected.';
+
+  @override
+  String get editListingFailed =>
+      'Could not save your changes. Please try again.';
+
+  @override
+  String get editListingEstimatedTotal => 'Estimated total';
+
+  @override
+  String get editListingNotEditable => 'This listing can no longer be edited.';
+
+  @override
+  String get editListingFieldProduct => 'Product';
+
+  @override
+  String editListingFieldQuantity(String unit) {
+    return 'Quantity ($unit)';
+  }
+
+  @override
+  String get editListingFieldPrice => 'Asking Price';
+
+  @override
+  String get editListingFieldDescription => 'Description';
+
+  @override
+  String get editListingFieldPhoto => 'Product Photo';
+
+  @override
+  String get editListingDescriptionHint =>
+      'Describe your product — quality, sourcing, sun-dried, etc.';
+
+  @override
+  String get editListingDescriptionRequired =>
+      'Please enter a description for this listing.';
+
+  @override
+  String get leRequestTitle => 'Request a Change';
+
+  @override
+  String get leSubmitRequest => 'Send for Approval';
+
+  @override
+  String get leRequestSent =>
+      'Sent for approval. Your listing stays as it is until it is approved.';
+
+  @override
+  String get leCancelRequest => 'Cancel Request';
+
+  @override
+  String get leCancelRequestTitle => 'Cancel this request?';
+
+  @override
+  String get leCancelRequestBody =>
+      'Your listing stays published as it is. You can send a new request any time.';
+
+  @override
+  String get leRequestCancelled => 'Request cancelled.';
+
+  @override
+  String get leRequestFailed =>
+      'Could not send your request. Please try again.';
+
+  @override
+  String get lePhotoUploadFailed =>
+      'Could not upload the photo. Check your connection and try again.';
+
+  @override
+  String get lePendingBannerTitle => 'Changes waiting for approval';
+
+  @override
+  String get lePendingBannerBody =>
+      'Your listing is still published as it was. You can send another request after the Manager or Officer decides.';
+
+  @override
+  String get leRejectedBannerTitle => 'Your last changes were not approved';
+
+  @override
+  String leRejectedReason(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String get leViewHistory => 'Listing History';
+
+  @override
+  String get leHistoryTitle => 'Listing History';
+
+  @override
+  String get leHistoryEmpty =>
+      'Nothing has been recorded for this listing yet.';
+
+  @override
+  String get leRequestedChanges => 'Requested changes';
+
+  @override
+  String get leCurrent => 'Published now';
+
+  @override
+  String get leProposed => 'Requested';
+
+  @override
+  String get leNoChange => 'No change';
+
+  @override
+  String get lePhotoChanged => 'New photo';
+
+  @override
+  String get lePhotoUnchanged => 'Photo unchanged';
+
+  @override
+  String get lePendingTabNew => 'New Listings';
+
+  @override
+  String get lePendingTabEdits => 'Edit Requests';
+
+  @override
+  String get leEditRequestTitle => 'Listing Edit Request';
+
+  @override
+  String get leEditRequestBadge => 'Edit request';
+
+  @override
+  String get leStaysPublished =>
+      'This listing stays published exactly as it is until you decide.';
+
+  @override
+  String get leApproveTitle => 'Approve these changes?';
+
+  @override
+  String get leApproveBody =>
+      'The published listing is updated right away. Orders already placed keep their quantity and price.';
+
+  @override
+  String get leApproveAction => 'Approve & Apply';
+
+  @override
+  String get leDisapproveAction => 'Disapprove';
+
+  @override
+  String get leDisapproveTitle => 'Disapprove this edit request';
+
+  @override
+  String get leDisapproveHint => 'Reason for the Farmer (required)';
+
+  @override
+  String get leDisapproveConfirm => 'Confirm Disapproval';
+
+  @override
+  String get leReasonRequired => 'Enter the reason first.';
+
+  @override
+  String get leApprovedToast => 'Changes approved and applied.';
+
+  @override
+  String get leDisapprovedToast =>
+      'Edit request disapproved. The listing is unchanged.';
+
+  @override
+  String get leDecisionFailed =>
+      'Could not save the decision. Please try again.';
+
+  @override
+  String leBatchFree(String qty) {
+    return 'Free in the batch: $qty';
+  }
+
+  @override
+  String leDecidedBy(String name) {
+    return 'Decided by $name';
+  }
+
+  @override
+  String get leStatusCancelled => 'Cancelled';
+
+  @override
+  String get leEmptyEdits => 'No edit requests.';
+
+  @override
+  String leRequestedOn(String date) {
+    return 'Requested $date';
+  }
+
+  @override
+  String get wfRoleAdmin => 'Manager';
+
+  @override
+  String get wfRoleOfficer => 'Officer';
+
+  @override
+  String get wfRoleFarmer => 'Farmer';
+
+  @override
+  String get wfRoleBuyer => 'Buyer';
+
+  @override
+  String get wfRoleSystem => 'System';
+
+  @override
+  String get wfByYou => 'You';
+
+  @override
+  String get wfByCooperative => 'SP3 Cooperative';
+
+  @override
+  String get wfBySystem => 'System';
+
+  @override
+  String get wfActSubmitted => 'Submitted';
+
+  @override
+  String get wfActApproved => 'Approved';
+
+  @override
+  String get wfActDisapproved => 'Disapproved';
+
+  @override
+  String get wfActWithdrawn => 'Withdrawn';
+
+  @override
+  String get wfActEdited => 'Details edited';
+
+  @override
+  String get wfActEditRequested => 'Edit requested';
+
+  @override
+  String get wfActEditApproved => 'Edit approved';
+
+  @override
+  String get wfActEditRejected => 'Edit disapproved';
+
+  @override
+  String get wfActEditCancelled => 'Edit request cancelled';
+
+  @override
+  String get wfActSoldOut => 'Sold out';
+
+  @override
+  String get wfActReopened => 'Available again';
+
+  @override
+  String get wfActPlaced => 'Order placed';
+
+  @override
+  String get wfActReadyForPickup => 'Ready for pickup';
+
+  @override
+  String get wfActOutForDelivery => 'Out for delivery';
+
+  @override
+  String get wfActDelivered => 'Delivered';
+
+  @override
+  String get wfActCompleted => 'Completed';
+
+  @override
+  String get wfActCancelled => 'Cancelled';
+
+  @override
+  String get wfActBuyerFound => 'Buyer found';
+
+  @override
+  String get wfActBuyerDetails => 'Buyer details saved';
+
+  @override
+  String get wfActSaleRecorded => 'Sale recorded';
+
+  @override
+  String get wfActCancellationRequested => 'Cancellation requested';
+
+  @override
+  String get wfActCancellationApproved => 'Cancellation approved';
+
+  @override
+  String get wfActCancellationDeclined => 'Cancellation declined';
+
+  @override
+  String get wfActCancellationWithdrawn => 'Cancellation withdrawn';
+
+  @override
+  String get wfActStatusChanged => 'Status changed';
+
+  @override
+  String wfDetailQuantity(String from, String to) {
+    return 'Quantity: $from → $to';
+  }
+
+  @override
+  String wfDetailPrice(String from, String to) {
+    return 'Price: $from → $to';
+  }
+
+  @override
+  String get wfDetailDescription => 'Description updated';
+
+  @override
+  String get wfDetailPhoto => 'Photo replaced';
+
+  @override
+  String wfDetailSale(String quantity, String buyer, String total) {
+    return '$quantity sold to $buyer for $total';
+  }
+
+  @override
+  String wfDetailPlaced(String quantity, String price) {
+    return '$quantity at $price';
+  }
+
+  @override
+  String get wfActivityTitle => 'Staff activity';
+
+  @override
+  String get wfActivityEmpty =>
+      'No activity recorded yet. History starts from when tracking was turned on.';
+
+  @override
+  String wfActivityBy(String role, String name) {
+    return '$role $name';
+  }
+
+  @override
+  String get wfHistoryAction => 'History';
+
+  @override
+  String get profileAnnualSummary => 'Annual Summary';
+
+  @override
+  String get profileAnnualPrevYear => 'Previous year';
+
+  @override
+  String get profileAnnualNextYear => 'Next year';
+
+  @override
+  String profileAnnualHint(int year) {
+    return 'Harvests and completed sales dated in $year';
+  }
+
+  @override
+  String profileLoansOutstanding(String amount) {
+    return '₱$amount outstanding';
+  }
+
+  @override
+  String get profileLoansNone => 'No outstanding loans';
+
+  @override
+  String profileLoansPending(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count requests pending',
+      one: '1 request pending',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String profileExpensesSubtitle(String amount) {
+    return '₱$amount spent this month';
+  }
+
+  @override
+  String get profileTransactionsSubtitle =>
+      'Your completed sales across all selling channels';
+
+  @override
+  String get profileOrdersSubtitle =>
+      'Marketplace orders you\'ve placed and their status';
+
+  @override
+  String get profileMlkSubtitleJoin =>
+      'Join to sell your Ginger to DA-AMAD buyers through SP3';
+
+  @override
+  String get profileMlkSubtitlePending =>
+      'Your enrollment is being reviewed by SP3';
+
+  @override
+  String get profileMlkSubtitleDeclined =>
+      'Enrollment not approved · tap to see why and re-apply';
+
+  @override
+  String get profileMlkSubtitleApproved =>
+      'Enrollment approved · tap to continue';
+
+  @override
+  String get profileMlkSubtitleEnrolled =>
+      'Enrolled · submit a Ginger harvest to find a buyer';
+
+  @override
+  String profileMlkSubtitleActive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Enrolled · $count active requests',
+      one: 'Enrolled · 1 active request',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get profileMlkSubtitleDefault =>
+      'View your Market Linking requests and sales';
+
+  @override
+  String get loanReqTitle => 'Request a Loan';
+
+  @override
+  String get loanReqOffline =>
+      'Connect to the internet to see the available stock and send a loan request.';
+
+  @override
+  String get loanReqLoadFailed => 'Could not load the loan catalog';
+
+  @override
+  String get loanReqLoadFailedBody =>
+      'Please check your connection and try again.';
+
+  @override
+  String get loanReqNoItems => 'No loan items available right now';
+
+  @override
+  String get loanReqNoItemsBody =>
+      'The loan catalog is empty at the moment. Please check back later or ask SP3.';
+
+  @override
+  String get loanReqSearchHint => 'Search loan items';
+
+  @override
+  String get loanReqAll => 'All';
+
+  @override
+  String get loanReqNoMatch => 'No items match';
+
+  @override
+  String get loanReqNoMatchBody => 'Try a different search or category.';
+
+  @override
+  String loanReqInStock(String qty) {
+    return '$qty in stock';
+  }
+
+  @override
+  String get loanReqOutOfStock => 'Out of stock';
+
+  @override
+  String get loanReqAdd => 'Add';
+
+  @override
+  String get loanReqEdit => 'Edit';
+
+  @override
+  String get loanReqRemove => 'Remove';
+
+  @override
+  String loanReqItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanReqReview => 'Review request';
+
+  @override
+  String get loanReqReviewTitle => 'Review your request';
+
+  @override
+  String get loanReqTotal => 'Total';
+
+  @override
+  String get loanReqQtyRequired => 'Enter a quantity greater than zero.';
+
+  @override
+  String loanReqQtyTooMuch(String qty) {
+    return 'Only $qty available.';
+  }
+
+  @override
+  String loanReqQtyAvailable(String qty) {
+    return 'Available: $qty';
+  }
+
+  @override
+  String loanReqQtyLabel(String unit) {
+    return 'Quantity ($unit)';
+  }
+
+  @override
+  String loanReqLineTotal(String amount) {
+    return 'Line total: ₱$amount';
+  }
+
+  @override
+  String get loanReqNotesLabel => 'Note for SP3 (optional)';
+
+  @override
+  String get loanReqNotesHint => 'e.g. needed before planting';
+
+  @override
+  String get loanReqPaymentNote =>
+      'If approved, SP3 sets your monthly payment and first payment date, and the items are issued to you as a loan.';
+
+  @override
+  String get loanReqSubmit => 'Send request';
+
+  @override
+  String loanReqSent(String no) {
+    return 'Request $no sent. SP3 will review it.';
+  }
+
+  @override
+  String get loanReqFailed => 'Could not send your request. Please try again.';
+
+  @override
+  String get loanReqRequestButton => 'Request a Loan';
+
+  @override
+  String get loanReqSectionTitle => 'My Loan Requests';
+
+  @override
+  String get loanReqStatusPending => 'Pending';
+
+  @override
+  String get loanReqStatusApproved => 'Approved';
+
+  @override
+  String get loanReqStatusDisapproved => 'Disapproved';
+
+  @override
+  String get loanReqStatusCancelled => 'Cancelled';
+
+  @override
+  String loanReqRequestedOn(String date) {
+    return 'Requested $date';
+  }
+
+  @override
+  String get loanReqDetailTitle => 'Loan request';
+
+  @override
+  String get loanReqYourNote => 'Your note';
+
+  @override
+  String get loanReqDecisionReason => 'Reason';
+
+  @override
+  String get loanReqDecisionNote => 'Note from SP3';
+
+  @override
+  String loanReqDecidedOn(String date) {
+    return 'Decided $date';
+  }
+
+  @override
+  String loanReqLoanIssued(String ref) {
+    return 'Loan $ref was issued to you.';
+  }
+
+  @override
+  String get loanReqWaiting => 'Waiting for a Manager or Officer to review it.';
+
+  @override
+  String get loanReqCancel => 'Cancel request';
+
+  @override
+  String get loanReqCancelBody =>
+      'This withdraws your request. You can send a new one anytime.';
+
+  @override
+  String get loanReqCancelled => 'Request cancelled.';
+
+  @override
+  String get loanReqCancelFailed =>
+      'Could not cancel the request. Please try again.';
+
+  @override
+  String get loanStatusPaid => 'Paid';
+
+  @override
+  String get loanReqAdminTitle => 'Loan Requests';
+
+  @override
+  String get loanReqNeedsOnline =>
+      'Connect to the internet to approve or disapprove a request.';
+
+  @override
+  String get loanReqAdminLoadFailed => 'Could not load the loan requests';
+
+  @override
+  String get loanReqAdminEmpty => 'No loan requests here';
+
+  @override
+  String get loanReqAdminEmptyBody => 'Requests from farmers will appear here.';
+
+  @override
+  String loanReqStockShort(String qty) {
+    return 'Only $qty in stock';
+  }
+
+  @override
+  String get loanReqStockWarning =>
+      'There is not enough stock for at least one item. The request cannot be approved until it is restocked; you can disapprove it with a reason.';
+
+  @override
+  String get loanReqFarmerNote => 'Farmer\'s note';
+
+  @override
+  String get loanReqApprove => 'Approve';
+
+  @override
+  String get loanReqDisapprove => 'Disapprove';
+
+  @override
+  String loanReqApprovedBy(String name, String date) {
+    return 'Approved by $name · $date';
+  }
+
+  @override
+  String loanReqDisapprovedBy(String name, String date) {
+    return 'Disapproved by $name · $date';
+  }
+
+  @override
+  String loanReqLoanIssuedRef(String ref) {
+    return 'Loan issued: $ref';
+  }
+
+  @override
+  String get loanReqApproveTitle => 'Approve loan request';
+
+  @override
+  String get loanReqMonthlyLabel => 'Monthly payment';
+
+  @override
+  String get loanReqMonthlyInvalid =>
+      'Enter a monthly payment above zero and not more than the loan total.';
+
+  @override
+  String loanReqFirstPayment(String date) {
+    return 'First payment: $date (the next BOD meeting)';
+  }
+
+  @override
+  String get loanReqApproveNote => 'Note for the farmer (optional)';
+
+  @override
+  String get loanReqApproveHint =>
+      'Approving issues the loan now and takes the items out of inventory. This cannot be undone here.';
+
+  @override
+  String loanReqApprovedDone(String ref) {
+    return 'Request approved. Loan $ref issued.';
+  }
+
+  @override
+  String get loanReqDisapproveTitle => 'Disapprove loan request';
+
+  @override
+  String get loanReqDisapproveReasonLabel => 'Reason (shown to the farmer)';
+
+  @override
+  String get loanReqReasonRequired =>
+      'Enter the reason for disapproving this request.';
+
+  @override
+  String get loanReqDisapprovedDone =>
+      'Request disapproved. The farmer was notified.';
+
+  @override
+  String get loanDashActionRequests => 'Loan Requests';
+
+  @override
+  String loanDashActionRequestsCount(int count) {
+    return 'Loan Requests ($count)';
+  }
+
+  @override
+  String adminLogLoanRequestApproved(String request, String reference) {
+    return 'Approved loan request $request and issued loan $reference.';
+  }
+
+  @override
+  String adminLogLoanRequestDisapproved(String request) {
+    return 'Disapproved loan request $request.';
+  }
+
+  @override
+  String get wfActIssued => 'Loan issued';
+
+  @override
+  String get wfActPaymentRecorded => 'Payment recorded';
+
+  @override
+  String get wfActOverdue => 'Marked overdue';
+
+  @override
+  String get wfActPaid => 'Fully paid';
+
+  @override
+  String wfDetailLoanIssued(String reference, String total) {
+    return 'Loan $reference · ₱$total';
+  }
+
+  @override
+  String wfDetailLoanPayment(String amount, String balance) {
+    return 'Paid ₱$amount · balance ₱$balance';
+  }
+
+  @override
+  String wfDetailLoanFromRequest(String reference, String monthly) {
+    return 'Loan $reference issued · ₱$monthly/month';
+  }
+
+  @override
+  String get txnCropCategory => 'Crop Category';
+
+  @override
+  String get txnPrice => 'Price';
+
+  @override
+  String get txnRecordedBy => 'Recorded by';
+
+  @override
+  String get txnHarvestBatch => 'Harvest Batch';
+
+  @override
+  String get txnFulfillment => 'Fulfillment';
+
+  @override
+  String get txnPickup => 'Pickup';
+
+  @override
+  String get txnDelivery => 'Delivery';
+
+  @override
+  String get txnDeliveredOn => 'Delivered to SP3';
+
+  @override
+  String get txnCompletedOn => 'Completed';
+
+  @override
+  String get txnEmptyTitle => 'No Transactions Yet';
+
+  @override
+  String get txnEmptyBody =>
+      'Your completed sales across every selling channel will show up here.';
+
+  @override
+  String get txnNoMatchTitle => 'No Matching Transactions';
+
+  @override
+  String get txnNoMatchBody => 'Try a different search or selling type.';
+
+  @override
+  String get txnSearchHint => 'Search by crop...';
+
+  @override
+  String get expnScreenTitle => 'My Expenses';
+
+  @override
+  String get expnAddTooltip => 'Add expense';
+
+  @override
+  String get expnTotalSpent => 'Total Spent';
+
+  @override
+  String get expnEntries => 'Entries';
+
+  @override
+  String get expnTopCategory => 'Top Category';
+
+  @override
+  String get expnNoneYet => 'None yet';
+
+  @override
+  String get expnByCategory => 'Spending by Category';
+
+  @override
+  String expnSharePercent(int percent) {
+    return '$percent% of spending';
+  }
+
+  @override
+  String expnSubsidyNote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count subsidized inputs this period. They are not counted in your total.',
+      one: '1 subsidized input this period. It is not counted in your total.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expnListTitle => 'Expenses';
+
+  @override
+  String expnEntryCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count entries',
+      one: '1 entry',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expnEmptyTitle => 'No expenses recorded';
+
+  @override
+  String get expnEmptyBody => 'Tap the + button to add your first expense.';
+
+  @override
+  String get expnSubsidyTag => 'SUBSIDY';
+
+  @override
+  String get expnPendingSync => 'Pending sync';
+
+  @override
+  String get expnDetailCategory => 'Category';
+
+  @override
+  String get expnDetailDescription => 'Description';
+
+  @override
+  String get expnDetailDate => 'Date';
+
+  @override
+  String get expnDetailSubsidy => 'Subsidy';
+
+  @override
+  String get expnSubsidyYes => 'Covered · not in your total';
+
+  @override
+  String get expnSubsidyNo => 'Not covered';
+
+  @override
+  String get expnDetailSync => 'Sync';
+
+  @override
+  String get expnWaitingToSync => 'Waiting to sync';
+
+  @override
+  String get loanMyScreenTitle => 'My Input Loans';
+
+  @override
+  String get loanMyOutstandingTitle => 'Outstanding Loans';
+
+  @override
+  String get loanMyAllPaid => 'All loans are fully paid.';
+
+  @override
+  String get loanMyNextPaymentTitle => 'Next Payment Due';
+
+  @override
+  String get loanMyNoPaymentDue => 'No payment due';
+
+  @override
+  String loanMyNoPaymentDueBody(String date) {
+    return 'You have no unpaid loans. The next BOD meeting is on $date.';
+  }
+
+  @override
+  String loanMyExpected(String amount) {
+    return 'Expected payment: ₱$amount';
+  }
+
+  @override
+  String loanMyOverdueTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count overdue loans',
+      one: '1 overdue loan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanMyOverdueBody =>
+      'Overdue balance. Please settle it at the next BOD meeting.';
+
+  @override
+  String get loanMyBodNote =>
+      'Payments are reviewed during the SP3 BOD Meeting every 1st Saturday of the month.';
+
+  @override
+  String get loanMyDueToday => 'DUE TODAY';
+
+  @override
+  String get loanMyDueInOneDay => 'IN 1 DAY';
+
+  @override
+  String loanMyDueInDays(int days) {
+    return 'IN $days DAYS';
+  }
+
+  @override
+  String get loanMyInfoTitle => 'Input-Only Loans';
+
+  @override
+  String get loanMyInfoBody =>
+      'SAGANA loans are provided as physical agricultural inputs (seeds, fertilizers, tools, etc.) and never as cash disbursements.';
+
+  @override
+  String get loanMyHistoryTitle => 'Loan History';
+
+  @override
+  String get loanMyNoLoans => 'You have no loans yet. Tap + to request inputs.';
+
+  @override
+  String get loanMyNoLoansForFilter => 'No loans with this status.';
+
+  @override
+  String get loanMyPaymentsTitle => 'Payment History';
+
+  @override
+  String get loanMyNoPayments => 'No payments recorded yet.';
+
+  @override
+  String loanMyPaymentLoan(String ref) {
+    return 'Loan $ref';
+  }
+
+  @override
+  String loanMyIssued(String date) {
+    return 'Issued $date';
+  }
+
+  @override
+  String loanMyNextPayment(String date, String amount) {
+    return 'Next payment $date · ₱$amount';
+  }
+
+  @override
+  String get loanMyTotalValue => 'Total Value';
+
+  @override
+  String get loanMyRemaining => 'Remaining';
+
+  @override
+  String loanMyRepaid(int percent) {
+    return '$percent% repaid';
+  }
+
+  @override
+  String loanMyFromProgram(String name) {
+    return 'From Program Distribution: $name';
+  }
+
+  @override
+  String get loanStatusActive => 'Active';
+
+  @override
+  String get loanStatusOverdue => 'Overdue';
+
+  @override
+  String loanReqFilterAllCount(int count) {
+    return 'All ($count)';
+  }
+
+  @override
+  String loanReqFilterPendingCount(int count) {
+    return 'Pending ($count)';
+  }
+
+  @override
+  String loanReqFilterApprovedCount(int count) {
+    return 'Approved ($count)';
+  }
+
+  @override
+  String loanReqFilterDisapprovedCount(int count) {
+    return 'Disapproved ($count)';
+  }
+
+  @override
+  String get loanReqHistoryTooltip => 'My loan requests';
+
+  @override
+  String get loanReqMyEmpty =>
+      'No loan requests yet. Go back and tap + on Input Loans, then choose the inputs you need.';
+
+  @override
+  String get loanReqMyEmptyForFilter => 'No requests with this status.';
+
+  @override
+  String get loanReqAdminSearchHint => 'Search farmer, request or item';
+
+  @override
+  String get loanMyViewAll => 'View All';
+
+  @override
+  String loanMyMoreItems(int count) {
+    return '+$count more';
+  }
+
+  @override
+  String loanMyRepaidAmount(String amount) {
+    return '₱$amount repaid';
+  }
+
+  @override
+  String loanMyOfBorrowed(String amount) {
+    return 'of ₱$amount';
+  }
+
+  @override
+  String get loanMyTotalPaid => 'Total Paid';
+
+  @override
+  String loanMyPaymentCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count payments',
+      one: '1 payment',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get loanMySearchHint => 'Search by Loan ID';
+
+  @override
+  String get loanMySearchNoMatch => 'No loans match this Loan ID.';
+
+  @override
+  String get staffAccessSectionTitle => 'Module Access';
+
+  @override
+  String get staffAccessSectionHint =>
+      'Every Officer can open and view all modules. Choose the modules this Officer may also manage; the rest stay View Only.';
+
+  @override
+  String get staffAccessView => 'View Only';
+
+  @override
+  String get staffAccessManage => 'Manage';
+
+  @override
+  String get staffModuleDashboardDesc =>
+      'Inventory, crops, programs, loan items, prices';
+
+  @override
+  String get staffModuleMembersDesc =>
+      'Member and Officer accounts, approvals, capital contributions';
+
+  @override
+  String get staffModuleMarketplaceDesc =>
+      'Listings, orders, cooperative offers, market linking';
+
+  @override
+  String get staffModuleLoansDesc => 'Issuing loans, payments, loan requests';
+
+  @override
+  String get staffModuleReportsDesc => 'Exporting reports';
+
+  @override
+  String get staffAccessEdit => 'Edit Access';
+
+  @override
+  String staffAccessEditTitle(String name) {
+    return 'Module access — $name';
+  }
+
+  @override
+  String get staffAccessSave => 'Save Access';
+
+  @override
+  String get staffAccessSaving => 'Saving...';
+
+  @override
+  String get staffAccessSaved => 'Module access updated.';
+
+  @override
+  String get staffAccessLoadError => 'Could not load this Officer\'s access.';
+
+  @override
+  String get staffViewOnlyBanner =>
+      'View Only — you can look at this module but cannot change anything in it. Ask the Manager for Manage access.';
+
+  @override
+  String get staffViewOnlyAction => 'You have view-only access to this module.';
+
+  @override
+  String get staffLogFeatureAll => 'All';
+
+  @override
+  String get staffLogSystem => 'System';
+
+  @override
+  String get staffLogBroadcast => 'Broadcast';
+
+  @override
+  String get staffLogFeatureAccounts => 'Accounts';
+
+  @override
+  String get staffLogFeatureContributions => 'Contributions';
+
+  @override
+  String get staffLogFeatureOfficerAccess => 'Officer access';
+
+  @override
+  String get staffLogFeatureLoansIssued => 'Loans issued';
+
+  @override
+  String get staffLogFeaturePayments => 'Payments';
+
+  @override
+  String get staffLogFeatureLoanRequests => 'Requests';
+
+  @override
+  String get staffLogFeatureLoanPolicy => 'Loan policy';
+
+  @override
+  String staffLogStatusChange(String from, String to) {
+    return 'Status: $from → $to';
+  }
+
+  @override
+  String staffActGenericAdded(String thing, String ref) {
+    return 'Added $thing: $ref';
+  }
+
+  @override
+  String staffActGenericChanged(String thing, String ref) {
+    return 'Changed $thing: $ref';
+  }
+
+  @override
+  String staffActGenericDeleted(String thing, String ref) {
+    return 'Deleted $thing: $ref';
+  }
+
+  @override
+  String staffActGenericAddedNoRef(String thing) {
+    return 'Added $thing';
+  }
+
+  @override
+  String staffActGenericChangedNoRef(String thing) {
+    return 'Changed $thing';
+  }
+
+  @override
+  String staffActGenericDeletedNoRef(String thing) {
+    return 'Deleted $thing';
+  }
+
+  @override
+  String staffActBodReminder(String date, int farmers, int staff) {
+    return 'BOD meeting reminder sent for $date to $farmers Farmers and $staff staff';
+  }
+
+  @override
+  String get staffThingCooperativeInventory => 'inventory item';
+
+  @override
+  String get staffThingInventoryTransactions => 'stock movement';
+
+  @override
+  String get staffThingInventoryCategories => 'inventory category';
+
+  @override
+  String get staffThingUnits => 'unit';
+
+  @override
+  String get staffThingCropMaster => 'crop';
+
+  @override
+  String get staffThingCropCategories => 'crop category';
+
+  @override
+  String get staffThingCropRequests => 'crop request';
+
+  @override
+  String get staffThingCooperativePrograms => 'program';
+
+  @override
+  String get staffThingProgramActivities => 'program activity';
+
+  @override
+  String get staffThingProgramMembers => 'program member';
+
+  @override
+  String get staffThingProgramProducts => 'program product';
+
+  @override
+  String get staffThingProgramProductPurchases => 'program purchase';
+
+  @override
+  String get staffThingProgramEnrollmentRequests =>
+      'program enrollment request';
+
+  @override
+  String get staffThingPriceRecords => 'price';
+
+  @override
+  String get staffThingLoanItemsMaster => 'loan item';
+
+  @override
+  String get staffThingUserRoles => 'account';
+
+  @override
+  String get staffThingUserInformation => 'member information';
+
+  @override
+  String get staffThingFarmerProfiles => 'farm details';
+
+  @override
+  String get staffThingPasswordResetRequests => 'password help request';
+
+  @override
+  String get staffThingAccountCreationRequests => 'account request';
+
+  @override
+  String get staffThingCapitalContributionEvents => 'contribution';
+
+  @override
+  String get staffThingMemberCapitalShares => 'capital total';
+
+  @override
+  String get staffThingOfficerPermissions => 'Officer access';
+
+  @override
+  String get staffThingMarketplaceListings => 'listing';
+
+  @override
+  String get staffThingListingEditRequests => 'listing edit request';
+
+  @override
+  String get staffThingOrders => 'order';
+
+  @override
+  String get staffThingCooperativePurchaseOffers => 'cooperative offer';
+
+  @override
+  String get staffThingMemberSalesTransactions => 'member sale';
+
+  @override
+  String get staffThingMarketLinkingPrograms => 'market linking program';
+
+  @override
+  String get staffThingMarketLinkingSales => 'market linking sale';
+
+  @override
+  String get staffThingDaAmadEnrollments => 'DA-AMAD enrollment';
+
+  @override
+  String get staffThingFarmerLoans => 'loan';
+
+  @override
+  String get staffThingFarmerLoanPayments => 'loan payment';
+
+  @override
+  String get staffThingLoanRequests => 'loan request';
+
+  @override
+  String get staffThingLoanPolicySettings => 'loan policy';
+
+  @override
+  String get staffThingCooperativeAnnualTotals =>
+      'Balik-Tangkilik year settings';
+
+  @override
+  String get staffThingMemberContributions => 'Balik-Tangkilik payout';
+
+  @override
+  String get staffThingBroadcastLogs => 'broadcast';
+
+  @override
+  String get staffAccountabilityTitle => 'Staff Accountability';
+
+  @override
+  String get staffAccountabilitySubtitle => 'Who did what, and when';
+
+  @override
+  String get staffAccountabilityEmpty => 'No staff actions recorded yet.';
+
+  @override
+  String get staffAccountabilityLoadError =>
+      'Could not load the log. Pull down to try again.';
+
+  @override
+  String get staffAccountabilityAllStaff => 'All staff';
+
+  @override
+  String get staffAccountabilityAllModules => 'All modules';
+
+  @override
+  String get staffAccountabilityBefore => 'Before';
+
+  @override
+  String get staffAccountabilityAfter => 'After';
+
+  @override
+  String get staffAccountabilityRecord => 'Record';
+
+  @override
+  String get staffAccountabilityActionCreated => 'Created';
+
+  @override
+  String get staffAccountabilityActionUpdated => 'Updated';
+
+  @override
+  String get staffAccountabilityActionDeleted => 'Deleted';
+
+  @override
+  String staffActCreatedFarmer(String name) {
+    return 'Created a Farmer account: $name';
+  }
+
+  @override
+  String staffActCreatedOfficer(String name) {
+    return 'Created an Officer account: $name';
+  }
+
+  @override
+  String staffActApproved(String name) {
+    return 'Approved the membership of $name';
+  }
+
+  @override
+  String staffActDisapproved(String name) {
+    return 'Disapproved the application of $name';
+  }
+
+  @override
+  String staffActSuspended(String name) {
+    return 'Suspended $name';
+  }
+
+  @override
+  String staffActReactivated(String name) {
+    return 'Reactivated $name';
+  }
+
+  @override
+  String staffActPasswordReset(String name) {
+    return 'Reset the password of $name';
+  }
+
+  @override
+  String staffActDeletedAccount(String name) {
+    return 'Deleted the account of $name';
+  }
+
+  @override
+  String staffActContribution(String amount, String name) {
+    return 'Recorded a contribution of $amount for $name';
+  }
+
+  @override
+  String staffActAccessChanged(String name, String module, String level) {
+    return 'Changed the $module access of $name to $level';
+  }
+
+  @override
+  String staffActPasswordRequest(String name) {
+    return 'Handled a password help request from $name';
+  }
+
+  @override
+  String staffActInfoEdited(String name) {
+    return 'Edited the information of $name';
+  }
+
+  @override
+  String staffActReason(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String staffActNote(String note) {
+    return 'Note: $note';
+  }
+
+  @override
+  String get staffRoleManager => 'Manager';
+
+  @override
+  String get staffRoleOfficer => 'Officer';
+
+  @override
+  String get createAccountSubmitTitle => 'Submit for Manager approval?';
+
+  @override
+  String get createAccountSubmitBody =>
+      'This account will be sent to the Manager. The Farmer cannot use Farmer features until the Manager approves it.';
+
+  @override
+  String get createAccountSubmitConfirm => 'Submit';
+
+  @override
+  String get createAccountSubmitted =>
+      'Account submitted for Manager approval.';
+
+  @override
+  String addMemberCreatedDialogBody(String username) {
+    return 'Account created successfully.\n\nThe username is:\n$username';
+  }
+
+  @override
+  String get addMemberCreatedManagerNote =>
+      'The Farmer can sign in with the temporary password. They will be asked to set a new password first.';
+
+  @override
+  String get addMemberCreatedOfficerNote =>
+      'This account is waiting for the Manager\'s approval. The Farmer can sign in, but cannot use Farmer features until it is approved.';
+
+  @override
+  String farmerMgmtCreatedByOfficer(String name) {
+    return 'Created by $name';
+  }
+
+  @override
+  String get farmerMgmtCreatedByOfficerNoName => 'Created by an Officer';
+
+  @override
+  String farmerDetailsHistoryBy(String name, String role) {
+    return 'By $name ($role)';
+  }
 }

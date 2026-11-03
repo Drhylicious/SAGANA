@@ -203,7 +203,7 @@ class _OfferCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final view = CoopOfferStatusView.of(context, offer, forFarmer: true);
-    final price = offer.isConfirmed
+    final price = offer.isAgreed
         ? (offer.agreedPricePerKg ?? offer.currentPricePerKg)
         : offer.currentPricePerKg;
 
@@ -283,15 +283,17 @@ class _OfferCard extends StatelessWidget {
                             ),
                           if (price != null && price != offer.askingPricePerKg)
                             _line(
-                              offer.isConfirmed
+                              offer.isAgreed
                                   ? l10n.coopAgreedPriceLabel
                                   : l10n.coopLatestProposalLabel,
                               coopPricePerKg(price, offer.unit),
                               strong: true,
                             ),
-                          if (offer.isConfirmed && offer.confirmedAmount != null)
+                          if (offer.isAgreed && offer.confirmedAmount != null)
                             _line(
-                              l10n.coopTotalPaidLabel,
+                              offer.isCompleted
+                                  ? l10n.coopTotalPaidLabel
+                                  : l10n.coopAgreedTotalLabel,
                               coopPeso(offer.confirmedAmount!),
                               strong: true,
                               color: AppConstants.successGreen,

@@ -12,6 +12,8 @@ import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
 import '../../widgets/management_modal.dart' show adminOrderStatusLabel;
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/order_status_style.dart';
+import '../../../core/utils/order_status.dart';
 
 /// Read-only order history for one buyer, opened from Buyer Details.
 ///
@@ -84,7 +86,8 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
       case 'approved': return l10n.buyerOrderHistoryNoApproved;
       case 'completed': return l10n.buyerOrderHistoryNoCompleted;
       case 'cancelled': return l10n.buyerOrderHistoryNoCancelled;
-      default: return l10n.buyerOrderHistoryNoOrdersYet;
+      case null: return l10n.buyerOrderHistoryNoOrdersYet;
+      default: return l10n.ordersEmptyStatus(adminOrderStatusLabel(l10n, _statusFilter!));
     }
   }
 
@@ -129,25 +132,13 @@ class _BuyerOrderHistoryScreenState extends State<BuyerOrderHistoryScreen> {
                   color: cs.primary, onTap: () => setState(() => _statusFilter = null), cs: cs,
                 ),
                 const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'pending'), active: _statusFilter == 'pending',
-                  color: AppConstants.warningAmber, onTap: () => setState(() => _statusFilter = 'pending'), cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'approved'), active: _statusFilter == 'approved',
-                  color: AppConstants.successGreen, onTap: () => setState(() => _statusFilter = 'approved'), cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'completed'), active: _statusFilter == 'completed',
-                  color: AppConstants.primaryGreen, onTap: () => setState(() => _statusFilter = 'completed'), cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'cancelled'), active: _statusFilter == 'cancelled',
-                  color: AppConstants.errorRed, onTap: () => setState(() => _statusFilter = 'cancelled'), cs: cs,
-                ),
+                for (final s in kOrderStatuses) ...[
+                  ListingStatusFilterChip(
+                    label: adminOrderStatusLabel(l10n, s), active: _statusFilter == s,
+                    color: orderStatusColor(s), onTap: () => setState(() => _statusFilter = s), cs: cs,
+                  ),
+                  const SizedBox(width: 8),
+                ],
               ],
             ),
           ),
@@ -192,15 +183,7 @@ class _OrderRow extends StatelessWidget {
   final VoidCallback onTap;
   const _OrderRow({required this.order, required this.onTap});
 
-  Color get _statusColor {
-    switch (order.status) {
-      case 'approved': return AppConstants.successGreen;
-      case 'pending': return AppConstants.warningAmber;
-      case 'completed': return AppConstants.primaryGreen;
-      case 'cancelled': return AppConstants.errorRed;
-      default: return AppConstants.outline;
-    }
-  }
+  Color get _statusColor => orderStatusColor(order.status);
 
   @override
   Widget build(BuildContext context) {

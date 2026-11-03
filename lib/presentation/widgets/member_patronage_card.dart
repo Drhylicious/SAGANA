@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/quantity_utils.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
@@ -186,14 +187,14 @@ class MemberPatronageCard extends StatelessWidget {
                 children: [
                   _patronageStat(
                     'Palay',
-                    '${r.palayQtyKg.toStringAsFixed(0)} kg (${currency.format(r.palayAmount)})',
+                    '${formatKgTotal(r.palayQtyKg)} (${currency.format(r.palayAmount)})',
                     AppConstants.primaryGreen,
                     cs,
                   ),
                   const SizedBox(width: 16),
                   _patronageStat(
                     'Peanut',
-                    '${r.peanutQtyKg.toStringAsFixed(0)} kg (${currency.format(r.peanutAmount)})',
+                    '${formatKgTotal(r.peanutQtyKg)} (${currency.format(r.peanutAmount)})',
                     AppConstants.amber,
                     cs,
                   ),
@@ -207,7 +208,7 @@ class MemberPatronageCard extends StatelessWidget {
                   children: [
                     _patronageStat(
                       'Other Crops',
-                      '${r.otherCropsQtyKg.toStringAsFixed(0)} kg (${currency.format(r.otherCropsAmount)})',
+                      '${formatKgTotal(r.otherCropsQtyKg)} (${currency.format(r.otherCropsAmount)})',
                       AppConstants.buyerBlue,
                       cs,
                     ),

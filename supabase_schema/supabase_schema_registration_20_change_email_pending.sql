@@ -8,16 +8,22 @@
 -- email stays exactly as it is (and so does the verified one on record). Only a
 -- correct code makes the new address the account's email.
 --
---   Officer  the contact email changes. The sign-in address (OFF-XXXX@sagana.local)
---            is never touched.
+--   Officer  the contact email changes, and once the new address is verified it is
+--            also an address they can sign in with (their OFF-XXXX username always
+--            works, verified or not). Until then nothing about their sign-in changes.
 --   Manager  the email IS the sign-in address (and where recovery codes go), so a
 --            verified change switches the sign-in email too, in one step. They log
 --            in with the new address from then on. The change also needs the
 --            Manager's current password (checked by the Edge Function), so a
 --            borrowed session alone cannot redirect the account.
 --
--- Run after scripts 18 (and 19 if you have run it). Safe to re-run.
--- Farmers and Buyers are not affected: their Edit Profile keeps working as it did.
+-- Run after script 18 (19 may come before or after). Run script 21 AFTER this one.
+-- Safe to re-run.
+--
+-- Farmers and Buyers keep saving their email directly (no pending step), but the
+-- address only becomes a way to SIGN IN once its code has been entered: a correct
+-- code for the address in use also switches their sign-in email to it (script 21
+-- stops the address being a sign-in before that).
 -- ============================================================
 
 BEGIN;
@@ -243,7 +249,9 @@ GRANT EXECUTE ON FUNCTION public.issue_contact_email_code(uuid) TO service_role;
 -- address makes it the account's email.
 --   verified | invalid_code | expired | too_many_attempts | no_code |
 --   email_changed | email_in_use | invalid_format | not_signed_in
---   'verified' also says whether the SIGN-IN email changed (signin_changed).
+--   'verified' also says whether the SIGN-IN email changed (signin_changed): true
+--   for a Manager's change and for a Farmer/Buyer/Officer whose verified address was not
+--   yet their sign-in address.
 -- ════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION public.verify_contact_email(p_code text)
@@ -259,7 +267,8 @@ DECLARE
   v_target  text;
   v_pending text;
   v_hash    text;
-  v_admin   boolean;
+  v_signin  boolean;
+  v_login   boolean;
   v_old     text;
 BEGIN
   IF v_uid IS NULL THEN
@@ -316,19 +325,11 @@ BEGIN
       RETURN jsonb_build_object('status', 'email_in_use');
     END IF;
 
-    v_admin := EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = v_uid AND role = 'admin');
+    v_signin := EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = v_uid AND role IN ('admin', 'officer'));
     SELECT lower(email) INTO v_old FROM auth.users WHERE id = v_uid;
 
-    IF v_admin THEN
-      -- The Manager signs in with this address: switch it, and its identity row,
-      -- in the same step as the proof.
-      UPDATE auth.users SET email = r.email, updated_at = now() WHERE id = v_uid;
-      UPDATE auth.identities
-      SET identity_data = identity_data || jsonb_build_object('email', r.email),
-          updated_at = now()
-      WHERE user_id = v_uid AND provider = 'email';
-    END IF;
-
+    -- The proof is recorded FIRST: the sign-in email may only ever be set to an
+    -- address that is already on record as verified (script 21 enforces it).
     UPDATE public.user_information
     SET contact_email             = r.email,
         pending_contact_email     = NULL,
@@ -336,22 +337,56 @@ BEGIN
         contact_email_verified_at = now()
     WHERE user_id = v_uid;
 
+    IF v_signin THEN
+      -- A Manager signs in with this address (an Officer may, once it is verified):
+      -- switch it, and its identity row, in the same step as the proof.
+      UPDATE auth.users SET email = r.email, updated_at = now() WHERE id = v_uid;
+      UPDATE auth.identities
+      SET identity_data = identity_data || jsonb_build_object('email', r.email),
+          updated_at = now()
+      WHERE user_id = v_uid AND provider = 'email';
+    END IF;
+
     PERFORM set_config('sagana.contact_email_verify', 'off', true);
     DELETE FROM public.contact_email_codes WHERE user_id = v_uid;
     RETURN jsonb_build_object(
       'status', 'verified',
-      'signin_changed', v_admin AND v_old IS DISTINCT FROM r.email);
+      'signin_changed', v_signin AND v_old IS DISTINCT FROM r.email);
   END IF;
 
   -- The address already in use: record the proof (as in script 18).
+  -- A Farmer, Buyer or Officer can also SIGN IN with their email, but only once it is
+  -- verified: the proof is what switches their sign-in address to it.
+  v_login := EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = v_uid AND role IN ('farmer', 'buyer', 'officer'));
+  SELECT lower(email) INTO v_old FROM auth.users WHERE id = v_uid;
+
+  IF v_login AND v_old IS DISTINCT FROM r.email
+     AND (EXISTS (SELECT 1 FROM auth.users a WHERE a.id <> v_uid AND lower(a.email) = r.email)
+          OR EXISTS (SELECT 1 FROM public.user_information u
+                     WHERE u.user_id <> v_uid AND lower(btrim(u.contact_email)) = r.email)) THEN
+    PERFORM set_config('sagana.contact_email_verify', 'off', true);
+    DELETE FROM public.contact_email_codes WHERE user_id = v_uid;
+    RETURN jsonb_build_object('status', 'email_in_use');
+  END IF;
+
   UPDATE public.user_information
   SET verified_contact_email    = r.email,
       contact_email_verified_at = now()
   WHERE user_id = v_uid;
+
+  IF v_login AND v_old IS DISTINCT FROM r.email THEN
+    UPDATE auth.users SET email = r.email, updated_at = now() WHERE id = v_uid;
+    UPDATE auth.identities
+    SET identity_data = identity_data || jsonb_build_object('email', r.email),
+        updated_at = now()
+    WHERE user_id = v_uid AND provider = 'email';
+  END IF;
   PERFORM set_config('sagana.contact_email_verify', 'off', true);
 
   DELETE FROM public.contact_email_codes WHERE user_id = v_uid;
-  RETURN jsonb_build_object('status', 'verified', 'signin_changed', false);
+  RETURN jsonb_build_object(
+    'status', 'verified',
+    'signin_changed', v_login AND v_old IS DISTINCT FROM r.email);
 END;
 $$;
 

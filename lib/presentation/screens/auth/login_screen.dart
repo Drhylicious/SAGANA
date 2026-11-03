@@ -11,13 +11,22 @@ import '../../../core/utils/input_validation_utils.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/models/suspension_notice.dart';
+import '../../../data/models/user_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/auth_visuals.dart';
 import '../../widgets/suspension_dialogs.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.otpEligibility});
+  const LoginScreen({super.key, this.otpEligibility, this.signIn});
+
+  /// Tests: stands in for the sign-in call (AuthRepository.login).
+  @visibleForTesting
+  final Future<UserModel> Function({
+    required String identifier,
+    required String password,
+  })?
+  signIn;
 
   /// Tests: stands in for the database's answer to "may this email get a reset
   /// code?" (AuthService.canUseOtpReset).
@@ -90,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final user = await _authRepository.login(
+      final user = await (widget.signIn ?? _authRepository.login)(
         identifier: _identifierController.text,
         password: _passwordController.text,
       );
@@ -125,7 +134,15 @@ class _LoginScreenState extends State<LoginScreen>
         await showSuspensionNotice(context: context, notice: e.notice);
         return;
       }
-      setState(() => _errorMessage = AuthService.parseAuthError(e));
+      // A wrong pair for something typed as an EMAIL gets one extra sentence: an
+      // email only signs in once it is verified, and the username always does.
+      // (Said the same for every email, so it reveals nothing about accounts.)
+      final typedEmail = _emailPattern.hasMatch(_identifierController.text.trim());
+      setState(
+        () => _errorMessage = typedEmail && AuthService.isInvalidCredentials(e)
+            ? AppLocalizations.of(context).loginEmailNotVerifiedHint
+            : AuthService.parseAuthError(e),
+      );
     }
   }
 
@@ -151,8 +168,8 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       // The emailed reset code is for an email address that has been VERIFIED
       // (Edit Profile -> Verify Email) and is the account's sign-in email;
-      // everyone else (an Officer, always, and anyone whose email is not
-      // verified) is routed to Password Assistance, where the Manager sets a
+      // everyone else (anyone whose email is not verified) is routed to
+      // Password Assistance, where the Manager sets a
       // temporary password. The database answers this in can_use_otp_reset();
       // the same rule is enforced again when the email is sent, so skipping
       // this screen does not help.

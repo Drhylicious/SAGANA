@@ -9,6 +9,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/crop_category_chips.dart';
 import '../../widgets/crop_catalog_sheet.dart';
 import '../../widgets/edit_crop_sheet.dart';
@@ -18,6 +19,7 @@ import '../../widgets/cached_data_notice.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../data/services/market_types_service.dart';
 import '../../widgets/channel_only_badge.dart';
+import '../../widgets/crop_photo_capture.dart';
 
 class CropListingScreen extends StatefulWidget {
   const CropListingScreen({super.key});
@@ -150,7 +152,7 @@ class _CropListingScreenState extends State<CropListingScreen> {
                 // Content
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(screen: 'farmer_crops', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineCropsNeedInternet),
                     Expanded(
                       child: RefreshIndicator(
@@ -456,6 +458,16 @@ class _CropCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   _HarvestStatus(hasHarvests: crop.hasHarvests),
+                  // The Farmer's own camera photo is needed to sell (not to
+                  // harvest or record an Informal Sale). Tapping goes straight
+                  // to the camera flow.
+                  if (crop.needsPhoto) ...[
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: onEdit,
+                      child: const PhotoRequiredBadge(),
+                    ),
+                  ],
                   if (crop.cropMasterId == null) ...[
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -628,9 +640,10 @@ class _MarketTypeBadge extends StatelessWidget {
 }
 
 // 68x68, radiusMd corners — matches Admin's All Listings / Crop Management
-// / Loan Item Catalog thumbnail recipe. Prefers the farmer's own photo,
-// falls back to the catalog's reference photo, then a generic category
-// icon (FarmerCropModel.displayImageUrl / hasDisplayImage).
+// / Loan Item Catalog thumbnail recipe. Shows the farmer's own camera photo,
+// or a generic category icon when they have not taken one yet — never the
+// Crop Master image (FarmerCropModel.displayImageUrl / hasDisplayImage).
+
 class _CropIconBox extends StatelessWidget {
   final FarmerCropModel crop;
   const _CropIconBox({required this.crop});

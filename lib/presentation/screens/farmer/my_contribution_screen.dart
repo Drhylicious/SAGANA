@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ import '../../../data/models/program_model.dart';
 import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/contribution_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/shared_widgets.dart';
@@ -52,7 +54,8 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
   List<MemberSalesTransaction> _transactions = [];
   List<ProgramPurchase> _purchases = [];
   CapitalSharesModel? _shares;
-  CoopAnnualTotal? _coopTotal;
+  double _sellingSharePercent = 0;
+  double _buyingSharePercent = 0;
   MemberCapitalSummary? _capitalSummary;
 
   bool _isLoading = true;
@@ -84,7 +87,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       _repo.fetchRecentTransactions(),
       _repo.fetchRecentProgramPurchases(),
       _repo.fetchCapitalShares(),
-      _repo.fetchCoopTotal(year),
+      _repo.fetchMyActivityShare(year),
       _capitalRepo.fetchCapitalSummary(userId),
     ]);
     if (!mounted) return;
@@ -94,7 +97,9 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
       _transactions = results[2] as List<MemberSalesTransaction>;
       _purchases = results[3] as List<ProgramPurchase>;
       _shares = results[4] as CapitalSharesModel?;
-      _coopTotal = results[5] as CoopAnnualTotal?;
+      final share = results[5] as ({double selling, double buying});
+      _sellingSharePercent = share.selling;
+      _buyingSharePercent = share.buying;
       _capitalSummary = results[6] as MemberCapitalSummary;
       _isLoading = false;
     });
@@ -227,26 +232,6 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
     }
   }
 
-  double get _memberSharePercent {
-    if (_current == null || _coopTotal == null) return 0;
-    return _repo.computeMemberSharePercent(
-      memberSales: _current!.totalSalesAmount,
-      coopTotalSales: _coopTotal!.totalCoopSales,
-    );
-  }
-
-  /// Same formula as _memberSharePercent, but for the buying side (Option
-  /// B) — this farmer's Product Sales Program purchases as a percent of
-  /// every farmer's purchases this year. Never blended with the selling
-  /// percentage above.
-  double get _memberPurchaseSharePercent {
-    if (_current == null || _coopTotal == null) return 0;
-    return _repo.computeMemberSharePercent(
-      memberSales: _current!.programPurchasesAmount,
-      coopTotalSales: _coopTotal!.totalProgramSales,
-    );
-  }
-
   /// "Keep as Cash" now goes through the same request-then-admin-confirms
   /// path as "Add to Capital" — previously this only showed an
   /// acknowledgment message with no record of any kind, which meant
@@ -316,7 +301,7 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'member_capital_shares',
                 isOnline: _isOnline,
@@ -343,9 +328,8 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
                       else
                         _MyActivityCard(
                           current: _current,
-                          coopTotal: _coopTotal,
-                          sellingSharePercent: _memberSharePercent,
-                          buyingSharePercent: _memberPurchaseSharePercent,
+                          sellingSharePercent: _sellingSharePercent,
+                          buyingSharePercent: _buyingSharePercent,
                           year: year,
                         ),
                       const SizedBox(height: 20),
@@ -465,14 +449,12 @@ class _MyContributionScreenState extends State<MyContributionScreen> {
 
 class _MyActivityCard extends StatelessWidget {
   final MemberContribution? current;
-  final CoopAnnualTotal? coopTotal;
   final double sellingSharePercent;
   final double buyingSharePercent;
   final int year;
 
   const _MyActivityCard({
     required this.current,
-    required this.coopTotal,
     required this.sellingSharePercent,
     required this.buyingSharePercent,
     required this.year,
@@ -488,8 +470,6 @@ class _MyActivityCard extends StatelessWidget {
     final otherCropsKg = current?.otherCropsQtyKg ?? 0;
     final otherCropsAmt = current?.otherCropsAmount ?? 0;
     final totalPurchases = current?.programPurchasesAmount ?? 0;
-    final coopSales = coopTotal?.totalCoopSales ?? 0;
-    final coopPurchases = coopTotal?.totalProgramSales ?? 0;
 
     return Container(
       width: double.infinity,
@@ -592,7 +572,6 @@ class _MyActivityCard extends StatelessWidget {
           _ActivityShareProgress(
             percent: sellingSharePercent,
             color: AppConstants.primaryGreen,
-            coopTotal: coopSales,
             myTotal: totalSales,
           ),
 
@@ -627,7 +606,6 @@ class _MyActivityCard extends StatelessWidget {
           _ActivityShareProgress(
             percent: buyingSharePercent,
             color: AppConstants.buyerBlue,
-            coopTotal: coopPurchases,
             myTotal: totalPurchases,
           ),
         ],
@@ -643,13 +621,11 @@ class _MyActivityCard extends StatelessWidget {
 class _ActivityShareProgress extends StatelessWidget {
   final double percent;
   final Color color;
-  final double coopTotal;
   final double myTotal;
 
   const _ActivityShareProgress({
     required this.percent,
     required this.color,
-    required this.coopTotal,
     required this.myTotal,
   });
 
@@ -695,34 +671,12 @@ class _ActivityShareProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Cooperative Total', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
-                Text(
-                  '₱${NumberFormat('#,##0').format(coopTotal)}',
-                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500).copyWith(
-                    fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
-                  ),
-                ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('My Total', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
-                Text(
-                  '₱${NumberFormat('#,##0').format(myTotal)}',
-                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: color).copyWith(
-                    fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
-                  ),
-                ),
-              ],
-            ),
-          ],
+        Text('My Total', style: GoogleFonts.inter(fontSize: 11, color: AppConstants.outline)),
+        Text(
+          '₱${NumberFormat('#,##0').format(myTotal)}',
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500, color: color).copyWith(
+            fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
+          ),
         ),
       ],
     );
@@ -789,7 +743,7 @@ class _CropSalesRow extends StatelessWidget {
                     ),
               ),
               Text(
-                '${NumberFormat('#,##0').format(kg)} kg',
+                formatKgTotal(kg),
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   color: AppConstants.onSurfaceVariant,
@@ -1491,7 +1445,7 @@ class _SalesTable extends StatelessWidget {
                     ),
                   ),
                   DataCell(
-                    Text('${NumberFormat('#,##0').format(t.quantityKg)} kg'),
+                    Text(formatQuantityUnit(t.quantityKg, t.unit)),
                   ),
                   DataCell(
                     Text(

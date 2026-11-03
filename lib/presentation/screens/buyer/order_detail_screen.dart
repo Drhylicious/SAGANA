@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -11,6 +12,8 @@ import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/fulfillment_info_card.dart';
+import '../../widgets/coop_offer_widgets.dart' show CoopDeliveryPhoto;
+import '../../../core/utils/order_status.dart';
 import '../../widgets/management_modal.dart';
 import '../../widgets/order_status_style.dart';
 import '../../widgets/shared_widgets.dart';
@@ -123,7 +126,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ],
           _buildStatusSection(order, l10n),
           const SizedBox(height: 16),
-          if (!order.isCancelled && !order.isRejected) ...[
+          if (!order.isCancelled) ...[
             _buildTimeline(order, l10n),
             const SizedBox(height: 16),
           ],
@@ -132,6 +135,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           _buildOrderSummary(order, l10n),
           const SizedBox(height: 16),
           _buildPaymentInfo(l10n),
+          if (order.deliveryPhotoUrl != null) ...[
+            const SizedBox(height: 16),
+            _buildDeliveryPhoto(order, l10n),
+          ],
+          if (order.canConfirmReceipt) ...[
+            const SizedBox(height: 16),
+            _buildReceivedSection(context, order, l10n),
+          ],
           if (order.isPending) ...[
             const SizedBox(height: 16),
             _buildCancelSection(context, order, l10n),
@@ -140,7 +151,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           // Pickup/Delivery are the only appropriate actions left at that
           // point. Still shown for pending/completed/cancelled orders,
           // where there's no fulfillment choice to make.
-          if (order.status != 'approved') ...[
+          if (!isFulfillmentStatus(order.status)) ...[
             const SizedBox(height: 20),
             _buildSupportSection(context, l10n),
           ],
@@ -159,21 +170,30 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   // own detail screen already gives it, so the buyer actually sees why.
   Widget _buildStatusSection(BuyerOrderModel order, AppLocalizations l10n) {
     final subtitle = switch (order.status) {
-      'approved' => l10n.buyerOrderDetailReadyPickup,
+      'approved' => l10n.buyerOrderDetailStepApproved,
+      'ready_for_pickup' => l10n.buyerOrderDetailReadyPickup,
+      'out_for_delivery' => l10n.buyerOrderSubtitleOut,
+      'delivered' => l10n.buyerOrderSubtitleDelivered,
       'pending' => l10n.buyerOrdersAwaitingReview,
       'completed' => l10n.buyerOrderDetailPickedUp,
-      'rejected' => l10n.buyerOrderDetailRejectedStatus,
       _ => l10n.buyerOrderDetailCancelledStatus,
     };
     final message = switch (order.status) {
-      'approved' => l10n.buyerOrderDetailMsgApproved(AppConstants.cooperativeName),
+      'approved' => order.isDelivery
+          ? l10n.buyerOrderMsgApprovedDelivery(AppConstants.cooperativeName)
+          : l10n.buyerOrderMsgApprovedPickup(AppConstants.cooperativeName),
+      'ready_for_pickup' => l10n.buyerOrderMsgReady,
+      'out_for_delivery' => l10n.buyerOrderMsgOut,
+      'delivered' => l10n.buyerOrderMsgDelivered,
       'pending' => l10n.buyerOrderDetailMsgPending(AppConstants.cooperativeName),
       'completed' => l10n.buyerOrderDetailMsgCompleted,
-      'rejected' => l10n.buyerOrderDetailMsgRejected,
       _ => l10n.buyerOrderDetailMsgCancelled,
     };
     final statusIcon = switch (order.status) {
       'approved' => Icons.task_alt_rounded,
+      'ready_for_pickup' => Icons.storefront_rounded,
+      'out_for_delivery' => Icons.local_shipping_outlined,
+      'delivered' => Icons.inventory_2_outlined,
       'pending' => Icons.hourglass_top_rounded,
       'completed' => Icons.check_circle_rounded,
       _ => Icons.cancel_rounded,
@@ -216,7 +236,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(message, style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: AppConstants.onSurfaceVariant)),
-                if ((order.isCancelled || order.isRejected) && order.notes != null && order.notes!.trim().isNotEmpty) ...[
+                if (order.isCancelled && order.notes != null && order.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text('${l10n.adminOrderDetailReasonLabel}: ${order.notes}',
                       style: GoogleFonts.inter(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
@@ -233,18 +253,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     // Honest simplification: only "Order Placed" (created_at) and the
     // current status (updated_at) have real timestamps. Everything in
     // between is complete-but-untimestamped; everything after is upcoming.
-    final steps = [
-      l10n.buyerOrderDetailStepPlaced,
-      l10n.buyerOrderDetailStepPendingReview,
-      l10n.buyerOrderDetailStepApproved,
-      l10n.buyerOrderDetailStepCompleted,
-    ];
-    final currentIndex = switch (order.status) {
-      'pending' => 1,
-      'approved' => 2,
-      'completed' => 3,
-      _ => 0,
+    // The journey follows the fulfillment method:
+    //   pickup    placed, pending, approved, ready for pickup, completed
+    //   delivery  placed, pending, approved, out for delivery, delivered, completed
+    String label(String status) => switch (status) {
+      'pending' => l10n.buyerOrderDetailStepPendingReview,
+      'approved' => l10n.buyerOrderDetailStepApproved,
+      'ready_for_pickup' => l10n.buyerOrderStepReadyForPickup,
+      'out_for_delivery' => l10n.buyerOrderStepOutForDelivery,
+      'delivered' => l10n.buyerOrderStepDelivered,
+      _ => l10n.buyerOrderDetailStepCompleted,
     };
+    final journey = orderJourney(order.fulfillmentMethod);
+    final steps = [l10n.buyerOrderDetailStepPlaced, for (final s in journey) label(s)];
+    // index 0 is "Order Placed"; a cancelled order never left it.
+    final at = journey.indexOf(order.status);
+    final currentIndex = order.isCancelled || at < 0 ? 0 : at + 1;
 
     return GlassCard(
       child: Column(
@@ -503,9 +527,127 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  // The photo the Manager / Officer uploaded as evidence of the delivery.
+  Widget _buildDeliveryPhoto(BuyerOrderModel order, AppLocalizations l10n) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.photo_camera_outlined, size: 16, color: AppConstants.primaryGreen),
+              const SizedBox(width: 6),
+              Text(l10n.buyerOrderDeliveryPhotoTitle,
+                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          CoopDeliveryPhoto(url: order.deliveryPhotoUrl!),
+          if (order.deliveredAt != null) ...[
+            const SizedBox(height: 8),
+            Text(_formatDateTime(order.deliveredAt!, l10n),
+                style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
+          ],
+          if (order.deliveryEvidenceNote != null && order.deliveryEvidenceNote!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('“${order.deliveryEvidenceNote}”',
+                style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: AppConstants.onSurfaceVariant)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Consumer-side "I received it", for a Buyer and for a Farmer who ordered. It
+  // completes the order — the only way an order completes — and is where the kg
+  // become SOLD in the seller's stock. Offered only on an approved order; the
+  // server (confirm_order_received) re-checks the owner and status and refuses a
+  // second confirmation.
+  Widget _buildReceivedSection(BuildContext context, BuyerOrderModel order, AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.saganaColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 18, color: AppConstants.primaryGreen),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(l10n.buyerOrderReceivedCardTitle,
+                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(order.isDelivery ? l10n.buyerOrderConfirmAfterDelivered : l10n.buyerOrderConfirmAfterReady,
+              style: GoogleFonts.inter(fontSize: 12, color: AppConstants.onSurfaceVariant)),
+          if (!_isOnline) ...[
+            const SizedBox(height: 6),
+            Text(l10n.buyerOrderReceivedOffline,
+                style: GoogleFonts.inter(fontSize: 12, color: AppConstants.errorRed)),
+          ],
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: _isOnline ? () => _confirmReceived(order, l10n) : null,
+            icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+            label: Text(l10n.buyerOrderReceivedAction,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmReceived(BuyerOrderModel order, AppLocalizations l10n) async {
+    bool isSaving = false;
+    // null = dismissed without confirming (no feedback); otherwise the error
+    // text to show, or '' for success.
+    String? outcome;
+    await showManagementModal(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => ManagementModalShell(
+          title: l10n.buyerOrderReceivedDialogTitle,
+          body: Text(l10n.buyerOrderReceivedDialogBody(
+            formatQuantityUnit(order.quantityKg, order.unit),
+            order.displayName,
+          )),
+          footer: ManagementModalActions(
+            primaryLabel: l10n.buyerOrderReceivedConfirm,
+            isLoading: isSaving,
+            onPrimary: () async {
+              if (isSaving) return; // one tap, one confirmation
+              setSheet(() => isSaving = true);
+              try {
+                await _repository.confirmReceived(widget.orderId);
+                outcome = '';
+              } catch (e) {
+                outcome = friendlyErrorMessage(e);
+              }
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+            },
+          ),
+        ),
+      ),
+    );
+    final result = outcome;
+    if (result == null || !mounted) return;
+    final ok = result.isEmpty;
+    AppToast.show(context, ok ? l10n.buyerOrderReceivedToast : result, isError: !ok);
+    _load();
+  }
+
   // Buyer-side cancel. Offered only while the order is still pending: once the
-  // cooperative approves it, only the cooperative can reject it. The server
-  // re-checks ownership and status (cancel_my_order), so this is UI only.
+  // cooperative approves it, the order is committed and can only be completed.
+  // The server re-checks ownership and status (cancel_my_order), so this is UI only.
   Widget _buildCancelSection(BuildContext context, BuyerOrderModel order, AppLocalizations l10n) {
     return Container(
       width: double.infinity,

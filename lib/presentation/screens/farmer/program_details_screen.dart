@@ -8,6 +8,7 @@ import '../../../data/models/program_model.dart';
 import '../../../data/models/program_enrollment_request_model.dart';
 import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/app_toast.dart';
 
@@ -102,7 +103,7 @@ class _ProgramDetailsScreenState extends State<ProgramDetailsScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),

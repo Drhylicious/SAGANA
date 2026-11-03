@@ -83,11 +83,31 @@ void main() {
       // One line: the three centres coincide.
       expect((name.center.dy - badge.center.dy).abs(), lessThan(1.5));
       expect((badge.center.dy - menu.center.dy).abs(), lessThan(1.5));
-      // The row is as tall as the menu's tap target, no taller: the card stays short.
-      expect(menu.height, MemberTitleRow.rowHeight);
+      // The row is only one line of the name tall, so the email and phone beneath
+      // it sit close to the name; the menu keeps its full 36 px tap target, centred
+      // on the row and extending a little above and below it.
+      final rowRect = tester.getRect(find.byType(MemberTitleRow).first);
+      expect(rowRect.height, greaterThanOrEqualTo(MemberTitleRow.rowHeight));
+      expect(menu.height, MemberTitleRow.menuHeight);
+      expect(menu.width, MemberTitleRow.menuWidth);
+      expect((menu.center.dy - rowRect.center.dy).abs(), lessThan(0.5));
       // The menu is the right-most thing: its edge is the row's edge.
       final row = tester.getRect(find.byType(MemberTitleRow).first);
       expect((menu.right - row.right).abs(), lessThan(0.5));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('a one-line name makes the row compact (MemberTitleRow.rowHeight), with the 36 px menu centred on it', (
+    tester,
+  ) async {
+    await runIgnoringFontErrors(() async {
+      await _pump(tester, cards: const [('Kei', 'ACTIVE')]);
+      final row = tester.getRect(find.byType(MemberTitleRow).first);
+      final menu = _r(tester, 'member-card-menu', 0);
+      expect(row.height, MemberTitleRow.rowHeight);
+      expect(menu.height, 36);
+      expect((menu.center.dy - row.center.dy).abs(), lessThan(0.5));
       expect(tester.takeException(), isNull);
     });
   });

@@ -1,7 +1,9 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import '../../core/utils/order_reference.dart';
+import '../../core/utils/order_status.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/farmer_crop_model.dart' show marketTypeLabelFor;
 import 'admin_activity_repository.dart';
@@ -31,7 +33,7 @@ class AdminOrderModel {
   /// listing by the database; the fields keep their old names).
   final String unit;
   final double totalPrice;
-  final String status; // pending | approved | completed | cancelled
+  final String status; // pending | approved | ready_for_pickup | out_for_delivery | delivered | completed | cancelled
   final String? notes;
   // 'buyer' | 'farmer' for a pending order the buyer or farmer cancelled
   // (batch9_01). Null for rejections and for older cancellations.
@@ -49,6 +51,13 @@ class AdminOrderModel {
   final String? deliveryNotes;
   final String? deliveryRecipientName;
   final String? deliveryLabel;
+
+  // Fulfillment progress the Manager / Officer recorded, and the delivery photo.
+  final DateTime? readyAt;
+  final DateTime? outForDeliveryAt;
+  final DateTime? deliveredAt;
+  final String? deliveryPhotoUrl;
+  final String? deliveryEvidenceNote;
 
   // Detail-screen-only, same convention as BuyerOrderModel.
   final String? batchNumber;
@@ -91,6 +100,11 @@ class AdminOrderModel {
     this.deliveryNotes,
     this.deliveryRecipientName,
     this.deliveryLabel,
+    this.readyAt,
+    this.outForDeliveryAt,
+    this.deliveredAt,
+    this.deliveryPhotoUrl,
+    this.deliveryEvidenceNote,
     this.batchNumber,
     this.harvestDate,
     this.category,
@@ -101,7 +115,13 @@ class AdminOrderModel {
 
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
+  bool get isReadyForPickup => status == 'ready_for_pickup';
+  bool get isOutForDelivery => status == 'out_for_delivery';
+  bool get isDelivered => status == 'delivered';
   bool get isCompleted => status == 'completed';
+
+  /// The Manager / Officer's next step on this order, or null when it is not theirs.
+  StaffOrderAction? get nextAction => nextStaffOrderAction(status, fulfillmentMethod);
   bool get isCancelled => status == 'cancelled';
 
   bool get hasFulfillmentChoice => fulfillmentMethod != null;
@@ -122,12 +142,16 @@ class AdminOrderModel {
         return 'Pending Order';
       case 'approved':
         return 'Approved';
+      case 'ready_for_pickup':
+        return 'Ready for Pickup';
+      case 'out_for_delivery':
+        return 'Out for Delivery';
+      case 'delivered':
+        return 'Delivered';
       case 'completed':
         return 'Completed';
       case 'cancelled':
         return 'Cancelled';
-      case 'rejected':
-        return 'Disapproved';
       default:
         return status;
     }
@@ -145,6 +169,9 @@ class AdminOrderModel {
 
   String get marketTypeLabel => marketTypeLabelFor(marketType);
 
+  static DateTime? _dt(dynamic v) =>
+      v == null ? null : DateTime.parse(v as String).toLocal();
+
   factory AdminOrderModel.fromMap(Map<String, dynamic> map) {
     return AdminOrderModel(
       id: map['id'] as String,
@@ -161,7 +188,7 @@ class AdminOrderModel {
       pricePerKg: (map['price_per_kg'] as num).toDouble(),
       unit: unitOrDefault(map['unit'] as String?),
       totalPrice: (map['total_price'] as num).toDouble(),
-      status: map['status'] as String? ?? 'pending',
+      status: canonicalOrderStatus(map['status'] as String?),
       notes: map['notes'] as String?,
       cancelledBy: map['cancelled_by'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
@@ -174,6 +201,11 @@ class AdminOrderModel {
       deliveryNotes: map['delivery_notes'] as String?,
       deliveryRecipientName: map['delivery_recipient_name'] as String?,
       deliveryLabel: map['delivery_label'] as String?,
+      readyAt: _dt(map['ready_at']),
+      outForDeliveryAt: _dt(map['out_for_delivery_at']),
+      deliveredAt: _dt(map['delivered_at']),
+      deliveryPhotoUrl: map['delivery_photo_url'] as String?,
+      deliveryEvidenceNote: map['delivery_evidence_note'] as String?,
       batchNumber: map['batch_number'] as String?,
       harvestDate: map['harvest_date'] != null
           ? DateTime.parse(map['harvest_date'] as String)
@@ -192,6 +224,9 @@ class OrderSummaryStats {
   final int total;
   final int pending;
   final int approved;
+  final int readyForPickup;
+  final int outForDelivery;
+  final int delivered;
   final int completed;
   final int cancelled;
 
@@ -199,9 +234,17 @@ class OrderSummaryStats {
     required this.total,
     required this.pending,
     required this.approved,
+    this.readyForPickup = 0,
+    this.outForDelivery = 0,
+    this.delivered = 0,
     required this.completed,
     required this.cancelled,
   });
+
+  /// Orders waiting for the Manager / Officer: Pending + Approved + Out for
+  /// Delivery. Orders waiting only for the consumer's confirmation (Ready for
+  /// Pickup, Delivered) are not counted.
+  int get needsAction => pending + approved + outForDelivery;
 
   static const empty = OrderSummaryStats(
     total: 0,
@@ -210,7 +253,25 @@ class OrderSummaryStats {
     completed: 0,
     cancelled: 0,
   );
+
+  /// Builds the figures from [{status, n}] count rows ('total' is every order).
+  factory OrderSummaryStats.fromCountRows(List<Map<String, dynamic>> rows) {
+    int of(String status) => rows
+        .where((r) => r['status'] == status)
+        .fold<int>(0, (sum, r) => sum + ((r['n'] as num?)?.toInt() ?? 0));
+    return OrderSummaryStats(
+      total: of('total'),
+      pending: of('pending'),
+      approved: of('approved'),
+      readyForPickup: of('ready_for_pickup'),
+      outForDelivery: of('out_for_delivery'),
+      delivered: of('delivered'),
+      completed: of('completed'),
+      cancelled: of('cancelled'),
+    );
+  }
 }
+
 
 // ─── Admin Order Repository ──────────────────────────────────────────────────
 
@@ -319,36 +380,43 @@ class AdminOrderRepository {
     }
   }
 
+  /// The Marketplace Overview's order figures: exact counts taken by the
+  /// database (a plain select would stop at 1000 rows). Total is every order;
+  /// a legacy 'rejected' order counts as cancelled, as it is shown.
   Future<OrderSummaryStats> fetchSummaryStats() async {
     try {
       final rows = await OfflineCache.load(
-        screen: 'order_status_rows',
-        fetch: () => _client.from('orders').select('status'),
+        screen: 'order_status_counts_v2',
+        fetch: () async {
+          Future<int> n([List<String>? statuses]) {
+            var q = _client.from('orders').count();
+            if (statuses != null) q = q.inFilter('status', statuses);
+            return q;
+          }
+
+          final results = await Future.wait([
+            n(),
+            n(['pending']),
+            n(['approved']),
+            n(['completed']),
+            n(['cancelled', 'rejected']),
+            n(['ready_for_pickup']),
+            n(['out_for_delivery']),
+            n(['delivered']),
+          ]);
+          return [
+            {'status': 'total', 'n': results[0]},
+            {'status': 'pending', 'n': results[1]},
+            {'status': 'approved', 'n': results[2]},
+            {'status': 'completed', 'n': results[3]},
+            {'status': 'cancelled', 'n': results[4]},
+            {'status': 'ready_for_pickup', 'n': results[5]},
+            {'status': 'out_for_delivery', 'n': results[6]},
+            {'status': 'delivered', 'n': results[7]},
+          ];
+        },
       );
-      int pending = 0, approved = 0, completed = 0, cancelled = 0;
-      for (final r in rows) {
-        switch (r['status'] as String?) {
-          case 'pending':
-            pending++;
-            break;
-          case 'approved':
-            approved++;
-            break;
-          case 'completed':
-            completed++;
-            break;
-          case 'cancelled':
-            cancelled++;
-            break;
-        }
-      }
-      return OrderSummaryStats(
-        total: rows.length,
-        pending: pending,
-        approved: approved,
-        completed: completed,
-        cancelled: cancelled,
-      );
+      return OrderSummaryStats.fromCountRows(rows);
     } catch (_) {
       return OrderSummaryStats.empty;
     }
@@ -363,7 +431,8 @@ class AdminOrderRepository {
             'total_price, status, notes, cancelled_by, created_at, updated_at, '
             'fulfillment_method, delivery_address, delivery_latitude, '
             'delivery_longitude, delivery_contact_number, delivery_notes, '
-            'delivery_recipient_name, delivery_label',
+            'delivery_recipient_name, delivery_label, ready_at, out_for_delivery_at, '
+            'delivered_at, delivery_photo_url, delivery_evidence_note',
           )
           .eq('id', orderId)
           .maybeSingle();
@@ -471,12 +540,11 @@ class AdminOrderRepository {
 
   // ─── Actions ────────────────────────────────────────────────────────────
 
-  // Guarded RPC, matching place_order/cancel_order/complete_order's own
+  // Guarded RPC, matching place_order/cancel_my_order/complete_order's own
   // convention (SECURITY DEFINER, admin check, FOR UPDATE row lock) —
   // was previously a raw client .update(), the one action in this module
   // that didn't go through a guarded RPC. Notifications now live
-  // server-side inside approve_order() itself, same as complete_order/
-  // cancel_order. Returns false (silently, matching the old "no-op if
+  // server-side inside approve_order() itself, same as complete_order. Returns false (silently, matching the old "no-op if
   // already moved on" behavior) if the order isn't pending anymore.
   Future<void> approveOrder(String orderId) async {
     await ServerOnly.ensureOnline();
@@ -492,31 +560,68 @@ class AdminOrderRepository {
     );
   }
 
-  /// Cancel is pending-only — see supabase_schema_cancel_order_pending_only_guard.sql.
-  /// Once an order is approved, the cooperative has committed to
-  /// fulfilling it; the only forward action left is Complete Order.
-  Future<void> cancelOrder(String orderId, {String? reason}) async {
+  // ─── Fulfillment steps (Manager / Officer) ───────────────────────────────
+  // Each is one guarded database function that checks the role, the order's
+  // fulfillment method and its current status, and refuses a repeat. They are
+  // recorded by hand, one at a time; nothing moves an order on its own.
+
+  Future<void> markReadyForPickup(String orderId) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc(
-      'cancel_order',
-      params: {'p_order_id': orderId, if (reason != null) 'p_reason': reason},
-    );
+    await _client.rpc('mark_order_ready_for_pickup', params: {'p_order_id': orderId});
     AdminActivityRepository().log(
       module: 'orders',
-      actionType: 'cancelled',
-      message: const AdminLogMessage('adminLogOrderCancelled'),
+      actionType: 'ready_for_pickup',
+      message: const AdminLogMessage('adminLogOrderReadyForPickup'),
       referenceId: orderId,
     );
   }
 
-  Future<void> completeOrder(String orderId) async {
+  Future<void> markOutForDelivery(String orderId) async {
     await ServerOnly.ensureOnline();
-    await _client.rpc('complete_order', params: {'p_order_id': orderId});
+    await _client.rpc('mark_order_out_for_delivery', params: {'p_order_id': orderId});
     AdminActivityRepository().log(
       module: 'orders',
-      actionType: 'completed',
-      message: const AdminLogMessage('adminLogOrderCompleted'),
+      actionType: 'out_for_delivery',
+      message: const AdminLogMessage('adminLogOrderOutForDelivery'),
       referenceId: orderId,
     );
   }
+
+  /// Marks the order Delivered. The photo evidence is uploaded first (to the
+  /// signed-in staff member's own folder of the photo bucket); the database
+  /// refuses Delivered without it.
+  Future<void> markDelivered({
+    required String orderId,
+    required Uint8List photoBytes,
+    required String photoExtension,
+    String? note,
+  }) async {
+    await ServerOnly.ensureOnline();
+    final userId = _client.auth.currentUser!.id;
+    final path =
+        '$userId/order_delivery_${orderId}_${DateTime.now().millisecondsSinceEpoch}.$photoExtension';
+    await _client.storage
+        .from('crop_images')
+        .uploadBinary(path, photoBytes, fileOptions: const FileOptions(upsert: true));
+    final url = _client.storage.from('crop_images').getPublicUrl(path);
+    await _client.rpc('mark_order_delivered', params: {
+      'p_order_id': orderId,
+      'p_photo_url': url,
+      'p_note': note,
+    });
+    AdminActivityRepository().log(
+      module: 'orders',
+      actionType: 'delivered',
+      message: const AdminLogMessage('adminLogOrderDelivered'),
+      referenceId: orderId,
+    );
+  }
+
+  // There is no Manager "reject / cancel order" any more. An order ends in one of
+  // two ways: its Buyer or Farmer cancels it while it is still pending
+  // (BuyerOrderRepository.cancelMyOrder), or the Manager / Officer approves it
+  // and the consumer who ordered it then confirms they received it
+  // (BuyerOrderRepository.confirmReceived). The Manager / Officer does not
+  // complete an order: the database refuses it. An old stored 'rejected' reads
+  // as 'cancelled'.
 }

@@ -1,7 +1,16 @@
-import 'dart:ui';
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
+import '../../../data/models/cooperative_inventory_item.dart';
+import 'dart:async';
+import '../../../core/utils/client_id.dart';
+import '../../../core/utils/quantity_utils.dart';
+import '../../../data/services/table_change_watcher.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/cooperative_inventory_history.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -27,96 +36,6 @@ import '../../../data/models/admin_log_message.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
-class InventoryItem {
-  final String id;
-  final String itemName;
-  final String category;
-  final String unit;
-  final double quantityOnHand;
-  final double quantityReserved;
-  final double reorderLevel;
-  final double? unitCost;
-  // Where the item came from (supplier, donation, resolution...). Required for
-  // every new or edited item; null only on items created before the field
-  // existed, which the card shows as "Source not recorded".
-  final String? source;
-  final bool isActive;
-  final DateTime? lastRestockedAt;
-  final String? imageUrl;
-
-  const InventoryItem({
-    required this.id,
-    required this.itemName,
-    required this.category,
-    required this.unit,
-    required this.quantityOnHand,
-    required this.quantityReserved,
-    required this.reorderLevel,
-    this.unitCost,
-    this.source,
-    required this.isActive,
-    this.lastRestockedAt,
-    this.imageUrl,
-  });
-
-  double get available => quantityOnHand - quantityReserved;
-  bool get isLow => reorderLevel > 0 && quantityOnHand <= reorderLevel;
-  bool get isDepleted => quantityOnHand <= 0;
-
-  factory InventoryItem.fromMap(Map<String, dynamic> m) => InventoryItem(
-    id: m['id'] as String,
-    itemName: m['item_name'] as String,
-    category: m['category'] as String? ?? 'Agricultural Supplies',
-    unit: m['unit'] as String? ?? 'kg',
-    quantityOnHand: (m['quantity_on_hand'] as num?)?.toDouble() ?? 0,
-    quantityReserved: (m['quantity_reserved'] as num?)?.toDouble() ?? 0,
-    reorderLevel: (m['reorder_level'] as num?)?.toDouble() ?? 0,
-    unitCost: m['unit_cost'] != null
-        ? (m['unit_cost'] as num).toDouble()
-        : null,
-    source: (m['source'] as String?)?.trim().isEmpty ?? true
-        ? null
-        : (m['source'] as String).trim(),
-    isActive: m['is_active'] as bool? ?? true,
-    lastRestockedAt: m['last_restocked_at'] != null
-        ? DateTime.parse(m['last_restocked_at'] as String)
-        : null,
-    imageUrl: m['image_url'] as String?,
-  );
-}
-
-class InventoryTransaction {
-  final String id;
-  final String inventoryId;
-  final String transactionType;
-  final double quantity;
-  final String? notes;
-  final DateTime createdAt;
-
-  const InventoryTransaction({
-    required this.id,
-    required this.inventoryId,
-    required this.transactionType,
-    required this.quantity,
-    this.notes,
-    required this.createdAt,
-  });
-
-  factory InventoryTransaction.fromMap(Map<String, dynamic> m) =>
-      InventoryTransaction(
-        id: m['id'] as String,
-        inventoryId: m['inventory_id'] as String,
-        transactionType: m['transaction_type'] as String,
-        quantity: (m['quantity'] as num).toDouble(),
-        notes: m['notes'] as String?,
-        createdAt: DateTime.parse(m['created_at'] as String),
-      );
-
-  bool get isIncoming => quantity > 0;
-}
-
-enum _DeleteResult { success, blockedHasPurchaseHistory, failed }
-
 /// Source is required on every inventory item (rule: checkInventorySource).
 /// The database enforces the same limits and is the final authority.
 String? _validateInventorySource(String? value, AppLocalizations l10n) {
@@ -135,38 +54,21 @@ String? _validateInventorySource(String? value, AppLocalizations l10n) {
 class _CoopInventoryRepository {
   final _client = Supabase.instance.client;
 
-  Future<List<InventoryItem>> fetchAll({bool activeOnly = true}) async {
-    try {
-      final rows = activeOnly
-          ? await _client
-                .from('cooperative_inventory')
-                .select()
-                .eq('is_active', true)
-                .order('category')
-                .order('item_name')
-          : await _client
-                .from('cooperative_inventory')
-                .select()
-                .order('category')
-                .order('item_name');
-      final items = rows.map((r) => InventoryItem.fromMap(r)).toList();
-      return _dedupeItems(items);
-    } catch (_) {
-      return [];
-    }
-  }
-
-  List<InventoryItem> _dedupeItems(List<InventoryItem> items) {
-    final seen = <String>{};
+  Future<List<InventoryItem>> fetchAll({bool archived = false}) async {
+    // Page through all rows; do not hide distinct Farmers with UI deduplication.
     final result = <InventoryItem>[];
-    for (final item in items) {
-      final key =
-          '${item.itemName.trim().toLowerCase()}::${item.category.trim().toLowerCase()}::${item.unit.trim().toLowerCase()}';
-      if (seen.add(key)) {
-        result.add(item);
-      }
+    for (var offset = 0; ; offset += 500) {
+      final rows = await _client
+          .from('cooperative_inventory')
+          .select()
+          .eq('is_active', !archived)
+          .order('category')
+          .order('item_name')
+          .order('id')
+          .range(offset, offset + 499);
+      result.addAll(rows.map(InventoryItem.fromMap));
+      if (rows.length < 500) return result;
     }
-    return result;
   }
 
   Future<bool> itemExists({required String name}) async {
@@ -174,6 +76,8 @@ class _CoopInventoryRepository {
       final rows = await _client
           .from('cooperative_inventory')
           .select('id, item_name')
+          .isFilter('source_farmer_id', null)
+          .isFilter('archived_at', null)
           .order('item_name');
       final normalizedName = name.trim().toLowerCase();
       // Name alone is the identity of an inventory item — category and unit
@@ -188,22 +92,6 @@ class _CoopInventoryRepository {
       });
     } catch (_) {
       return false;
-    }
-  }
-
-  Future<List<InventoryTransaction>> fetchTransactions(
-    String inventoryId,
-  ) async {
-    try {
-      final rows = await _client
-          .from('inventory_transactions')
-          .select()
-          .eq('inventory_id', inventoryId)
-          .order('created_at', ascending: false)
-          .limit(20);
-      return rows.map((r) => InventoryTransaction.fromMap(r)).toList();
-    } catch (_) {
-      return [];
     }
   }
 
@@ -259,7 +147,10 @@ class _CoopInventoryRepository {
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'created',
-        message: AdminLogMessage('adminLogInventoryItemAdded', {'name': name.trim(), 'category': category}),
+        message: AdminLogMessage('adminLogInventoryItemAdded', {
+          'name': name.trim(),
+          'category': category,
+        }),
       );
       return true;
     } catch (_) {
@@ -271,28 +162,37 @@ class _CoopInventoryRepository {
     required String inventoryId,
     required double quantity, // positive = restock, negative = deduct
     required String transactionType,
+    required String requestId,
+    String? harvestDate,
+    String? storageLocation,
     String? notes,
   }) async {
     try {
-      // Atomic, row-locked via adjust_inventory_stock() RPC — see
-      // supabase_schema_inventory_stock_adjustment_rpc.sql. Replaces the
-      // previous unlocked read-then-write (Phase 2, item 2.6).
+      // Row-locked and idempotent; actor and audit records are server-owned.
       await _client.rpc(
-        'adjust_inventory_stock',
+        'adjust_cooperative_stock',
         params: {
           'p_inventory_id': inventoryId,
           'p_quantity': quantity,
           'p_transaction_type': transactionType,
           'p_notes': notes?.trim(),
-          'p_recorded_by': _client.auth.currentUser?.id,
+          'p_request_id': requestId,
+          'p_harvest_date': harvestDate,
+          'p_storage_location': storageLocation,
         },
       );
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: transactionType,
         message: quantity >= 0
-? AdminLogMessage('adminLogStockAdded', {'qty': '${quantity.abs()}', 'type': transactionType})
-: AdminLogMessage('adminLogStockDeducted', {'qty': '${quantity.abs()}', 'type': transactionType}),
+            ? AdminLogMessage('adminLogStockAdded', {
+                'qty': '${quantity.abs()}',
+                'type': transactionType,
+              })
+            : AdminLogMessage('adminLogStockDeducted', {
+                'qty': '${quantity.abs()}',
+                'type': transactionType,
+              }),
         referenceId: inventoryId,
       );
       return true;
@@ -333,19 +233,21 @@ class _CoopInventoryRepository {
       await _client
           .from('cooperative_inventory')
           .update({
-        'item_name': name.trim(),
-        'category': category,
-        'unit': unit,
-        'unit_cost': unitCost,
-        'reorder_level': reorderLevel,
-        'source': source.trim(),
-        'image_url': imageUrl,
+            'item_name': name.trim(),
+            'category': category,
+            'unit': unit,
+            'unit_cost': unitCost,
+            'reorder_level': reorderLevel,
+            'source': source.trim(),
+            'image_url': imageUrl,
           })
           .eq('id', id);
       AdminActivityRepository().log(
         module: 'inventory',
         actionType: 'updated',
-        message: AdminLogMessage('adminLogInventoryItemUpdated', {'name': name.trim()}),
+        message: AdminLogMessage('adminLogInventoryItemUpdated', {
+          'name': name.trim(),
+        }),
         referenceId: id,
       );
       return true;
@@ -354,50 +256,15 @@ class _CoopInventoryRepository {
     }
   }
 
-  // Soft-delete fallback for the one case delete_inventory_item() blocks —
-  // an item with Product Sales purchase history. Reuses is_active, already
-  // the filter every fetchAll() call applies.
-  Future<bool> deactivateItem(String id) async {
-    try {
-      await _client
-          .from('cooperative_inventory')
-          .update({'is_active': false})
-          .eq('id', id);
-      AdminActivityRepository().log(
-        module: 'inventory',
-        actionType: 'deactivated',
-        message: const AdminLogMessage('adminLogInventoryDeactivated'),
-        referenceId: id,
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // Atomic via delete_inventory_item() — see
-  // supabase_schema_inventory_images_feature.sql for the full FK-chain
-  // reasoning. Distinguishes the "blocked by purchase history" case (an
-  // expected, recoverable outcome the UI offers deactivation for) from any
-  // other failure.
-  Future<_DeleteResult> deleteItem(String id) async {
+  Future<bool> deleteItem(String id) async {
     try {
       await _client.rpc(
         'delete_inventory_item',
         params: {'p_inventory_id': id},
       );
-      AdminActivityRepository().log(
-        module: 'inventory',
-        actionType: 'deleted',
-        message: const AdminLogMessage('adminLogInventoryDeleted'),
-        referenceId: id,
-      );
-      return _DeleteResult.success;
-    } catch (e) {
-      if (e.toString().contains('CANNOT_DELETE_HAS_PURCHASE_HISTORY')) {
-        return _DeleteResult.blockedHasPurchaseHistory;
-      }
-      return _DeleteResult.failed;
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 }
@@ -425,6 +292,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   List<InventoryItem> _items = [];
   List<String> _categories = [];
   bool _isLoading = true;
+  bool _loadError = false;
+  bool _showArchived = false;
+  late final TableChangeWatcher _watcher;
+  StreamSubscription<bool>? _connectivitySub;
   bool _isOnline = true;
   String? _categoryFilter;
   final _searchCtrl = TextEditingController();
@@ -442,9 +313,18 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     AppTheme.applySystemOverlay(context);
     _categoryFilter = widget.initialCategoryFilter;
     _isOnline = ConnectivityService.instance.isOnline;
-    ConnectivityService.instance.onConnectivityChanged.listen((v) {
-      if (mounted) setState(() => _isOnline = v);
-    });
+    _connectivitySub = ConnectivityService.instance.onConnectivityChanged
+        .listen((v) {
+          if (!mounted) return;
+          setState(() => _isOnline = v);
+          if (v) _load();
+        });
+    _watcher = TableChangeWatcher(
+      tables: const ['cooperative_inventory'],
+      onChange: () {
+        if (mounted && _isOnline) _load();
+      },
+    )..start();
     _searchCtrl.addListener(() {
       setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
     });
@@ -453,24 +333,34 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
 
   @override
   void dispose() {
+    _watcher.dispose();
+    _connectivitySub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _repo.fetchAll(),
-      _categoryRepo.fetchInventoryCategories(),
-      _unitRepo.fetchUnits(),
-    ]);
-    if (!mounted) return;
     setState(() {
-      _items = results[0] as List<InventoryItem>;
-      _categories = results[1] as List<String>;
-      _units = results[2] as List<String>;
-      _isLoading = false;
+      _isLoading = true;
+      _loadError = false;
     });
+    try {
+      final results = await Future.wait([
+        _repo.fetchAll(archived: _showArchived),
+        _categoryRepo.fetchInventoryCategories(),
+        _unitRepo.fetchUnits(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _items = results[0] as List<InventoryItem>;
+        _categories = results[1] as List<String>;
+        _units = results[2] as List<String>;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadError = true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   List<InventoryItem> get _filtered {
@@ -479,7 +369,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
           _categoryFilter == null || i.category == _categoryFilter;
       final matchesSearch =
           _searchQuery.isEmpty ||
-          i.itemName.toLowerCase().contains(_searchQuery);
+          i.itemName.toLowerCase().contains(_searchQuery) ||
+          (i.source?.toLowerCase().contains(_searchQuery) ?? false);
       return matchesCategory && matchesSearch;
     }).toList();
   }
@@ -499,6 +390,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   int get _lowStockCount => _items.where((i) => i.isDepleted || i.isLow).length;
 
   void _showAddSheet() {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController();
@@ -543,6 +435,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
             }
 
             Future<void> submit() async {
+              if (isSaving || !_isOnline) return;
               if (!formKey.currentState!.validate()) return;
               setSheet(() => isSaving = true);
               String? imageUrl;
@@ -563,10 +456,10 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 source: sourceCtrl.text,
                 imageUrl: imageUrl,
               );
-              if (!ctx.mounted) return;
+              if (!ctx.mounted || !mounted) return;
               Navigator.pop(ctx);
               if (ok) _load();
-              ScaffoldMessenger.of(this.context).showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
                     ok ? l10n.adminInvItemAdded : l10n.adminInvItemSaveError,
@@ -637,8 +530,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     const SizedBox(height: 12),
                     Text(
                       l10n.adminInvItemPhotoLabel,
-                        style: GoogleFonts.inter(
-                            fontSize: 12,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
                         color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -677,8 +570,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Tap to add a photo',
-                                      style: GoogleFonts.inter(
-                                          fontSize: 12,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
                                       color: Theme.of(
                                         ctx,
                                       ).colorScheme.onSurfaceVariant,
@@ -756,7 +649,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   prefixText: '₱ ',
                                   isDense: true,
                                   // Same height as the Unit dropdown beside it (its box is 50 tall).
-                                  constraints: const BoxConstraints(minHeight: 50),
+                                  constraints: const BoxConstraints(
+                                    minHeight: 50,
+                                  ),
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 14,
@@ -792,8 +687,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   if ((value ?? '').trim().isEmpty) {
                                     return 'Unit cost is required';
                                   }
-                                  if (!isValidCurrencyValue(value))
+                                  if (!isValidCurrencyValue(value)) {
                                     return l10n.adminInvEnterValidAmount;
+                                  }
                                   return null;
                                 },
                               ),
@@ -822,8 +718,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         if ((value ?? '').trim().isEmpty) {
                           return 'Reorder level is required';
                         }
-                        if (!isValidWholeNumberValue(value))
+                        if (!isValidWholeNumberValue(value)) {
                           return l10n.adminInvEnterWholeNumber;
+                        }
                         return null;
                       },
                     ),
@@ -879,6 +776,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
         return StatefulBuilder(
           builder: (ctx, setSheet) {
             Future<void> submit() async {
+              if (isSaving || !_isOnline) return;
               final loanPrice = double.tryParse(priceCtrl.text.trim());
               if (loanPrice == null || loanPrice < 0) return;
 
@@ -895,13 +793,16 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   : await AdminLoanRepository().updateLoanCatalogRules(
                       loanItemId: existing['id'] as String,
                       unitPrice: loanPrice,
-                      isLoanEligible: true,
+                      // Keep the item's current state: updating the price of
+                      // an archived loan item must not bring it back.
+                      isLoanEligible:
+                          existing['is_loan_eligible'] as bool? ?? true,
                       notes: existingLoanNotes,
                     );
 
-              if (!ctx.mounted) return;
+              if (!ctx.mounted || !mounted) return;
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(this.context).showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
                     ok
@@ -929,6 +830,46 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // An archived loan item stays manageable here (price, stock),
+                  // but is not offered for new loans until restored in the
+                  // Loan Item Catalog. Say so, so a restock isn't mistaken for
+                  // putting it back on loan.
+                  if (existing != null &&
+                      existing['is_loan_eligible'] == false) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppConstants.warningAmber.withValues(
+                          alpha: 0.12,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.radiusMd,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.archive_outlined,
+                            size: 18,
+                            color: AppConstants.warningAmber,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              l10n.adminInvLoanArchivedNote,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: Theme.of(ctx).colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   TextField(
                     controller: priceCtrl,
                     decoration: InputDecoration(
@@ -970,6 +911,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   }
 
   void _showReorderLevelDialog(InventoryItem item) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final levelCtrl = TextEditingController(
       text: item.reorderLevel > 0 ? item.reorderLevel.toStringAsFixed(0) : '',
@@ -982,14 +924,15 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
         return StatefulBuilder(
           builder: (ctx, setSheet) {
             Future<void> submit() async {
+              if (isSaving || !_isOnline) return;
               final level = double.tryParse(levelCtrl.text.trim());
               if (level == null || level <= 0) return;
               setSheet(() => isSaving = true);
               final ok = await _repo.updateReorderLevel(item.id, level);
-              if (!ctx.mounted) return;
+              if (!ctx.mounted || !mounted) return;
               Navigator.pop(ctx);
               if (ok) _load();
-              ScaffoldMessenger.of(this.context).showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
                     ok
@@ -1007,7 +950,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
             return ManagementModalShell(
               title: l10n.adminInvReorderAt,
               subtitle:
-                  '${item.itemName} · Current: ${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
+                  '${item.itemName} · Current: ${formatQuantity(item.quantityOnHand)} ${item.unit}',
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -1052,9 +995,17 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   }
 
   void _showAdjustSheet(InventoryItem item) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final qtyCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
+    // Same behavior as the Farmer's Harvest Entry form: the date is picked
+    // (today by default) and the storage location is the locked, single
+    // cooperative location (AppConstants.harvestStorageLocations).
+    var harvestDate = DateTime.now();
+    final storageLocation = AppConstants.harvestStorageLocations.first;
+    final requestId = newClientId();
+    bool attempted = false;
     String selectedType = 'restock';
     bool isSaving = false;
 
@@ -1065,62 +1016,109 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
           builder: (ctx, setSheet) {
             final isDeduction =
                 selectedType == 'written_off' || selectedType == 'adjustment';
+            // Date and location describe stock that comes in, so they apply
+            // to a restock of Harvest Stock only.
+            final isHarvestAddition =
+                item.category == 'Harvest Stock' && !isDeduction;
+
+            Future<void> pickHarvestDate() async {
+              // Same picker as the Farmer's Harvest Entry form: from 2000
+              // (the batch numbering accepts 2000-2099) up to today.
+              final picked = await showDatePicker(
+                context: ctx,
+                initialDate: harvestDate,
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now(),
+                builder: (context, child) => Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: const ColorScheme.light(
+                      primary: AppConstants.primaryGreen,
+                      onPrimary: Colors.white,
+                    ),
+                  ),
+                  child: child!,
+                ),
+              );
+              if (picked != null) setSheet(() => harvestDate = picked);
+            }
 
             Future<void> submit() async {
-              final qty = double.tryParse(qtyCtrl.text);
-              if (qty == null || qty <= 0) return;
-              setSheet(() => isSaving = true);
-              final adjustedQty = isDeduction ? -qty : qty;
+              if (isSaving || !_isOnline) return;
+              final qty = parseDecimal(qtyCtrl.text);
+              if (qty != null && qty == 0) {
+                AppToast.show(ctx, l10n.coopInvQuantityZero, isError: true);
+                return;
+              }
+              if (qty == null || (isDeduction && qty > item.available)) {
+                AppToast.show(
+                  ctx,
+                  l10n.coopInvInvalidAdjustment,
+                  isError: true,
+                );
+                return;
+              }
+              setSheet(() {
+                isSaving = true;
+                attempted = true;
+              });
               final ok = await _repo.adjustStock(
                 inventoryId: item.id,
-                quantity: adjustedQty,
+                quantity: isDeduction ? -qty : qty,
                 transactionType: selectedType,
+                requestId: requestId,
+                harvestDate: isHarvestAddition
+                    ? DateFormat('yyyy-MM-dd').format(harvestDate)
+                    : null,
+                storageLocation: isHarvestAddition ? storageLocation : null,
                 notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
               );
               if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              if (ok) _load();
-              ScaffoldMessenger.of(this.context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok
-                        ? l10n.adminInvStockUpdated
-                        : l10n.adminInvFailedTryAgain,
-                  ),
-                  backgroundColor: ok
-                      ? AppConstants.midGreen
-                      : AppConstants.errorRed,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              if (ok) {
+                Navigator.pop(ctx);
+                _load();
+              } else {
+                setSheet(() => isSaving = false);
+              }
+              if (mounted) {
+                AppToast.show(
+                  context,
+                  ok ? l10n.adminInvStockUpdated : l10n.coopInvAdjustmentRetry,
+                  isError: !ok,
+                );
+              }
             }
 
             return ManagementModalShell(
               title: l10n.adminInvAdjustStockTitle,
               subtitle:
-                  '${item.itemName} · Current: ${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
+                  '${item.itemName} · Current: ${formatQuantity(item.quantityOnHand)} ${item.unit}',
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedType,
-                    decoration: InputDecoration(
+                  // The app's own dropdown, like the Add/Edit Item sheets. Locked
+                  // after a submit so a retry sends the identical request.
+                  IgnorePointer(
+                    ignoring: attempted,
+                    child: AppDropdownField<String>(
+                      value: selectedType,
+                      hintText: l10n.adminInvTransactionTypeLabel,
                       labelText: l10n.adminInvTransactionTypeLabel,
-                    ),
-                    items: _transactionTypes.map((t) {
-                      final label = {
+                      items: _transactionTypes,
+                      itemLabel: (t) => {
                         'restock': l10n.adminInvRestockAddStock,
                         'adjustment': l10n.adminInvAdjustmentDeduct,
                         'written_off': l10n.adminInvWriteOffLossDamage,
-                      }[t]!;
-                      return DropdownMenuItem(value: t, child: Text(label));
-                    }).toList(),
-                    onChanged: (v) => setSheet(() => selectedType = v!),
+                      }[t]!,
+                      onChanged: (v) {
+                        if (v != null) setSheet(() => selectedType = v);
+                      },
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: qtyCtrl,
+                    readOnly: attempted,
                     decoration: InputDecoration(
                       labelText: l10n.adminInvQuantityLabel,
                       suffixText: item.unit,
@@ -1135,9 +1133,57 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                     ],
                   ),
+                  if (isHarvestAddition) ...[
+                    const SizedBox(height: 12),
+                    // Date picker, as in the Farmer's Harvest Entry form.
+                    InkWell(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                      onTap: attempted ? null : pickHarvestDate,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: l10n.coopInvHarvestDate,
+                          suffixIcon: const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                            color: AppConstants.primaryGreen,
+                          ),
+                        ),
+                        child: Text(
+                          DateFormat('MMMM d, yyyy').format(harvestDate),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: AppConstants.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Locked, like Storage Location on the Harvest Entry form:
+                    // the cooperative has one physical storage location.
+                    TextFormField(
+                      key: ValueKey(storageLocation),
+                      initialValue: storageLocation,
+                      readOnly: true,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: AppConstants.onSurface,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: l10n.coopInvStorage,
+                        filled: true,
+                        fillColor: const Color(0xFFE6F6FF),
+                        suffixIcon: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                          color: AppConstants.outline,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: notesCtrl,
+                    readOnly: attempted,
                     decoration: InputDecoration(
                       labelText: l10n.issueLoanNotes,
                       hintText: l10n.adminInvAdjustmentNoteHint,
@@ -1160,122 +1206,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     );
   }
 
-  void _showTransactionHistory(InventoryItem item) async {
-    final l10n = AppLocalizations.of(context);
-    final transactions = await _repo.fetchTransactions(item.id);
-    if (!mounted) return;
-
+  void _showTransactionHistory(InventoryItem item) {
     showManagementModal(
       context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return ManagementModalShell(
-          title: l10n.adminInvTransactionHistoryTitle,
-          subtitle: item.itemName,
-          bodyIsScrollable: true,
-          body: transactions.isEmpty
-              ? Center(
-                  child: Text(
-                    l10n.adminInvNoTransactionsYet,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                  itemCount: transactions.length,
-                  separatorBuilder: (_, __) => Divider(
-                    height: 1,
-                    color: cs.outline.withValues(alpha: 0.08),
-                  ),
-                  itemBuilder: (_, i) {
-                    final t = transactions[i];
-                    final isIn = t.isIncoming;
-                    final color = isIn
-                        ? AppConstants.successGreen
-                        : AppConstants.errorRed;
-                    final label =
-                        {
-                          'restock': l10n.adminInvTxnRestock,
-                          'loan_issued': l10n.adminInvTxnLoanIssued,
-                          'adjustment': l10n.adminInvTxnAdjustment,
-                          'harvest_received': l10n.adminInvTxnHarvestIn,
-                          'sold': l10n.adminInvTxnSold,
-                          'returned': l10n.adminInvTxnReturned,
-                          'written_off': l10n.adminInvTxnWriteOff,
-                        }[t.transactionType] ??
-                        t.transactionType;
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              isIn ? Icons.add_rounded : Icons.remove_rounded,
-                              color: color,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  label,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: cs.onSurface,
-                                  ),
-                                ),
-                                if (t.notes != null)
-                                  Text(
-                                    t.notes!,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${isIn ? '+' : ''}${t.quantity.toStringAsFixed(1)} ${item.unit}',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: color,
-                                ),
-                              ),
-                              Text(
-                                _formatDate(t.createdAt),
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        );
-      },
+      builder: (_) => CooperativeInventoryHistory(
+        inventoryId: item.id,
+        itemName: '${item.itemName} · ${item.source ?? ''}',
+      ),
     );
   }
 
@@ -1290,6 +1227,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
   }
 
   void _showEditSheet(InventoryItem item) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: item.itemName);
@@ -1336,6 +1274,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
             }
 
             Future<void> submit() async {
+              if (isSaving || !_isOnline) return;
               if (!formKey.currentState!.validate()) return;
               setSheet(() => isSaving = true);
               String? imageUrl = existingImageUrl;
@@ -1357,13 +1296,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                 source: sourceCtrl.text,
                 imageUrl: imageUrl,
               );
-              if (!ctx.mounted) return;
+              if (!ctx.mounted || !mounted) return;
               Navigator.pop(ctx);
               if (ok) _load();
-              ScaffoldMessenger.of(this.context).showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    ok ? 'Item updated': l10n.adminInvItemSaveError,
+                    ok ? 'Item updated' : l10n.adminInvItemSaveError,
                   ),
                   backgroundColor: ok
                       ? AppConstants.midGreen
@@ -1382,41 +1321,47 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    AppDropdownField<String>(
-                      value: selectedCategory,
-                      hintText: l10n.commonSelectCategory,
-                      labelText: l10n.adminInvCategoryLabel,
-                      items: categoryOptions,
-                      itemLabel: (c) => c,
-                      onChanged: (v) => setSheet(() => selectedCategory = v),
-                      validator: (v) =>
-                          v == null ? l10n.adminInvCategoryRequired : null,
-                      addNewLabel: l10n.adminInvAddNewCategory,
-                      onAddNew: () async {
-                        final name = await promptForNewOptionName(
-                          ctx,
-                          title: l10n.adminInvAddCategoryTitle,
-                          hintText: 'e.g. Dairy',
-                        );
-                        if (name == null) return null;
-                        final added = await _categoryRepo.addInventoryCategory(
-                          name,
-                        );
-                        if (added == null) return null;
-                        setSheet(() {
-                          if (!categoryOptions.contains(added)) {
-                            categoryOptions = [...categoryOptions, added];
+                    if (item.isFarmerHarvest) Text(l10n.coopInvIdentityLocked),
+                    AbsorbPointer(
+                      absorbing: item.isFarmerHarvest,
+                      child: AppDropdownField<String>(
+                        value: selectedCategory,
+                        hintText: l10n.commonSelectCategory,
+                        labelText: l10n.adminInvCategoryLabel,
+                        items: categoryOptions,
+                        itemLabel: (c) => c,
+                        onChanged: (v) => setSheet(() => selectedCategory = v),
+                        validator: (v) =>
+                            v == null ? l10n.adminInvCategoryRequired : null,
+                        addNewLabel: l10n.adminInvAddNewCategory,
+                        onAddNew: () async {
+                          final name = await promptForNewOptionName(
+                            ctx,
+                            title: l10n.adminInvAddCategoryTitle,
+                            hintText: 'e.g. Dairy',
+                          );
+                          if (name == null) return null;
+                          final added = await _categoryRepo
+                              .addInventoryCategory(name);
+                          if (added == null) return null;
+                          setSheet(() {
+                            if (!categoryOptions.contains(added)) {
+                              categoryOptions = [...categoryOptions, added];
+                            }
+                          });
+                          if (mounted && !_categories.contains(added)) {
+                            setState(
+                              () => _categories = [..._categories, added],
+                            );
                           }
-                        });
-                        if (mounted && !_categories.contains(added)) {
-                          setState(() => _categories = [..._categories, added]);
-                        }
-                        return added;
-                      },
+                          return added;
+                        },
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: nameCtrl,
+                      readOnly: item.isFarmerHarvest,
                       decoration: InputDecoration(
                         labelText: l10n.adminInvItemNameLabel,
                       ),
@@ -1431,8 +1376,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                     const SizedBox(height: 12),
                     Text(
                       l10n.adminInvItemPhotoLabel,
-                        style: GoogleFonts.inter(
-                            fontSize: 12,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
                         color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -1461,59 +1406,59 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                             ? Image.memory(pickedImageBytes!, fit: BoxFit.cover)
                             : (existingImageUrl != null &&
                                       existingImageUrl!.isNotEmpty
-                                ? Stack(
-                                    fit: StackFit.expand,
-                                    children: [
+                                  ? Stack(
+                                      fit: StackFit.expand,
+                                      children: [
                                         Image.network(
                                           existingImageUrl!,
                                           fit: BoxFit.cover,
                                         ),
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: GestureDetector(
-                                          onTap: () => setSheet(() {
-                                            existingImageUrl = null;
-                                            pickedImageBytes = null;
-                                          }),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: const BoxDecoration(
-                                              color: Colors.black54,
-                                              shape: BoxShape.circle,
-                                            ),
+                                        Positioned(
+                                          top: 6,
+                                          right: 6,
+                                          child: GestureDetector(
+                                            onTap: () => setSheet(() {
+                                              existingImageUrl = null;
+                                              pickedImageBytes = null;
+                                            }),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.black54,
+                                                shape: BoxShape.circle,
+                                              ),
                                               child: const Icon(
                                                 Icons.close_rounded,
                                                 size: 16,
                                                 color: Colors.white,
                                               ),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
+                                      ],
+                                    )
+                                  : Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
-                                    children: [
+                                      children: [
                                         Icon(
                                           Icons.add_photo_alternate_outlined,
                                           color: Theme.of(
                                             ctx,
                                           ).colorScheme.onSurfaceVariant,
                                         ),
-                                      const SizedBox(height: 4),
+                                        const SizedBox(height: 4),
                                         Text(
                                           'Tap to add a photo',
                                           style: GoogleFonts.inter(
-                                              fontSize: 12,
+                                            fontSize: 12,
                                             color: Theme.of(
                                               ctx,
                                             ).colorScheme.onSurfaceVariant,
                                           ),
                                         ),
-                                    ],
-                                  )),
+                                      ],
+                                    )),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1522,40 +1467,44 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                       children: [
                         Expanded(
                           flex: 3,
-                          child: AppDropdownField<String>(
-                            value: selectedUnit,
-                            hintText: 'Unit',
-                            labelText: l10n.adminInvUnitLabel,
-                            // An item saved with a unit that is no longer in
-                            // the list (older data) still shows its own unit.
-                            items: [
-                              ...unitOptions,
-                              if (selectedUnit != null &&
-                                  !unitOptions.contains(selectedUnit))
-                                selectedUnit!,
-                            ],
-                            itemLabel: (u) => u,
-                            onChanged: (v) => setSheet(() => selectedUnit = v),
-                            validator: (v) =>
-                                v == null ? l10n.adminInvUnitRequired : null,
-                            addNewLabel: l10n.unitAddNewOption,
-                            onAddNew: () async {
-                              final added = await promptAddUnit(
-                                ctx,
-                                repo: _unitRepo,
-                                existing: unitOptions,
-                              );
-                              if (added == null) return null;
-                              setSheet(() {
-                                if (!unitOptions.contains(added)) {
-                                  unitOptions = [...unitOptions, added];
+                          child: AbsorbPointer(
+                            absorbing: item.isFarmerHarvest,
+                            child: AppDropdownField<String>(
+                              value: selectedUnit,
+                              hintText: 'Unit',
+                              labelText: l10n.adminInvUnitLabel,
+                              // An item saved with a unit that is no longer in
+                              // the list (older data) still shows its own unit.
+                              items: [
+                                ...unitOptions,
+                                if (selectedUnit != null &&
+                                    !unitOptions.contains(selectedUnit))
+                                  selectedUnit!,
+                              ],
+                              itemLabel: (u) => u,
+                              onChanged: (v) =>
+                                  setSheet(() => selectedUnit = v),
+                              validator: (v) =>
+                                  v == null ? l10n.adminInvUnitRequired : null,
+                              addNewLabel: l10n.unitAddNewOption,
+                              onAddNew: () async {
+                                final added = await promptAddUnit(
+                                  ctx,
+                                  repo: _unitRepo,
+                                  existing: unitOptions,
+                                );
+                                if (added == null) return null;
+                                setSheet(() {
+                                  if (!unitOptions.contains(added)) {
+                                    unitOptions = [...unitOptions, added];
+                                  }
+                                });
+                                if (mounted && !_units.contains(added)) {
+                                  setState(() => _units = [..._units, added]);
                                 }
-                              });
-                              if (mounted && !_units.contains(added)) {
-                                setState(() => _units = [..._units, added]);
-                              }
-                              return added;
-                            },
+                                return added;
+                              },
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1584,7 +1533,7 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   prefixText: '₱ ',
                                   isDense: true,
                                   // Same height as the Unit dropdown beside it (its box is 50 tall).
-                                  constraints: const BoxConstraints(minHeight: 50),
+                                  constraints: BoxConstraints(minHeight: 50),
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 14,
@@ -1603,8 +1552,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                   if ((value ?? '').trim().isEmpty) {
                                     return 'Unit cost is required';
                                   }
-                                  if (!isValidCurrencyValue(value))
+                                  if (!isValidCurrencyValue(value)) {
                                     return l10n.adminInvEnterValidAmount;
+                                  }
                                   return null;
                                 },
                               ),
@@ -1633,14 +1583,16 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                         if ((value ?? '').trim().isEmpty) {
                           return 'Reorder level is required';
                         }
-                        if (!isValidWholeNumberValue(value))
+                        if (!isValidWholeNumberValue(value)) {
                           return l10n.adminInvEnterWholeNumber;
+                        }
                         return null;
                       },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: sourceCtrl,
+                      readOnly: item.isFarmerHarvest,
                       decoration: InputDecoration(
                         labelText: '${l10n.adminInvSourceLabel} *',
                         hintText: l10n.adminInvSourceHint,
@@ -1667,125 +1619,39 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
     );
   }
 
-  // Two-step: this confirmation dialog first, then delete_inventory_item()
-  // does the actual work atomically. See supabase_schema_inventory_images_feature.sql
-  // for the full FK-chain reasoning — a RESTRICT from program_product_purchases
-  // (no item-name snapshot of its own) means an item that was ever sold
-  // through Product Sales can never be safely hard-deleted, so that case is
-  // blocked here with a deactivate-instead offer rather than attempted.
   void _confirmDeleteItem(InventoryItem item) async {
-    final l10n = AppLocalizations.of(context);
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: Text(
-          'Delete "${item.itemName}"?',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'This permanently deletes this item, including its full stock '
-          'transaction history. If it\'s currently published to the Loan '
-          'Item Catalog, it will be un-published first. This cannot be undone.',
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text(
-              'Continue',
-              style: TextStyle(color: AppConstants.errorRed),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (proceed != true || !mounted) return;
-
-    // Second, explicit confirmation step — matches the approved "two-step
-    // delete confirmation" decision.
-    final finalConfirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Are you absolutely sure?'),
-        content: Text(
-          '"${item.itemName}" will be permanently removed. This is your final confirmation.',
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.errorRed,
-            ),
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Delete Permanently'),
-          ),
-        ],
-      ),
-    );
-    if (finalConfirm != true || !mounted) return;
-
-    final result = await _repo.deleteItem(item.id);
-    if (!mounted) return;
-    if (result == _DeleteResult.blockedHasPurchaseHistory) {
-      final deactivateInstead = await showDialog<bool>(
-        context: context,
-        builder: (dialogCtx) => AlertDialog(
-          title: const Text('Can\'t delete this item'),
-          content: Text(
-            '"${item.itemName}" has purchase history in Product Sales and '
-            'can\'t be permanently deleted without losing those records. '
-            'You can deactivate it instead — it will stop appearing in '
-            'the active list everywhere.',
-            style: GoogleFonts.inter(fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, true),
-              child: const Text('Deactivate Instead'),
-            ),
-          ],
-        ),
-      );
-      if (deactivateInstead == true && mounted) {
-        final ok = await _repo.deactivateItem(item.id);
-        if (!mounted) return;
-        if (ok) _load();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              ok ? 'Item deactivated.' : l10n.adminInvFailedTryAgain,
-            ),
-            backgroundColor: ok
-                ? AppConstants.midGreen
-                : AppConstants.errorRed,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+    if (!requireManage(context, StaffModule.dashboard)) return;
+    final l = AppLocalizations.of(context);
+    if (item.quantityOnHand != 0 || item.quantityReserved != 0) {
+      AppToast.show(context, l.coopInvArchiveStockFirst, isError: true);
       return;
     }
-
-    final ok = result == _DeleteResult.success;
-    if (ok) _load();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Item deleted.' : l10n.adminInvFailedTryAgain),
-        backgroundColor: ok ? AppConstants.midGreen : AppConstants.errorRed,
-        behavior: SnackBarBehavior.floating,
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.coopInvArchiveTitle),
+        content: Text(l.coopInvArchiveExplanation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.commonArchive),
+          ),
+        ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+    final ok = await _repo.deleteItem(item.id);
+    if (!mounted) return;
+    AppToast.show(
+      context,
+      ok ? l.coopInvArchived : l.adminInvFailedTryAgain,
+      isError: !ok,
+    );
+    if (ok) _load();
   }
 
   String _formatDate(DateTime dt) {
@@ -1850,7 +1716,29 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
       body: Column(
         children: [
           // Top bar
-          SubPageTopBar(title: l10n.adminInvManagementTitle, onBack: () => context.pop()),
+          // Archive button at the top right, like the Loan Catalog; it switches
+          // between active and archived/inactive items.
+          SubPageTopBar(
+            title: l10n.adminInvManagementTitle,
+            onBack: () => context.pop(),
+            trailing: IconButton(
+              icon: Icon(
+                _showArchived
+                    ? Icons.unarchive_rounded
+                    : Icons.archive_rounded,
+                color: _showArchived ? AppConstants.primaryGreen : cs.onSurface,
+              ),
+              tooltip: _showArchived
+                  ? l10n.coopInvShowActive
+                  : l10n.coopInvShowArchived,
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      setState(() => _showArchived = !_showArchived);
+                      _load();
+                    },
+            ),
+          ),
 
           if (!_isOnline)
             Container(
@@ -1877,9 +1765,48 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
               ),
             ),
 
+          if (_showArchived)
+            Container(
+              width: double.infinity,
+              color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.archive_rounded,
+                    size: 16,
+                    color: AppConstants.primaryGreen,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.coopInvViewingArchived,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
-            child: _isLoading
-                ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+            child: _loadError
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(l10n.coopInvLoadError),
+                        TextButton(onPressed: _load, child: Text(l10n.retry)),
+                      ],
+                    ),
+                  )
+                : _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonList(),
+                  )
                 : RefreshIndicator(
                     color: AppConstants.primaryGreen,
                     onRefresh: _load,
@@ -2078,23 +2005,23 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                         child: Align(
                                           alignment: Alignment.center,
                                           child: ClipRRect(
-                                          // Matches Loan Item Catalog's
-                                          // approved 68x68 rounded-square
-                                          // presentation (was a 40x40
-                                          // circle — too small to actually
-                                          // see the photo).
-                                          borderRadius: BorderRadius.circular(
+                                            // Matches Loan Item Catalog's
+                                            // approved 68x68 rounded-square
+                                            // presentation (was a 40x40
+                                            // circle — too small to actually
+                                            // see the photo).
+                                            borderRadius: BorderRadius.circular(
                                               AppConstants.radiusMd,
                                             ),
-                                          child: SizedBox(
-                                            width: 68,
-                                            height: 68,
+                                            child: SizedBox(
+                                              width: 68,
+                                              height: 68,
                                               child:
                                                   (item.imageUrl != null &&
-                                                    item.imageUrl!.isNotEmpty)
-                                                ? Image.network(
-                                                    item.imageUrl!,
-                                                    fit: BoxFit.cover,
+                                                      item.imageUrl!.isNotEmpty)
+                                                  ? Image.network(
+                                                      item.imageUrl!,
+                                                      fit: BoxFit.cover,
                                                       errorBuilder:
                                                           (
                                                             _,
@@ -2105,29 +2032,29 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                                 .withValues(
                                                                   alpha: 0.12,
                                                                 ),
-                                                        child: Icon(
+                                                            child: Icon(
                                                               _categoryIcon(
                                                                 item.category,
                                                               ),
-                                                          color: stockColor,
-                                                          size: 28,
+                                                              color: stockColor,
+                                                              size: 28,
                                                             ),
                                                           ),
-                                                  )
-                                                : Container(
+                                                    )
+                                                  : Container(
                                                       color: stockColor
                                                           .withValues(
                                                             alpha: 0.12,
                                                           ),
-                                                    child: Icon(
+                                                      child: Icon(
                                                         _categoryIcon(
                                                           item.category,
                                                         ),
-                                                      color: stockColor,
-                                                      size: 28,
+                                                        color: stockColor,
+                                                        size: 28,
+                                                      ),
                                                     ),
-                                                  ),
-                                          ),
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -2171,6 +2098,8 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                         Text(
                                                           item.source == null
                                                               ? l10n.adminInvSourceNotRecorded
+                                                              : item.isFarmerHarvest
+                                                              ? '${l10n.coopInvFarmer}: ${item.source}'
                                                               : '${l10n.adminInvSourceLabel}: ${item.source}',
                                                           maxLines: 1,
                                                           overflow: TextOverflow
@@ -2230,31 +2159,45 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                     onSelected: (value) {
                                                       switch (value) {
                                                         case 'edit':
-                                                          _showEditSheet(item);
+                                                          if (_isOnline &&
+                                                              !_showArchived) {
+                                                            _showEditSheet(
+                                                              item,
+                                                            );
+                                                          }
                                                         case 'adjust':
-                                                          if (_isOnline)
+                                                          if (_isOnline &&
+                                                              !_showArchived) {
                                                             _showAdjustSheet(
                                                               item,
                                                             );
+                                                          }
                                                         case 'publish':
-                                                          if (_isOnline)
+                                                          if (_isOnline &&
+                                                              !_showArchived) {
                                                             _showLoanCatalogSheet(
                                                               item,
                                                             );
+                                                          }
                                                         case 'history':
                                                           _showTransactionHistory(
                                                             item,
                                                           );
                                                         case 'delete':
-                                                          if (_isOnline)
+                                                          if (_isOnline &&
+                                                              !_showArchived) {
                                                             _confirmDeleteItem(
                                                               item,
                                                             );
+                                                          }
                                                       }
                                                     },
                                                     itemBuilder: (ctx) => [
                                                       PopupMenuItem(
                                                         value: 'edit',
+                                                        enabled:
+                                                            _isOnline &&
+                                                            !_showArchived,
                                                         child: _menuRow(
                                                           Icons.edit_outlined,
                                                           'Edit Item',
@@ -2263,7 +2206,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                       ),
                                                       PopupMenuItem(
                                                         value: 'adjust',
-                                                        enabled: _isOnline,
+                                                        enabled:
+                                                            _isOnline &&
+                                                            !_showArchived,
                                                         child: _menuRow(
                                                           Icons.tune_rounded,
                                                           l10n.adminInvAdjustStockTitle,
@@ -2272,7 +2217,9 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                       ),
                                                       PopupMenuItem(
                                                         value: 'publish',
-                                                        enabled: _isOnline,
+                                                        enabled:
+                                                            _isOnline &&
+                                                            !_showArchived,
                                                         child: _menuRow(
                                                           Icons
                                                               .request_page_rounded,
@@ -2291,11 +2238,13 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                       const PopupMenuDivider(),
                                                       PopupMenuItem(
                                                         value: 'delete',
-                                                        enabled: _isOnline,
+                                                        enabled:
+                                                            _isOnline &&
+                                                            !_showArchived,
                                                         child: _menuRow(
                                                           Icons
                                                               .delete_outline_rounded,
-                                                          'Delete Item',
+                                                          l10n.commonArchive,
                                                           AppConstants.errorRed,
                                                         ),
                                                       ),
@@ -2316,63 +2265,65 @@ class _AdminInventoryScreenState extends State<AdminInventoryScreen> {
                                                 scrollDirection:
                                                     Axis.horizontal,
                                                 child: Row(
-                                                children: [
-                                                  _StockStat(
+                                                  children: [
+                                                    _StockStat(
                                                       label:
                                                           l10n.adminInvOnHand,
-                                                    value:
-                                                        '${item.quantityOnHand.toStringAsFixed(1)} ${item.unit}',
-                                                    color: stockColor,
-                                                  ),
-                                                  const SizedBox(width: 16),
-                                                  _StockStat(
+                                                      value:
+                                                          '${formatQuantity(item.quantityOnHand)} ${item.unit}',
+                                                      color: stockColor,
+                                                    ),
+                                                    const SizedBox(width: 16),
+                                                    _StockStat(
                                                       label: l10n
                                                           .adminInvAvailable,
-                                                    value:
-                                                        '${item.available.toStringAsFixed(1)} ${item.unit}',
-                                                    color: cs.onSurface,
-                                                  ),
-                                                  const SizedBox(width: 16),
-                                                  // Always shown (not just
-                                                  // when > 0) and tappable —
-                                                  // items created before
-                                                  // Reorder Level became a
-                                                  // required field have it
-                                                  // unset at 0, which used to
-                                                  // hide this stat entirely
-                                                  // and left no way to fix it
-                                                  // from the UI. Since Low
-                                                  // Stock only counts items
-                                                  // with a reorder level set
-                                                  // (reorderLevel > 0), an
-                                                  // unset item can never
-                                                  // register as low — this is
-                                                  // the actual fix for that,
-                                                  // not just a display tweak.
-                                                  GestureDetector(
-                                                    onTap: _isOnline
-                                                        ? () =>
-                                                              _showReorderLevelDialog(
-                                                                item,
-                                                              )
-                                                        : null,
-                                                    child: _StockStat(
+                                                      value:
+                                                          '${formatQuantity(item.available)} ${item.unit}',
+                                                      color: cs.onSurface,
+                                                    ),
+                                                    const SizedBox(width: 16),
+                                                    // Always shown (not just
+                                                    // when > 0) and tappable —
+                                                    // items created before
+                                                    // Reorder Level became a
+                                                    // required field have it
+                                                    // unset at 0, which used to
+                                                    // hide this stat entirely
+                                                    // and left no way to fix it
+                                                    // from the UI. Since Low
+                                                    // Stock only counts items
+                                                    // with a reorder level set
+                                                    // (reorderLevel > 0), an
+                                                    // unset item can never
+                                                    // register as low — this is
+                                                    // the actual fix for that,
+                                                    // not just a display tweak.
+                                                    GestureDetector(
+                                                      onTap:
+                                                          _isOnline &&
+                                                              !_showArchived
+                                                          ? () =>
+                                                                _showReorderLevelDialog(
+                                                                  item,
+                                                                )
+                                                          : null,
+                                                      child: _StockStat(
                                                         label: l10n
                                                             .adminInvReorderAt,
                                                         value:
                                                             item.reorderLevel >
-                                                              0
-                                                          ? '${item.reorderLevel.toStringAsFixed(0)} ${item.unit}'
-                                                          : 'Not set',
+                                                                0
+                                                            ? '${item.reorderLevel.toStringAsFixed(0)} ${item.unit}'
+                                                            : 'Not set',
                                                         color:
                                                             item.reorderLevel >
-                                                              0
-                                                          ? cs.onSurfaceVariant
-                                                          : AppConstants
-                                                              .warningAmber,
+                                                                0
+                                                            ? cs.onSurfaceVariant
+                                                            : AppConstants
+                                                                  .warningAmber,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
+                                                  ],
                                                 ),
                                               ),
                                               if (item.unitCost != null ||
@@ -2492,20 +2443,20 @@ class _PhotoSourceSheet extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           clipBehavior: Clip.antiAlias,
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
                 width: 36,
                 height: 4,
-              decoration: BoxDecoration(
+                decoration: BoxDecoration(
                   color: Theme.of(
                     context,
                   ).colorScheme.outline.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            ListTile(
+              ListTile(
                 leading: const Icon(
                   Icons.photo_camera_rounded,
                   color: AppConstants.primaryGreen,
@@ -2514,9 +2465,9 @@ class _PhotoSourceSheet extends StatelessWidget {
                   'Take Photo',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w600),
                 ),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
                 leading: const Icon(
                   Icons.photo_library_rounded,
                   color: AppConstants.primaryGreen,
@@ -2525,10 +2476,10 @@ class _PhotoSourceSheet extends StatelessWidget {
                   'Upload Photo',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w600),
                 ),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         ),
       ),

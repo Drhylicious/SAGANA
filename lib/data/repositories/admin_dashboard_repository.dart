@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
+import 'completed_order_dates.dart';
 import '../models/admin_dashboard_model.dart';
 import '../repositories/admin_loan_repository.dart';
 import '../../core/utils/bod_schedule_utils.dart';
@@ -95,10 +96,26 @@ class AdminDashboardRepository {
   Future<List<Map<String, dynamic>>> _fetchPendingListingRows() {
     return _pendingListingRowsCache ??= OfflineCache.load(
       screen: 'admin_dash_pending_listings',
-      fetch: () => _client
-          .from('marketplace_listings')
-          .select('id')
-          .eq('status', 'pending_review'),
+      // New listings waiting for approval PLUS Farmer edit requests for
+      // published listings: both are waiting on a Manager / Officer decision.
+      fetch: () async {
+        final listings = await _client
+            .from('marketplace_listings')
+            .select('id')
+            .eq('status', 'pending_review');
+        var edits = <Map<String, dynamic>>[];
+        try {
+          edits = List<Map<String, dynamic>>.from(
+            await _client
+                .from('listing_edit_requests')
+                .select('id')
+                .eq('status', 'pending'),
+          );
+        } catch (_) {
+          // The edit-request table is not there yet: count the listings alone.
+        }
+        return [...listings, ...edits];
+      },
     );
   }
 
@@ -210,11 +227,17 @@ class AdminDashboardRepository {
       final monthStart = DateTime(now.year, now.month, 1);
       final rows = await OfflineCache.load(
         screen: 'admin_dash__kpiRevenueThisMonth_1',
-        fetch: () => _client
-            .from('orders')
-            .select('total_price')
-            .eq('status', 'completed')
-            .gte('created_at', monthStart.toIso8601String()),
+        // A completed order counts on the day the buyer confirmed receipt (see
+        // CompletedOrderDates), the same day the Sales Report uses.
+        fetch: () => CompletedOrderDates.withFallback((withReceivedAt) {
+          final base = _client
+              .from('orders')
+              .select(withReceivedAt ? 'total_price, created_at, received_at' : 'total_price, created_at')
+              .eq('status', 'completed');
+          return withReceivedAt
+              ? base.or(CompletedOrderDates.window(monthStart, null)!)
+              : base.gte('created_at', monthStart.toIso8601String());
+        }),
       );
       return rows.fold<double>(
         0,

@@ -3,6 +3,7 @@ import '../services/offline_cache.dart';
 import '../../core/utils/order_reference.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/admin_reports_model.dart';
+import 'completed_order_dates.dart';
 import 'crop_lookup.dart';
 import 'farmer_lookup.dart';
 import '../models/expense_model.dart';
@@ -139,20 +140,31 @@ class AdminReportsRepository {
     DateTime? endDate,
   }) async {
     try {
-      var query = _client
-          .from('orders')
-          .select('total_price')
-          .eq('status', 'completed');
-      if (startDate != null) {
-        query = query.gte('created_at', _dateOnly(startDate));
-      }
-      if (endDate != null) {
-        query = query.lt('created_at', _exclusiveUpperBound(endDate));
-      }
+      // A completed order counts on the day the buyer confirmed receipt (see
+      // CompletedOrderDates), the same day the Sales Report and every Farmer's
+      // own history use for it.
+      final lower = startDate == null ? null : DateTime.parse(_dateOnly(startDate));
+      final upper = endDate == null
+          ? null
+          : DateTime.parse(_exclusiveUpperBound(endDate));
       final rows = await OfflineCache.load(
         screen:
             'perf_marketplace_${startDate?.toIso8601String() ?? 'any'}_${endDate?.toIso8601String() ?? 'any'}',
-        fetch: () => query,
+        fetch: () => CompletedOrderDates.withFallback((withReceivedAt) {
+          var query = _client
+              .from('orders')
+              .select(
+                withReceivedAt ? 'total_price, created_at, received_at' : 'total_price, created_at',
+              )
+              .eq('status', 'completed');
+          if (withReceivedAt) {
+            final window = CompletedOrderDates.window(lower, upper);
+            return window == null ? query : query.or(window);
+          }
+          if (lower != null) query = query.gte('created_at', lower.toIso8601String());
+          if (upper != null) query = query.lt('created_at', upper.toIso8601String());
+          return query;
+        }),
       );
       return rows.fold<double>(
         0,
@@ -577,9 +589,19 @@ class AdminReportsRepository {
         .toSet()
         .toList();
     final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+    final cropInfo = await _fetchCropInfoByName();
+    final staffNames = await _fetchStaffNames([
+      for (final r in rows)
+        if (r['recorded_by'] != null) r['recorded_by'] as String,
+    ]);
+    // The agreed price per unit lives on the offer that created the sale.
+    final priceBySale = await _fetchOfferPricesBySale([
+      for (final r in rows) r['id'] as String,
+    ]);
 
     return rows.map((row) {
       final info = farmerInfo[row['farmer_id']];
+      final crop = cropInfo[(row['crop_name'] as String).toLowerCase()];
       return SalesTransactionRow(
         id: row['id'] as String,
         farmerName: info?.fullName ?? 'Unknown Farmer',
@@ -591,9 +613,51 @@ class AdminReportsRepository {
         saleDate: DateTime.parse(row['sale_date'] as String),
         referenceNo: row['reference_no'] as String?,
         sellingType: 'offer_to_cooperative',
-        marketType: null,
+        marketType: crop?.marketType,
+        cropCategory: crop?.category,
+        pricePerKg: priceBySale[row['id'] as String],
+        recordedBy: staffNames[row['recorded_by']],
       );
     }).toList();
+  }
+
+  /// The agreed price per unit of each cooperative sale, from the completed offer
+  /// that created it. A sale entered some other way has none.
+  Future<Map<String, double>> _fetchOfferPricesBySale(List<String> saleIds) async {
+    if (saleIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('cooperative_purchase_offers')
+          .select('member_sales_transaction_id, agreed_price_per_kg')
+          .inFilter('member_sales_transaction_id', saleIds);
+      return {
+        for (final r in rows)
+          if (r['agreed_price_per_kg'] != null)
+            r['member_sales_transaction_id'] as String:
+                (r['agreed_price_per_kg'] as num).toDouble(),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// user id -> full name of the Manager / Officer behind a recorded sale (staff
+  /// may read every user's name).
+  Future<Map<String, String>> _fetchStaffNames(List<String> userIds) async {
+    final ids = userIds.toSet().toList();
+    if (ids.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('user_information')
+          .select('user_id, full_name')
+          .inFilter('user_id', ids);
+      return {
+        for (final r in rows)
+          r['user_id'] as String: (r['full_name'] as String? ?? '').trim(),
+      };
+    } catch (_) {
+      return {};
+    }
   }
 
   /// Channel 2/4: Marketplace — orders completed against a listing, any
@@ -607,19 +671,28 @@ class AdminReportsRepository {
     DateTime? startDate,
     DateTime? endDate,
   ) async {
-    var query = _client
-        .from('orders')
-        .select(
-          'id, order_number, listing_id, buyer_id, quantity_kg, unit, total_price, status, created_at',
-        )
-        .eq('status', 'completed');
-    if (startDate != null) {
-      query = query.gte('created_at', _dateOnly(startDate));
-    }
-    if (endDate != null) {
-      query = query.lt('created_at', _exclusiveUpperBound(endDate));
-    }
-    final rows = await query;
+    // A completed order is a sale on the day the buyer confirmed receipt (see
+    // CompletedOrderDates), the same day the Farmer's own history shows.
+    final lower = startDate == null ? null : DateTime.parse(_dateOnly(startDate));
+    final upper = endDate == null
+        ? null
+        : DateTime.parse(_exclusiveUpperBound(endDate));
+    final rows = await CompletedOrderDates.withFallback((withReceivedAt) {
+      var query = _client
+          .from('orders')
+          .select(
+            'id, order_number, listing_id, buyer_id, quantity_kg, unit, price_per_kg, '
+            'total_price, status, created_at${withReceivedAt ? ', received_at' : ''}',
+          )
+          .eq('status', 'completed');
+      if (withReceivedAt) {
+        final window = CompletedOrderDates.window(lower, upper);
+        return window == null ? query : query.or(window);
+      }
+      if (lower != null) query = query.gte('created_at', lower.toIso8601String());
+      if (upper != null) query = query.lt('created_at', upper.toIso8601String());
+      return query;
+    });
     if (rows.isEmpty) return [];
 
     final listingIds = rows
@@ -638,11 +711,7 @@ class AdminReportsRepository {
         .toList();
     final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
 
-    final cropNames = listingRows
-        .map((l) => l['crop_name'] as String)
-        .toSet()
-        .toList();
-    final marketTypeMap = await _fetchMarketTypeByCropName(cropNames);
+    final cropInfo = await _fetchCropInfoByName();
 
     // Buyer name for the detail popup — admin has full read access to
     // user_information (unlike the farmer-side equivalent, which needs
@@ -677,10 +746,12 @@ class AdminReportsRepository {
         quantityKg: (row['quantity_kg'] as num).toDouble(),
         unit: unitOrDefault(row['unit'] as String?),
         amount: (row['total_price'] as num).toDouble(),
-        saleDate: DateTime.parse(row['created_at'] as String),
+        saleDate: CompletedOrderDates.of(row),
         referenceNo: orderReferenceOf(row['id'] as String, row['order_number'] as String?),
         sellingType: 'marketplace',
-        marketType: marketTypeMap[cropName.toLowerCase()],
+        marketType: cropInfo[cropName.toLowerCase()]?.marketType,
+        cropCategory: cropInfo[cropName.toLowerCase()]?.category,
+        pricePerKg: (row['price_per_kg'] as num?)?.toDouble(),
         buyerName: buyerNameById[row['buyer_id']],
         orderStatus: row['status'] as String?,
       );
@@ -715,9 +786,11 @@ class AdminReportsRepository {
         .toSet()
         .toList();
     final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+    final cropInfo = await _fetchCropInfoByName();
 
     return rows.map((row) {
       final info = farmerInfo[row['farmer_id']];
+      final crop = cropInfo[(row['crop_name'] as String).toLowerCase()];
       return SalesTransactionRow(
         id: row['id'] as String,
         farmerName: info?.fullName ?? 'Unknown Farmer',
@@ -726,9 +799,10 @@ class AdminReportsRepository {
         quantityKg: (row['quantity_kg'] as num).toDouble(),
         unit: unitOrDefault(row['unit'] as String?),
         amount: (row['amount'] as num?)?.toDouble() ?? 0,
-        saleDate: DateTime.parse(row['sale_date'] as String),
+        saleDate: DateTime.parse(row['sale_date'] as String).toLocal(),
         sellingType: 'informal_sale',
-        marketType: null,
+        marketType: crop?.marketType,
+        cropCategory: crop?.category,
         buyerName: row['buyer_name'] as String?,
       );
     }).toList();
@@ -744,19 +818,31 @@ class AdminReportsRepository {
     DateTime? startDate,
     DateTime? endDate,
   ) async {
-    var query = _client
-        .from('market_linking_programs')
-        .select(
-          'id, farmer_id, crop_name, volume_kg, requested_volume_kg, confirmed_volume_kg, price_per_kg, buyer_name, completed_at',
-        )
-        .eq('status', 'completed');
-    if (startDate != null) {
-      query = query.gte('completed_at', startDate.toIso8601String());
+    // One row per recorded sale (market_linking_sales), with the buyer saved
+    // on it. A database without the email column yet still returns the sale.
+    Future<List<Map<String, dynamic>>> read(String columns) async {
+      var query = _client.from('market_linking_sales').select(columns);
+      if (startDate != null) {
+        query = query.gte('completed_at', startDate.toIso8601String());
+      }
+      if (endDate != null) {
+        query = query.lt('completed_at', _exclusiveUpperBound(endDate));
+      }
+      return List<Map<String, dynamic>>.from(await query);
     }
-    if (endDate != null) {
-      query = query.lt('completed_at', _exclusiveUpperBound(endDate));
+
+    const base =
+        'id, farmer_id, crop_name, confirmed_volume_kg, price_per_kg, buyer_name, buyer_contact, completed_at, recorded_by';
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = await read('$base, buyer_email, unit');
+    } catch (_) {
+      try {
+        rows = await read('$base, buyer_email');
+      } catch (_) {
+        rows = await read(base);
+      }
     }
-    final rows = await query;
     if (rows.isEmpty) return [];
 
     final farmerIds = rows
@@ -764,18 +850,18 @@ class AdminReportsRepository {
         .toSet()
         .toList();
     final farmerInfo = await fetchFarmerInfoMap(_client, farmerIds);
+    final cropInfo = await _fetchCropInfoByName();
+    final staffNames = await _fetchStaffNames([
+      for (final r in rows)
+        if (r['recorded_by'] != null) r['recorded_by'] as String,
+    ]);
 
     return rows.where((r) => r['completed_at'] != null).map((row) {
       final info = farmerInfo[row['farmer_id']];
-      // The quantity actually sold: the confirmed volume if one was set at
-      // completion, else what the buyer asked for, else what the farmer
-      // enrolled. Farmer Home, Farmer Transaction History and this report all
-      // use the same order, so they cannot disagree.
-      final qty =
-          (row['confirmed_volume_kg'] as num?)?.toDouble() ??
-          (row['requested_volume_kg'] as num?)?.toDouble() ??
-          (row['volume_kg'] as num?)?.toDouble() ??
-          0;
+      // The quantity of this one sale. Farmer Home, Farmer Transaction History
+      // and this report all read the same rows, so they cannot disagree.
+      final qty = (row['confirmed_volume_kg'] as num?)?.toDouble() ?? 0;
+
       final pricePerKg = (row['price_per_kg'] as num?)?.toDouble() ?? 0;
       final cropName = row['crop_name'] as String? ?? 'Ginger';
       return SalesTransactionRow(
@@ -784,33 +870,42 @@ class AdminReportsRepository {
         cropType: cropName.toLowerCase(),
         cropName: cropName,
         quantityKg: qty,
+        unit: unitOrDefault(row['unit'] as String?),
         amount: moneyOf(qty, pricePerKg),
-        saleDate: DateTime.parse(row['completed_at'] as String),
+        saleDate: DateTime.parse(row['completed_at'] as String).toLocal(),
         sellingType: 'da_amad_market_linking',
-        // DA-AMAD is a selling channel, not a market type.
-        marketType: null,
+        // DA-AMAD is a selling channel, not a market type: this is the CROP's
+        // own market type (Ginger is sold to DA-AMAD, whatever its market).
+        marketType: cropInfo[cropName.toLowerCase()]?.marketType,
+        cropCategory: cropInfo[cropName.toLowerCase()]?.category,
         buyerName: row['buyer_name'] as String?,
+        buyerContact: row['buyer_contact'] as String?,
+        buyerEmail: row['buyer_email'] as String?,
+        pricePerKg: pricePerKg,
+        recordedBy: staffNames[row['recorded_by']],
       );
     }).toList();
   }
 
-  /// Resolves each crop name to its Market Type label via crop_master,
-  /// by name (case-insensitive) — marketplace_listings has no crop_id FK
-  /// to join on directly.
-  Future<Map<String, String>> _fetchMarketTypeByCropName(
-    List<String> cropNames,
-  ) async {
-    if (cropNames.isEmpty) return {};
+  /// Resolves each crop name to its Market Type label and category via
+  /// crop_master, by name (case-insensitive) — marketplace_listings and the other
+  /// sale tables have no crop_id FK to join on directly. The same lookup the
+  /// Farmer's own Transaction History uses, so the two always read a crop alike.
+  Future<Map<String, ({String? marketType, String? category})>>
+  _fetchCropInfoByName() async {
     try {
       final rows = await _client
           .from('crop_master')
-          .select('crop_name, crop_type');
-      final map = <String, String>{};
-      for (final r in rows) {
-        final name = (r['crop_name'] as String).toLowerCase();
-        map[name] = _marketTypeLabel(r['crop_type'] as String?);
-      }
-      return map;
+          .select('crop_name, crop_type, category');
+      return {
+        for (final r in rows)
+          (r['crop_name'] as String).toLowerCase(): (
+            marketType: r['crop_type'] == null
+                ? null
+                : _marketTypeLabel(r['crop_type'] as String?),
+            category: r['category'] as String?,
+          ),
+      };
     } catch (_) {
       return {};
     }
@@ -884,12 +979,13 @@ class AdminReportsRepository {
       for (final row in rows) {
         final available = (row['available_kg'] as num).toDouble();
         final sold = (row['sold_kg'] as num? ?? 0).toDouble();
-        // The stored reserved_kg column is never written by the reservation
-        // model (always 0), so the committed amount is derived instead.
+        // Committed = harvested - available - sold - adjusted (the same figure
+        // the database keeps in reserved_kg).
         final reserved = committedBatchKg(
           quantityKg: (row['quantity_kg'] as num).toDouble(),
           availableKg: available,
           soldKg: sold,
+          adjustedKg: (row['adjusted_kg'] as num? ?? 0).toDouble(),
         );
         final status = row['status'] as String? ?? 'available';
         final cropName = row['_crop_name'] as String;

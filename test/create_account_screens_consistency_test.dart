@@ -68,12 +68,14 @@ void main() {
         'Personal Information',
       ]);
       expect(officerSections.take(2).toList(), farmerSections.take(2).toList());
-      // Then each form's own: Farmer has membership and crops, the Officer has
-      // the officer position.
+      // Then each form's own. The Farmer form has nothing more on its first
+      // step (its address and summary are the next two steps, as on Register);
+      // the Officer has the Module Access matrix (View Only / Manage per module).
+      expect(farmerSections, ['Account Credentials', 'Personal Information']);
       expect(officerSections, [
         'Account Credentials',
         'Personal Information',
-        'Officer',
+        'Module Access',
       ]);
     });
   });
@@ -90,7 +92,14 @@ void main() {
   testWidgets('the Officer form keeps its own fields (and DOB and gender are required)', (tester) async {
     await runIgnoringFontErrors(() async {
       await _pump(tester, const CreateOfficerAccountScreen());
-      expect(find.text('Position'), findsOneWidget);
+      // Position is gone: access is set per module instead.
+      expect(find.text('Position'), findsNothing);
+      expect(find.text('Module Access'), findsOneWidget);
+      for (final module in ['Dashboard', 'Members', 'Marketplace', 'Loans', 'Reports']) {
+        expect(find.text(module), findsOneWidget, reason: module);
+      }
+      // Every module starts View Only.
+      expect(find.text('View Only'), findsNWidgets(5));
       expect(find.text('Surname *'), findsOneWidget);
       expect(find.text('First Name *'), findsOneWidget);
       expect(find.text('M.I.'), findsOneWidget);
@@ -111,15 +120,20 @@ void main() {
   });
 
   testWidgets(
-    'the Farmer form is unchanged: required DOB/gender, membership and crops',
+    'the Farmer form: three steps like Register, DOB and gender required, no membership or crops',
     (tester) async {
       await runIgnoringFontErrors(() async {
         await _pump(tester, const AddNewMemberScreen());
+        expect(find.text('Step 1 of 3'), findsOneWidget);
         expect(find.text('Date of Birth *'), findsOneWidget);
         expect(find.text('Gender *'), findsOneWidget);
-        expect(find.text('Cooperative Membership'), findsOneWidget);
-        expect(find.text('Initial Crops'), findsOneWidget);
-        expect(find.text('Create Farmer Account'), findsOneWidget);
+        // Not asked here any more (the database defaults apply; contributions
+        // are added later from Farmer Details).
+        expect(find.text('Cooperative Membership'), findsNothing);
+        expect(find.text('Initial Crops'), findsNothing);
+        // The first step goes Next; the account is created on the last step.
+        expect(find.text('Next'), findsOneWidget);
+        expect(find.text('Create Farmer Account'), findsNothing);
       });
     },
   );
@@ -169,8 +183,10 @@ void main() {
     'Create Farmer': () => const AddNewMemberScreen(),
     'Create Officer': () => const CreateOfficerAccountScreen(),
   }.entries) {
+    // The Farmer form checks each step when you press Next; the Officer form
+    // checks everything when you press Create.
     final buttonLabel = entry.key == 'Create Farmer'
-        ? 'Create Farmer Account'
+        ? 'Next'
         : 'Create Officer Account';
 
     testWidgets('${entry.key}: empty submit shows one message per field', (

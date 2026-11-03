@@ -2,12 +2,15 @@ import '../../core/utils/quantity_utils.dart';
 
 /// Dedicated model for cooperative_purchase_offers.
 ///
-/// An offer is a negotiation over the PRICE PER KG of a fixed quantity. The
-/// stored status values are 'pending' (the negotiation is open), 'confirmed'
-/// (agreed and settled), 'declined' (the Cooperative ended it) and 'cancelled'
-/// (the Farmer ended it). While an offer is pending, [lastProposedBy] says who
-/// made the latest price, and so who has to answer next. Filter and query
-/// logic must always use these stored values, never a display label.
+/// An offer is a negotiation over the PRICE PER KG of a fixed quantity, then a
+/// hand-over. The stored status values are 'pending' (the negotiation is open),
+/// 'approved' (price agreed; the Farmer delivers), 'delivered' (the Farmer
+/// delivered with photo evidence; the Cooperative confirms receipt),
+/// 'completed' (receipt confirmed: sold, settled and in cooperative inventory),
+/// 'declined' (the Cooperative ended it) and 'cancelled' (the Farmer ended it).
+/// While an offer is pending, [lastProposedBy] says who made the latest price,
+/// and so who has to answer next. Filter and query logic must always use these
+/// stored values, never a display label.
 class CooperativeOfferModel {
   final String id;
   final String farmerId;
@@ -20,7 +23,7 @@ class CooperativeOfferModel {
   final String unit;
   final DateTime offeredAt;
   final String? inventoryBatchId;
-  final String status; // pending | confirmed | declined | cancelled
+  final String status; // pending | approved | delivered | completed | declined | cancelled
   final double? confirmedQuantityKg;
   final double? confirmedAmount;
   final String? adminNotes;
@@ -43,8 +46,23 @@ class CooperativeOfferModel {
   /// or counter so a price that changed in the meantime cannot be accepted.
   final int negotiationRound;
 
-  // Detail-screen-only, left null by the list queries.
+  /// The Farmer's photo evidence of the delivery and when it was marked
+  /// delivered; set once the offer is 'delivered'.
+  final String? deliveryPhotoUrl;
+  final String? deliveryNote;
+  final DateTime? deliveredAt;
+
+  /// When the Manager / Officer confirmed the physical receipt; set once the
+  /// offer is 'completed'.
+  final DateTime? receivedAt;
+  final String? receiptNote;
+
+  // Contact details of the Farmer, read by the Manager / Officer only (a Farmer
+  // never loads another person's). Null when the Farmer has not given one.
   final String? farmerPhone;
+  final String? farmerEmail;
+
+  // Detail-screen-only, left null by the list queries.
   final String? farmerPhotoUrl;
   final String? batchNumber;
   final DateTime? harvestDate;
@@ -69,7 +87,13 @@ class CooperativeOfferModel {
     this.agreedPricePerKg,
     this.lastProposedBy = 'farmer',
     this.negotiationRound = 1,
+    this.deliveryPhotoUrl,
+    this.deliveryNote,
+    this.deliveredAt,
+    this.receivedAt,
+    this.receiptNote,
     this.farmerPhone,
+    this.farmerEmail,
     this.farmerPhotoUrl,
     this.batchNumber,
     this.harvestDate,
@@ -77,9 +101,21 @@ class CooperativeOfferModel {
   });
 
   bool get isPending => status == 'pending';
-  bool get isConfirmed => status == 'confirmed';
+  bool get isApproved => status == 'approved';
+  bool get isDelivered => status == 'delivered';
+  bool get isCompleted => status == 'completed';
   bool get isDeclined => status == 'declined';
   bool get isCancelled => status == 'cancelled';
+
+  /// The price is agreed (approved, delivered or completed): the figures shown
+  /// are the agreed ones, not a proposal.
+  bool get isAgreed => isApproved || isDelivered || isCompleted;
+
+  /// Approved: the Farmer has to deliver and upload the photo.
+  bool get awaitingDelivery => isApproved;
+
+  /// Delivered: the Manager / Officer has to confirm the physical receipt.
+  bool get awaitingReceipt => isDelivered;
 
   /// Open, and the Cooperative has to answer (the Farmer proposed last).
   bool get awaitingCooperative => isPending && lastProposedBy == 'farmer';
@@ -94,8 +130,8 @@ class CooperativeOfferModel {
       ? null
       : moneyOf(currentPricePerKg!, offeredQuantityKg);
 
-  /// The settled amount once accepted, else null.
-  double? get settledAmount => isConfirmed ? confirmedAmount : null;
+  /// The settled amount once the delivery is confirmed (completed), else null.
+  double? get settledAmount => isCompleted ? confirmedAmount : null;
 
   String get offeredLabel {
     final diff = DateTime.now().difference(offeredAt);
@@ -117,7 +153,8 @@ class CooperativeOfferModel {
       'id, farmer_id, crop_name, offered_quantity_kg, unit, offered_at, '
       'inventory_batch_id, status, confirmed_quantity_kg, confirmed_amount, '
       'admin_notes, confirmed_at, asking_price_per_kg, current_price_per_kg, '
-      'agreed_price_per_kg, last_proposed_by, negotiation_round';
+      'agreed_price_per_kg, last_proposed_by, negotiation_round, '
+      'delivery_photo_url, delivery_note, delivered_at, received_at, receipt_note';
 
   static double? _num(dynamic v) => v == null ? null : (v as num).toDouble();
 
@@ -143,7 +180,17 @@ class CooperativeOfferModel {
       agreedPricePerKg: _num(map['agreed_price_per_kg']),
       lastProposedBy: map['last_proposed_by'] as String? ?? 'farmer',
       negotiationRound: (map['negotiation_round'] as num?)?.toInt() ?? 1,
+      deliveryPhotoUrl: map['delivery_photo_url'] as String?,
+      deliveryNote: map['delivery_note'] as String?,
+      deliveredAt: map['delivered_at'] != null
+          ? DateTime.parse(map['delivered_at'] as String)
+          : null,
+      receivedAt: map['received_at'] != null
+          ? DateTime.parse(map['received_at'] as String)
+          : null,
+      receiptNote: map['receipt_note'] as String?,
       farmerPhone: map['farmer_phone'] as String?,
+      farmerEmail: map['farmer_email'] as String?,
       farmerPhotoUrl: map['farmer_photo_url'] as String?,
       batchNumber: map['batch_number'] as String?,
       harvestDate: map['harvest_date'] != null
@@ -160,7 +207,7 @@ class CooperativeOfferEvent {
   final String offerId;
   final int round;
 
-  /// offered | countered | accepted | declined | cancelled
+  /// offered | countered | accepted | declined | cancelled | delivered | received
   final String action;
 
   /// 'farmer' or 'cooperative'

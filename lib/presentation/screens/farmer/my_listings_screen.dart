@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/listing_order.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/marketplace_listing_model.dart';
@@ -11,12 +12,15 @@ import '../../../data/repositories/listing_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../../data/services/profile_state_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/guest/guest_farmer_sample_data.dart';
+import '../../../data/services/guest_mode_service.dart';
+import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/listing_status_badge.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import 'farmer_marketplace_tab.dart';
@@ -35,6 +39,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   final _searchController = TextEditingController();
 
   List<MarketplaceListingModel> _allListings = [];
+  // Each listing's real ordered amount (its orders' own totals), so a later
+  // price change never rewrites what earlier orders were worth.
+  Map<String, double> _orderedAmounts = {};
   List<MarketplaceListingModel> _filtered = [];
   ListingFilter _activeFilter = ListingFilter.all;
   String _searchQuery = '';
@@ -50,6 +57,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   // not a new bottom-nav item or shell branch. Defaults to 1 (Listing) so
   // landing on this tab keeps showing what a farmer previously saw first.
   int _selectedTab = 1;
+  TableChangeWatcher? _stockWatcher;
 
   @override
   void initState() {
@@ -67,10 +75,21 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     });
     _searchController.addListener(_onSearchChanged);
     _loadData();
+    // The quantity left on each of the Farmer's listings drops as orders come
+    // in, so it follows the database live.
+    if (!GuestModeService.active) {
+      _stockWatcher = TableChangeWatcher(
+        tables: const ['marketplace_listings', 'orders'],
+        onChange: () {
+          if (mounted) _loadData(silent: true);
+        },
+      )..start();
+    }
   }
 
   @override
   void dispose() {
+    _stockWatcher?.dispose();
     AppEventService.instance.removeListener(_onDataChanged);
     _searchController.dispose();
     super.dispose();
@@ -87,16 +106,28 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     });
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadData({bool silent = false}) async {
+    // Explore as Farmer: made-up listings, no repository or database call.
+    if (GuestModeService.active) {
+      setState(() {
+        _allListings = GuestFarmerSampleData.listings;
+        _unreadCount = 0;
+        _applyFilter();
+        _isLoading = false;
+      });
+      return;
+    }
+    if (!silent) setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchListings(),
       _notifRepo.fetchUnreadCount(),
+      _repo.fetchOrderedAmounts(),
     ]);
     if (!mounted) return;
     setState(() {
       _allListings = results[0] as List<MarketplaceListingModel>;
       _unreadCount = results[1] as int;
+      _orderedAmounts = results[2] as Map<String, double>;
       _applyFilter();
       _isLoading = false;
     });
@@ -111,12 +142,15 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
   void _applyFilter() {
     final q = _searchQuery.trim().toLowerCase();
-    _filtered = _allListings.where((l) {
-      if (!_activeFilter.matches(l)) return false;
-      if (q.isEmpty) return true;
-      return l.cropName.toLowerCase().contains(q) ||
-          (l.variety?.toLowerCase().contains(q) ?? false);
-    }).toList();
+    // Live listings first, Sold Out / Disapproved / Withdrawn at the bottom.
+    _filtered = orderForFarmerListings(
+      _allListings.where((l) {
+        if (!_activeFilter.matches(l)) return false;
+        if (q.isEmpty) return true;
+        return l.cropName.toLowerCase().contains(q) ||
+            (l.variety?.toLowerCase().contains(q) ?? false);
+      }),
+    );
   }
 
   int _countFor(bool Function(MarketplaceListingModel) test) =>
@@ -137,7 +171,10 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
       .where((l) => l.isLive || l.isSold)
       .fold<double>(
         0,
-        (sum, l) => sum + ((l.volumeKg - l.remainingKg) * l.pricePerKg),
+        (sum, l) =>
+            sum +
+            (_orderedAmounts[l.id] ??
+                moneyOf(l.volumeKg - l.remainingKg, l.pricePerKg)),
       );
 
   int get _availableCount => _countFor((l) => l.isAvailable);
@@ -146,7 +183,17 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
+  Future<void> _promptManageListing() => context.promptFarmer(
+    (l) => l.guestManageListingTitle,
+    (l) => l.guestManageListingMessage,
+    icon: Icons.storefront_outlined,
+  );
+
   void _confirmDelete(MarketplaceListingModel listing) {
+    if (GuestModeService.active) {
+      _promptManageListing();
+      return;
+    }
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -227,10 +274,22 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   // regardless of status; Withdraw/Delete/Edit & Resubmit now live there
   // instead of as inline card buttons or a bottom-sheet menu.
   void _openDetail(MarketplaceListingModel listing) {
+    if (GuestModeService.active) {
+      _promptManageListing();
+      return;
+    }
     context.pushRoute(AppRoutes.myListingDetail, extra: listing);
   }
 
   void _handleFabTap() {
+    if (GuestModeService.active) {
+      context.promptFarmer(
+        (l) => l.guestCreateListingTitle,
+        (l) => l.guestCreateListingMessage,
+        icon: Icons.add_business_outlined,
+      );
+      return;
+    }
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Go online to create a listing')),
@@ -248,36 +307,6 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      drawer: AnimatedBuilder(
-        animation: FarmerProfileStateService.instance,
-        builder: (context, _) {
-          final profile = FarmerProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Farmer',
-            contactEmail: profile?.contactEmail,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.farmerEditProfile);
-            },
-            onEditFarmDetails: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.editFarmDetails);
-            },
-            onMyAddresses: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.myAddresses);
-            },
-            onSignOut: () => confirmFarmerSignOut(context),
-            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () =>
-                context.pushRoute(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           Expanded(
@@ -285,7 +314,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(
                       screen: 'my_listings',
                       isOnline: _isOnline,
@@ -316,6 +345,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                             const SizedBox(height: 16),
 
                             if (_selectedTab == 1) ...[
+                              if (GuestModeService.active) ...[
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 20),
+                                  child: GuestSampleBanner(),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                               // Listing Overview — one consolidated card (stats +
                               // priority actions) matching Admin Marketplace's own
                               // Overview card, replacing the separate KPI-tile row
@@ -427,8 +463,13 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-                    onNotificationTap: () =>
-                        context.pushRoute(AppRoutes.farmerNotifications),
+                    onNotificationTap: () => GuestModeService.active
+                        ? context.promptFarmer(
+                            (l) => l.guestNotificationsTitle,
+                            (l) => l.guestNotificationsMessage,
+                            icon: Icons.notifications_none_rounded,
+                          )
+                        : context.pushRoute(AppRoutes.farmerNotifications),
                     enableMenu: true,
                   ),
                 ),
@@ -954,15 +995,31 @@ class _StandardContent extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Flexible so a long label (Tagalog, or Pending Approval on a
-                  // narrow phone) wraps inside the pill instead of overflowing.
-                  Flexible(
-                    child: ListingStatusBadge.forListing(
-                      context,
-                      status: listing.status,
-                      remainingKg: listing.remainingKg,
+                  // The badge and the date flow in a Wrap: when the badge is long
+                  // (Pending Approval, or Tagalog) the date drops to its own line
+                  // instead of being squeezed against the pill.
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ListingStatusBadge.forListing(
+                          context,
+                          status: listing.status,
+                          remainingKg: listing.remainingKg,
+                        ),
+                        if (!showMenu)
+                          Text(
+                            DateFormat('MMM d, yyyy').format(listing.createdAt),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: AppConstants.outline,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   if (showMenu)
@@ -986,14 +1043,6 @@ class _StandardContent extends StatelessWidget {
                           ),
                         ),
                       ],
-                    )
-                  else
-                    Text(
-                      DateFormat('MMM d, yyyy').format(listing.createdAt),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.outline,
-                      ),
                     ),
                 ],
               ),
@@ -1034,8 +1083,8 @@ class _StandardContent extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                listing.isLive && listing.submittedAt != null
-                    ? 'Volume: ${formatQuantityUnit(listing.volumeKg, listing.unit)} • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
+                (listing.isLive || listing.isSold) && listing.submittedAt != null
+                    ? '${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)} • Submitted ${DateFormat('MMM d, yyyy').format(listing.submittedAt!)}'
                     : listing.isWithdrawn
                     ? '${formatPricePerUnit(listing.pricePerKg, listing.unit)} • ${formatQuantityUnit(listing.volumeKg, listing.unit)}'
                     : 'Volume: ${formatQuantityUnit(listing.volumeKg, listing.unit)}',

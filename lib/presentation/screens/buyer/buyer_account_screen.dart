@@ -11,7 +11,7 @@ import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/app_navigation_drawer.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/buyer_activity_card.dart';
 import '../../widgets/buyer_top_bar.dart';
 import '../../widgets/profile_avatar.dart';
@@ -102,32 +102,11 @@ class _BuyerAccountScreenState extends State<BuyerAccountScreen> {
 
     return Scaffold(
       backgroundColor: sagana.scaffoldBackground,
-      drawer: AppNavigationDrawer(
-        photoUrl: _profile?.profilePhotoUrl,
-        displayName: _profile?.fullName ?? 'Buyer',
-        contactEmail: _profile?.contactEmail,
-        phoneNumber: _profile?.phoneNumber,
-        onEditProfile: () async {
-          Navigator.pop(context);
-          await context.push(AppRoutes.buyerEditProfile);
-          if (mounted) _refreshAll();
-        },
-        onMyAddresses: () async {
-          Navigator.pop(context);
-          await context.push(AppRoutes.myAddresses);
-          if (mounted) _refreshAll();
-        },
-        onSignOut: () => confirmBuyerSignOut(context),
-        onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-        onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-        onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-        onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-      ),
       body: Stack(
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'buyer_profile_info',
                 otherScreens: const [

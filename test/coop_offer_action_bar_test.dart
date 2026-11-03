@@ -48,14 +48,16 @@ CoopOfferActionBar bar(
   bool busy = false,
   bool online = true,
   VoidCallback? onEnd,
+  VoidCallback? onAccept,
+  VoidCallback? onCounter,
 }) {
   return CoopOfferActionBar(
     offer: o,
     forFarmer: forFarmer,
     busy: busy,
     online: online,
-    onAccept: () {},
-    onCounter: () {},
+    onAccept: onAccept ?? () {},
+    onCounter: onCounter ?? () {},
     onEnd: onEnd ?? () {},
   );
 }
@@ -65,31 +67,33 @@ Finder button(String label) =>
 
 void main() {
   group('Manager, on the Cooperative\'s turn', () {
-    testWidgets('has Counteroffer, Accept and a full-width Decline Offer button', (tester) async {
+    testWidgets('has Accept Offer | Decline Offer on one row and a full-width Submit Counteroffer below', (tester) async {
       await runIgnoringFontErrors(() async {
         await tester.binding.setSurfaceSize(const Size(400, 800));
         await tester.pumpWidget(host(bar(offer())));
         await tester.pump();
 
-        expect(find.text('Counteroffer'), findsOneWidget);
-        expect(find.text('Accept ₱100.00/kg'), findsOneWidget);
+        expect(find.text('Submit Counteroffer'), findsOneWidget);
+        expect(find.text('Accept Offer'), findsOneWidget);
         expect(find.text('Decline Offer'), findsOneWidget);
 
         final decline = button('Decline Offer');
         expect(tester.widget(decline), isA<OutlinedButton>(), reason: 'Decline is a bordered button, not a text link');
+        expect(tester.widget(button('Accept Offer')), isA<ElevatedButton>());
         expect(find.byType(TextButton), findsNothing);
 
-        // Same height as Counteroffer, and as wide as the bar's content.
-        final counterSize = tester.getSize(button('Counteroffer'));
-        final declineSize = tester.getSize(decline);
-        expect(declineSize.height, counterSize.height);
-        expect(declineSize.width, 400 - 40); // the bar pads 20 on each side
-
-        // Sits below the other actions, left-aligned with them.
-        final counterRect = tester.getRect(button('Counteroffer'));
+        // Accept Offer | Decline Offer share one row; Submit Counteroffer is
+        // full width on its own row below it.
+        final acceptRect = tester.getRect(button('Accept Offer'));
         final declineRect = tester.getRect(decline);
-        expect(declineRect.top, greaterThan(counterRect.bottom));
-        expect(declineRect.left, counterRect.left);
+        final counterRect = tester.getRect(button('Submit Counteroffer'));
+        expect(acceptRect.top, declineRect.top, reason: 'same row');
+        expect(acceptRect.right, lessThan(declineRect.left));
+        expect(acceptRect.height, declineRect.height);
+        expect(acceptRect.left, counterRect.left);
+        expect(declineRect.right, counterRect.right);
+        expect(counterRect.width, 400 - 40); // the bar pads 20 on each side
+        expect(counterRect.top, greaterThan(acceptRect.bottom));
         await tester.binding.setSurfaceSize(null);
       });
     });
@@ -105,6 +109,19 @@ void main() {
       });
     });
 
+    testWidgets('Accept Offer approves the original offer directly, without a counteroffer', (tester) async {
+      await runIgnoringFontErrors(() async {
+        var accepted = 0, countered = 0;
+        await tester.pumpWidget(host(bar(offer(), onAccept: () => accepted++, onCounter: () => countered++)));
+        await tester.pump();
+        await tester.tap(find.text('Accept Offer'));
+        expect(accepted, 1);
+        expect(countered, 0);
+        await tester.tap(find.text('Submit Counteroffer'));
+        expect(countered, 1);
+      });
+    });
+
     testWidgets('Decline calls onEnd', (tester) async {
       await runIgnoringFontErrors(() async {
         var ended = 0;
@@ -117,25 +134,63 @@ void main() {
   });
 
   group('turn rules in the bar', () {
-    testWidgets('Manager waiting for the Farmer: only Decline Offer is offered', (tester) async {
+    testWidgets('Manager who just sent a counteroffer: no buttons until the Farmer answers', (tester) async {
       await runIgnoringFontErrors(() async {
         await tester.pumpWidget(host(bar(offer(lastBy: 'cooperative', price: 50))));
         await tester.pump();
-        expect(find.text('Counteroffer'), findsNothing);
+        expect(find.text('Submit Counteroffer'), findsNothing);
         expect(find.textContaining('Accept'), findsNothing);
+        expect(find.text('Decline Offer'), findsNothing);
+        expect(find.byType(OutlinedButton), findsNothing);
+        expect(find.byType(ElevatedButton), findsNothing);
+        // The Farmer answers with a counteroffer: the buttons are back.
+        await tester.pumpWidget(host(bar(offer(lastBy: 'farmer', price: 70))));
+        await tester.pump();
         expect(find.text('Decline Offer'), findsOneWidget);
+        expect(find.text('Accept Offer'), findsOneWidget);
+        expect(find.text('Submit Counteroffer'), findsOneWidget);
       });
     });
 
-    testWidgets('Farmer on a counteroffer: Counteroffer, Accept and Cancel Offer', (tester) async {
+    testWidgets('Farmer on a counteroffer: the same layout as the Manager', (tester) async {
       await runIgnoringFontErrors(() async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
         await tester.pumpWidget(host(bar(offer(lastBy: 'cooperative', price: 50), forFarmer: true)));
         await tester.pump();
-        expect(find.text('Counteroffer'), findsOneWidget);
-        expect(find.text('Accept ₱50.00/kg'), findsOneWidget);
-        expect(find.text('Cancel Offer'), findsOneWidget);
-        expect(find.text('Decline Offer'), findsNothing);
-        expect(tester.widget(button('Cancel Offer')), isA<OutlinedButton>());
+        expect(find.text('Accept Offer'), findsOneWidget);
+        expect(find.text('Decline Offer'), findsOneWidget);
+        expect(find.text('Submit Counteroffer'), findsOneWidget);
+        expect(find.text('Cancel Offer'), findsNothing, reason: 'Decline Offer replaces it when the Farmer answers');
+        expect(tester.widget(button('Accept Offer')), isA<ElevatedButton>());
+        expect(tester.widget(button('Decline Offer')), isA<OutlinedButton>());
+
+        final accept = tester.getRect(button('Accept Offer'));
+        final decline = tester.getRect(button('Decline Offer'));
+        final counter = tester.getRect(button('Submit Counteroffer'));
+        expect(accept.top, decline.top, reason: 'same row');
+        expect(accept.width, decline.width, reason: 'equal widths');
+        expect(accept.height, decline.height);
+        expect(accept.left, counter.left);
+        expect(decline.right, counter.right);
+        expect(counter.top, greaterThan(accept.bottom));
+        await tester.binding.setSurfaceSize(null);
+      });
+    });
+
+    testWidgets('Farmer and Manager get identical button geometry', (tester) async {
+      await runIgnoringFontErrors(() async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        await tester.pumpWidget(host(bar(offer(lastBy: 'cooperative', price: 50), forFarmer: true)));
+        await tester.pump();
+        final farmer = [for (final l in ['Accept Offer', 'Decline Offer', 'Submit Counteroffer']) tester.getRect(button(l))];
+        await tester.pumpWidget(host(bar(offer())));
+        await tester.pump();
+        final manager = [for (final l in ['Accept Offer', 'Decline Offer', 'Submit Counteroffer']) tester.getRect(button(l))];
+        for (var i = 0; i < 3; i++) {
+          expect(farmer[i].size, manager[i].size);
+          expect(farmer[i].left, manager[i].left);
+        }
+        await tester.binding.setSurfaceSize(null);
       });
     });
 
@@ -166,7 +221,7 @@ void main() {
         await tester.pumpWidget(host(bar(offer(), online: false)));
         await tester.pump();
         expect(find.textContaining('offline'), findsOneWidget);
-        for (final label in ['Counteroffer', 'Accept ₱100.00/kg', 'Decline Offer']) {
+        for (final label in ['Submit Counteroffer', 'Accept Offer', 'Decline Offer']) {
           final w = tester.widget(button(label));
           final enabled = w is OutlinedButton ? w.onPressed != null : (w as ElevatedButton).onPressed != null;
           expect(enabled, isFalse, reason: label);

@@ -104,6 +104,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _placeOrder() async {
+    // A second tap before the first order returns would place the order twice
+    // (place_order takes the kg off the listing each time it runs), so the
+    // second tap is ignored rather than relying on the button having rebuilt.
+    if (_isSubmitting) return;
     setState(() {
       _isSubmitting = true;
       _error = null;

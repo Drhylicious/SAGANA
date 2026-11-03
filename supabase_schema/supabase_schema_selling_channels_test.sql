@@ -22,7 +22,12 @@
 -- everything back, and the error text IS the report (PASS / FAIL / SKIP lines).
 --
 -- Run, in this order: supabase_schema_harvest_batch_number_and_units.sql,
--- supabase_schema_selling_channels_integrity.sql, then this whole file.
+-- supabase_schema_selling_channels_integrity.sql,
+-- supabase_schema_crop_photos_selling_rules.sql,
+-- supabase_schema_market_linking_partial_sales.sql,
+-- supabase_schema_market_linking_buyer_cancellation.sql, then this whole file.
+
+
 -- It picks one active Farmer, one active Manager (admin) and one active Buyer
 -- from your data. A SKIP means the data to test that step does not exist.
 -- If a step stops with a raw database error instead of the report, paste it.
@@ -90,7 +95,9 @@ BEGIN
 
   -- ── Test stock: a crop, a harvest of 10.75 and its batch (as the SQL editor) ──
   INSERT INTO crop_master (crop_name, category, crop_type) VALUES (v_name, 'Other', v_mtype) RETURNING id INTO v_cm;
-  INSERT INTO farmer_crops (farmer_id, crop_name, category, crop_master_id) VALUES (F, v_name, 'Other', v_cm) RETURNING id INTO v_fc;
+  -- The Farmer's own crop photo is required to list, offer or link-sell a batch.
+  INSERT INTO farmer_crops (farmer_id, crop_name, category, crop_master_id, photo_url)
+    VALUES (F, v_name, 'Other', v_cm, 'https://example.invalid/zz-test-crop.jpg') RETURNING id INTO v_fc;
   INSERT INTO harvest_records (farmer_id, crop_id, crop_name, quantity_kg, harvest_date, unit)
     VALUES (F, v_fc, v_name, 10.75, DATE '2096-03-04', v_unit) RETURNING id INTO v_h;
   INSERT INTO inventory_batches (farmer_id, harvest_record_id, crop_id, crop_name, quantity_kg, available_kg,
@@ -142,8 +149,13 @@ BEGIN
   PERFORM pg_temp.as_user(M);
   PERFORM approve_order(v_o1);
   PERFORM approve_order(v_o2);
-  PERFORM complete_order(v_o1);
-  PERFORM complete_order(v_o2);
+  PERFORM mark_order_ready_for_pickup(v_o1);
+  PERFORM mark_order_ready_for_pickup(v_o2);
+  RESET ROLE;
+  -- The consumer confirms receipt; that (not the Manager) completes the order.
+  PERFORM pg_temp.as_user(B);
+  PERFORM confirm_order_received(v_o1);
+  PERFORM confirm_order_received(v_o2);
   RESET ROLE;
   SELECT * INTO bt FROM inventory_batches WHERE id = v_batch;
   v_rep := v_rep || pg_temp.chk(bt.sold_kg = 1.70 AND bt.available_kg = 6.50,
@@ -154,7 +166,10 @@ BEGIN
   RESET ROLE;
   PERFORM pg_temp.as_user(M);
   PERFORM approve_order(v_o4);
-  PERFORM complete_order(v_o4);
+  PERFORM mark_order_ready_for_pickup(v_o4);
+  RESET ROLE;
+  PERFORM pg_temp.as_user(B);
+  PERFORM confirm_order_received(v_o4);
   RESET ROLE;
   SELECT * INTO o FROM orders WHERE id = v_o4;
   SELECT * INTO l FROM marketplace_listings WHERE id = v_listing;
@@ -187,17 +202,28 @@ BEGIN
   v_round := counter_cooperative_offer(v_offer, 75.25, 1, NULL);
   RESET ROLE;
   PERFORM pg_temp.as_user(F);
-  v_tx := accept_cooperative_offer(v_offer, v_round, NULL);
+  PERFORM accept_cooperative_offer(v_offer, v_round, NULL);
+  RESET ROLE;
+  SELECT * INTO of_ FROM cooperative_purchase_offers WHERE id = v_offer;
+  SELECT * INTO bt FROM inventory_batches WHERE id = v_batch;
+  v_rep := v_rep || pg_temp.chk(of_.status = 'approved' AND of_.agreed_price_per_kg = 75.25 AND of_.confirmed_amount = 188.13
+      AND of_.member_sales_transaction_id IS NULL AND bt.sold_kg = 4.25,
+    '2.2 counter 75.25 approved: 2.50 x 75.25 = 188.13 (188.125 rounded); not sold or settled until the delivery is received',
+    of_.status || ' @ ' || of_.agreed_price_per_kg || ' = ' || of_.confirmed_amount || ', sold ' || bt.sold_kg);
+  -- The Farmer delivers with a photo; the Manager confirms the receipt.
+  PERFORM pg_temp.as_user(F);
+  PERFORM deliver_cooperative_offer(v_offer, 'https://example.invalid/zz-delivery.jpg', NULL);
+  RESET ROLE;
+  PERFORM pg_temp.as_user(M);
+  v_tx := confirm_cooperative_offer_receipt(v_offer, NULL);
   RESET ROLE;
   SELECT * INTO of_ FROM cooperative_purchase_offers WHERE id = v_offer;
   SELECT * INTO t FROM member_sales_transactions WHERE id = v_tx;
   SELECT * INTO bt FROM inventory_batches WHERE id = v_batch;
-  v_rep := v_rep || pg_temp.chk(of_.status = 'confirmed' AND of_.agreed_price_per_kg = 75.25 AND of_.confirmed_amount = 188.13,
-    '2.2 counter 75.25 accepted: 2.50 x 75.25 = 188.13 (188.125 rounded)', of_.status || ' @ ' || of_.agreed_price_per_kg || ' = ' || of_.confirmed_amount);
   v_rep := v_rep || pg_temp.chk(t.quantity_kg = 2.50 AND t.amount = 188.13 AND t.unit = v_unit AND t.crop_name = v_name,
     '2.3 the sale row has 2.50, 188.13 and the offer''s unit', t.quantity_kg || ' / ' || t.amount || ' / ' || t.unit);
   v_rep := v_rep || pg_temp.chk(bt.sold_kg = 6.75 AND bt.available_kg = 4.00,
-    '2.4 the accepted offer counts as SOLD in the batch (4.25 + 2.50 = 6.75), available unchanged', 'sold ' || bt.sold_kg || ' / available ' || bt.available_kg);
+    '2.4 the COMPLETED offer counts as SOLD in the batch (4.25 + 2.50 = 6.75), available unchanged', 'sold ' || bt.sold_kg || ' / available ' || bt.available_kg);
 
   PERFORM pg_temp.as_user(F);
   v_offer2 := offer_batch_to_cooperative(v_batch, 0.45, 10.00, NULL);
@@ -276,6 +302,9 @@ BEGIN
       INSERT INTO farmer_crops (farmer_id, crop_name, category, crop_master_id)
         SELECT F, cm.crop_name, cm.category, cm.id FROM crop_master cm WHERE cm.id = v_gcm RETURNING id INTO v_gfc;
     END IF;
+    -- Market Linking needs the Farmer's actual crop photo (rolled back with the rest).
+    UPDATE farmer_crops SET photo_url = COALESCE(NULLIF(photo_url, ''), 'https://example.invalid/zz-test-ginger.jpg')
+     WHERE id = v_gfc;
     IF NOT EXISTS (SELECT 1 FROM da_amad_enrollments WHERE farmer_id = F AND status = 'approved') THEN
       IF EXISTS (SELECT 1 FROM da_amad_enrollments WHERE farmer_id = F AND status = 'pending') THEN
         UPDATE da_amad_enrollments SET status = 'approved', reviewed_at = now(), reviewed_by = M
@@ -339,10 +368,10 @@ BEGIN
     v_msg := NULL;
     PERFORM pg_temp.as_user(M);
     BEGIN
-      UPDATE market_linking_programs SET status = 'buyer_found', buyer_name = 'Buyer X' WHERE id = v_prog2;
+      UPDATE market_linking_programs SET status = 'buyer_found' WHERE id = v_prog2;
     EXCEPTION WHEN OTHERS THEN v_msg := SQLERRM; END;
     RESET ROLE;
-    v_rep := v_rep || pg_temp.chk(v_msg IS NOT NULL, '4.8 a buyer cannot be recorded without a price and quantity', v_msg);
+    v_rep := v_rep || pg_temp.chk(v_msg IS NOT NULL, '4.8 a buyer cannot be recorded without a buyer name (price and quantity belong to Complete Sale)', v_msg);
 
     PERFORM pg_temp.as_user(M);
     UPDATE market_linking_programs
@@ -355,8 +384,10 @@ BEGIN
     SELECT * INTO gb FROM inventory_batches WHERE id = v_gb;
     v_rep := v_rep || pg_temp.chk(prog.status = 'completed' AND prog.confirmed_volume_kg = 3.45 AND prog.price_per_kg = 45.50,
       '4.9 DA-AMAD sale completed at 3.45 @ 45.50', prog.status || ' ' || prog.confirmed_volume_kg || ' @ ' || prog.price_per_kg);
-    v_rep := v_rep || pg_temp.chk(gb.available_kg = 5.05 AND gb.sold_kg = 3.45 AND gb.status = 'available',
-      '4.10 Ginger batch: available 5.05, sold 3.45 (8.50 - 3.45)', 'available ' || gb.available_kg || ', sold ' || gb.sold_kg || ', ' || gb.status);
+    -- Submitting reserves the quantity: 8.50 - 3.45 (now sold) - 1.00 (the second
+    -- request, still open and still reserved) = 4.05 available.
+    v_rep := v_rep || pg_temp.chk(gb.available_kg = 4.05 AND gb.sold_kg = 3.45 AND gb.status = 'available',
+      '4.10 Ginger batch: available 4.05, sold 3.45 (8.50 - 3.45 sold - 1.00 still reserved)', 'available ' || gb.available_kg || ', sold ' || gb.sold_kg || ', ' || gb.status);
     v_rep := v_rep || pg_temp.chk(round(prog.confirmed_volume_kg * prog.price_per_kg, 2) = 156.98,
       '4.11 DA-AMAD amount 3.45 x 45.50 = 156.98 (156.975 rounded); the app computes it the same way', (prog.confirmed_volume_kg * prog.price_per_kg)::text);
   END IF;
@@ -364,7 +395,8 @@ BEGIN
   -- ═════════════ 5. TRANSACTION HISTORY and SALES REPORT read the same rows ═════════════
   -- The rules the app uses (admin_reports_repository / farmer_transaction_repository):
   --   Marketplace = completed orders; Offer = member_sales_transactions; Informal = every
-  --   informal sale; DA-AMAD = completed programs. Read as the Manager (Sales Report), then
+  --   informal sale; DA-AMAD = the Market Linking sales ledger. Read as the Manager (Sales Report), then
+
   --   as the Farmer (Transaction History): both must see the same rows and totals.
   FOR i IN 1..2 LOOP
     IF i = 1 THEN PERFORM pg_temp.as_user(M); ELSE PERFORM pg_temp.as_user(F); END IF;
@@ -372,8 +404,8 @@ BEGIN
     SELECT COALESCE(sum(amount),0), count(*) INTO f_off, n_off FROM member_sales_transactions WHERE crop_name = v_name;
     SELECT COALESCE(sum(amount),0), count(*) INTO f_inf, n_inf FROM informal_sales WHERE crop_name = v_name;
     IF v_gcm IS NOT NULL THEN
-      SELECT COALESCE(sum(round(COALESCE(confirmed_volume_kg, requested_volume_kg, volume_kg) * price_per_kg, 2)),0), count(*)
-        INTO f_da, n_da FROM market_linking_programs WHERE id IN (v_prog, v_prog2) AND status = 'completed';
+      SELECT COALESCE(sum(total_amount),0), count(*)
+        INTO f_da, n_da FROM market_linking_sales WHERE program_id IN (v_prog, v_prog2);
     ELSE
       f_da := 0; n_da := 0;
     END IF;

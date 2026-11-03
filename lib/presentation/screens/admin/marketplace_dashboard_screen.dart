@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/order_status.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -7,7 +8,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/admin_top_bar.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
@@ -15,8 +15,8 @@ import '../../../data/repositories/admin_order_repository.dart';
 import '../../../data/repositories/buyer_profile_repository.dart';
 import '../../../data/repositories/cooperative_offer_repository.dart';
 import '../../../data/repositories/market_linking_repository.dart';
-import '../../../data/services/admin_profile_state_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
 
 class MarketplaceDashboardScreen extends StatefulWidget {
@@ -40,9 +40,11 @@ class _MarketplaceDashboardScreenState
   int _pendingOffersCount = 0;
   int _buyerCount = 0;
   int _marketLinkingCount = 0;
-  int _marketLinkingSubmittedCount = 0;
+  int _marketLinkingFarmersCount = 0;
+  int _marketLinkingCancellations = 0;
   bool _isLoading = true;
   bool _isOnline  = true;
+  TableChangeWatcher? _watcher;
 
   @override
   void initState() {
@@ -52,6 +54,26 @@ class _MarketplaceDashboardScreenState
       if (mounted) setState(() => _isOnline = v);
     });
     _loadAll();
+    _watcher = TableChangeWatcher(
+      // Every table a KPI reads, so each figure follows the data as it changes
+      // (a new listing, order, offer, buyer or Market Linking request).
+      tables: const [
+        'marketplace_listings',
+        'orders',
+        'cooperative_purchase_offers',
+        'market_linking_programs',
+        'user_roles',
+      ],
+      onChange: () {
+        if (mounted) _loadAll(silent: true);
+      },
+    )..start();
+  }
+
+  @override
+  void dispose() {
+    _watcher?.dispose();
+    super.dispose();
   }
 
   @override
@@ -60,12 +82,13 @@ class _MarketplaceDashboardScreenState
     AppTheme.applySystemOverlay(context);
   }
 
-  Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadAll({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     final results = await Future.wait([
       _repo.fetchSummaryStats(),
       _orderRepo.fetchSummaryStats(),
-      _offerRepo.fetchOffersAwaitingCooperative(),
+      // A failed read keeps the figure already on screen rather than showing 0.
+      _offerRepo.fetchAwaitingCooperativeCount().catchError((_) => _pendingOffersCount),
       _buyerRepo.fetchBuyerCount(),
       _marketLinkingRepo.fetchSummaryStats(),
     ]);
@@ -73,15 +96,16 @@ class _MarketplaceDashboardScreenState
     setState(() {
       _stats   = results[0] as ListingSummaryStats;
       _orderStats = results[1] as OrderSummaryStats;
-      _pendingOffersCount = (results[2] as List).length;
+      _pendingOffersCount = results[2] as int;
       _buyerCount = results[3] as int;
       final marketLinkingStats = results[4] as MarketLinkingSummaryStats;
-      // Enrolled farmers (unique), not total rows/rounds — the "Market
-      // Linking" KPI tile is labeled around farmers, and a farmer with a
-      // second round (Start New Round) must not double-count here, same
-      // fix already applied to the Market Linking screen's own KPI strip.
-      _marketLinkingCount = marketLinkingStats.enrolledFarmers;
-      _marketLinkingSubmittedCount = marketLinkingStats.submitted;
+      // The Market Linking tile counts the requests themselves (the "All" chip
+      // of the Market Linking screen). The priority alerts say how many
+      // different Farmers have an open request, and how many cancellation
+      // requests are waiting for a review.
+      _marketLinkingCount = marketLinkingStats.total;
+      _marketLinkingFarmersCount = marketLinkingStats.activeFarmers;
+      _marketLinkingCancellations = marketLinkingStats.cancellationRequests;
       _isLoading = false;
     });
   }
@@ -94,27 +118,6 @@ class _MarketplaceDashboardScreenState
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: AnimatedBuilder(
-        animation: AdminProfileStateService.instance,
-        builder: (context, _) {
-          final profile = AdminProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Manager',
-            contactEmail: profile?.contactEmail ?? profile?.email,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.push(AppRoutes.adminEditProfile);
-            },
-            onSignOut: () => confirmAdminSignOut(context),
-            onAboutSagana: () => context.push(AppRoutes.aboutSagana),
-            onAboutOrganization: () => context.push(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.push(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.push(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: RefreshIndicator(
         color: AppConstants.primaryGreen,
         onRefresh: _loadAll,
@@ -125,6 +128,7 @@ class _MarketplaceDashboardScreenState
             SliverPersistentHeader(
               pinned: true,
               delegate: AdminTopBarDelegate(
+                topPadding: MediaQuery.paddingOf(context).top,
                 title: l10n.navMarketplace,
                 onBroadcastTap: () => context.push(AppRoutes.announcementDashboard),
                 onNotificationTap: () => context.push(AppRoutes.adminNotifications).then((_) => _loadAll()),
@@ -134,7 +138,7 @@ class _MarketplaceDashboardScreenState
             ),
             SliverToBoxAdapter(
               child: CachedDataNotice(
-                screen: 'listing_status_rows',
+                screen: 'listing_status_counts',
                 isOnline: _isOnline,
                 offlineMessage: AppLocalizations.of(context).offlineFeaturesUnavailable,
               ),
@@ -155,10 +159,11 @@ class _MarketplaceDashboardScreenState
                       stats: _stats,
                       orderStats: _orderStats,
                       pendingOffersCount: _pendingOffersCount,
-                      marketLinkingSubmittedCount: _marketLinkingSubmittedCount,
+                      marketLinkingFarmersCount: _marketLinkingFarmersCount,
+                      marketLinkingCancellations: _marketLinkingCancellations,
                       cs: cs, sagana: sagana,
                       onPendingListingsTap: () => context.push(AppRoutes.pendingApprovals).then((_) => _loadAll()),
-                      onPendingOrdersTap: () => context.push(AppRoutes.adminOrders).then((_) => _loadAll()),
+                      onPendingOrdersTap: () => context.push(AppRoutes.adminOrders, extra: {'filter': kOrderNeedsActionFilter}).then((_) => _loadAll()),
                       onPendingOffersTap: () => context.push(AppRoutes.offerToCooperative).then((_) => _loadAll()),
                       onMarketLinkingTap: () => context.push(AppRoutes.marketLinking).then((_) => _loadAll()),
                     ),
@@ -199,7 +204,7 @@ class _MarketplaceDashboardScreenState
                     onPendingReview: () => context.push(AppRoutes.pendingApprovals).then((_) => _loadAll()),
                     onBuyerManagement: () => context.push(AppRoutes.buyerManagement),
                     onMarketLinking: () => context.push(AppRoutes.marketLinking),
-                    onOrders: () => context.push(AppRoutes.adminOrders),
+                    onOrders: () => context.push(AppRoutes.adminOrders, extra: {'filter': kOrderNeedsActionFilter}),
                     onOfferToCooperative: () => context.push(AppRoutes.offerToCooperative).then((_) => _loadAll()),
                   ),
                 ]),
@@ -222,7 +227,8 @@ class _MarketplaceOverviewCard extends StatelessWidget {
   final ListingSummaryStats stats;
   final OrderSummaryStats orderStats;
   final int pendingOffersCount;
-  final int marketLinkingSubmittedCount;
+  final int marketLinkingFarmersCount;
+  final int marketLinkingCancellations;
   final ColorScheme cs;
   final SaganaColors sagana;
   final VoidCallback onPendingListingsTap;
@@ -234,7 +240,8 @@ class _MarketplaceOverviewCard extends StatelessWidget {
     required this.stats,
     required this.orderStats,
     required this.pendingOffersCount,
-    required this.marketLinkingSubmittedCount,
+    required this.marketLinkingFarmersCount,
+    required this.marketLinkingCancellations,
     required this.cs,
     required this.sagana,
     required this.onPendingListingsTap,
@@ -254,12 +261,12 @@ class _MarketplaceOverviewCard extends StatelessWidget {
         onTap: onPendingListingsTap,
       ));
     }
-    if (orderStats.pending > 0) {
+    if (orderStats.needsAction > 0) {
       items.add(_PriorityItem(
         icon: Icons.shopping_bag_outlined,
         color: AppConstants.programPurple,
-        title: l10n.marketDashOrdersAwaitingFulfillment(orderStats.pending),
-        subtitle: l10n.marketDashBuyerOrdersNote,
+        title: l10n.marketDashOrdersNeedAction(orderStats.needsAction),
+        subtitle: l10n.marketDashOrdersNeedActionNote,
         onTap: onPendingOrdersTap,
       ));
     }
@@ -272,11 +279,21 @@ class _MarketplaceOverviewCard extends StatelessWidget {
         onTap: onPendingOffersTap,
       ));
     }
-    if (marketLinkingSubmittedCount > 0) {
+    if (marketLinkingCancellations > 0) {
+      items.add(_PriorityItem(
+        icon: Icons.pending_actions_rounded,
+        color: AppConstants.errorRed,
+        title: l10n.marketDashCancellationRequests(marketLinkingCancellations),
+        subtitle: l10n.marketDashCancellationNote,
+        onTap: onMarketLinkingTap,
+      ));
+    }
+    if (marketLinkingFarmersCount > 0) {
       items.add(_PriorityItem(
         icon: Icons.eco_outlined,
         color: AppConstants.midGreen,
-        title: l10n.marketDashFarmersInPipeline(marketLinkingSubmittedCount),
+        title: l10n.marketDashFarmersInPipeline(marketLinkingFarmersCount),
+
         subtitle: l10n.marketDashLinkingNote,
         onTap: onMarketLinkingTap,
       ));
@@ -513,8 +530,8 @@ class _QuickActionsGrid extends StatelessWidget {
       _ActionItem(icon: Icons.pending_actions_rounded, label: l10n.marketDashKpiPendingReview, badge: stats.pending > 0 ? l10n.marketDashPendingBadge(stats.pending) : '', hasBadge: false,
           color: stats.pending > 0 ? AppConstants.warningAmber : cs.outline, onTap: onPendingReview),
       _ActionItem(icon: Icons.people_rounded, label: l10n.marketDashActionBuyerManagement, badge: '', hasBadge: false, color: AppConstants.buyerBlue, onTap: onBuyerManagement),
-      _ActionItem(icon: Icons.shopping_bag_rounded, label: l10n.marketDashKpiOrders, badge: orderStats.pending > 0 ? l10n.marketDashPendingBadge(orderStats.pending) : '', hasBadge: false,
-          color: orderStats.pending > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOrders),
+      _ActionItem(icon: Icons.shopping_bag_rounded, label: l10n.marketDashKpiOrders, badge: orderStats.needsAction > 0 ? l10n.marketDashNeedActionBadge(orderStats.needsAction) : '', hasBadge: false,
+          color: orderStats.needsAction > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOrders),
       _ActionItem(icon: Icons.alt_route_rounded, label: l10n.marketDashKpiMarketLinking, badge: 'DA-AMAD', hasBadge: false, color: AppConstants.primaryGreen, onTap: onMarketLinking),
       _ActionItem(icon: Icons.handshake_rounded, label: l10n.marketDashActionOfferToCoop, badge: pendingOffersCount > 0 ? l10n.marketDashPendingBadge(pendingOffersCount) : '', hasBadge: false,
           color: pendingOffersCount > 0 ? AppConstants.warningAmber : cs.outline, onTap: onOfferToCooperative),
@@ -522,6 +539,8 @@ class _QuickActionsGrid extends StatelessWidget {
 
     return GridView.builder(
       shrinkWrap: true,
+      // No automatic status-bar padding: this list sits inside a bigger scroll view.
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.6),
       itemCount: actions.length,

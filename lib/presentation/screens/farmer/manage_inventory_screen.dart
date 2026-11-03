@@ -17,11 +17,15 @@ import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/models/farmer_crop_model.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/channel_only_badge.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/crop_photo_capture.dart';
 import '../../widgets/shared_widgets.dart';
+
 import '../../widgets/management_modal.dart';
+import '../../widgets/stock_widgets.dart';
 import '../../widgets/coop_offer_widgets.dart' show coopKg, coopPeso;
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/db_error_utils.dart';
@@ -260,14 +264,36 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
     );
   }
 
+  /// Marketplace, Offer to Cooperative and Market Linking need the Farmer's own
+  /// camera photo of the crop. Returns the batch ready to sell (with the photo
+  /// the Farmer just took, if it was missing), or null if they did not add one.
+  /// Informal Sale never goes through this.
+  Future<InventoryBatchModel?> _withSellingPhoto(
+    InventoryBatchModel batch,
+    String why,
+  ) async {
+    if (batch.hasPhoto) return batch;
+    final url = await requireCropPhotoToSell(
+      context,
+      repo: _cropRepo,
+      cropId: batch.cropId,
+      cropName: batch.cropName,
+      why: why,
+    );
+    if (url == null || !mounted) return null;
+    _loadData();
+    return batch.withPhoto(url);
+  }
+
   Future<void> _handleBatchAction(InventoryBatchModel batch) async {
     // Ginger (DA-AMAD-exclusive) batches never go through the generic
     // Marketplace/Cooperative/Informal disposal flow below — Market
     // Linking is their only path. Intercepted here, before the
-    // isAvailable branching, because Market Linking never reserves the
-    // batch (available_kg is only touched at admin completion) — a
-    // Ginger batch with an active submission still reads as plain
-    // 'available' and would otherwise fall into the wrong branch.
+    // isAvailable branching: a submission reserves only the quantity
+    // submitted, so the batch can still read as 'available' (with the rest of
+    // its stock) while a request is open, and would otherwise fall into the
+    // wrong branch.
+
     if (batch.exclusiveChannel == AppConstants.channelDaAmad) {
       if (_activeMarketLinkingBatchIds.contains(batch.id)) {
         context.pushRoute(AppRoutes.myMarketLinking);
@@ -285,7 +311,9 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
           );
           return;
         }
-        final result = await showSubmitToSellDialog(context, batch: batch);
+        final ready = await _withSellingPhoto(batch, 'submit this batch for Market Linking');
+        if (ready == null || !mounted) return;
+        final result = await showSubmitToSellDialog(context, batch: ready);
         if (result == true) _loadData();
       }
       return;
@@ -330,11 +358,15 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
 
     switch (action) {
       case DisposalAction.marketplace:
-        final result = await context.pushRoute(AppRoutes.createListing, extra: batch);
+        final ready = await _withSellingPhoto(batch, 'list this on the Marketplace');
+        if (ready == null || !mounted) return;
+        final result = await context.pushRoute(AppRoutes.createListing, extra: ready);
         if (result == true) _loadData();
         break;
       case DisposalAction.cooperative:
-        final result = await showOfferToCooperativeDialog(context, batch: batch);
+        final ready = await _withSellingPhoto(batch, 'offer this to the Cooperative');
+        if (ready == null || !mounted) return;
+        final result = await showOfferToCooperativeDialog(context, batch: ready);
         if (result == true) _loadData();
         break;
       case DisposalAction.informal:
@@ -368,7 +400,7 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(screen: 'inventory_batches', isOnline: _isOnline, offlineMessage: AppLocalizations.of(context).offlineInventoryActions),
                     Expanded(
                 child: RefreshIndicator(
@@ -442,6 +474,8 @@ class _ManageInventoryScreenState extends State<ManageInventoryScreen> {
                               onViewHarvestRecord: () => context
                                   .pushRoute(AppRoutes.harvestHistory, extra: b.cropName),
                               onActionTap: () => _handleBatchAction(b),
+                              onViewStockHistory: () =>
+                                  showStockHistorySheet(context, batch: b),
                             ),
                           ),
                         ),
@@ -685,6 +719,7 @@ class _BatchCard extends StatelessWidget {
   final VoidCallback onUpdateQuantity;
   final VoidCallback onViewHarvestRecord;
   final VoidCallback onActionTap;
+  final VoidCallback onViewStockHistory;
 
   const _BatchCard({
     required this.batch,
@@ -695,6 +730,7 @@ class _BatchCard extends StatelessWidget {
     required this.onUpdateQuantity,
     required this.onViewHarvestRecord,
     required this.onActionTap,
+    required this.onViewStockHistory,
   });
 
   @override
@@ -782,6 +818,9 @@ class _BatchCard extends StatelessWidget {
                         case 'history':
                           onViewHarvestRecord();
                           break;
+                        case 'stock':
+                          onViewStockHistory();
+                          break;
                       }
                     },
                     // "Delete Batch" removed — a batch can already carry
@@ -800,6 +839,14 @@ class _BatchCard extends StatelessWidget {
                             AppConstants.onSurface,
                           ),
                         ),
+                      PopupMenuItem(
+                        value: 'stock',
+                        child: _batchMenuRow(
+                          Icons.swap_vert_rounded,
+                          AppLocalizations.of(context).stockHistoryButton,
+                          AppConstants.onSurface,
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'history',
                         child: _batchMenuRow(
@@ -847,6 +894,11 @@ class _BatchCard extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(statusInfo.accent),
                 ),
               ),
+              const SizedBox(height: 10),
+              // Available / Reserved / Sold (/ Adjusted): the same four figures
+              // the database keeps, so this card, the Harvest tab and the
+              // Manager's reports always agree.
+              StockFiguresRow(batch: batch),
               const SizedBox(height: 12),
 
               // Footer
@@ -1414,7 +1466,9 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _error = 'Could not submit. Please try again.';
+          _error = isPhotoRequiredError(e)
+              ? 'Take a photo of your actual crop in Crop Roster first.'
+              : 'Could not submit. Please try again.';
         });
       }
     }
@@ -1425,7 +1479,9 @@ class _SubmitToSellDialogState extends State<_SubmitToSellDialog> {
     return ManagementModalShell(
       title: 'Submit to Sell',
       subtitle: 'SP3 will review this and find a DA-AMAD buyer for this batch. '
-          'You can track progress in My Market Linking.',
+          'The quantity you submit is set aside for this sale, and any part that '
+          'is not sold goes back to your stock. Track progress in My Market Linking.',
+
       body: TextField(
         controller: _qtyController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),

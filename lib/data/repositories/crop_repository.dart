@@ -30,7 +30,7 @@ class CropRepository {
       var query = _client
           .from('farmer_crops')
           .select(
-            '*, harvest_records(count), crop_requests(status, admin_notes), crop_master(image_url, crop_type, exclusive_channel)',
+            '*, harvest_records(count), crop_requests(status, admin_notes), crop_master(crop_type, exclusive_channel)',
           )
           .eq('farmer_id', _userId);
 
@@ -56,9 +56,6 @@ class CropRepository {
             ? requestList!.first['admin_notes'] as String?
             : null;
         final catalogMaster = row['crop_master'];
-        final catalogImageUrl = catalogMaster is Map
-            ? catalogMaster['image_url'] as String?
-            : null;
         final catalogCropType = catalogMaster is Map
             ? catalogMaster['crop_type'] as String?
             : null;
@@ -70,7 +67,6 @@ class CropRepository {
           'harvest_count': count,
           'request_status': requestStatus,
           'request_notes': requestNotes,
-          'catalog_image_url': catalogImageUrl,
           'crop_type': catalogCropType,
           'exclusive_channel': catalogExclusiveChannel,
         });
@@ -116,36 +112,10 @@ class CropRepository {
     return FarmerCropModel.fromMap({...response, 'harvest_count': 0});
   }
 
-  // ─── Request photo upload ───────────────────────────────────────────────
-  // Same owner-folder upload idiom as Admin's uploadCropImage() /
-  // uploadInventoryImage() (crop_management_screen.dart,
-  // admin_inventory_screen.dart), against the same 'crop_images' bucket —
-  // its RLS policy checks auth.uid() against the folder name, not role,
-  // so any authenticated farmer can write to their own uid folder here.
-  // This is the farmer's reference photo for a pending request, separate
-  // from the crop_master.image_url an admin sets once approved.
-
-  Future<String?> uploadCropRequestPhoto(
-    Uint8List bytes,
-    String fileExtension,
-  ) async {
-    try {
-      final path =
-          '$_userId/request_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
-      await _client.storage
-          .from('crop_images')
-          .uploadBinary(
-            path,
-            bytes,
-            fileOptions: const FileOptions(upsert: true),
-          );
-      return _client.storage.from('crop_images').getPublicUrl(path);
-    } catch (_) {
-      return null;
-    }
-  }
-
   // ─── Request a new crop (not yet in the catalog) ───────────────────────────
+  // A request is just Crop Name, Category and Market Type: no photo, and it
+  // never inherits an image. The Farmer adds a camera photo of their own crop in
+  // Crop Roster whenever they like.
   // Creates the farmer_crops row immediately with crop_master_id left null
   // (isPendingApproval == true) so the farmer can see and manage it right
   // away — but it stays unusable for recording a harvest until an admin
@@ -158,7 +128,6 @@ class CropRepository {
     required String cropName,
     required String category,
     String? cropType,
-    String? photoUrl,
   }) async {
     final trimmedName = cropName.trim();
 
@@ -212,7 +181,6 @@ class CropRepository {
       'requested_name': trimmedName,
       'category': category,
       'crop_type': cropType,
-      'photo_url': photoUrl,
       'status': 'pending',
     });
 
@@ -246,7 +214,7 @@ class CropRepository {
   // Crop Name / Category / Market Type are locked in the UI (admin-owned
   // via crop_master / the approval flow) — the only thing Edit Crop can
   // change is the farmer's own reference photo for their planting. Same
-  // owner-folder upload idiom as uploadCropRequestPhoto() above, against
+  // owner-folder upload idiom as Admin's crop image upload, against
   // the same 'crop_images' bucket.
 
   /// Uploads a new crop photo and saves it on the crop. Offline, the photo is
@@ -311,7 +279,24 @@ class CropRepository {
     }
   }
 
+  /// The crop's current photo url (null when it has none).
+  Future<String?> fetchCropPhotoUrl(String cropId) async {
+    try {
+      final row = await _client
+          .from('farmer_crops')
+          .select('photo_url')
+          .eq('id', cropId)
+          .eq('farmer_id', _userId)
+          .maybeSingle();
+      final url = row?['photo_url'] as String?;
+      return (url != null && url.isNotEmpty) ? url : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<bool> updateCropPhoto(
+
     String cropId,
     String cropName,
     String photoUrl,
@@ -371,7 +356,8 @@ extension CropHarvestSummary on CropRepository {
 // image, mirrored from the farmer-side screen) ─────────────────────────────
 
 extension CropsForFarmer on CropRepository {
-  /// Same photo-then-catalog-image resolution as fetchCrops(), scoped to an
+  /// Same photo resolution as fetchCrops() (the Farmer's own photo only), scoped to an
+
   /// arbitrary farmerId rather than the current session — read-only, for
   /// Admin viewing a farmer's own Harvest History. Relies on the existing
   /// "farmer_crops: admin reads all" RLS policy.
@@ -382,14 +368,11 @@ extension CropsForFarmer on CropRepository {
       final client = Supabase.instance.client;
       final response = await client
           .from('farmer_crops')
-          .select('*, crop_master(image_url, crop_type, exclusive_channel)')
+          .select('*, crop_master(crop_type, exclusive_channel)')
           .eq('farmer_id', farmerId);
       final map = <String, FarmerCropModel>{};
       for (final row in response) {
         final catalogMaster = row['crop_master'];
-        final catalogImageUrl = catalogMaster is Map
-            ? catalogMaster['image_url'] as String?
-            : null;
         final catalogCropType = catalogMaster is Map
             ? catalogMaster['crop_type'] as String?
             : null;
@@ -399,7 +382,6 @@ extension CropsForFarmer on CropRepository {
         final crop = FarmerCropModel.fromMap({
           ...row,
           'harvest_count': 0,
-          'catalog_image_url': catalogImageUrl,
           'crop_type': catalogCropType,
           'exclusive_channel': catalogExclusiveChannel,
         });

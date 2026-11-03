@@ -9,6 +9,7 @@ import '../../../data/models/harvest_model.dart';
 import '../../../data/repositories/crop_repository.dart';
 import '../../../data/repositories/harvest_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/crop_category_chips.dart';
 import '../../widgets/management_modal.dart';
@@ -146,7 +147,7 @@ class _HarvestHistoryScreenState extends State<HarvestHistoryScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(
             screen: 'harvests',
             isOnline: _isOnline,

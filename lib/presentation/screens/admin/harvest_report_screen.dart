@@ -315,13 +315,13 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
             primaryStats: [
               ReportHeroStat(
                 label: l10n.reportsTotalYield,
-                value: '${_harvestData.totalYieldKg.toStringAsFixed(0)} kg',
+                value: formatKgTotal(_harvestData.totalYieldKg),
                 icon: Icons.agriculture_rounded,
                 accent: AppConstants.primaryGreen,
               ),
               ReportHeroStat(
                 label: l10n.reportsSold,
-                value: '${_harvestData.soldKgInPeriod.toStringAsFixed(0)} kg',
+                value: formatKgTotal(_harvestData.soldKgInPeriod),
                 icon: Icons.sell_rounded,
                 accent: AppConstants.buyerBlue,
               ),
@@ -370,7 +370,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
           final share = total > 0 ? c.totalKg / total * 100 : 0.0;
           return ReportBarRow(
             label: c.cropName,
-            valueText: '${c.totalKg.toStringAsFixed(0)} kg',
+            valueText: formatKgTotal(c.totalKg),
             fraction: maxKg > 0 ? c.totalKg / maxKg : 0,
             caption: l10n.rptShareOfTotal(share.toStringAsFixed(0)),
           );
@@ -536,7 +536,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                     icon: Icons.check_circle_rounded,
                     label: l10n.rptStatusAvailable,
                     value:
-                        '${_inventoryData.totalAvailableKg.toStringAsFixed(0)} kg',
+                        formatKgTotal(_inventoryData.totalAvailableKg),
                     accent: AppConstants.successGreen,
                   ),
                 ),
@@ -546,7 +546,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                     icon: Icons.bookmark_rounded,
                     label: l10n.rptCommitted,
                     value:
-                        '${_inventoryData.totalReservedKg.toStringAsFixed(0)} kg',
+                        formatKgTotal(_inventoryData.totalReservedKg),
                     accent: AppConstants.buyerBlue,
                   ),
                 ),
@@ -556,7 +556,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
                     icon: Icons.sell_rounded,
                     label: l10n.reportsSold,
                     value:
-                        '${_inventoryData.totalSoldKg.toStringAsFixed(0)} kg',
+                        formatKgTotal(_inventoryData.totalSoldKg),
                     accent: AppConstants.amber,
                   ),
                 ),
@@ -621,7 +621,7 @@ class _HarvestReportScreenState extends State<HarvestReportScreen>
             .map(
               (c) => ReportBarRow(
                 label: c.cropName,
-                valueText: '${c.totalKg.toStringAsFixed(0)} kg',
+                valueText: formatKgTotal(c.totalKg),
                 fraction: maxKg > 0 ? c.totalKg / maxKg : 0,
               ),
             )

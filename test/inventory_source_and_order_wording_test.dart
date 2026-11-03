@@ -42,31 +42,28 @@ void main() {
     });
   });
 
-  group('order wording: Pending Order / Disapproved', () {
-    // The stored statuses do not change; only what people read.
+  group('order wording: Pending Order, and no Disapproved order', () {
+    // The stored statuses do not change; only what people read. An order ends
+    // as Cancelled (by its Buyer or Farmer) or Completed (by the Manager); the
+    // Manager no longer disapproves one, so there is no such wording.
     test('English', () {
       final en = lookupAppLocalizations(const Locale('en'));
       expect(en.buyerOrdersStatusPending, 'Pending Order');
       expect(en.buyerOrderDetailStepPendingReview, 'Pending Order');
       expect(en.adminOrderStatusPendingReview, 'Pending Order');
-      expect(en.orderStatusRejected, 'Disapproved');
-      expect(en.buyerOrderDetailRejectedStatus, 'Disapproved');
-      expect(en.buyerOrdersEmptyRejected, 'No disapproved orders.');
-      expect(en.adminOrderDetailCancelTitle, 'Disapprove Order');
+      expect(en.buyerOrdersStatusCancelled, 'Cancelled');
     });
 
-    test('Tagalog uses the same term as the Members screens', () {
+    test('Tagalog', () {
       final tl = lookupAppLocalizations(const Locale('tl'));
-      expect(tl.orderStatusRejected, 'Hindi Inaprubahan');
       expect(tl.buyerOrdersStatusPending, 'Nakabinbing Order');
-      expect(tl.orderStatusRejected, tl.farmerMgmtStatusRejectedLabel);
     });
 
-    test('the model labels follow, and the stored value is untouched', () {
+    test('the model labels follow, and an old rejected order reads as Cancelled', () {
       expect(_order('pending').statusLabel, 'Pending Order');
-      expect(_order('rejected').statusLabel, 'Disapproved');
-      expect(_order('rejected').status, 'rejected');
-      expect(_order('rejected').isRejected, isTrue);
+      expect(_order('rejected').statusLabel, 'Cancelled');
+      expect(_order('rejected').status, 'cancelled');
+      expect(_order('cancelled').statusLabel, 'Cancelled');
     });
   });
 

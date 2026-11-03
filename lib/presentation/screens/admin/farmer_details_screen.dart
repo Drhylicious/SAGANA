@@ -1,3 +1,9 @@
+import '../../widgets/view_only_banner.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/management_modal.dart';
+import '../../../core/utils/db_error_utils.dart';
+import '../../../data/services/hive_service.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:google_fonts/google_fonts.dart';
@@ -20,6 +26,7 @@ import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/repositories/capital_contribution_repository.dart';
 import '../../../data/repositories/farmer_details_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/member_patronage_card.dart';
 import '../../widgets/member_profile_cards.dart';
@@ -121,7 +128,100 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
     });
   }
 
+  static String _stamp(DateTime t) => DateFormat('MMM d, y · h:mm a').format(t.toLocal());
+
+  CapitalContributionEvent? _reversalOf(CapitalContributionEvent e) {
+    for (final x in _capitalLedger) {
+      if (x.reversesEventId == e.id) return x;
+    }
+    return null;
+  }
+
+  CapitalContributionEvent? _originalOf(CapitalContributionEvent e) {
+    for (final x in _capitalLedger) {
+      if (x.id == e.reversesEventId) return x;
+    }
+    return null;
+  }
+
+  Future<void> _openEntry(CapitalContributionEvent e) async {
+    final wantsReverse = await showManagementModal<bool>(
+      context: context,
+      builder: (_) => _ContributionEntrySheet(
+        entry: e,
+        reversal: _reversalOf(e),
+        original: _originalOf(e),
+        stamp: _stamp,
+      ),
+    );
+    if (wantsReverse == true && mounted) await _reverseEntry(e);
+  }
+
+  Future<void> _openHistory() async {
+    final l10n = AppLocalizations.of(context);
+    final picked = await showManagementModal<CapitalContributionEvent>(
+      context: context,
+      builder: (ctx) {
+        final reversedIds = {
+          for (final x in _capitalLedger)
+            if (x.reversesEventId != null) x.reversesEventId!,
+        };
+        final cs = Theme.of(ctx).colorScheme;
+        return ManagementModalShell(
+          title: l10n.farmerDetailsContributionHistory,
+          bodyIsScrollable: true,
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              for (final x in _capitalLedger)
+                _LedgerRow(
+                  entry: x,
+                  reversed: reversedIds.contains(x.id),
+                  sourceLabel: _ContributionCard._sourceLabel(l10n, x.source),
+                  cs: cs,
+                  onTap: () => Navigator.of(ctx).pop(x),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null && mounted) await _openEntry(picked);
+  }
+
+  bool _isReversing = false;
+
+  /// Asks for the reason, then reverses. Needs a connection (unlike recording,
+  /// it is not kept for later), and one reversal at a time.
+  Future<void> _reverseEntry(CapitalContributionEvent e) async {
+    if (!requireManage(context, StaffModule.members)) return;
+    if (_isReversing) return;
+    final l10n = AppLocalizations.of(context);
+    if (!ConnectivityService.instance.isOnline) {
+      AppToast.show(context, l10n.farmerDetailsReverseNeedsInternet, isError: true);
+      return;
+    }
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (_) => _ReverseContributionDialog(amount: e.amount),
+    );
+    if (reason == null || !mounted) return;
+    setState(() => _isReversing = true);
+    try {
+      await _capitalRepo.reverseContribution(eventId: e.id, reason: reason, amount: e.amount);
+      if (!mounted) return;
+      AppToast.show(context, l10n.farmerDetailsContributionReversed);
+      await _loadAll();
+    } catch (err) {
+      if (!mounted) return;
+      AppToast.show(context, friendlyErrorMessage(err), isError: true);
+    } finally {
+      if (mounted) setState(() => _isReversing = false);
+    }
+  }
+
   Future<void> _recordContribution() async {
+    if (!requireManage(context, StaffModule.members)) return;
     final l10n = AppLocalizations.of(context);
     final result = await showDialog<_RecordContributionInput>(
       context: context,
@@ -226,7 +326,7 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: FarmerDetailsRepository.cacheScreens(
                   widget.farmerId,
@@ -289,15 +389,13 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   MemberFarmSection(profile: profile),
-                                  // Status History is shown while an application is
-                                  // under review (Pending) or was Disapproved. Once
-                                  // approved it is hidden; the records themselves
-                                  // stay in the database untouched.
+                                  // Status History: every approval, disapproval,
+                                  // suspension and reactivation, with the staff member
+                                  // who made it and when. MANAGER ONLY: it is the
+                                  // accountability record, and the database does not
+                                  // let an Officer read it either.
                                   if (_statusHistory.isNotEmpty &&
-                                      (profile.memberStatus ==
-                                              MemberStatus.pending ||
-                                          profile.memberStatus ==
-                                              MemberStatus.rejected)) ...[
+                                      !HiveService.isOfficer) ...[
                                     const SizedBox(height: 16),
                                     _StatusHistoryCard(
                                       events: _statusHistory,
@@ -365,6 +463,8 @@ class _FarmerDetailsScreenState extends State<FarmerDetailsScreen> {
                                     sagana: sagana,
                                     canRecordContribution: !profile.memberStatus.isApplicant,
                                     onRecordContribution: _recordContribution,
+                                    onOpenEntry: _openEntry,
+                                    onViewAll: _openHistory,
                                   ),
                                   const SizedBox(height: 20),
                                   _TabSectionHeader(
@@ -941,6 +1041,8 @@ class _ContributionCard extends StatelessWidget {
   /// False for an applicant: capital is recorded for members only.
   final bool canRecordContribution;
   final VoidCallback onRecordContribution;
+  final void Function(CapitalContributionEvent) onOpenEntry;
+  final VoidCallback onViewAll;
 
   const _ContributionCard({
     required this.capitalShares,
@@ -950,6 +1052,8 @@ class _ContributionCard extends StatelessWidget {
     required this.sagana,
     required this.canRecordContribution,
     required this.onRecordContribution,
+    required this.onOpenEntry,
+    required this.onViewAll,
   });
 
   static String _sourceLabel(AppLocalizations l10n, String source) {
@@ -977,6 +1081,10 @@ class _ContributionCard extends StatelessWidget {
         0;
     final completedShares =
         summary?.shares.totalShares ?? capitalShares?.totalShares ?? 0;
+    final reversedIds = {
+      for (final e in capitalLedger)
+        if (e.reversesEventId != null) e.reversesEventId!,
+    };
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1085,41 +1193,318 @@ class _ContributionCard extends StatelessWidget {
                   ...capitalLedger
                       .take(4)
                       .map(
-                        (e) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${_sourceLabel(l10n, e.source)} · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: cs.onSurfaceVariant,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(
-                                '${e.amount < 0 ? '−' : '+'}₱${e.amount.abs().toStringAsFixed(2)}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: e.amount < 0
-                                      ? AppConstants.errorRed
-                                      : cs.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
+                        (e) => _LedgerRow(
+                          entry: e,
+                          reversed: reversedIds.contains(e.id),
+                          sourceLabel: _sourceLabel(l10n, e.source),
+                          cs: cs,
+                          onTap: () => onOpenEntry(e),
                         ),
                       ),
+                  if (capitalLedger.length > 4)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: onViewAll,
+                        child: Text(
+                          l10n.farmerDetailsViewAllEntries(capitalLedger.length),
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
                 ],
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// One ledger entry: type and date on the left, the signed amount on the right.
+/// A reversed entry is struck through and tagged; a reversal carries its own tag.
+class _LedgerRow extends StatelessWidget {
+  final CapitalContributionEvent entry;
+  final bool reversed;
+  final String sourceLabel;
+  final ColorScheme cs;
+  final VoidCallback onTap;
+
+  const _LedgerRow({
+    required this.entry,
+    required this.reversed,
+    required this.sourceLabel,
+    required this.cs,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final e = entry;
+    final tag = e.isReversal
+        ? l10n.farmerDetailsReversalTag
+        : (reversed ? l10n.farmerDetailsReversedTag : null);
+    final muted = reversed;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                children: [
+                  Text(
+                    '$sourceLabel · ${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}',
+                    style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                  ),
+                  if (tag != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: (e.isReversal ? AppConstants.warningAmber : cs.outline)
+                            .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                      ),
+                      child: Text(
+                        tag,
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: e.isReversal ? AppConstants.warningAmber : cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Text(
+              '${e.amount < 0 ? '−' : '+'}₱${e.amount.abs().toStringAsFixed(2)}',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                decoration: muted ? TextDecoration.lineThrough : null,
+                color: muted
+                    ? cs.onSurfaceVariant
+                    : (e.amount < 0 ? AppConstants.errorRed : cs.onSurface),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 16, color: cs.outline),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Everything about one ledger entry: who recorded it and when, and, if it was
+/// reversed, who reversed it, when and why. Closes with true to ask for a reversal.
+class _ContributionEntrySheet extends StatelessWidget {
+  final CapitalContributionEvent entry;
+  final CapitalContributionEvent? reversal; // the entry that cancels this one
+  final CapitalContributionEvent? original; // the entry this one cancels
+  final String Function(DateTime) stamp;
+
+  const _ContributionEntrySheet({
+    required this.entry,
+    required this.reversal,
+    required this.original,
+    required this.stamp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final e = entry;
+    final unknown = l10n.farmerDetailsRecordedBySystem;
+    final money = NumberFormat('#,##0.00');
+    String sign(double v) => '${v < 0 ? '−' : '+'}₱${money.format(v.abs())}';
+
+    Widget line(IconData icon, String text, {Color? color}) => Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color ?? cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: GoogleFonts.inter(fontSize: 13, color: color ?? cs.onSurface)),
+          ),
+        ],
+      ),
+    );
+
+    final reversed = reversal != null;
+    final canReverse = e.canBeReversed && !reversed;
+
+    return ManagementModalShell(
+      title: l10n.farmerDetailsContributionDetails,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _ContributionCard._sourceLabel(l10n, e.source),
+                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                sign(e.amount),
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  decoration: reversed ? TextDecoration.lineThrough : null,
+                  color: reversed
+                      ? cs.onSurfaceVariant
+                      : (e.amount < 0 ? AppConstants.errorRed : cs.onSurface),
+                ),
+              ),
+            ],
+          ),
+          if (e.isReversal) ...[
+            line(
+              Icons.undo_rounded,
+              l10n.farmerDetailsReversedByOn(e.recordedByName ?? unknown, stamp(e.createdAt)),
+            ),
+            if ((e.reversalReason ?? '').isNotEmpty)
+              line(Icons.notes_rounded, l10n.farmerDetailsReversalReason(e.reversalReason!)),
+            if (original != null)
+              line(
+                Icons.link_rounded,
+                l10n.farmerDetailsCancelsEntry(
+                  '₱${money.format(original!.amount.abs())}',
+                  original!.recordedByName ?? unknown,
+                  stamp(original!.createdAt),
+                ),
+              ),
+          ] else ...[
+            line(
+              Icons.edit_note_rounded,
+              l10n.farmerDetailsRecordedByOn(e.recordedByName ?? unknown, stamp(e.createdAt)),
+            ),
+            if ((e.note ?? '').isNotEmpty) line(Icons.notes_rounded, l10n.farmerDetailsNoteLine(e.note!)),
+            if (reversal != null) ...[
+              line(
+                Icons.undo_rounded,
+                l10n.farmerDetailsReversedByOn(reversal!.recordedByName ?? unknown, stamp(reversal!.createdAt)),
+                color: AppConstants.warningAmber,
+              ),
+              if ((reversal!.reversalReason ?? '').isNotEmpty)
+                line(Icons.notes_rounded, l10n.farmerDetailsReversalReason(reversal!.reversalReason!)),
+            ],
+            if (e.source == 'patronage_capital' && !reversed)
+              line(Icons.info_outline_rounded, l10n.farmerDetailsReverseElsewhere),
+          ],
+          if (canReverse) ...[
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.undo_rounded, size: 16),
+                label: Text(
+                  l10n.farmerDetailsReverseContribution,
+                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppConstants.errorRed,
+                  side: const BorderSide(color: AppConstants.errorRed),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Asks why an entry is being reversed. Returns the trimmed reason, or null.
+class _ReverseContributionDialog extends StatefulWidget {
+  final double amount;
+  const _ReverseContributionDialog({required this.amount});
+
+  @override
+  State<_ReverseContributionDialog> createState() => _ReverseContributionDialogState();
+}
+
+class _ReverseContributionDialogState extends State<_ReverseContributionDialog> {
+  final _reasonCtrl = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final amount = '₱${NumberFormat('#,##0.00').format(widget.amount.abs())}';
+    return AlertDialog(
+      title: Text(
+        l10n.farmerDetailsReverseContribution,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.farmerDetailsReverseExplain(amount),
+              style: GoogleFonts.inter(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _reasonCtrl,
+              autofocus: true,
+              maxLines: 3,
+              minLines: 2,
+              maxLength: 500,
+              decoration: InputDecoration(
+                labelText: l10n.farmerDetailsReversalReasonLabel,
+                hintText: l10n.farmerDetailsReversalReasonHint,
+                errorText: _error,
+              ),
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.farmerDetailsKeepContribution),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final reason = _reasonCtrl.text.trim();
+            if (reason.length < 3) {
+              setState(() => _error = l10n.farmerDetailsReversalReasonRequired);
+              return;
+            }
+            Navigator.pop(context, reason);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppConstants.errorRed,
+            foregroundColor: Colors.white,
+          ),
+          child: Text(l10n.farmerDetailsReverseAction),
+        ),
+      ],
     );
   }
 }
@@ -2191,6 +2576,20 @@ class _StatusHistoryCard extends StatelessWidget {
                               fontSize: 11,
                               color: cs.onSurfaceVariant,
                               height: 1.4,
+                            ),
+                          ),
+                        if ((e.actorName ?? '').trim().isNotEmpty)
+                          Text(
+                            l10n.farmerDetailsHistoryBy(
+                              e.actorName!.trim(),
+                              e.actorRole == 'admin'
+                                  ? l10n.staffRoleManager
+                                  : l10n.staffRoleOfficer,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
                             ),
                           ),
                         Text(

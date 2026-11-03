@@ -4,6 +4,8 @@ import '../../core/utils/quantity_utils.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
 import '../models/marketplace_listing_model.dart';
+import '../models/listing_edit_request_model.dart';
+import '../models/workflow_event_model.dart';
 import '../services/app_event_service.dart';
 import 'crop_lookup.dart';
 
@@ -128,6 +130,144 @@ class ListingRepository {
       return _client.storage.from('listing_photos').getPublicUrl(path);
     } catch (_) {
       return null;
+    }
+  }
+
+  // ─── Edit own listing ──────────────────────────────────────────────────────
+  // Quantity, asking price, description and (optionally) the product photo of a
+  // Pending Approval or Available listing. The crop and the unit never change.
+  // update_my_listing() does the work in one transaction: it re-reserves or
+  // releases the difference on the harvest batch, moves remaining_kg by the same
+  // amount, and leaves existing orders (their own quantity and price) alone. See
+  // supabase_schema_farmer_listing_edit.sql. [refreshPhoto] asks the database to
+  // copy the crop's CURRENT roster photo onto the listing.
+  Future<void> updateListing({
+    required String listingId,
+    required double quantity,
+    required double pricePerUnit,
+    required String description,
+    bool refreshPhoto = false,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'update_my_listing',
+      params: {
+        'p_listing_id': listingId,
+        'p_quantity': roundQuantity(quantity),
+        'p_price_per_kg': roundQuantity(pricePerUnit),
+        'p_description': description.trim(),
+        'p_refresh_photo': refreshPhoto,
+      },
+    );
+    AppEventService.instance.notify();
+  }
+
+  // ─── Edit requests (a published listing changes only after approval) ───────
+  // The listing stays exactly as it is while a request waits. The Manager or
+  // Officer approves (the change is applied) or disapproves with a reason (only
+  // the request is rejected). See supabase_schema_listing_edit_approval.sql.
+
+  /// Sends the proposed values for approval. [photoUrl] is a photo this Farmer
+  /// already uploaded to the listing photo bucket (null keeps the photo).
+  Future<void> requestEdit({
+    required String listingId,
+    required double quantity,
+    required double pricePerUnit,
+    required String description,
+    String? photoUrl,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'request_listing_edit',
+      params: {
+        'p_listing_id': listingId,
+        'p_quantity': roundQuantity(quantity),
+        'p_price_per_kg': roundQuantity(pricePerUnit),
+        'p_description': description.trim(),
+        'p_photo_url': photoUrl,
+      },
+    );
+    AppEventService.instance.notify();
+  }
+
+  Future<void> cancelEditRequest(String requestId) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc('cancel_listing_edit_request', params: {'p_request_id': requestId});
+    AppEventService.instance.notify();
+  }
+
+  /// This listing's edit requests, newest first. The reviewer is never included.
+  Future<List<ListingEditRequest>> fetchMyEditRequests(String listingId) async {
+    try {
+      final result = await _client.rpc(
+        'get_my_listing_edit_requests',
+        params: {'p_listing_id': listingId},
+      );
+      return [
+        for (final r in (result as List? ?? const []))
+          ListingEditRequest.fromMap(Map<String, dynamic>.from(r as Map)),
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// The listing's history for its Farmer: what happened and when, as "you" or
+  /// "cooperative", with the reason for a disapproval. No staff identity.
+  Future<List<WorkflowEvent>> fetchMyHistory(String listingId) async {
+    try {
+      final result = await _client.rpc(
+        'get_my_listing_history',
+        params: {'p_listing_id': listingId},
+      );
+      return [
+        for (final r in (result as List? ?? const []))
+          WorkflowEvent.fromMap(Map<String, dynamic>.from(r as Map)),
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// One listing, freshly read (the edit screen starts from the live values,
+  /// not the copy the list screen was holding).
+  Future<MarketplaceListingModel?> fetchListing(String listingId) async {
+    try {
+      final row = await _client
+          .from('marketplace_listings')
+          .select()
+          .eq('id', listingId)
+          .eq('farmer_id', _userId)
+          .maybeSingle();
+      return row == null ? null : await _hydrate(row);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── What buyers actually ordered, per listing ─────────────────────────────
+  // The amount ordered on a listing is the sum of its orders' own totals, NOT
+  // "quantity ordered x the listing's current price": the Farmer can change the
+  // asking price after orders came in, and every order keeps the price it was
+  // placed at. Cancelled (and legacy rejected) orders are not counted.
+  Future<Map<String, double>> fetchOrderedAmounts() async {
+    try {
+      final rows = await _client
+          .from('orders')
+          .select('listing_id, total_price, status')
+          .eq('farmer_id', _userId);
+      final centavos = <String, int>{};
+      for (final r in rows) {
+        final status = r['status'] as String?;
+        if (status == 'cancelled' || status == 'rejected') continue;
+        final id = r['listing_id'] as String?;
+        if (id == null) continue;
+        final total = ((r['total_price'] as num?) ?? 0) * 100;
+        centavos[id] = (centavos[id] ?? 0) + total.round();
+      }
+      return {for (final e in centavos.entries) e.key: e.value / 100};
+    } catch (_) {
+      return {};
     }
   }
 

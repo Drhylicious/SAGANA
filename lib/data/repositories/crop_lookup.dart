@@ -53,17 +53,6 @@ Future<Map<String, String>> fetchFarmerCropToCropMasterMap(
   }
 }
 
-/// Batch-resolves the display image URL for a set of farmer_crops IDs —
-/// the farmer's own crop photo if set, else the crop_master catalog
-/// photo, else omitted. Two explicit queries rather than a nested embed
-/// (farmer_crops -> crop_master), for the same reason documented on
-/// fetchCropNameMap above: an embed through a crop_id-style relationship
-/// has previously failed in production here, and this file's established
-/// convention is to compose independently-debuggable queries instead.
-///
-/// Mirrors FarmerCropModel.displayImageUrl's own precedence exactly, so
-/// an inventory batch and its originating Crop Roster entry always agree
-/// on which photo to show.
 /// Batch-resolves crop_master.category for a set of farmer_crops IDs —
 /// same farmer_crops -> crop_master_id -> crop_master composition as
 /// fetchFarmerCropImageMap above, for the same reason (no nested embed).
@@ -101,6 +90,10 @@ Future<Map<String, String>> fetchFarmerCropCategoryMap(
   }
 }
 
+/// The Farmer's own (camera-captured) photo of each crop, by farmer_crops id.
+/// A crop without one is simply absent from the map: the Crop Master image is
+/// a catalog reference and is never used as a Farmer's photo, so an inventory
+/// batch, a listing and its Crop Roster entry always agree on the same photo.
 Future<Map<String, String>> fetchFarmerCropImageMap(
   SupabaseClient client,
   List<String> farmerCropIds,
@@ -109,48 +102,15 @@ Future<Map<String, String>> fetchFarmerCropImageMap(
   try {
     final rows = await client
         .from('farmer_crops')
-        .select('id, photo_url, crop_master_id')
+        .select('id, photo_url')
         .inFilter('id', farmerCropIds);
-
-    final ownPhotoById = <String, String>{};
-    final masterIdById = <String, String>{};
-    for (final r in rows) {
-      final id = r['id'] as String;
-      final ownPhoto = r['photo_url'] as String?;
-      if (ownPhoto != null && ownPhoto.isNotEmpty) {
-        ownPhotoById[id] = ownPhoto;
-      } else if (r['crop_master_id'] != null) {
-        masterIdById[id] = r['crop_master_id'] as String;
-      }
-    }
-
-    final masterImageById = <String, String>{};
-    if (masterIdById.isNotEmpty) {
-      final masterRows = await client
-          .from('crop_master')
-          .select('id, image_url')
-          .inFilter('id', masterIdById.values.toSet().toList());
-      for (final r in masterRows) {
-        final url = r['image_url'] as String?;
-        if (url != null && url.isNotEmpty) {
-          masterImageById[r['id'] as String] = url;
-        }
-      }
-    }
-
-    final result = <String, String>{};
-    for (final id in farmerCropIds) {
-      final own = ownPhotoById[id];
-      if (own != null) {
-        result[id] = own;
-        continue;
-      }
-      final masterId = masterIdById[id];
-      final catalogUrl = masterId != null ? masterImageById[masterId] : null;
-      if (catalogUrl != null) result[id] = catalogUrl;
-    }
-    return result;
+    return {
+      for (final r in rows)
+        if ((r['photo_url'] as String?)?.isNotEmpty == true)
+          r['id'] as String: r['photo_url'] as String,
+    };
   } catch (_) {
     return {};
   }
 }
+

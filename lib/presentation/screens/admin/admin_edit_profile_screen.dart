@@ -497,7 +497,9 @@ class _AdminEditProfileScreenState extends State<AdminEditProfileScreen> {
                   isOnline: ConnectivityService.instance.isOnline,
                   verifier: _verifier,
                   saveEmail: _saveEmailForVerification,
-                  onSignInEmailChanged: _onSignInEmailChanged,
+                  onSignInEmailChanged: _isOfficer
+                      ? () => announceEmailSignInEnabled(context, _savedEmail)
+                      : _onSignInEmailChanged,
                   onVerified: () {
                     setState(() {
                       // The proven address is now the one in use.

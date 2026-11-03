@@ -3,16 +3,40 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/bod_schedule_utils.dart';
+import '../../../core/utils/loan_sorting.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/loan_model.dart';
 import '../../../data/repositories/loan_repository.dart';
 import '../../../data/services/connectivity_service.dart';
-import '../../widgets/skeleton.dart';
-import '../../widgets/shared_widgets.dart';
+import '../../../routes/app_routes.dart';
 import '../../widgets/cached_data_notice.dart';
-import '../../../core/l10n/app_localizations.dart';
+import '../../widgets/farmer_loan_widgets.dart';
+import '../../widgets/shared_widgets.dart';
+import '../../widgets/skeleton.dart';
+import '../../widgets/top_bar_spacer.dart';
 
+/// Farmer > Profile > Input Loans.
+///
+/// Laid out like Manager > Loans so both roles read a loan the same way:
+///   1. Outstanding Loans            (what is still owed, and how much is repaid)
+///   2. Next Payment Due             (the next BOD payment, or what is overdue)
+///   3. Input-only loans note
+///   4. Loan History                 (the latest few loans; View All opens them all)
+///   5. Payment History              (the latest few payments; View All opens them all)
+/// and a + button to request a loan.
+///
+/// The landing page keeps to the most recent records so it stays short: the latest
+/// [_recentLoans] loans and [_recentPayments] payments, newest first. View All opens
+/// the full Loan History (with the status chips) and Payment History screens, which
+/// sort the very same way (see loan_sorting.dart).
+///
+/// Every figure comes from the Farmer's own loans (farmer_loans with their items
+/// and payments), so the balance, the history and the payments always agree. The
+/// statuses are the stored ones: active, overdue (set by the daily maintenance /
+/// the Manager's dashboard when a payment is late) and paid.
 class MyLoansScreen extends StatefulWidget {
   const MyLoansScreen({super.key});
 
@@ -21,10 +45,12 @@ class MyLoansScreen extends StatefulWidget {
 }
 
 class _MyLoansScreenState extends State<MyLoansScreen> {
+  static const _recentLoans = 3;
+  static const _recentPayments = 5;
+
   final _repo = LoanRepository();
 
   List<LoanModel> _loans = [];
-  double _totalOutstanding = 0;
   bool _isLoading = true;
   bool _isOnline = true;
 
@@ -46,23 +72,60 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _repo.fetchLoans(),
-      _repo.fetchTotalOutstanding(),
-    ]);
+    final loans = await _repo.fetchLoans();
     if (!mounted) return;
     setState(() {
-      _loans = results[0] as List<LoanModel>;
-      _totalOutstanding = results[1] as double;
+      _loans = loans;
       _isLoading = false;
     });
   }
 
+  // ─── Derived figures (all from the same list of loans) ────────────────────
+
+  List<LoanModel> get _unpaid => _loans.where((l) => !l.isPaid).toList();
+
+  List<LoanModel> get _overdue => _loans.where((l) => l.isOverdue).toList();
+
+  /// What is still owed: the remaining balance of every loan that is not paid.
+  double get _outstanding =>
+      _unpaid.fold<double>(0, (sum, l) => sum + l.remainingBalance);
+
+  /// What the unpaid loans were worth, and how much of it is already paid.
+  double get _borrowed => _unpaid.fold<double>(0, (sum, l) => sum + l.totalValue);
+
+  double get _repaid => _unpaid.fold<double>(0, (sum, l) => sum + l.amountPaid);
+
+  double get _overdueBalance =>
+      _overdue.fold<double>(0, (sum, l) => sum + l.remainingBalance);
+
+  /// The earliest payment date among the unpaid loans; the next BOD Saturday
+  /// when no loan carries one.
+  DateTime get _nextPaymentDate {
+    final dates = _unpaid
+        .map((l) => l.nextPaymentDate)
+        .whereType<DateTime>()
+        .toList()
+      ..sort();
+    return dates.isEmpty ? BodSchedule.upcoming() : dates.first;
+  }
+
+  /// One month's payment across the unpaid loans (never more than what is left).
+  double get _expectedPayment => _unpaid.fold<double>(0, (sum, l) {
+    if (l.monthlyPayment <= 0) return sum;
+    return sum + (l.monthlyPayment < l.remainingBalance ? l.monthlyPayment : l.remainingBalance);
+  });
+
+  Future<void> _requestLoan() async {
+    await context.pushRoute<void>(AppRoutes.requestLoan);
+    if (mounted) _loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activeLoans = _loans.where((l) => !l.isPaid).toList();
-    final bodDate = BodSchedule.upcoming();
-    final allPaid = !_isLoading && _totalOutstanding == 0 && _loans.isNotEmpty;
+    final l10n = AppLocalizations.of(context);
+    final recentLoans = loansNewestFirst(_loans).take(_recentLoans).toList();
+    final allPayments = paymentsNewestFirst(_loans);
+    final recentPayments = allPayments.take(_recentPayments).toList();
 
     return Scaffold(
       backgroundColor: context.saganaColors.scaffoldBackground,
@@ -70,78 +133,94 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              const TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'loans',
                 isOnline: _isOnline,
-                offlineMessage: AppLocalizations.of(context).offlineLoans,
+                offlineMessage: l10n.offlineLoans,
               ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                     children: [
-                      // Outstanding balance card
                       _OutstandingCard(
-                        total: _totalOutstanding,
-                        allPaid: allPaid,
+                        outstanding: _outstanding,
+                        borrowed: _borrowed,
+                        repaid: _repaid,
+                        activeCount: _loans.where((l) => l.isActive).length,
+                        overdueCount: _overdue.length,
+                        paidCount: _loans.where((l) => l.isPaid).length,
+                        hasLoans: _loans.isNotEmpty,
                         isLoading: _isLoading,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
+                      _NextPaymentCard(
+                        nextDate: _nextPaymentDate,
+                        hasUnpaid: _unpaid.isNotEmpty,
+                        expected: _expectedPayment,
+                        overdueCount: _overdue.length,
+                        overdueBalance: _overdueBalance,
+                        isLoading: _isLoading,
+                      ),
+                      const SizedBox(height: 14),
+                      const _InputLoanInfoCard(),
+                      const SizedBox(height: 24),
 
-                      // BOD schedule card
-                      _BodScheduleCard(bodDate: bodDate),
-                      const SizedBox(height: 20),
-
-                      // Info banner
-                      const _InfoBanner(),
-                      const SizedBox(height: 20),
-
-                      // Active loans header
-                      if (!_isLoading) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Active Loans',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: AppConstants.charcoal,
-                              ),
-                            ),
-                            Text(
-                              '${activeLoans.length} Loan${activeLoans.length == 1 ? '' : 's'}',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: AppConstants.outline,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                      ],
-
-                      // Loan list / empty / shimmer
+                      // ── Loan History (latest few) ─────────────────────────
+                      LoanSectionHeader(
+                        title: l10n.loanMyHistoryTitle,
+                        viewAllLabel: l10n.loanMyViewAll,
+                        onViewAll: _isLoading || _loans.isEmpty
+                            ? null
+                            : () => context.pushRoute<void>(AppRoutes.myLoanHistory),
+                      ),
+                      const SizedBox(height: 10),
                       if (_isLoading)
                         ...List.generate(
                           2,
                           (_) => const Padding(
-                            padding: EdgeInsets.only(bottom: 14),
-                            child: SkeletonBlock(height: 160),
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: SkeletonBlock(height: 120),
                           ),
                         )
-                      else if (activeLoans.isEmpty)
-                        _EmptyState()
+                      else if (recentLoans.isEmpty)
+                        LoanEmptyNote(
+                          icon: Icons.agriculture_outlined,
+                          text: l10n.loanMyNoLoans,
+                        )
                       else
-                        ...activeLoans.map(
-                          (loan) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _LoanCard(loan: loan),
+                        for (final loan in recentLoans)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: FarmerLoanCard(loan: loan, compact: true),
                           ),
-                        ),
+
+                      // ── Payment History (latest few) ──────────────────────
+                      const SizedBox(height: 12),
+                      LoanSectionHeader(
+                        title: l10n.loanMyPaymentsTitle,
+                        viewAllLabel: l10n.loanMyViewAll,
+                        onViewAll: _isLoading || allPayments.isEmpty
+                            ? null
+                            : () => context.pushRoute<void>(AppRoutes.myPaymentHistory),
+                      ),
+                      const SizedBox(height: 10),
+                      if (_isLoading)
+                        const SkeletonBlock(height: 70)
+                      else if (recentPayments.isEmpty)
+                        LoanEmptyNote(
+                          icon: Icons.payments_outlined,
+                          text: l10n.loanMyNoPayments,
+                        )
+                      else
+                        for (final row in recentPayments)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: FarmerPaymentRow(loan: row.loan, payment: row.payment),
+                          ),
                     ],
                   ),
                 ),
@@ -153,7 +232,7 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'My Input Loans',
+              title: l10n.loanMyScreenTitle,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -163,40 +242,63 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _requestLoan,
+        tooltip: l10n.loanReqRequestButton,
+        backgroundColor: AppConstants.primaryGreen,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add_rounded, size: 30),
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Outstanding Balance Card
+// 1. Outstanding Loans — the same KPI card style as Manager > Loans.
+//    One accent colour runs through the whole card (red while something is
+//    owed, green once everything is paid), and the full width is used: the
+//    repaid share beside the title, a progress bar across, and three counts.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _OutstandingCard extends StatelessWidget {
-  final double total;
-  final bool allPaid;
+  final double outstanding;
+  final double borrowed;
+  final double repaid;
+  final int activeCount;
+  final int overdueCount;
+  final int paidCount;
+  final bool hasLoans;
   final bool isLoading;
 
   const _OutstandingCard({
-    required this.total,
-    required this.allPaid,
+    required this.outstanding,
+    required this.borrowed,
+    required this.repaid,
+    required this.activeCount,
+    required this.overdueCount,
+    required this.paidCount,
+    required this.hasLoans,
     required this.isLoading,
   });
 
   @override
   Widget build(BuildContext context) {
-    // KPI card design mirrored from Admin Marketplace tab's _KpiStrip/
-    // _KpiTile (marketplace_dashboard_screen.dart) — tinted background +
-    // border, icon in a tinted badge, label, big value — applied full-width
-    // here since this is the screen's one hero stat rather than a strip.
-    final color = allPaid ? AppConstants.successGreen : AppConstants.errorRed;
+    final l10n = AppLocalizations.of(context);
+    final money = NumberFormat('#,##0.00');
+    final allPaid = !isLoading && hasLoans && outstanding <= 0;
+    final owing = outstanding > 0;
+    final accent = allPaid
+        ? AppConstants.successGreen
+        : (owing ? AppConstants.errorRed : AppConstants.primaryGreen);
+    final share = borrowed > 0 ? (repaid / borrowed).clamp(0.0, 1.0) : 0.0;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
+        color: accent.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,21 +308,40 @@ class _OutstandingCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
+                  color: accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                 ),
-                child: Icon(Icons.account_balance_wallet_rounded, size: 18, color: color),
+                child: Icon(Icons.account_balance_wallet_rounded, size: 18, color: accent),
               ),
               const SizedBox(width: 10),
-              Text(
-                'TOTAL OUTSTANDING BALANCE',
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: AppConstants.onSurfaceVariant,
-                  letterSpacing: 0.6,
+              Expanded(
+                child: Text(
+                  l10n.loanMyOutstandingTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.onSurfaceVariant,
+                  ),
                 ),
               ),
+              if (!isLoading && borrowed > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                  ),
+                  child: Text(
+                    l10n.loanMyRepaid((share * 100).round()),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -229,47 +350,149 @@ class _OutstandingCard extends StatelessWidget {
           else if (allPaid)
             Row(
               children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppConstants.successGreen,
-                  size: 22,
-                ),
+                const Icon(Icons.check_circle_rounded, color: AppConstants.successGreen, size: 22),
                 const SizedBox(width: 8),
-                Text(
-                  'Great job! All loans are fully paid.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppConstants.successGreen,
+                Expanded(
+                  child: Text(
+                    l10n.loanMyAllPaid,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.successGreen,
+                    ),
                   ),
                 ),
               ],
             )
           else
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '₱${money.format(outstanding)}',
+                style: GoogleFonts.poppins(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
+                  color: accent,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+          if (!isLoading && borrowed > 0) ...[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: share,
+                minHeight: 8,
+                backgroundColor: accent.withValues(alpha: 0.14),
+                valueColor: AlwaysStoppedAnimation(accent),
+              ),
+            ),
+            const SizedBox(height: 6),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  '₱',
-                  style: GoogleFonts.poppins(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.errorRed,
+                Expanded(
+                  child: Text(
+                    l10n.loanMyRepaidAmount(money.format(repaid)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 11.5, color: AppConstants.onSurfaceVariant),
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: 8),
                 Text(
-                  NumberFormat('#,##0.00').format(total),
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.errorRed,
-                    letterSpacing: -0.5,
+                  l10n.loanMyOfBorrowed(money.format(borrowed)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 11.5, color: AppConstants.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ],
+          if (!isLoading && hasLoans) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _CountTile(
+                    count: activeCount,
+                    label: l10n.loanDashActiveLoans,
+                    accent: accent,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CountTile(
+                    count: overdueCount,
+                    label: l10n.loanDashOverdueLoans,
+                    accent: accent,
+                    highlight: overdueCount > 0,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CountTile(
+                    count: paidCount,
+                    label: l10n.loanHistoryFilterPaid,
+                    accent: accent,
                   ),
                 ),
               ],
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A count and its label, tinted with the card's own accent so it always matches
+/// the card. [highlight] fills it (used for overdue loans, the one that needs
+/// attention).
+class _CountTile extends StatelessWidget {
+  final int count;
+  final String label;
+  final Color accent;
+  final bool highlight;
+
+  const _CountTile({
+    required this.count,
+    required this.label,
+    required this.accent,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = highlight ? Colors.white : accent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: highlight ? accent : accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$count',
+            style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: fg, height: 1.1),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: highlight ? Colors.white.withValues(alpha: 0.92) : AppConstants.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -277,191 +500,210 @@ class _OutstandingCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BOD Schedule Card
+// 2. Next Payment Due — the same banner as Manager > Loans (green; red when a
+//    loan is overdue).
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BodScheduleCard extends StatelessWidget {
-  final DateTime bodDate;
-  const _BodScheduleCard({required this.bodDate});
+class _NextPaymentCard extends StatelessWidget {
+  final DateTime nextDate;
+  final bool hasUnpaid;
+  final double expected;
+  final int overdueCount;
+  final double overdueBalance;
+  final bool isLoading;
 
-  // Calendar-day difference to bodDate, ignoring time-of-day on both sides
-  // — matches the same normalization Farmer Home's priority card uses, so
-  // the two screens can never disagree on what day a given date "is."
+  const _NextPaymentCard({
+    required this.nextDate,
+    required this.hasUnpaid,
+    required this.expected,
+    required this.overdueCount,
+    required this.overdueBalance,
+    required this.isLoading,
+  });
+
+  // Calendar-day difference, ignoring the time of day on both sides.
   int get _daysUntil {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final target = DateTime(bodDate.year, bodDate.month, bodDate.day);
+    final target = DateTime(nextDate.year, nextDate.month, nextDate.day);
     return target.difference(today).inDays;
-  }
-
-  String get _badgeLabel {
-    final days = _daysUntil;
-    if (days <= 0) return 'DUE TODAY';
-    if (days == 1) return 'IN 1 DAY';
-    return 'IN $days DAYS';
   }
 
   @override
   Widget build(BuildContext context) {
-    final formatted = DateFormat('MMMM d, yyyy').format(bodDate);
+    final l10n = AppLocalizations.of(context);
+    final money = NumberFormat('#,##0.00');
+    final overdue = overdueCount > 0;
+    final days = _daysUntil;
+    final badge = days <= 0
+        ? l10n.loanMyDueToday
+        : (days == 1 ? l10n.loanMyDueInOneDay : l10n.loanMyDueInDays(days));
+    final dateLabel = DateFormat('MMMM d, yyyy').format(nextDate);
+
+    final gradient = overdue
+        ? LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [AppConstants.errorRed.withValues(alpha: 0.92), const Color(0xFFB71C1C)],
+          )
+        : AppConstants.primaryButtonGradient;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
       decoration: BoxDecoration(
-        color: AppConstants.primaryContainer.withValues(alpha: 0.10),
+        gradient: gradient,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(
-          color: AppConstants.primaryGreen.withValues(alpha: 0.10),
-        ),
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -10,
-            top: -10,
-            child: Icon(
-              Icons.calendar_month_rounded,
-              size: 100,
-              color: AppConstants.primaryGreen.withValues(alpha: 0.05),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Next Payment Due',
+      child: isLoading
+          ? const SizedBox(height: 60)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      overdue ? Icons.warning_amber_rounded : Icons.event_available_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        overdue
+                            ? l10n.loanMyOverdueTitle(overdueCount)
+                            : (hasUnpaid ? l10n.loanMyNextPaymentTitle : l10n.loanMyNoPaymentDue),
                         style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppConstants.onSurfaceVariant,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        formatted,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppConstants.primaryGreen,
+                    ),
+                    if (hasUnpaid && !overdue)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppConstants.secondaryContainer,
+                          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                        ),
+                        child: Text(
+                          badge,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF2A1800),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (overdue) ...[
+                  Text(
+                    '₱${money.format(overdueBalance)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.loanMyOverdueBody,
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ] else if (hasUnpaid) ...[
+                  Text(
+                    dateLabel,
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (expected > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.loanMyExpected(money.format(expected)),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ] else
+                  Text(
+                    l10n.loanMyNoPaymentDueBody(dateLabel),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 16, color: Colors.white.withValues(alpha: 0.9)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.loanMyBodNote,
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            height: 1.4,
+                            color: Colors.white.withValues(alpha: 0.92),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.secondaryContainer,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      _badgeLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF2A1800),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.50),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                  border: Border.all(color: Colors.white),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.info_outline_rounded,
-                      size: 18,
-                      color: AppConstants.amber,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant,
-                            height: 1.4,
-                          ),
-                          children: [
-                            const TextSpan(
-                              text: 'Payments are reviewed during the ',
-                            ),
-                            TextSpan(
-                              text: 'SP3 BOD Meeting',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w700,
-                                color: AppConstants.onSurface,
-                              ),
-                            ),
-                            const TextSpan(
-                              text: ' every 1st Saturday of the month.',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+              ],
+            ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Info Banner
+// 3. Input-only loans note
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _InfoBanner extends StatelessWidget {
-  const _InfoBanner();
+class _InputLoanInfoCard extends StatelessWidget {
+  const _InputLoanInfoCard();
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFDBF1FE),
+        color: AppConstants.infoBlueBg,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.agriculture_rounded,
-            color: AppConstants.primaryGreen,
-            size: 20,
-          ),
+          const Icon(Icons.agriculture_rounded, color: AppConstants.primaryGreen, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Input-Only Loans',
+                  l10n.loanMyInfoTitle,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -470,12 +712,11 @@ class _InfoBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'SAGANA loans are provided as physical agricultural inputs '
-                  '(seeds, fertilizers, tools, etc.) and never as cash disbursements.',
+                  l10n.loanMyInfoBody,
                   style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppConstants.onSurfaceVariant,
+                    fontSize: 11.5,
                     height: 1.4,
+                    color: AppConstants.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -486,490 +727,4 @@ class _InfoBanner extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Loan Card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _LoanCard extends StatefulWidget {
-  final LoanModel loan;
-  const _LoanCard({required this.loan});
-
-  @override
-  State<_LoanCard> createState() => _LoanCardState();
-}
-
-class _LoanCardState extends State<_LoanCard> {
-  bool _historyExpanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final loan = widget.loan;
-    final statusColor = loan.isOverdue
-        ? AppConstants.errorRed
-        : AppConstants.primaryContainer;
-    final statusLabel = loan.isOverdue ? 'Overdue' : 'Active';
-    final remainingColor = loan.isOverdue
-        ? AppConstants.errorRed
-        : AppConstants.primaryGreen;
-    final progressColor = loan.isOverdue
-        ? AppConstants.errorRed
-        : AppConstants.primaryGreen;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.90),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF455A64).withValues(alpha: 0.05),
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ────────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Ref: ',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: AppConstants.onSurfaceVariant,
-                              ),
-                            ),
-                            Text(
-                              loan.referenceNo,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppConstants.onSurface,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          'Issued: ${DateFormat('MMM d, yyyy').format(loan.issuedDate)}',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: loan.isOverdue
-                            ? const Color(0xFFFFDAD6)
-                            : AppConstants.primaryContainer.withValues(
-                                alpha: 0.15,
-                              ),
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.radiusFull,
-                        ),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (loan.isFromProgramDistribution) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.programPurple.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusFull,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.volunteer_activism_rounded,
-                          size: 12,
-                          color: AppConstants.programPurple,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'From Program Distribution: ${loan.sourceProgramName}',
-                          style: GoogleFonts.inter(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppConstants.programPurple,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 14),
-
-                // ── Itemized inputs ────────────────────────────────────────
-                ...loan.items.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.displayLabel,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: AppConstants.onSurface,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '₱${NumberFormat('#,##0').format(item.lineTotal)}',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppConstants.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Footer ────────────────────────────────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE6F6FF).withValues(alpha: 0.50),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(AppConstants.radiusLg),
-                bottomRight: Radius.circular(AppConstants.radiusLg),
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: AppConstants.outline.withValues(alpha: 0.08),
-                ),
-              ),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total Value',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                        Text(
-                          '₱${NumberFormat('#,##0.00').format(loan.totalValue)}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: AppConstants.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Remaining',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.onSurfaceVariant,
-                          ),
-                        ),
-                        Text(
-                          '₱${NumberFormat('#,##0.00').format(loan.remainingBalance)}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: remainingColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Progress bar
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: loan.repaidPercent,
-                    minHeight: 8,
-                    backgroundColor: AppConstants.outline.withValues(
-                      alpha: 0.20,
-                    ),
-                    valueColor: AlwaysStoppedAnimation(progressColor),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${(loan.repaidPercent * 100).toStringAsFixed(0)}% repaid',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.outline,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Payment history toggle
-                GestureDetector(
-                  onTap: () =>
-                      setState(() => _historyExpanded = !_historyExpanded),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Payment History',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppConstants.primaryGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        AnimatedRotation(
-                          turns: _historyExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 200),
-                          child: const Icon(
-                            Icons.expand_more_rounded,
-                            size: 18,
-                            color: AppConstants.primaryGreen,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Payment history detail
-                AnimatedCrossFade(
-                  firstChild: const SizedBox.shrink(),
-                  secondChild: _PaymentHistoryList(payments: loan.payments),
-                  crossFadeState: _historyExpanded
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-                  duration: const Duration(milliseconds: 220),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Payment History List
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PaymentHistoryList extends StatelessWidget {
-  final List<LoanPaymentModel> payments;
-  const _PaymentHistoryList({required this.payments});
-
-  @override
-  Widget build(BuildContext context) {
-    if (payments.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: Text(
-            'No payments recorded yet.',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-              color: AppConstants.outline,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.only(top: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppConstants.outline.withValues(alpha: 0.10)),
-        ),
-      ),
-      child: Column(
-        children: payments.map((p) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${DateFormat('MMM d, yyyy').format(p.paymentDate)} (BOD Sat)',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppConstants.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      '-₱${NumberFormat('#,##0.00').format(p.amountPaid)}',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppConstants.successGreen,
-                      ),
-                    ),
-                  ],
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'Bal: ₱${NumberFormat('#,##0.00').format(p.runningBalance)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.outline,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Empty State
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: const BoxDecoration(
-              color: Color(0xFFCFE6F2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.receipt_long_rounded,
-              size: 38,
-              color: AppConstants.outline,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'No active loans',
-            style: GoogleFonts.poppins(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              "You currently don't have any outstanding input loans with the cooperative.",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: AppConstants.onSurfaceVariant,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.call_rounded, size: 18),
-            label: Text(
-              'Contact SP3 Office',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.primaryGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Loan Shimmer
-// ─────────────────────────────────────────────────────────────────────────────
 

@@ -9,9 +9,12 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/buyer_order_model.dart';
 import '../../../data/repositories/buyer_order_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
 import '../../widgets/order_status_style.dart';
+import '../../../core/utils/order_status.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/skeleton.dart';
@@ -31,7 +34,7 @@ class FarmerOrdersScreen extends StatefulWidget {
   State<FarmerOrdersScreen> createState() => _FarmerOrdersScreenState();
 }
 
-const List<String?> _kStatuses = [null, 'pending', 'approved', 'completed', 'cancelled', 'rejected'];
+const List<String?> _kStatuses = [null, ...kOrderStatuses];
 
 class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   final _repo = BuyerOrderRepository();
@@ -42,6 +45,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   String _searchQuery = '';
   bool _isLoading = true;
   bool _isOnline = true;
+  TableChangeWatcher? _orderWatcher;
 
   @override
   void initState() {
@@ -56,16 +60,23 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
     });
     _searchCtrl.addListener(() => setState(() => _searchQuery = _searchCtrl.text));
     _load();
+    _orderWatcher = TableChangeWatcher(
+      tables: const ['orders'],
+      onChange: () {
+        if (mounted) _load(silent: true);
+      },
+    )..start();
   }
 
   @override
   void dispose() {
+    _orderWatcher?.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     final orders = await _repo.fetchMyOrders();
     if (!mounted) return;
     setState(() {
@@ -149,8 +160,8 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
       case 'approved': return l10n.buyerOrdersEmptyApproved;
       case 'completed': return l10n.buyerOrdersEmptyCompleted;
       case 'cancelled': return l10n.buyerOrdersEmptyCancelled;
-      case 'rejected': return l10n.buyerOrdersEmptyRejected;
-      default: return l10n.buyerOrdersEmptyAll;
+      case null: return l10n.buyerOrdersEmptyAll;
+      default: return l10n.ordersEmptyStatus(buyerOrderStatusLabel(_statusFilter!, l10n));
     }
   }
 
@@ -159,7 +170,10 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final visible = _filtered;
-    final approved = _allOrders.where((o) => o.status == 'approved').toList();
+    // Orders the consumer can now collect or has been sent (the banner's subject).
+    final approved = _allOrders
+        .where((o) => o.isReadyForPickup || o.isOutForDelivery || o.isDelivered)
+        .toList();
 
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
@@ -170,7 +184,7 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 72),
+                    TopBarSpacer(height: 72),
                     CachedDataNotice(
             screen: 'orders',
             isOnline: _isOnline,
@@ -267,7 +281,7 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isEnded = order.isCancelled || order.isRejected;
+    final isEnded = order.isCancelled;
 
     return GestureDetector(
       onTap: () => _openDetail(context),
@@ -373,9 +387,7 @@ class _OrderCard extends StatelessWidget {
                 )
               else
                 Text(
-                    order.isRejected
-                        ? l10n.buyerOrdersRejectedOn(_formatDate(order.updatedAt))
-                        : l10n.buyerOrdersCancelledOn(_formatDate(order.updatedAt)),
+                    l10n.buyerOrdersCancelledOn(_formatDate(order.updatedAt)),
                     style: GoogleFonts.inter(fontSize: 11, color: AppConstants.onSurfaceVariant)),
               const SizedBox(height: 10),
               SizedBox(
@@ -392,14 +404,20 @@ class _OrderCard extends StatelessWidget {
   Widget _buildActionButton(BuildContext context, AppLocalizations l10n) {
     switch (order.status) {
       case 'approved':
-        return PrimaryButton(label: l10n.buyerOrdersViewPickupDetails, height: 40, onPressed: () => _openDetail(context));
+      case 'ready_for_pickup':
+      case 'out_for_delivery':
+      case 'delivered':
+        return PrimaryButton(
+          label: order.canConfirmReceipt ? l10n.buyerOrderReceivedAction : l10n.buyerOrdersViewDetails,
+          height: 40,
+          onPressed: () => _openDetail(context),
+        );
       case 'completed':
         return OutlinedButton(
           onPressed: () => context.pushRoute(AppRoutes.farmerMarketplaceListingDetail, extra: order.listingId),
           child: Text(l10n.buyerOrdersReorder),
         );
       case 'cancelled':
-      case 'rejected':
         return OutlinedButton(
           onPressed: () => context.goTab(AppRoutes.myListings),
           child: Text(l10n.buyerOrdersBrowseAgain),

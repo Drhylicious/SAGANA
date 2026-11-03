@@ -1,11 +1,11 @@
 {
-    "name": "sagana",
-    "short_name": "sagana",
+    "name": "SAGANA",
+    "short_name": "SAGANA",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "SAGANA: Streamlined Agricultural Gateway",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

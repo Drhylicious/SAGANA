@@ -12,19 +12,23 @@ import '../../../data/repositories/account_management_repository.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../widgets/account_form_widgets.dart';
+import '../../widgets/officer_approval_notice.dart';
 import '../../widgets/person_name_fields.dart';
+import '../../../data/services/staff_permission_service.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../widgets/staff_access_matrix.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/username_availability_field.dart';
 
-/// Manager → Members → Add Officer Account.
+/// Members → Add Officer Account (Manager, or an Officer who manages Members).
 ///
-/// The Manager enters the Officer's details directly. There is no registry
+/// The creator enters the Officer's details directly. There is no registry
 /// lookup: the full name is ordinary text, and the username must be unique
 /// across all SAGANA accounts (checked live, enforced by the database). The
 /// Officer ID (OFF-YYYY-NNN) is issued by the database when the account is
-/// created. There are no per-officer permissions — an Officer gets every
-/// Manager module except the Members tab.
+/// created. Every Officer can open every module; the Module Access section
+/// sets which modules this Officer can also manage (the rest are View Only).
+/// An Officer creator can only grant Manage on modules they manage themselves.
 class CreateOfficerAccountScreen extends StatefulWidget {
   const CreateOfficerAccountScreen({super.key});
 
@@ -44,8 +48,13 @@ class _CreateOfficerAccountScreenState
   String? _suffix; // Jr., Sr., II, III, IV or V; null = none
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _positionCtrl = TextEditingController();
   final _repo = AccountManagementRepository();
+
+  // Module Access: every module starts at Manage; the Manager lowers any module
+  // to View Only when creating the Officer (or later, from Edit Access).
+  final Map<StaffModule, StaffAccess> _access = {
+    for (final m in StaffModule.values) m: StaffAccess.manage,
+  };
 
   bool _isSaving = false;
   bool _isOnline = true;
@@ -93,7 +102,6 @@ class _CreateOfficerAccountScreenState
     _middleInitialCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
-    _positionCtrl.dispose();
     super.dispose();
   }
 
@@ -110,6 +118,9 @@ class _CreateOfficerAccountScreenState
       _toast(l10n.registerUsernameTaken);
       return;
     }
+    // An Officer's new account goes to the Manager for approval first.
+    if (!await confirmOfficerSubmission(context)) return;
+    if (!mounted) return;
     setState(() => _isSaving = true);
     try {
       await _repo.createOfficerAccount(
@@ -123,9 +134,7 @@ class _CreateOfficerAccountScreenState
         phoneNumber: _phoneCtrl.text.trim().isEmpty
             ? null
             : _phoneCtrl.text.trim(),
-        position: _positionCtrl.text.trim().isEmpty
-            ? null
-            : _positionCtrl.text.trim(),
+        access: _access,
         dateOfBirth: _dateOfBirth,
         gender: _gender,
       );
@@ -133,7 +142,7 @@ class _CreateOfficerAccountScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            l10n.createOfficerCreated,
+            accountCreatedMessage(l10n, l10n.createOfficerCreated),
             style: GoogleFonts.inter(fontSize: 13),
           ),
         backgroundColor: AppConstants.midGreen,
@@ -332,19 +341,27 @@ class _CreateOfficerAccountScreenState
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Officer ─────────────────────────────────────────────
+                  // ── Module Access ───────────────────────────────────────
                   AccountFormSection(
-                    icon: Icons.badge_rounded,
-                    title: l10n.createOfficerSectionOfficer,
+                    icon: Icons.admin_panel_settings_rounded,
+                    title: l10n.staffAccessSectionTitle,
                     cs: cs,
                     sagana: sagana,
                     children: [
-                      AccountFieldLabel(label: l10n.createOfficerPositionLabel, cs: cs),
-                      TextFormField(
-                        controller: _positionCtrl,
-                        decoration: InputDecoration(
-                          hintText: l10n.createOfficerPositionHint,
+                      Text(
+                        l10n.staffAccessSectionHint,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: cs.onSurfaceVariant,
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      StaffAccessMatrix(
+                        value: _access,
+                        enabled: !_isSaving,
+                        onChanged: (module, access) =>
+                            setState(() => _access[module] = access),
                       ),
                     ],
                   ),

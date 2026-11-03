@@ -33,6 +33,10 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogListingApproved;
     case 'adminLogListingRejected':
       return l.adminLogListingRejected;
+    case 'adminLogLoanItemArchived':
+      return l.adminLogLoanItemArchived;
+    case 'adminLogLoanItemRestored':
+      return l.adminLogLoanItemRestored;
     case 'adminLogLoanItemUpdated':
       return l.adminLogLoanItemUpdated(v('price'));
     case 'adminLogLoanIssued':
@@ -41,8 +45,18 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogLoanPaymentRecorded(v('amount'));
     case 'adminLogLoanMarkedPaid':
       return l.adminLogLoanMarkedPaid;
+    case 'adminLogLoanRequestApproved':
+      return l.adminLogLoanRequestApproved(v('request'), v('reference'));
+    case 'adminLogLoanRequestDisapproved':
+      return l.adminLogLoanRequestDisapproved(v('request'));
     case 'adminLogOrderApproved':
       return l.adminLogOrderApproved;
+    case 'adminLogOrderReadyForPickup':
+      return l.adminLogOrderReadyForPickup;
+    case 'adminLogOrderOutForDelivery':
+      return l.adminLogOrderOutForDelivery;
+    case 'adminLogOrderDelivered':
+      return l.adminLogOrderDelivered;
     case 'adminLogOrderCancelled':
       return l.adminLogOrderCancelled;
     case 'adminLogOrderCompleted':
@@ -67,6 +81,8 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogBuyerReactivated;
     case 'adminLogContributionRecorded':
       return l.adminLogContributionRecorded(v('amount'));
+    case 'adminLogContributionReversed':
+      return l.adminLogContributionReversed(v('amount'));
     case 'adminLogInventoryCategoryAdded':
       return l.adminLogInventoryCategoryAdded(v('name'));
     case 'adminLogUnitAdded':
@@ -75,10 +91,12 @@ String renderAdminLogMessage(AppLocalizations l, AdminLogMessage m) {
       return l.adminLogCropCategoryAdded(v('name'));
     case 'adminLogCoopOfferConfirmed':
       return l.adminLogCoopOfferConfirmed(v('kg'), v('amount'));
+    case 'adminLogCoopOfferReceived':
+      return l.adminLogCoopOfferReceived(v('kg'), v('amount'));
     case 'adminLogCoopOfferDeclined':
       return l.adminLogCoopOfferDeclined;
     case 'adminLogCoopOfferCountered':
-      return l.adminLogCoopOfferCountered(v('price'));
+      return l.adminLogCoopOfferCountered(v('price'), v('unit'));
     case 'adminLogMemberSuspended':
       return l.adminLogMemberSuspended;
     case 'adminLogMemberReactivated':

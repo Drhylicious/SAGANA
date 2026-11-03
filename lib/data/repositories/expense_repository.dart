@@ -1,11 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/client_id.dart';
 import '../models/expense_model.dart';
-import '../models/admin_reports_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/hive_service.dart';
 import '../services/offline_cache.dart';
-import 'farmer_lookup.dart';
 
 class ExpenseRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -248,79 +246,4 @@ class ExpenseRepository {
         .eq('id', id)
         .eq('farmer_id', _userId);
   }
-
-  // ─── Export support (Phase 7 — Farmer Download Records) ───────────────────
-  // Direct date-range query (rather than reusing fetchExpenses(ExpensePeriod),
-  // whose enum values don't line up with ReportPeriod's), plus the same
-  // offline-queued-expense merge pendingExpenseModels() already exposes.
-  Future<ExpenseReportData> fetchMyExpensesForExport({
-    DateTime? start,
-    DateTime? end,
-  }) async {
-    List<ExpenseModel> synced = [];
-    try {
-      var query = _client
-          .from('farmer_expenses')
-          .select()
-          .eq('farmer_id', _userId);
-      if (start != null) {
-        query = query.gte(
-          'expense_date',
-          start.toIso8601String().split('T').first,
-        );
-      }
-      if (end != null) {
-        query = query.lte(
-          'expense_date',
-          end.toIso8601String().split('T').first,
-        );
-      }
-      final rows = await query.order('expense_date', ascending: false);
-      synced = rows.map((r) => ExpenseModel.fromMap(r)).toList();
-    } catch (_) {
-      synced = [];
-    }
-
-    final pending = _pendingExpenseModels().where((e) {
-      if (start != null && e.expenseDate.isBefore(start)) return false;
-      if (end != null && e.expenseDate.isAfter(end)) return false;
-      return true;
-    });
-    final combined = [...pending, ...synced]
-      ..sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
-
-    if (combined.isEmpty) {
-      return const ExpenseReportData(
-        totalFarmerFundedAmount: 0,
-        subsidizedCount: 0,
-        farmerFundedCount: 0,
-        categoryBreakdown: [],
-        monthlyTrend: [],
-        expenses: [],
-      );
-    }
-
-    final info = (await fetchFarmerInfoMap(_client, [_userId]))[_userId];
-    final expenses = combined.map((e) {
-      return ExpenseReportRow(
-        farmerId: e.farmerId,
-        farmerName: info?.fullName ?? 'Unknown Farmer',
-        name: e.displayName,
-        category: e.category,
-        description: e.description,
-        amount: e.amount,
-        isSubsidy: e.isSubsidy,
-        expenseDate: e.expenseDate,
-      );
-    }).toList();
-
-    return ExpenseReportData(
-      totalFarmerFundedAmount: 0,
-      subsidizedCount: 0,
-      farmerFundedCount: 0,
-      categoryBreakdown: const [],
-      monthlyTrend: const [],
-      expenses: expenses,
-    );
-  }
-}
+}

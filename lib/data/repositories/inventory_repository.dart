@@ -35,7 +35,7 @@ class InventoryRepository {
     try {
       final response = await _client
           .from('inventory_batches')
-          .select('quantity_kg, available_kg, sold_kg, unit')
+          .select('quantity_kg, available_kg, reserved_kg, sold_kg, unit')
           .eq('farmer_id', _userId);
 
       double available = 0, reserved = 0, sold = 0;
@@ -47,17 +47,11 @@ class InventoryRepository {
           otherUnitBatches++;
           continue;
         }
-        final quantity = (row['quantity_kg'] as num).toDouble();
-        final avail = (row['available_kg'] as num).toDouble();
-        final soldKg = (row['sold_kg'] as num).toDouble();
-        available += avail;
-        sold += soldKg;
-        // reserved_kg is dead schema — never written by any live RPC
-        // (see supabase_schema_update_batch_quantity_reservation_guard*.sql).
-        // Real reservation state is whatever's left over once available
-        // and sold are accounted for, not that column.
-        final reservedForBatch = quantity - avail - soldKg;
-        reserved += reservedForBatch > 0 ? reservedForBatch : 0;
+        available += (row['available_kg'] as num).toDouble();
+        sold += (row['sold_kg'] as num).toDouble();
+        // reserved_kg is kept true by the database (available + reserved +
+        // sold + adjusted = harvested; supabase_schema_farmer_stock_management.sql).
+        reserved += (row['reserved_kg'] as num).toDouble();
       }
       return {
         'available': roundQuantity(available),

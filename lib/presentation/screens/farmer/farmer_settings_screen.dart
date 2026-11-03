@@ -10,6 +10,7 @@ import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/services/app_settings_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/skeleton.dart';
@@ -95,7 +96,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
       setState(() => _isSigningOut = true);
       await AuthService.logout();
       if (mounted) {
-        GoRouter.of(context).go(AppRoutes.login);
+        GoRouter.of(context).go(AppRoutes.welcome);
       }
     }
   }
@@ -113,7 +114,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
           children: [
             Column(
               children: [
-                const SizedBox(height: 72),
+                TopBarSpacer(height: 72),
                 const Expanded(
                   child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
                 ),
@@ -146,7 +147,7 @@ class _FarmerSettingsScreenState extends State<FarmerSettingsScreen> {
               children: [
                 Column(
                   children: [
-                    const SizedBox(height: 64),
+                    TopBarSpacer(height: 64),
                     if (!_isOnline) OfflineStatusCard(message: AppLocalizations.of(context).offlinePasswordNeedsInternet),
                     Expanded(
                 child: ListView(

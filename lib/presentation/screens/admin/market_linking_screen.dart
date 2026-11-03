@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,16 +7,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/utils/db_error_utils.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/market_linking_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/management_modal.dart';
-import '../../widgets/report_summary_widgets.dart' show ReportSectionCard;
+import '../../widgets/market_linking_sale_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/workflow_history_sheet.dart';
 
 String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
   switch (s) {
@@ -30,6 +39,10 @@ String marketLinkingStatusLabel(AppLocalizations l10n, MarketLinkingStatus s) {
       return l10n.buyerActivityStatusCancelled;
   }
 }
+
+/// What the Manager/Officer list can be narrowed to. Each chip shows how many
+/// requests it holds.
+enum _MlFilter { all, cancellationRequests, waiting, buyerFound, completed, cancelled }
 
 class MarketLinkingScreen extends StatefulWidget {
   const MarketLinkingScreen({super.key});
@@ -48,14 +61,12 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
   // the full season once and filtering in memory fixes that and also cuts
   // a network round-trip per filter tap.
   List<MarketLinkingModel> _allEntries = [];
-  // Approved DA-AMAD Enrollments — "Enrolled" now counts this, not
-  // distinct farmers in market_linking_programs. A farmer is enrolled
-  // (or not) independent of whether they currently have a harvest
-  // submission in flight; see da_amad_enrollments / DaAmadEnrollmentModel.
-  int _enrolledCount = 0;
+  final _searchCtrl = TextEditingController();
+  String _query = '';
   bool _isLoading = true;
   bool _isOnline = true;
-  MarketLinkingStatus? _statusFilter;
+  _MlFilter _filter = _MlFilter.all;
+  TableChangeWatcher? _watcher;
 
   @override
   void initState() {
@@ -66,21 +77,29 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
       if (mounted) setState(() => _isOnline = v);
     });
     _load();
+    // A Farmer submitting a request, or another Manager moving one along,
+    // updates the list and the chip counts without a pull-down.
+    _watcher = TableChangeWatcher(
+      tables: const ['market_linking_programs'],
+      onChange: () {
+        if (mounted) _load(silent: true);
+      },
+    )..start();
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _repo.fetchAll(),
-      _repo.fetchReviewedEnrollments(),
-    ]);
+  @override
+  void dispose() {
+    _watcher?.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
+    final entries = await _repo.fetchAll();
     if (!mounted) return;
-    final reviewed = results[1] as List<DaAmadEnrollmentModel>;
     setState(() {
-      _allEntries = results[0] as List<MarketLinkingModel>;
-      _enrolledCount = reviewed
-          .where((e) => e.status == DaAmadEnrollmentStatus.approved)
-          .length;
+      _allEntries = entries;
       _isLoading = false;
     });
   }
@@ -95,36 +114,86 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
       .where((e) => e.status != MarketLinkingStatus.requested)
       .toList();
 
-  List<MarketLinkingModel> get _visibleEntries {
-    final base = _actionableEntries;
-    if (_statusFilter == null) return base;
-    return base.where((e) => e.status == _statusFilter).toList();
+  bool _matches(MarketLinkingModel e, _MlFilter f) {
+    switch (f) {
+      case _MlFilter.all:
+        return true;
+      case _MlFilter.cancellationRequests:
+        return e.isCancellationRequested;
+      case _MlFilter.waiting:
+        return e.status == MarketLinkingStatus.submitted;
+      case _MlFilter.buyerFound:
+        return e.status == MarketLinkingStatus.buyerFound;
+      case _MlFilter.completed:
+        return e.status == MarketLinkingStatus.completed;
+      case _MlFilter.cancelled:
+        return e.status == MarketLinkingStatus.cancelled;
+    }
   }
 
-  int get _submittedCount => _actionableEntries
-      .where((e) => e.status == MarketLinkingStatus.submitted)
-      .length;
-  int get _buyerFoundCount => _actionableEntries
-      .where((e) => e.status == MarketLinkingStatus.buyerFound)
-      .length;
-  int get _completedCount => _actionableEntries
-      .where((e) => e.status == MarketLinkingStatus.completed)
-      .length;
-  int get _cancelledCount => _actionableEntries
-      .where((e) => e.status == MarketLinkingStatus.cancelled)
-      .length;
+  // Cancellation requests come first (they are waiting on the Manager), then
+  // the other open requests, then completed, then cancelled (each group keeps
+  // the newest-first order the list arrives in).
+  List<MarketLinkingModel> get _visibleEntries {
+    final matching = _actionableEntries
+        .where((e) => e.matchesSearch(_query))
+        .where((e) => _matches(e, _filter))
+        .toList();
+    int rank(MarketLinkingModel e) => e.isCancellationRequested
+        ? 0
+        : e.isActive
+        ? 1
+        : e.status == MarketLinkingStatus.completed
+        ? 2
+        : 3;
+    final indexed = matching.asMap().entries.toList()
+      ..sort((a, b) {
+        final byRank = rank(a.value).compareTo(rank(b.value));
+        return byRank != 0 ? byRank : a.key.compareTo(b.key);
+      });
+    return indexed.map((e) => e.value).toList();
+  }
 
-  void _showStatusSheet(
-    MarketLinkingModel entry,
-    MarketLinkingStatus targetStatus,
-  ) {
+  // Counts come from every request, not only the ones the search shows, so a
+  // chip always says how many requests of its kind exist.
+  Map<_MlFilter, int> get _counts => {
+    for (final f in _MlFilter.values)
+      f: _actionableEntries.where((e) => _matches(e, f)).length,
+  };
+
+  void _afterSave(String message) {
+    _load();
+    if (mounted) AppToast.show(context, message);
+  }
+
+  // Stage 2 — Buyer Details (buyer information only; sells nothing).
+  void _showBuyerDetails(MarketLinkingModel entry) {
     showManagementModal(
       context: context,
-      builder: (_) => _UpdateStatusSheet(
+      builder: (_) => _BuyerDetailsSheet(entry: entry, repo: _repo, onSaved: _afterSave),
+    );
+  }
+
+  // Stage 3 — Complete Sale: quantity purchased, agreed price, notes. A
+  // part-purchase leaves the unsold quantity with the Farmer.
+  void _showCompleteSale(MarketLinkingModel entry) {
+    if (!requireManage(context, StaffModule.marketplace)) return;
+    showManagementModal(
+      context: context,
+      builder: (_) => _CompleteSaleSheet(entry: entry, repo: _repo, onSaved: _afterSave),
+    );
+  }
+
+  // Review a Farmer's cancellation request: approve, or decline with a reason.
+  void _reviewCancellation(MarketLinkingModel entry, {required bool approve}) {
+    if (!requireManage(context, StaffModule.marketplace)) return;
+    showManagementModal(
+      context: context,
+      builder: (_) => _ReviewCancellationSheet(
         entry: entry,
-        targetStatus: targetStatus,
+        approve: approve,
         repo: _repo,
-        onSaved: _load,
+        onDone: _afterSave,
       ),
     );
   }
@@ -138,6 +207,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
   // Sell action.
 
   void _confirmDelete(MarketLinkingModel entry) {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
     showManagementModal(
       context: context,
@@ -177,40 +247,50 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
-              // ── Fixed header — KPI strip + DA-AMAD explainer ────────────
-              // Deliberately outside the scroll view: these are context an
-              // admin should always see, not content that scrolls away
-              // with the entry list below.
+              TopBarSpacer(height: 64),
+              // ── Fixed header: Search bar -> Filter chips -> the list ─────
+              // Type to find a request by farmer, crop, batch or buyer; the
+              // chips (with their counts) narrow it further.
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Grouped inside the same outer titled container the
-                    // Report tab uses (Executive Snapshot etc.), not just
-                    // individually restyled cards.
-                    ReportSectionCard(
-                      title: 'Market Linking Overview',
-                      icon: Icons.hub_rounded,
-                      accent: AppConstants.buyerBlue,
-                      child: _KpiStrip(
-                        enrolledFarmers: _enrolledCount,
-                        submitted: _submittedCount,
-                        buyerFound: _buyerFoundCount,
-                        completed: _completedCount,
-                        cancelled: _cancelledCount,
-                        cs: cs,
-                        sagana: sagana,
+                    TextField(
+                      controller: _searchCtrl,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (v) => setState(() => _query = v.trim()),
+                      decoration: InputDecoration(
+                        hintText: AppLocalizations.of(context).mlkSearchHint,
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: AppLocalizations.of(context).mlkSearchClear,
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _query = '');
+                                },
+                              ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // Full explainer when the program is empty (it's the
-                    // only content on the page and needs to earn its
-                    // keep); collapses to a slim strip once there's real
-                    // data so it doesn't compete with the KPI cards and
-                    // entries below.
-                    _DaAmadInfoCard(cs: cs, compact: _allEntries.isNotEmpty),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    MarketplaceFilterBar<_MlFilter>(
+                      selected: _filter,
+                      onSelected: (f) => setState(() => _filter = f),
+                      options: [
+                        for (final f in _MlFilter.values)
+                          MarketplaceFilterOption(
+                            value: f,
+                            label: _filterLabel(AppLocalizations.of(context), f),
+                            count: _counts[f] ?? 0,
+                            color: _filterColor(context, f),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -228,9 +308,25 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                             // bar), reviewed once per farmer rather than
                             // once per harvest submission. Every entry
                             // reaching this list is already actionable.
-                            if (visible.isEmpty)
+                            if (visible.isEmpty && _query.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 40),
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.search_off_rounded, size: 40, color: cs.outline),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      AppLocalizations.of(context).mlkNoSearchResults,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else if (visible.isEmpty)
                               _EmptyState(
-                                hasFilter: _statusFilter != null,
+
+                                hasFilter: _filter != _MlFilter.all,
                                 cs: cs,
                                 sagana: sagana,
                               )
@@ -242,23 +338,17 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
                                     entry: e,
                                     cs: cs,
                                     sagana: sagana,
-                                    onEnterBuyerDetails: _isOnline
-                                        ? () => _showStatusSheet(
-                                            e,
-                                            MarketLinkingStatus.buyerFound,
-                                          )
+                                    onBuyerDetails: _isOnline
+                                        ? () => _showBuyerDetails(e)
                                         : null,
                                     onComplete: _isOnline
-                                        ? () => _showStatusSheet(
-                                            e,
-                                            MarketLinkingStatus.completed,
-                                          )
+                                        ? () => _showCompleteSale(e)
                                         : null,
-                                    onCancel: _isOnline
-                                        ? () => _showStatusSheet(
-                                            e,
-                                            MarketLinkingStatus.cancelled,
-                                          )
+                                    onApproveCancellation: _isOnline
+                                        ? () => _reviewCancellation(e, approve: true)
+                                        : null,
+                                    onDeclineCancellation: _isOnline
+                                        ? () => _reviewCancellation(e, approve: false)
                                         : null,
                                     onDelete: _isOnline
                                         ? () => _confirmDelete(e)
@@ -283,7 +373,7 @@ class _MarketLinkingScreenState extends State<MarketLinkingScreen> {
               onManageEnrollments: () =>
                   context.push(AppRoutes.daAmadEnrollment).then((_) => _load()),
               sagana: sagana,
-              cs: cs,
+            cs: cs,
             ),
           ),
         ],
@@ -313,217 +403,46 @@ class _TopAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SubPageTopBar(title: l10n.marketLinkTitle, onBack: onBack, trailing: IconButton( tooltip: 'Manage Enrollments', icon: Icon(Icons.how_to_reg_rounded, color: cs.primary), onPressed: onManageEnrollments, ));
+    return SubPageTopBar(title: l10n.marketLinkTitle, onBack: onBack, trailing: IconButton( tooltip: l10n.mlkManageEnrollments,
+ icon: Icon(Icons.how_to_reg_rounded, color: cs.primary), onPressed: onManageEnrollments, ));
   }
 }
 
-// ─── KPI Strip ────────────────────────────────────────────────────────────────
-// Same card language as MarketplaceDashboardScreen's KPI strip (icon + label
-// + value, horizontal scroll). Counts come from the full unfiltered season,
-// not the currently-selected chip, so they stay accurate no matter what's
-// filtered below.
-class _KpiStrip extends StatelessWidget {
-  final int enrolledFarmers, submitted, buyerFound, completed, cancelled;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-  const _KpiStrip({
-    required this.enrolledFarmers,
-    required this.submitted,
-    required this.buyerFound,
-    required this.completed,
-    required this.cancelled,
-    required this.cs,
-    required this.sagana,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    // "Total Rounds" (a raw row count, separate from unique farmers below)
-    // removed — it was a leftover from when Admin could directly create
-    // new rounds via "Enroll"/"Start New Round"; every remaining card here
-    // maps to a real pipeline stage a farmer-initiated request actually
-    // moves through.
-    final tiles = [
-      _KpiTile(
-        l10n.marketLinkKpiEnrolled,
-        '$enrolledFarmers',
-        cs.primary,
-        Icons.eco_rounded,
-      ),
-      _KpiTile(
-        l10n.marketLinkKpiSubmitted,
-        '$submitted',
-        AppConstants.warningAmber,
-        Icons.upload_file_rounded,
-      ),
-      _KpiTile(
-        l10n.marketLinkKpiBuyerFound,
-        '$buyerFound',
-        AppConstants.buyerBlue,
-        Icons.handshake_outlined,
-      ),
-      _KpiTile(
-        l10n.statCompleted,
-        '$completed',
-        AppConstants.successGreen,
-        Icons.check_circle_outline_rounded,
-      ),
-      _KpiTile(
-        l10n.buyerActivityStatusCancelled,
-        '$cancelled',
-        AppConstants.errorRed,
-        Icons.cancel_outlined,
-      ),
-    ];
-
-    return SizedBox(
-      // Was 88 — too tight for icon-badge + label + value once this strip
-      // got the Report-tab-style reskin (previously just icon+label+value,
-      // no badge row), which is what caused the reported RenderFlex
-      // overflow. Matches Dashboard's own _KpiStrip height for the same
-      // content shape.
-      height: 104,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: tiles.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) {
-          final t = tiles[i];
-          return Container(
-            width: 108,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: t.color.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: t.color.withValues(alpha: 0.18)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: t.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                  ),
-                  child: Icon(t.icon, size: 14, color: t.color),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  t.label,
-                  maxLines: 1,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  t.value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+// ─── Filter chips ─────────────────────────────────────────────────────────────
+// One row: All, Cancellation requests, Waiting for a buyer, Buyer found,
+// Completed, Cancelled, each with how many requests it holds (the shared
+// MarketplaceFilterBar). Colours match the status pill on the cards.
+String _filterLabel(AppLocalizations l10n, _MlFilter f) {
+  switch (f) {
+    case _MlFilter.all:
+      return l10n.mlkFilterAll;
+    case _MlFilter.waiting:
+      return l10n.mlkStatusWaiting;
+    case _MlFilter.buyerFound:
+      return l10n.mlkStatusBuyerFound;
+    case _MlFilter.completed:
+      return l10n.statCompleted;
+    case _MlFilter.cancellationRequests:
+      return l10n.mlkFilterCancellationRequests;
+    case _MlFilter.cancelled:
+      return l10n.mlkStatusCancelled;
   }
 }
 
-class _KpiTile {
-  final String label, value;
-  final Color color;
-  final IconData icon;
-  const _KpiTile(this.label, this.value, this.color, this.icon);
-}
-
-// ─── DA-AMAD Info Card ────────────────────────────────────────────────────────
-class _DaAmadInfoCard extends StatelessWidget {
-  final ColorScheme cs;
-  final bool compact;
-  const _DaAmadInfoCard({required this.cs, required this.compact});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    if (compact) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppConstants.tertiaryContainer.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          border: Border.all(
-            color: AppConstants.onTertiaryContainer.withValues(alpha: 0.20),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('🌿', style: TextStyle(fontSize: 14)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                l10n.marketLinkDaAmadCompact,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppConstants.tertiaryContainer.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(
-          color: AppConstants.onTertiaryContainer.withValues(alpha: 0.30),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('🌿', style: TextStyle(fontSize: 20)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.marketLinkDaAmadTitle,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  l10n.marketLinkDaAmadBody,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+Color _filterColor(BuildContext context, _MlFilter f) {
+  switch (f) {
+    case _MlFilter.all:
+      return Theme.of(context).colorScheme.primary;
+    case _MlFilter.cancellationRequests:
+      return AppConstants.errorRed;
+    case _MlFilter.waiting:
+      return AppConstants.warningAmber;
+    case _MlFilter.buyerFound:
+      return AppConstants.buyerBlue;
+    case _MlFilter.completed:
+      return AppConstants.successGreen;
+    case _MlFilter.cancelled:
+      return AppConstants.outline;
   }
 }
 
@@ -531,438 +450,303 @@ class _DaAmadInfoCard extends StatelessWidget {
 // Approve/Decline gate — see the note above _approveRequest's removal.
 
 // ─── Entry Card ───────────────────────────────────────────────────────────────
+// One request, worked through four clearly separate stages (shown as a bar):
+//   Request -> Buyer Details -> Complete Sale -> Completed
+// Built from the same shared pieces as the Farmer's card. The one main action is
+// always the next stage:
+//   waiting for a buyer -> Add Buyer Details
+//   buyer found         -> Complete Sale (and Edit buyer details)
+//   completed           -> nothing (final, read-only)
+// There is no Cancel here: a cancellation starts with the Farmer, and arrives
+// as a banner on the request with Approve / Decline.
 class _EntryCard extends StatelessWidget {
   final MarketLinkingModel entry;
   final ColorScheme cs;
   final SaganaColors sagana;
-  // One callback per stage-appropriate action — replaces the single
-  // onUpdateStatus that used to open one combined sheet with a status
-  // picker offering Buyer Found/Completed/Cancelled all at once. Only the
-  // action(s) valid for entry.status are ever wired (see build() below),
-  // so the card renders exactly one of these small groups:
-  //   submitted   -> onEnterBuyerDetails only
-  //   buyer_found -> onCancel + onComplete
-  //   completed   -> nothing (final, read-only — see build() below)
-  //   cancelled   -> onDelete only
-  final VoidCallback? onEnterBuyerDetails;
+  final VoidCallback? onBuyerDetails;
   final VoidCallback? onComplete;
-  final VoidCallback? onCancel;
+  final VoidCallback? onApproveCancellation;
+  final VoidCallback? onDeclineCancellation;
   final VoidCallback? onDelete;
   const _EntryCard({
     required this.entry,
     required this.cs,
     required this.sagana,
-    this.onEnterBuyerDetails,
+    this.onBuyerDetails,
     this.onComplete,
-    this.onCancel,
+    this.onApproveCancellation,
+    this.onDeclineCancellation,
     this.onDelete,
   });
-
-  static const _stages = [
-    MarketLinkingStatus.submitted,
-    MarketLinkingStatus.buyerFound,
-    MarketLinkingStatus.completed,
-  ];
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final statusColor = _statusColor(entry.status, cs);
     final isCancelled = entry.status == MarketLinkingStatus.cancelled;
-    final stageIndex = _stages.indexOf(entry.status); // -1 if cancelled
-    final statusLabel = marketLinkingStatusLabel(l10n, entry.status);
+    final isWaiting = entry.status == MarketLinkingStatus.submitted;
+    final isBuyerFound = entry.status == MarketLinkingStatus.buyerFound;
+    final subtitle = entry.batchNumber != null
+        ? '${entry.cropName} · ${formatBatchNumber(entry.batchNumber)}'
+        : entry.cropName;
+    final notes = (entry.notes ?? '').trim();
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.10), width: 1),
+        border: Border.all(
+          color: entry.isCancellationRequested
+              ? AppConstants.errorRed.withValues(alpha: 0.35)
+              : cs.outline.withValues(alpha: 0.10),
+        ),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(width: 4, color: statusColor),
-          ),
-          Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppConstants.tertiaryContainer.withValues(
-                          alpha: 0.15,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          entry.initials,
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppConstants.tertiaryContainer,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            entry.farmerName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: cs.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Flexible + ellipsis: Tagalog status labels (e.g.
-                    // "Nakahanap ng Mamimili" for buyer_found) run
-                    // noticeably longer than the English source and this
-                    // pill previously assumed a short all-caps word would
-                    // always fit next to the name column above.
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(
-                            AppConstants.radiusFull,
-                          ),
-                        ),
-                        child: Text(
-                          statusLabel.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                            color: statusColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Pipeline progress — Submitted → Buyer Found → Completed.
-              // Purely visual, reads directly off entry.status; cancelled
-              // entries skip this since they're outside the normal pipeline.
-              if (!isCancelled)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                  child: Row(
-                    children: List.generate(_stages.length * 2 - 1, (i) {
-                      if (i.isOdd) {
-                        final passed = (i ~/ 2) < stageIndex;
-                        return Expanded(
-                          child: Container(
-                            height: 2,
-                            color: passed
-                                ? statusColor.withValues(alpha: 0.4)
-                                : cs.outline.withValues(alpha: 0.15),
-                          ),
-                        );
-                      }
-                      final dotIndex = i ~/ 2;
-                      final reached = dotIndex <= stageIndex;
-                      return Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: reached
-                              ? statusColor
-                              : cs.outline.withValues(alpha: 0.25),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-
-              if (entry.volumeKg != null || entry.buyerName != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                  child: Row(
+      child: Opacity(
+        opacity: isCancelled ? 0.75 : 1,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                MarketLinkingEntryPhoto(entry: entry, size: 52),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (entry.volumeKg != null) ...[
-                        Icon(Icons.scale_outlined, size: 13, color: cs.outline),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${formatQuantity(entry.volumeKg!)} kg',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      if (entry.pricePerKg != null) ...[
-                        Icon(
-                          Icons.payments_outlined,
-                          size: 13,
-                          color: cs.outline,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '₱${entry.pricePerKg!.toStringAsFixed(2)}/kg',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: cs.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      if (entry.buyerName != null) ...[
-                        Icon(
-                          Icons.handshake_outlined,
-                          size: 13,
-                          color: cs.outline,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            entry.buyerName!,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-              if (entry.batchNumber != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: 13,
-                        color: cs.outline,
-                      ),
-                      const SizedBox(width: 4),
-                      // Flexible + ellipsis: "Naka-link sa Batch #..." plus
-                      // the confirmed-volume suffix can run past the card
-                      // width once both segments are Tagalog on a narrow
-                      // screen.
-                      Flexible(
-                        child: Text(
-                          l10n.marketLinkLinkedToBatch(
-                            formatBatchNumber(entry.batchNumber),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                      if (entry.confirmedVolumeKg != null) ...[
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            l10n.marketLinkConfirmedVolumeSuffix(
-                              formatQuantity(entry.confirmedVolumeKg!),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-              // Timestamp trail — data already on the model, never surfaced
-              // before.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                child: Row(
-                  children: [
-                    Icon(Icons.schedule_rounded, size: 12, color: cs.outline),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        _timelineLabel(entry, l10n),
+                      Text(
+                        entry.farmerName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: cs.outline,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
                         ),
                       ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(child: MarketLinkingStatusChip(entry: entry)),
+              ],
+            ),
+
+            // The farmer's cancellation request: review it right here.
+            if (entry.isCancellationRequested) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppConstants.errorRed.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.mlkCancelBanner(entry.cancellationReason ?? ''),
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionButton(
+                            onTap: onDeclineCancellation,
+                            icon: Icons.close_rounded,
+                            label: l10n.mlkDeclineCancellation,
+                            style: onDeclineCancellation != null
+                                ? _ActionStyle.outlineDestructive
+                                : _ActionStyle.disabled,
+                          cs: cs,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ActionButton(
+                            onTap: onApproveCancellation,
+                            icon: Icons.check_rounded,
+                            label: l10n.mlkApproveCancellation,
+                            style: onApproveCancellation != null
+                                ? _ActionStyle.tertiary
+                                : _ActionStyle.disabled,
+                          cs: cs,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+            ],
 
-              if (entry.notes != null && entry.notes!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusSm,
-                      ),
-                    ),
+            if (!isCancelled) ...[
+              const SizedBox(height: 16),
+              MarketLinkingStageBar(entry: entry),
+              if (entry.volumeKg != null) ...[
+                const SizedBox(height: 16),
+                MarketLinkingSaleProgress(entry: entry),
+              ],
+            ],
+
+            // Stage 2 on show: who the buyer is.
+            if (entry.hasBuyer && !isCancelled) ...[
+              const SizedBox(height: 14),
+              MarketLinkingBuyerBlock(entry: entry),
+            ],
+
+            // What to do next, in one line.
+            if (isWaiting || (isBuyerFound && !entry.hasSales)) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Expanded(
                     child: Text(
-                      entry.notes!,
+                      isWaiting ? l10n.mlkHintAddBuyer : l10n.mlkHintCompleteSale,
                       style: GoogleFonts.inter(
-                        fontSize: 11,
+                        fontSize: 12,
+                        height: 1.4,
                         color: cs.onSurfaceVariant,
                       ),
                     ),
                   ),
-                ),
-
-              if (entry.status == MarketLinkingStatus.submitted)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: _ActionButton(
-                    onTap: onEnterBuyerDetails,
-                    icon: Icons.person_add_alt_1_rounded,
-                    label: l10n.marketLinkEnterBuyerDetails,
-                    style: onEnterBuyerDetails != null
-                        ? _ActionStyle.tertiary
-                        : _ActionStyle.disabled,
-                    cs: cs,
-                  ),
-                ),
-              if (entry.status == MarketLinkingStatus.buyerFound)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _ActionButton(
-                          onTap: onCancel,
-                          icon: Icons.close_rounded,
-                          label: l10n.cancel,
-                          style: onCancel != null
-                              ? _ActionStyle.outlineDestructive
-                              : _ActionStyle.disabled,
-                          cs: cs,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ActionButton(
-                          onTap: onComplete,
-                          icon: Icons.handshake_rounded,
-                          label: l10n.marketLinkCompleteAction,
-                          style: onComplete != null
-                              ? _ActionStyle.gradient
-                              : _ActionStyle.disabled,
-                          cs: cs,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              // Completed is a final, read-only state — no action button.
-              // A new round only ever happens through the farmer's own
-              // Submit to Sell request, never from an admin-side control
-              // here (see the note above _confirmStartNewRound's removal).
-              //
-              // Cancelled entries offer Delete only — cancelled records
-              // carry no sale/history value the way Completed ones do, so
-              // they shouldn't just accumulate forever.
-              if (entry.status == MarketLinkingStatus.cancelled)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: _ActionButton(
-                    onTap: onDelete,
-                    icon: Icons.delete_outline_rounded,
-                    label: l10n.commonDelete,
-                    style: onDelete != null
-                        ? _ActionStyle.outlineDestructive
-                        : _ActionStyle.disabled,
-                    cs: cs,
-                  ),
-                ),
+                ],
+              ),
             ],
-          ),
-        ],
+
+            if (entry.sales.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              MarketLinkingSalesList(entry: entry),
+            ],
+
+            if (notes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                notes,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.schedule_rounded, size: 12, color: cs.outline),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    _timelineLabel(entry, l10n),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 10.5, color: cs.outline),
+                  ),
+                ),
+              ],
+            ),
+
+            // Who did each step (buyer details, sales, cancellations), with name and
+            // time. Staff only.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => showWorkflowHistorySheet(
+                  context,
+                  entityType: 'market_linking',
+                  entityId: entry.id,
+                  title: '${entry.cropName} · ${entry.farmerName}',
+                ),
+                icon: const Icon(Icons.history_rounded, size: 16),
+                label: Text(l10n.wfHistoryAction),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
+              ),
+            ),
+
+            // The next stage is the one main action.
+            if (isWaiting) ...[
+              const SizedBox(height: 14),
+              _ActionButton(
+                onTap: onBuyerDetails,
+                icon: Icons.person_add_alt_1_rounded,
+                label: l10n.mlkActionAddBuyer,
+                style: onBuyerDetails != null ? _ActionStyle.gradient : _ActionStyle.disabled,
+              cs: cs,
+              ),
+            ],
+            if (isBuyerFound) ...[
+              const SizedBox(height: 14),
+              _ActionButton(
+                onTap: onComplete,
+                icon: Icons.handshake_rounded,
+                label: l10n.mlkActionCompleteSale,
+                style: onComplete != null ? _ActionStyle.gradient : _ActionStyle.disabled,
+              cs: cs,
+              ),
+              const SizedBox(height: 10),
+              _ActionButton(
+                onTap: onBuyerDetails,
+                icon: Icons.edit_outlined,
+                label: l10n.mlkActionEditBuyer,
+                style: onBuyerDetails != null ? _ActionStyle.tertiary : _ActionStyle.disabled,
+              cs: cs,
+              ),
+            ],
+
+            // Cancelled entries offer Delete only — they carry no sale history.
+            if (isCancelled) ...[
+              const SizedBox(height: 14),
+              _ActionButton(
+                onTap: onDelete,
+                icon: Icons.delete_outline_rounded,
+                label: l10n.commonDelete,
+                style: onDelete != null
+                    ? _ActionStyle.outlineDestructive
+                    : _ActionStyle.disabled,
+              cs: cs,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
   String _timelineLabel(MarketLinkingModel e, AppLocalizations l10n) {
-    if (e.completedAt != null)
+    if (e.completedAt != null) {
       return l10n.marketLinkTimelineCompleted(_fmt(e.completedAt!));
-    if (e.buyerFoundAt != null)
+    }
+    if (e.buyerFoundAt != null) {
       return l10n.marketLinkTimelineBuyerFound(_fmt(e.buyerFoundAt!));
+    }
     return l10n.marketLinkTimelineSubmitted(_fmt(e.submittedAt));
   }
 
   String _fmt(DateTime dt) {
     const m = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${m[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-
-  Color _statusColor(MarketLinkingStatus s, ColorScheme cs) {
-    switch (s) {
-      case MarketLinkingStatus.requested:
-        return cs.outline;
-      case MarketLinkingStatus.submitted:
-        return AppConstants.warningAmber;
-      case MarketLinkingStatus.buyerFound:
-        return AppConstants.buyerBlue;
-      case MarketLinkingStatus.completed:
-        return AppConstants.successGreen;
-      case MarketLinkingStatus.cancelled:
-        return cs.outline;
-    }
   }
 }
 
@@ -1106,205 +890,83 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ─── Update Status Modal ──────────────────────────────────────────────────────
-// Single-purpose per invocation now — targetStatus is fixed by which
-// button on the card opened it (Enter Buyer Details / Cancel / Complete),
-// not picked from a Completed/Cancelled/Buyer-Found selector inside the
-// sheet itself. That selector was removed: a Submitted entry could only
-// ever meaningfully move to Buyer Found next, and once Buyer Found, the
-// card's own Cancel/Complete buttons already say which outcome this save
-// is for — a picker was one extra, redundant step. See M-marketplace-5.
-class _UpdateStatusSheet extends StatefulWidget {
+// ─── Stage 2: Buyer Details ───────────────────────────────────────────────────
+// Who the buyer is, and nothing else: full name and contact number (required),
+// email (optional). Saving only records the buyer (the request
+// becomes Buyer Found). It never sells, completes or deducts anything — the
+// quantity and price are entered later, in Complete Sale.
+class _BuyerDetailsSheet extends StatefulWidget {
   final MarketLinkingModel entry;
-  final MarketLinkingStatus targetStatus;
   final MarketLinkingRepository repo;
-  final VoidCallback onSaved;
-  const _UpdateStatusSheet({
+  final void Function(String message) onSaved;
+  const _BuyerDetailsSheet({
     required this.entry,
-    required this.targetStatus,
     required this.repo,
     required this.onSaved,
   });
 
   @override
-  State<_UpdateStatusSheet> createState() => _UpdateStatusSheetState();
+  State<_BuyerDetailsSheet> createState() => _BuyerDetailsSheetState();
 }
 
-class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
-  final _buyerNameCtrl = TextEditingController();
-  final _buyerContactCtrl = TextEditingController();
-  final _priceCtrl = TextEditingController();
-  final _requestedVolumeCtrl = TextEditingController();
-  final _notesCtrl = TextEditingController();
+class _BuyerDetailsSheetState extends State<_BuyerDetailsSheet> {
+  static final _emailShape = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  final _nameCtrl = TextEditingController();
+  final _contactCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  String? _nameError;
+  String? _contactError;
+  String? _emailError;
   bool _isSaving = false;
-
-  bool get _isCancelling =>
-      widget.targetStatus == MarketLinkingStatus.cancelled;
-  bool get _isCompleting =>
-      widget.targetStatus == MarketLinkingStatus.completed;
-
-  List<Map<String, dynamic>> _eligibleBatches = [];
-  String? _selectedBatchId;
-  bool _loadingBatches = true;
 
   @override
   void initState() {
     super.initState();
-    _buyerNameCtrl.text = widget.entry.buyerName ?? '';
-    _buyerContactCtrl.text = widget.entry.buyerContact ?? '';
-    _priceCtrl.text = widget.entry.pricePerKg?.toStringAsFixed(2) ?? '';
-    _requestedVolumeCtrl.text =
-        widget.entry.requestedVolumeKg?.toStringAsFixed(2) ?? '';
-    _notesCtrl.text = widget.entry.notes ?? '';
-    _selectedBatchId = widget.entry.inventoryBatchId;
-    if (_isCancelling) {
-      _loadingBatches = false;
-    } else {
-      _loadBatches();
-    }
-  }
-
-  // Ginger Market Linking is handled one farmer, one harvest at a time —
-  // there is no scenario where an admin picks between several of a
-  // farmer's Ginger batches. So this auto-links the batch instead of
-  // presenting a picker: prefer whatever batch is already on this entry
-  // (as long as it still has stock), otherwise the farmer's most recent
-  // eligible Ginger batch. See M-marketplace-6.
-  Future<void> _loadBatches() async {
-    final batches = await widget.repo.fetchEligibleBatches(
-      widget.entry.farmerId,
-    );
-    if (!mounted) return;
-    setState(() {
-      _eligibleBatches = batches;
-      final existing = widget.entry.inventoryBatchId;
-      if (existing != null && batches.any((b) => b['id'] == existing)) {
-        _selectedBatchId = existing;
-      } else if (batches.isNotEmpty) {
-        _selectedBatchId = batches.first['id'] as String;
-      } else {
-        _selectedBatchId = null;
-      }
-      _loadingBatches = false;
-    });
+    final e = widget.entry;
+    _nameCtrl.text = e.buyerName ?? '';
+    _contactCtrl.text = e.buyerContact ?? '';
+    _emailCtrl.text = e.buyerEmail ?? '';
   }
 
   @override
   void dispose() {
-    _buyerNameCtrl.dispose();
-    _buyerContactCtrl.dispose();
-    _priceCtrl.dispose();
-    _requestedVolumeCtrl.dispose();
-    _notesCtrl.dispose();
+    _nameCtrl.dispose();
+    _contactCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
-  }
-
-  // Complete is a confirmation step, not a data-entry one — everything it
-  // records was already captured when Buyer Details were entered at Buyer
-  // Found time. The final confirmed quantity is derived, never typed:
-  // whatever the buyer originally wanted, capped at whatever's actually
-  // still available on the linked batch (it can only ever go down from
-  // real-world stock changes since then, never up).
-  double? get _computedConfirmedVolumeKg {
-    final requested = widget.entry.requestedVolumeKg ?? widget.entry.volumeKg;
-    if (requested == null) return null;
-    final batch = _eligibleBatches.firstWhere(
-      (b) => b['id'] == _selectedBatchId,
-      orElse: () => const {},
-    );
-    final available = (batch['available_kg'] as num?)?.toDouble();
-    if (available == null) return requested;
-    return requested < available ? requested : available;
   }
 
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
-    // A sale needs a real price and quantity: both must be valid decimals
-    // above zero (0.45, 12.50 …) before a buyer can be recorded, and the
-    // agreed price must exist before the sale is completed. The database
-    // refuses the same cases, so a stale screen cannot get past either.
-    final price = parseDecimal(_priceCtrl.text);
-    final requested = parseDecimal(_requestedVolumeCtrl.text);
-    String? problem;
-    if (widget.targetStatus == MarketLinkingStatus.buyerFound) {
-      if (price == null) {
-        problem = l10n.marketLinkPriceRequired;
-      } else if (requested == null) {
-        problem = l10n.marketLinkVolumeRequired;
-      }
-    } else if (_isCompleting && (widget.entry.pricePerKg ?? 0) <= 0) {
-      problem = l10n.marketLinkPriceRequired;
-    }
-    if (problem != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
-      return;
-    }
+    final email = _emailCtrl.text.trim();
+    setState(() {
+      _nameError = _nameCtrl.text.trim().isEmpty ? l10n.mlkBuyerNameRequired : null;
+      _contactError = _contactCtrl.text.trim().isEmpty ? l10n.mlkBuyerContactRequired : null;
+      _emailError = email.isNotEmpty && !_emailShape.hasMatch(email)
+          ? l10n.mlkBuyerEmailInvalid
+          : null;
+    });
+    if (_nameError != null || _contactError != null || _emailError != null) return;
+
     setState(() => _isSaving = true);
     try {
-      // Attach/clear the batch independently of status, unless we're
-      // completing right now — the RPC itself sets inventory_batch_id
-      // in that case, so there's no need to do it twice. Cancelling never
-      // touches the batch link at all.
-      if (!_isCancelling &&
-          !_isCompleting &&
-          _selectedBatchId != widget.entry.inventoryBatchId) {
-        await widget.repo.attachBatch(
-          id: widget.entry.id,
-          batchId: _selectedBatchId,
-        );
-      }
-
-      await widget.repo.updateStatus(
-        id: widget.entry.id,
-        newStatus: widget.targetStatus,
-        buyerName: _isCancelling || _buyerNameCtrl.text.trim().isEmpty
-            ? null
-            : _buyerNameCtrl.text.trim(),
-        buyerContact: _isCancelling || _buyerContactCtrl.text.trim().isEmpty
-            ? null
-            : _buyerContactCtrl.text.trim(),
-        pricePerKg: _isCancelling ? null : price,
-        requestedVolumeKg: widget.targetStatus == MarketLinkingStatus.buyerFound
-            ? requested
-            : null,
-        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        inventoryBatchId: _isCompleting ? _selectedBatchId : null,
-        confirmedVolumeKg: _isCompleting ? _computedConfirmedVolumeKg : null,
+      await widget.repo.saveBuyerDetails(
+        programId: widget.entry.id,
+        fullName: _nameCtrl.text,
+        contactNumber: _contactCtrl.text,
+        email: email,
       );
       if (!mounted) return;
       Navigator.pop(context);
-      widget.onSaved();
+      widget.onSaved(l10n.mlkBuyerSaved);
     } catch (e) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().contains('exceeds')
-                ? l10n.marketLinkVolumeExceedsError
-                : l10n.marketLinkUpdateFailed,
-          ),
-        ),
+      AppToast.show(
+        context,
+        readableDatabaseMessage(e) ?? l10n.mlkBuyerSaveFailed,
+        isError: true,
       );
-    }
-  }
-
-  String _title(AppLocalizations l10n) {
-    switch (widget.targetStatus) {
-      case MarketLinkingStatus.buyerFound:
-        return l10n.marketLinkEnterBuyerDetails;
-      case MarketLinkingStatus.completed:
-        return l10n.marketLinkTitleCompleteSale;
-      case MarketLinkingStatus.cancelled:
-        return l10n.marketLinkTitleCancelEnrollment;
-      case MarketLinkingStatus.submitted:
-        return l10n.marketLinkTitleUpdate;
-      // Not a real target of this sheet — 'requested' rows are reviewed
-      // via the dedicated Pending Requests approve/reject flow, not this
-      // generic status-update sheet. Exhaustiveness-only fallback.
-      case MarketLinkingStatus.requested:
-        return l10n.marketLinkTitleUpdate;
     }
   }
 
@@ -1312,234 +974,482 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-
     return ManagementModalShell(
-      title: _title(l10n),
+      title: l10n.mlkBuyerTitle,
       subtitle: widget.entry.farmerName,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cancelling needs nothing but an optional reason — no buyer,
-          // price, quantity, or batch fields at all.
-          if (!_isCancelling) ...[
-            // Completing is a review-and-confirm step, not data entry —
-            // everything here was already recorded at Buyer Found time.
-            // Read-only, matching how Order Management's own Complete
-            // step works: confirm what's already there, don't re-collect
-            // it.
-            if (_isCompleting) ...[
-              _ReadOnlyRow(
-                label: l10n.marketLinkBuyerNameLabel,
-                value: widget.entry.buyerName ?? '—',
-                cs: cs,
-              ),
-              const SizedBox(height: 10),
-              _ReadOnlyRow(
-                label: l10n.marketLinkAgreedPriceLabel,
-                value: widget.entry.pricePerKg != null
-                    ? '₱${widget.entry.pricePerKg!.toStringAsFixed(2)}/kg'
-                    : '—',
-                cs: cs,
-              ),
-              const SizedBox(height: 10),
-              _ReadOnlyRow(
-                label: l10n.marketLinkQuantityBuyerWantsLabel,
-                value: widget.entry.requestedVolumeKg != null
-                    ? '${formatQuantity(widget.entry.requestedVolumeKg!)} kg'
-                    : '—',
-                cs: cs,
-              ),
-              const SizedBox(height: 12),
-            ] else ...[
-              _FieldLabel(label: l10n.marketLinkBuyerNameLabel, cs: cs),
-              TextFormField(
-                controller: _buyerNameCtrl,
-                decoration: InputDecoration(
-                  hintText: l10n.marketLinkBuyerNameHint,
-                  hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  l10n.mlkBuyerNote,
+                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _FieldLabel(label: l10n.marketLinkAgreedPriceLabel, cs: cs),
-              TextFormField(
-                controller: _priceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: const [DecimalInputFormatter()],
-                decoration: InputDecoration(
-                  prefixText: '₱ ',
-                  hintText: '0.00',
-                  hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Only asked for at Buyer Found time — the buyer's stated
-            // intent, shown read-only above once completing instead.
-            if (widget.targetStatus == MarketLinkingStatus.buyerFound) ...[
-              _FieldLabel(
-                label: l10n.marketLinkQuantityBuyerWantsLabel,
-                cs: cs,
-              ),
-              TextFormField(
-                controller: _requestedVolumeCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: const [DecimalInputFormatter()],
-                decoration: InputDecoration(
-                  hintText: '0.00',
-                  hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Ginger Harvest Batch — always this farmer's own batch,
-            // automatically, never a manual choice among several (this
-            // program is one farmer, one harvest, one buyer at a time).
-            _FieldLabel(label: l10n.marketLinkGingerBatchLabel, cs: cs),
-            if (_loadingBatches)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: SizedBox(
-                  height: 16,
-                  width: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else if (_selectedBatchId == null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppConstants.warningAmber.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      size: 16,
-                      color: AppConstants.warningAmber,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        l10n.marketLinkNoBatchFound,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Builder(
-                builder: (context) {
-                  final batch = _eligibleBatches.firstWhere(
-                    (b) => b['id'] == _selectedBatchId,
-                  );
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.lock_outline_rounded,
-                          size: 14,
-                          color: cs.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            l10n.marketLinkBatchAvailableLine(
-                              formatBatchNumber(batch['batch_number'] as String?),
-                              formatQuantity(batch['available_kg'] as num),
-                            ),
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurface,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-            if (_isCompleting && _selectedBatchId != null) ...[
-              const SizedBox(height: 10),
-              _ReadOnlyRow(
-                label: l10n.marketLinkConfirmedVolumeLabel,
-                value: _computedConfirmedVolumeKg != null
-                    ? '${formatQuantity(_computedConfirmedVolumeKg!)} kg'
-                    : '—',
-                cs: cs,
               ),
             ],
-            const SizedBox(height: 12),
-          ],
+          ),
+          const SizedBox(height: 14),
+          _FieldLabel(label: l10n.mlkBuyerFullName, cs: cs),
+          TextFormField(
+            controller: _nameCtrl,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() => _nameError = null),
+            decoration: InputDecoration(hintText: l10n.mlkBuyerFullNameHint, errorText: _nameError),
+          ),
+          const SizedBox(height: 12),
+          _FieldLabel(label: l10n.mlkBuyerContact, cs: cs),
+          TextFormField(
+            controller: _contactCtrl,
+            keyboardType: TextInputType.phone,
+            onChanged: (_) => setState(() => _contactError = null),
+            decoration: InputDecoration(hintText: l10n.mlkBuyerContactHint, errorText: _contactError),
+          ),
+          const SizedBox(height: 12),
+          _FieldLabel(label: l10n.mlkBuyerEmail, cs: cs),
+          TextFormField(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            onChanged: (_) => setState(() => _emailError = null),
+            decoration: InputDecoration(hintText: l10n.mlkBuyerEmailHint, errorText: _emailError),
+          ),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: l10n.mlkBuyerSave,
+        isLoading: _isSaving,
+        onPrimary: _save,
+      ),
+    );
+  }
+}
 
-          if (_isCompleting) ...[
-            if (widget.entry.notes != null && widget.entry.notes!.isNotEmpty)
-              _ReadOnlyRow(
-                label: l10n.paymentNotes,
-                value: widget.entry.notes!,
-                cs: cs,
-              ),
-          ] else ...[
-            _FieldLabel(
-              label: _isCancelling
-                  ? l10n.marketLinkReasonOptional
-                  : l10n.paymentNotes,
-              cs: cs,
+// ─── Review a Farmer's cancellation request ───────────────────────────────────
+// Approve: the unsold reserved quantity goes back to the Farmer's stock and any
+// sale already recorded stays. Decline: a reason is required, and the Farmer is
+// told. The Manager/Officer never starts a cancellation themselves.
+class _ReviewCancellationSheet extends StatefulWidget {
+  final MarketLinkingModel entry;
+  final bool approve;
+  final MarketLinkingRepository repo;
+  final void Function(String message) onDone;
+  const _ReviewCancellationSheet({
+    required this.entry,
+    required this.approve,
+    required this.repo,
+    required this.onDone,
+  });
+
+  @override
+  State<_ReviewCancellationSheet> createState() => _ReviewCancellationSheetState();
+}
+
+class _ReviewCancellationSheetState extends State<_ReviewCancellationSheet> {
+  final _reasonCtrl = TextEditingController();
+  String? _reasonError;
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
+    if (!widget.approve && _reasonCtrl.text.trim().isEmpty) {
+      setState(() => _reasonError = l10n.mlkDeclineReasonRequired);
+      return;
+    }
+    setState(() => _isSaving = true);
+    try {
+      await widget.repo.respondToCancellation(
+        programId: widget.entry.id,
+        approve: widget.approve,
+        notes: _reasonCtrl.text,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone(widget.approve ? l10n.mlkCancelApproved : l10n.mlkCancelDeclinedToast);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      AppToast.show(
+        context,
+        readableDatabaseMessage(e) ?? l10n.mlkCancelReviewFailed,
+        isError: true,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final e = widget.entry;
+    return ManagementModalShell(
+      title: widget.approve ? l10n.mlkApproveTitle : l10n.mlkDeclineTitle,
+      subtitle: e.farmerName,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppConstants.errorRed.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             ),
+            child: Text(
+              l10n.mlkCancelBanner(e.cancellationReason ?? ''),
+              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurface),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (widget.approve)
+            Text(
+              l10n.mlkApproveBody,
+              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurfaceVariant),
+            )
+          else ...[
+            _FieldLabel(label: l10n.mlkDeclineReasonLabel, cs: cs),
             TextFormField(
-              controller: _notesCtrl,
+              controller: _reasonCtrl,
               maxLines: 3,
+              onChanged: (_) => setState(() => _reasonError = null),
               decoration: InputDecoration(
-                hintText: _isCancelling
-                    ? l10n.marketLinkWhyCancelled
-                    : l10n.marketLinkAdditionalNotes,
-                hintStyle: GoogleFonts.inter(fontSize: 13, color: cs.outline),
+                hintText: l10n.mlkDeclineReasonHint,
+                errorText: _reasonError,
               ),
             ),
           ],
         ],
       ),
       footer: ManagementModalActions(
-        primaryLabel: _isCancelling
-            ? l10n.marketLinkConfirmCancellation
-            : _isCompleting
-            ? l10n.marketLinkCompleteAction
-            : l10n.saveChanges,
-        isDestructive: _isCancelling,
+        primaryLabel: widget.approve ? l10n.mlkApproveConfirm : l10n.mlkDeclineConfirm,
+        isDestructive: !widget.approve,
         isLoading: _isSaving,
-        // The harvest batch link is no longer optional (see M-marketplace-6)
-        // — if this farmer genuinely has no eligible Ginger batch, there's
-        // nothing real to link this record to, so saving is blocked rather
-        // than silently proceeding without one. Cancelling never needs a
-        // batch at all.
-        onPrimary:
-            (!_isCancelling && !_loadingBatches && _selectedBatchId == null)
-            ? null
-            : _save,
+        onPrimary: _submit,
+      ),
+    );
+  }
+}
+
+// ─── Stage 3: Complete Sale ───────────────────────────────────────────────────
+// The transaction itself: the harvest batch (read-only: the request's own),
+// quantity purchased, agreed price per kg, the total (worked out as you type)
+// and optional notes. The buyer is the one saved in Buyer Details and is shown
+// here read-only. The Manager/Officer reviews it all, then taps Complete Sale:
+// only then does the sold quantity and the Farmer's remaining stock change. A
+// part-purchase leaves the unsold quantity with the Farmer (80 submitted, 50
+// sold -> 30 still in the request); buying the last of it completes the request.
+// The Farmer owns the Ginger and receives the payment: this is the Farmer's
+// sale, not Cooperative stock or revenue.
+class _CompleteSaleSheet extends StatefulWidget {
+  final MarketLinkingModel entry;
+  final MarketLinkingRepository repo;
+  final void Function(String message) onSaved;
+  const _CompleteSaleSheet({
+    required this.entry,
+    required this.repo,
+    required this.onSaved,
+  });
+
+  @override
+  State<_CompleteSaleSheet> createState() => _CompleteSaleSheetState();
+}
+
+class _CompleteSaleSheetState extends State<_CompleteSaleSheet> {
+  final _qtyCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  String? _qtyError;
+  String? _priceError;
+  bool _isSaving = false;
+
+  double get _remaining => widget.entry.remainingKg;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.entry;
+    // The last agreed price is a sensible starting point; the quantity starts
+    // as what is left (the Manager lowers it for a part-purchase).
+    _priceCtrl.text = e.pricePerKg != null ? e.pricePerKg!.toStringAsFixed(2) : '';
+    _qtyCtrl.text = _remaining > 0 ? formatQuantity(_remaining) : '';
+  }
+
+  @override
+  void dispose() {
+    _qtyCtrl.dispose();
+    _priceCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  double? get _qty => parseDecimal(_qtyCtrl.text, max: _remaining);
+  double? get _price => parseDecimal(_priceCtrl.text);
+  double? get _total =>
+      (_qty != null && _price != null) ? moneyOf(_qty!, _price!) : null;
+
+  Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      _qtyError = quantityErrorText(
+        _qtyCtrl.text,
+        max: _remaining,
+        unit: widget.entry.unit,
+        label: l10n.mlkSaleQtyLabel,
+      );
+      _priceError = priceErrorText(_priceCtrl.text, label: l10n.mlkSalePriceLabel);
+    });
+    if (_qtyError != null || _priceError != null) return;
+
+    final qty = _qty!;
+    final price = _price!;
+    setState(() => _isSaving = true);
+    try {
+      await widget.repo.recordSale(
+        programId: widget.entry.id,
+        quantityKg: qty,
+        pricePerKg: price,
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      final left = roundQuantity(_remaining - qty);
+      final message = left > 0
+          ? l10n.mlkSaleDoneMore(
+              formatQuantityUnit(qty, widget.entry.unit),
+              formatQuantityUnit(left, widget.entry.unit),
+            )
+          : l10n.mlkSaleDoneAll(
+              formatQuantityUnit(qty, widget.entry.unit),
+              formatPesos(moneyOf(qty, price)),
+            );
+      Navigator.pop(context);
+      widget.onSaved(message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      AppToast.show(
+        context,
+        readableDatabaseMessage(e) ?? l10n.mlkSaleFailed,
+        isError: true,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final e = widget.entry;
+    final total = _total;
+    final qty = _qty;
+    final leftAfter = qty != null ? roundQuantity(_remaining - qty) : null;
+
+    Widget readOnlyRow(String label, String value) => Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return ManagementModalShell(
+      title: l10n.mlkActionCompleteSale,
+      subtitle: e.farmerName,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // What is being sold, to whom: both already decided, shown read-only.
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    MarketLinkingEntryPhoto(entry: e, size: 44),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        e.cropName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                readOnlyRow(
+                  l10n.mlkSaleBatchLabel,
+                  e.batchNumber != null ? formatBatchNumber(e.batchNumber) : '—',
+                ),
+                readOnlyRow(
+                  l10n.mlkSaleBuyerLabel,
+                  [
+                    (e.buyerName ?? '').trim(),
+                    if ((e.buyerContact ?? '').trim().isNotEmpty) e.buyerContact!.trim(),
+                  ].join(' · '),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.mlkSaleLeftOf(
+                    formatQuantityUnit(_remaining, e.unit),
+                    formatQuantityUnit(e.volumeKg ?? 0, e.unit),
+                  ),
+                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Side by side when there is room, stacked on a very narrow screen.
+          // Both labels get the same height (they may wrap to two lines, in
+          // Tagalog especially), so the two input boxes always line up.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final qtyField = AlignedLabeledField(
+                label: l10n.mlkSaleQty(unitOrDefault(e.unit)),
+                child: TextFormField(
+                  controller: _qtyCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [DecimalInputFormatter()],
+                  onChanged: (_) => setState(() => _qtyError = null),
+                  decoration: InputDecoration(
+                    suffixText: unitOrDefault(e.unit),
+                    hintText: '0.00',
+                    errorText: _qtyError,
+                    errorMaxLines: 2,
+                  ),
+                ),
+              );
+              final priceField = AlignedLabeledField(
+                label: l10n.mlkSalePrice(unitOrDefault(e.unit)),
+                child: TextFormField(
+                  controller: _priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [DecimalInputFormatter()],
+                  onChanged: (_) => setState(() => _priceError = null),
+                  decoration: InputDecoration(
+                    prefixText: '₱ ',
+                    hintText: '0.00',
+                    errorText: _priceError,
+                    errorMaxLines: 2,
+                  ),
+                ),
+              );
+              if (constraints.maxWidth < 300) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [qtyField, const SizedBox(height: 12), priceField],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: qtyField),
+                  const SizedBox(width: 12),
+                  Expanded(child: priceField),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          // The total is worked out as you type.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppConstants.successGreen.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.30)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.mlkSaleTotal,
+                  style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  total != null ? formatPesos(total) : '₱0.00',
+                  style: GoogleFonts.poppins(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.successGreen,
+                  ),
+                ),
+                if (leftAfter != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    leftAfter > 0
+                        ? l10n.mlkSaleAfter(formatQuantityUnit(leftAfter, e.unit))
+                        : l10n.mlkSaleCompletesRequest,
+                    style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _FieldLabel(label: l10n.mlkSaleNotes, cs: cs),
+          TextFormField(
+            controller: _notesCtrl,
+            maxLines: 2,
+            decoration: InputDecoration(hintText: l10n.mlkSaleNotesHint),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${l10n.mlkSaleReviewNote} ${l10n.mlkSaleOwnerNote}',
+                  style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: l10n.mlkActionCompleteSale,
+        isLoading: _isSaving,
+        onPrimary: _remaining > 0 ? _save : null,
       ),
     );
   }
@@ -1551,6 +1461,7 @@ class _UpdateStatusSheetState extends State<_UpdateStatusSheet> {
 
 // ─── Field Label ──────────────────────────────────────────────────────────────
 class _FieldLabel extends StatelessWidget {
+
   final String label;
   final ColorScheme cs;
   const _FieldLabel({required this.label, required this.cs});
@@ -1569,57 +1480,3 @@ class _FieldLabel extends StatelessWidget {
   );
 }
 
-/// Label + already-recorded value, locked — same pattern as the Ginger
-/// Harvest Batch display just above it. Used by Complete Sale's
-/// confirmation-only body: nothing there is still editable by the time an
-/// admin taps Complete, it's reviewing what Buyer Found already recorded.
-class _ReadOnlyRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final ColorScheme cs;
-  const _ReadOnlyRow({
-    required this.label,
-    required this.value,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FieldLabel(label: label, cs: cs),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.lock_outline_rounded,
-                size: 14,
-                color: cs.onSurfaceVariant,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurface,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}

@@ -36,6 +36,38 @@ void main() {
       expect(readableDatabaseMessage(e), 'This username is already taken.');
     });
 
+    test('stock can never go below zero: the 23514 guard is readable', () {
+      const e = PostgrestException(
+        message:
+            'new row for relation "cooperative_inventory" violates check constraint "cooperative_inventory_quantity_non_negative"',
+        code: '23514',
+      );
+      expect(
+        readableDatabaseMessage(e),
+        'There is not enough stock for this. Stock on hand cannot go below zero.',
+      );
+    });
+
+    test('a loan takes an item from stock only once: the unique index is readable', () {
+      const e = PostgrestException(
+        message:
+            'duplicate key value violates unique constraint "uq_inventory_loan_issue_once"',
+        code: '23505',
+      );
+      expect(
+        readableDatabaseMessage(e),
+        'This item was already taken from stock for this loan.',
+      );
+    });
+
+    test('another check violation stays technical', () {
+      const e = PostgrestException(
+        message: 'violates check constraint "some_other_check"',
+        code: '23514',
+      );
+      expect(readableDatabaseMessage(e), isNull);
+    });
+
     test('does not expose technical errors', () {
       expect(
         readableDatabaseMessage(

@@ -81,6 +81,7 @@ class HiveService {
       'staff_permissions',
     ); // legacy key — cleared for old sessions
     await _userBox.delete('pending_acknowledgement');
+    await _userBox.delete('staff_access_levels');
     // Per-user caches: cleared on logout. Unsynced queues are not touched here.
     // The cart belongs to this user only: remove just their items, so any
     // other account's cart on this device is left alone.
@@ -157,6 +158,19 @@ class HiveService {
   // Members tab, uniformly. UI gating is therefore a plain role check.
 
   static bool get isOfficer => getUserRole() == 'officer';
+
+  // An Officer's View Only / Manage level per module (officer_permissions),
+  // cached so the Officer's screens render correctly offline. A cache only
+  // controls what the app shows; the database refuses a write without Manage.
+  static Future<void> saveStaffAccess(Map<String, String> levels) async {
+    await _userBox.put('staff_access_levels', levels);
+  }
+
+  static Map<String, String>? getStaffAccess() {
+    final raw = _userBox.get('staff_access_levels');
+    if (raw is! Map) return null;
+    return raw.map((k, v) => MapEntry(k as String, v as String));
+  }
 
   // ─── Settings ────────────────────────────────────────────────────────────────
 

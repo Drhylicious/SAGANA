@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../data/services/connectivity_service.dart';
@@ -10,6 +12,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
+import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge;
 import '../../widgets/listing_status_badge.dart';
 import '../../widgets/management_modal.dart';
@@ -79,6 +83,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
   // ── Decision actions ────────────────────────────────────────────────────────
 
   Future<void> _confirmApprove() async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
     bool isSaving = false;
     await showManagementModal(
@@ -123,6 +128,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
   }
 
   void _showRejectSheet() {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     final l10n = AppLocalizations.of(context);
     _showNoteModal(
       title: l10n.listingReviewRejectTitle,
@@ -281,7 +287,7 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
           // Details' cart bar.
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
@@ -347,6 +353,20 @@ class _ListingReviewScreenState extends State<ListingReviewScreen>
                         ),
                       ),
                     ],
+
+                    // ── Who did what, and when (staff only) ───────────
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () => context.push(
+                        AppRoutes.adminListingHistory,
+                        extra: {
+                          'listingId': listing.id,
+                          'title': listing.canonicalCropName ?? listing.cropName,
+                        },
+                      ),
+                      icon: const Icon(Icons.history_rounded, size: 18),
+                      label: Text(l10n.leViewHistory),
+                    ),
 
                     // ── Decision actions (inline, scrolls with content) ─
                     const SizedBox(height: 24),

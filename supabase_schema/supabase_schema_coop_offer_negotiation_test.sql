@@ -89,6 +89,11 @@ BEGIN
     RAISE EXCEPTION 'Nothing suitable found. Need: a coop-eligible, non-DA-AMAD batch with at least 20 kg available whose owner is an ACTIVE farmer, plus a Manager/Officer. Found: % eligible batches (largest has % kg available); Manager/Officer: %. Fill in v_batch / v_farmer / v_manager by hand, or add stock.', v_n_elig, v_max_av, COALESCE(v_manager::text, 'none');
   END IF;
 
+  -- Offers need the Farmer's own crop photo (supabase_schema_crop_photos_selling_rules.sql);
+  -- give the test crop one. Rolled back with everything else.
+  UPDATE farmer_crops SET photo_url = COALESCE(NULLIF(photo_url, ''), 'https://example.invalid/zz-neg-test.jpg')
+   WHERE id = (SELECT crop_id FROM inventory_batches WHERE id = v_batch);
+
   SELECT available_kg INTO v_avail0 FROM inventory_batches WHERE id = v_batch;
   -- The scenario needs about 1.5 x the main offer free at once.
   v_q  := LEAST(100, floor(v_avail0 / 2));
@@ -208,14 +213,16 @@ BEGIN
   EXECUTE 'RESET ROLE';
 
   SELECT * INTO v_row FROM cooperative_purchase_offers WHERE id = v_offer;
-  v_report := v_report || CASE WHEN v_row.status = 'confirmed' AND v_row.agreed_price_per_kg = 80
+  -- Since supabase_schema_farmer_stock_management.sql an accepted offer is APPROVED:
+  -- the sale is settled only when the Manager confirms the delivery was received.
+  v_report := v_report || CASE WHEN v_row.status = 'approved' AND v_row.agreed_price_per_kg = 80
       AND v_row.confirmed_amount = 80 * v_q AND v_row.confirmed_quantity_kg = v_q
-      AND v_row.member_sales_transaction_id = v_tx AND v_row.confirmed_by = v_manager
-    THEN 'PASS ' ELSE 'FAIL ' END || E'15 accepted: agreed P80/kg x offered kg, settlement linked, credited to the Manager whose price it was\n';
-  SELECT count(*) INTO v_n FROM member_sales_transactions WHERE id = v_tx AND farmer_id = v_farmer
-    AND quantity_kg = v_q AND amount = 80 * v_q;
-  v_report := v_report || CASE WHEN v_n = 1 THEN 'PASS ' ELSE 'FAIL ' END
-    || E'16 exactly one sales transaction of the offered kg at 80/kg (Transaction History and Sales Report read this row)\n';
+      AND v_row.member_sales_transaction_id IS NULL AND v_row.confirmed_by = v_manager
+    THEN 'PASS ' ELSE 'FAIL ' END || E'15 accepted: agreed P80/kg x offered kg, approved (not yet settled), credited to the Manager whose price it was\n';
+  SELECT count(*) INTO v_n FROM member_sales_transactions WHERE farmer_id = v_farmer
+    AND quantity_kg = v_q AND amount = 80 * v_q AND sale_date = CURRENT_DATE;
+  v_report := v_report || CASE WHEN v_n = 0 THEN 'PASS ' ELSE 'FAIL ' END
+    || E'16 approving created no sales transaction yet (it is created when the delivery is confirmed)\n';
   SELECT available_kg INTO v_avail FROM inventory_batches WHERE id = v_batch;
   v_report := v_report || CASE WHEN v_avail = v_avail0 - v_q THEN 'PASS ' ELSE 'FAIL ' END
     || E'17 batch stock unchanged by the acceptance (still the kg reserved at offer time)\n';
@@ -245,8 +252,8 @@ BEGIN
     v_report := v_report || 'PASS 20 a settled offer cannot be declined (' || SQLERRM || E')\n';
   END;
   EXECUTE 'RESET ROLE';
-  SELECT count(*) INTO v_n FROM member_sales_transactions WHERE farmer_id = v_farmer AND id = v_tx;
-  v_report := v_report || CASE WHEN v_n = 1 THEN 'PASS ' ELSE 'FAIL ' END || E'21 still exactly one settlement row\n';
+  SELECT count(*) INTO v_n FROM member_sales_transactions WHERE farmer_id = v_farmer;
+  v_report := v_report || CASE WHEN v_n = v_tx0 THEN 'PASS ' ELSE 'FAIL ' END || E'21 still no settlement row (settled only on confirmed receipt)\n';
 
   -- 22. The history is complete and ordered --------------------------------
   SELECT count(*) INTO v_n FROM cooperative_offer_events WHERE offer_id = v_offer;

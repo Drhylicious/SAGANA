@@ -9,6 +9,14 @@ import 'app_dropdown_field.dart';
 /// arrow box plus its 1px border).
 const double kQuantityUnitFieldHeight = 50;
 
+// The Quantity input is built to that height from its parts: a text line of
+// fixed height plus equal padding above and below. (An InputDecoration height
+// constraint alone was not honoured everywhere, which left Quantity about 20
+// high beside a 50 high Unit.)
+const double _kQuantityFontSize = 14;
+const double _kQuantityLineHeight = 1.2;
+const double _kQuantityVerticalPadding = 16.5;
+
 /// Quantity | Unit, side by side — the harvest quantity input.
 ///
 /// Each field owns its label, its border and its own message directly
@@ -79,28 +87,31 @@ class QuantityUnitField extends StatelessWidget {
                 autovalidateMode: AutovalidateMode.onUserInteraction,
                 textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.inter(
-                  fontSize: 14,
+                  fontSize: _kQuantityFontSize,
                   fontWeight: FontWeight.w600,
                   color: AppConstants.primaryGreen,
                 ),
+                // A fixed line height, so the field's height comes from its own
+                // padding (below) and is the same in every renderer.
+                strutStyle: const StrutStyle(
+                  fontSize: _kQuantityFontSize,
+                  height: _kQuantityLineHeight,
+                  forceStrutHeight: true,
+                ),
                 decoration: InputDecoration(
-                  // Same height as the Unit dropdown beside it.
-                  constraints: const BoxConstraints(
-                    minHeight: kQuantityUnitFieldHeight,
-                    maxHeight: kQuantityUnitFieldHeight,
-                  ),
                   hintText: '0.00',
                   hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: _kQuantityFontSize,
+                    height: _kQuantityLineHeight,
                     fontWeight: FontWeight.w400,
                     color: AppConstants.outline.withValues(alpha: 0.60),
                   ),
                   filled: true,
                   fillColor: Colors.white,
-                  isDense: true,
+                  isDense: false,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 0,
+                    vertical: _kQuantityVerticalPadding,
                   ),
                   errorMaxLines: 2,
                   errorStyle: GoogleFonts.inter(

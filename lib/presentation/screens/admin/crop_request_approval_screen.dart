@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -23,7 +25,6 @@ class CropRequestItem {
   final String cropType;
   final String status;
   final String? adminNotes;
-  final String? photoUrl;
   final DateTime createdAt;
   final DateTime? reviewedAt;
 
@@ -36,7 +37,6 @@ class CropRequestItem {
     required this.cropType,
     required this.status,
     this.adminNotes,
-    this.photoUrl,
     required this.createdAt,
     this.reviewedAt,
   });
@@ -52,7 +52,7 @@ class _CropRequestRepository {
       final rows = await _client
           .from('crop_requests')
           .select(
-            'id, farmer_id, requested_name, category, crop_type, status, admin_notes, photo_url, created_at, reviewed_at',
+            'id, farmer_id, requested_name, category, crop_type, status, admin_notes, created_at, reviewed_at',
           )
           .eq('status', status)
           .order('created_at', ascending: status == 'pending');
@@ -85,7 +85,6 @@ class _CropRequestRepository {
           cropType: r['crop_type'] as String? ?? '',
           status: r['status'] as String,
           adminNotes: r['admin_notes'] as String?,
-          photoUrl: r['photo_url'] as String?,
           createdAt: DateTime.parse(r['created_at'] as String),
           reviewedAt: r['reviewed_at'] != null
               ? DateTime.tryParse(r['reviewed_at'] as String)
@@ -185,6 +184,7 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
   }
 
   void _showReviewModal(CropRequestItem item) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final notesCtrl = TextEditingController();
     // The farmer's suggested market type if it is still a valid option,
@@ -275,22 +275,8 @@ class _CropRequestApprovalScreenState extends State<CropRequestApprovalScreen>
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  if (item.photoUrl != null && item.photoUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(
-                        AppConstants.radiusMd,
-                      ),
-                      child: Image.network(
-                        item.photoUrl!,
-                        height: 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                ),
-                  ],
                 const SizedBox(height: 16),
+
                 DropdownButtonFormField<String>(
                   initialValue: selectedCropType,
                   decoration: InputDecoration(

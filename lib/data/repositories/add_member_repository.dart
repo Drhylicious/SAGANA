@@ -40,9 +40,11 @@ class AddMemberRepository {
     String? contactEmail,
     DateTime? dateOfBirth,
     String? gender, // male | female | prefer_not_to_say
-    double shareValuePerUnit = 2000,
-    double initialContribution = 0,
-    List<String> initialCrops = const [],
+    // The Farmer's address: only these three are entered; the barangay, city,
+    // province, region and postal code are fixed in the database.
+    required String street,
+    String? building,
+    required String houseNo,
   }) async {
     // The complete name, built the same way the database builds it (it
     // rebuilds it from the parts itself); used for the activity log here.
@@ -68,9 +70,11 @@ class AddMemberRepository {
                 : null,
         'p_date_of_birth': dateOfBirth?.toIso8601String().split('T').first,
         'p_gender': gender,
-        'p_share_value_per_unit': shareValuePerUnit,
-        'p_initial_contribution': initialContribution,
-        'p_initial_crops': initialCrops,
+        'p_street': street.trim(),
+        'p_building': (building != null && building.trim().isNotEmpty)
+            ? building.trim()
+            : null,
+        'p_house_no': houseNo.trim(),
           'p_contact_email':
               (contactEmail != null && contactEmail.trim().isNotEmpty)
               ? contactEmail.trim()

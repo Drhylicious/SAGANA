@@ -94,10 +94,13 @@ void main() {
         // Script 19 only READS the proof (to decide who may recover by email).
         // Script 20 replaces script 18's functions (same writer, plus the pending
         // address); it is checked on its own in the "change email" tests.
+        // Script 21 only READS the proof (a sign-in email must equal it); it is
+        // checked on its own in the "login verified email only" tests.
         if (!f.path.endsWith('.sql') ||
             f.path.contains('registration_18_') ||
             f.path.contains('registration_19_') ||
-            f.path.contains('registration_20_')) {
+            f.path.contains('registration_20_') ||
+            f.path.contains('registration_21_')) {
           continue;
         }
         final other = f.readAsStringSync();

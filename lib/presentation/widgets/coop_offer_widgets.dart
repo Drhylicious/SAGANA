@@ -7,6 +7,7 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/sagana_colors.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../../data/models/cooperative_offer_model.dart';
+import 'crop_photo_capture.dart';
 import 'management_modal.dart';
 
 /// Shared pieces of the Offer to Cooperative price negotiation, used by both
@@ -55,11 +56,37 @@ class CoopOfferStatusView {
   }) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    if (offer.isConfirmed) {
+    if (offer.isCompleted) {
       return CoopOfferStatusView(
-        label: l10n.coopStatusAccepted,
-        color: AppConstants.successGreen,
-        icon: Icons.check_circle_rounded,
+        label: l10n.coopStatusCompleted,
+        color: AppConstants.primaryGreen,
+        icon: Icons.verified_rounded,
+      );
+    }
+    if (offer.isDelivered) {
+      // The Manager / Officer has to confirm the receipt; the Farmer waits.
+      return CoopOfferStatusView(
+        label: forFarmer
+            ? l10n.coopStatusDeliveredWaiting
+            : l10n.coopStatusConfirmReceipt,
+        color: forFarmer ? AppConstants.buyerBlue : AppConstants.warningAmber,
+        icon: forFarmer
+            ? Icons.hourglass_top_rounded
+            : Icons.priority_high_rounded,
+        needsMyResponse: !forFarmer,
+      );
+    }
+    if (offer.isApproved) {
+      // The Farmer has to deliver and upload the photo; the Manager waits.
+      return CoopOfferStatusView(
+        label: forFarmer
+            ? l10n.coopStatusDeliverNow
+            : l10n.coopStatusApprovedWaitingDelivery,
+        color: forFarmer ? AppConstants.warningAmber : AppConstants.successGreen,
+        icon: forFarmer
+            ? Icons.local_shipping_outlined
+            : Icons.check_circle_rounded,
+        needsMyResponse: forFarmer,
       );
     }
     if (offer.isDeclined) {
@@ -129,7 +156,9 @@ enum CoopOfferFilter {
   all,
   awaitingCooperative,
   awaitingFarmer,
-  accepted,
+  approved,
+  delivered,
+  completed,
   declined,
   cancelled,
 }
@@ -143,8 +172,12 @@ extension CoopOfferFilterExt on CoopOfferFilter {
         return o.awaitingCooperative;
       case CoopOfferFilter.awaitingFarmer:
         return o.awaitingFarmer;
-      case CoopOfferFilter.accepted:
-        return o.isConfirmed;
+      case CoopOfferFilter.approved:
+        return o.isApproved;
+      case CoopOfferFilter.delivered:
+        return o.isDelivered;
+      case CoopOfferFilter.completed:
+        return o.isCompleted;
       case CoopOfferFilter.declined:
         return o.isDeclined;
       case CoopOfferFilter.cancelled:
@@ -164,8 +197,12 @@ extension CoopOfferFilterExt on CoopOfferFilter {
         return forFarmer
             ? l10n.coopStatusCounterReceived
             : l10n.coopStatusWaitingFarmer;
-      case CoopOfferFilter.accepted:
-        return l10n.coopStatusAccepted;
+      case CoopOfferFilter.approved:
+        return l10n.coopStatusApproved;
+      case CoopOfferFilter.delivered:
+        return l10n.coopStatusDelivered;
+      case CoopOfferFilter.completed:
+        return l10n.coopStatusCompleted;
       case CoopOfferFilter.declined:
         return l10n.coopStatusDeclined;
       case CoopOfferFilter.cancelled:
@@ -182,8 +219,12 @@ extension CoopOfferFilterExt on CoopOfferFilter {
         return forFarmer ? AppConstants.buyerBlue : AppConstants.warningAmber;
       case CoopOfferFilter.awaitingFarmer:
         return forFarmer ? AppConstants.warningAmber : AppConstants.buyerBlue;
-      case CoopOfferFilter.accepted:
+      case CoopOfferFilter.approved:
         return AppConstants.successGreen;
+      case CoopOfferFilter.delivered:
+        return AppConstants.buyerBlue;
+      case CoopOfferFilter.completed:
+        return AppConstants.primaryGreen;
       case CoopOfferFilter.declined:
         return cs.error;
       case CoopOfferFilter.cancelled:
@@ -227,7 +268,8 @@ class CoopPriceSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final accepted = offer.isConfirmed;
+    final accepted = offer.isAgreed;
+    final settled = offer.isCompleted;
     final price = accepted
         ? (offer.agreedPricePerKg ?? offer.currentPricePerKg)
         : offer.currentPricePerKg;
@@ -290,7 +332,11 @@ class CoopPriceSummary extends StatelessWidget {
         if (total != null) ...[
           Divider(height: 18, color: cs.outline.withValues(alpha: 0.12)),
           row(
-            accepted ? l10n.coopTotalPaidLabel : l10n.coopTotalAtPriceLabel,
+            settled
+                ? l10n.coopTotalPaidLabel
+                : accepted
+                ? l10n.coopAgreedTotalLabel
+                : l10n.coopTotalAtPriceLabel,
             coopPeso(total),
             strong: true,
           ),
@@ -309,11 +355,17 @@ class CoopNegotiationTimeline extends StatelessWidget {
   /// The unit the offer's prices are quoted in.
   final String unit;
 
+  /// Manager / Officer view only: the name of the staff member behind each
+  /// cooperative step (user id -> full name). Null for a Farmer, who sees
+  /// "Cooperative" and never a staff identity.
+  final Map<String, String>? staffNames;
+
   const CoopNegotiationTimeline({
     super.key,
     required this.events,
     required this.forFarmer,
     this.unit = kDefaultUnit,
+    this.staffNames,
   });
 
   String _title(AppLocalizations l10n, CooperativeOfferEvent e) {
@@ -328,6 +380,10 @@ class CoopNegotiationTimeline extends StatelessWidget {
         return l10n.coopEventDeclined;
       case 'cancelled':
         return l10n.coopEventCancelled;
+      case 'delivered':
+        return l10n.coopEventDelivered;
+      case 'received':
+        return l10n.coopEventReceived;
       default:
         return e.action;
     }
@@ -341,6 +397,10 @@ class CoopNegotiationTimeline extends StatelessWidget {
         return Icons.swap_horiz_rounded;
       case 'accepted':
         return Icons.check_circle_rounded;
+      case 'delivered':
+        return Icons.local_shipping_outlined;
+      case 'received':
+        return Icons.verified_rounded;
       case 'declined':
         return Icons.cancel_rounded;
       default:
@@ -351,6 +411,8 @@ class CoopNegotiationTimeline extends StatelessWidget {
   Color _color(BuildContext context, String action) {
     switch (action) {
       case 'accepted':
+      case 'delivered':
+      case 'received':
         return AppConstants.successGreen;
       case 'declined':
         return Theme.of(context).colorScheme.error;
@@ -384,7 +446,11 @@ class CoopNegotiationTimeline extends StatelessWidget {
                 : coopPricePerKg(events[i].pricePerKg!, unit),
             who: events[i].byFarmer
                 ? (forFarmer ? l10n.coopByYou : l10n.coopByFarmer)
-                : l10n.coopByCooperative,
+                : (!forFarmer &&
+                          staffNames != null &&
+                          (staffNames![events[i].actorId] ?? '').isNotEmpty
+                      ? '${l10n.coopByCooperative} · ${staffNames![events[i].actorId]}'
+                      : l10n.coopByCooperative),
             when: coopDateTime(events[i].createdAt),
             note: events[i].note,
           ),
@@ -805,6 +871,327 @@ class _CoopConfirmDialogState extends State<_CoopConfirmDialog> {
         isDestructive: widget.destructive,
         onPrimary: () => Navigator.pop(context, _reason.text.trim()),
       ),
+    );
+  }
+}
+
+// ─── Delivery evidence ───────────────────────────────────────────────────────
+
+/// What the delivery dialog returns: the photo the Farmer took and an optional
+/// note.
+class CoopDeliveryInput {
+  final CapturedCropPhoto photo;
+  final String? note;
+  const CoopDeliveryInput(this.photo, this.note);
+}
+
+/// Asks the Farmer for the photo evidence of a delivery (camera only, like every
+/// Farmer crop photo) and an optional note. Returns null if dismissed.
+/// [title], [body] and [confirmLabel] default to the Offer to Cooperative wording;
+/// the Marketplace "Mark as Delivered" step passes its own.
+Future<CoopDeliveryInput?> showCoopDeliveryDialog(
+  BuildContext context, {
+  required String subtitle,
+  String? title,
+  String? body,
+  String? confirmLabel,
+}) {
+  return showManagementModal<CoopDeliveryInput>(
+    context: context,
+    builder: (_) => _CoopDeliveryDialog(
+      subtitle: subtitle,
+      title: title,
+      body: body,
+      confirmLabel: confirmLabel,
+    ),
+  );
+}
+
+class _CoopDeliveryDialog extends StatefulWidget {
+  final String subtitle;
+  final String? title;
+  final String? body;
+  final String? confirmLabel;
+  const _CoopDeliveryDialog({
+    required this.subtitle,
+    this.title,
+    this.body,
+    this.confirmLabel,
+  });
+
+  @override
+  State<_CoopDeliveryDialog> createState() => _CoopDeliveryDialogState();
+}
+
+class _CoopDeliveryDialogState extends State<_CoopDeliveryDialog> {
+  final _note = TextEditingController();
+  CapturedCropPhoto? _photo;
+  bool _missing = false;
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _take() async {
+    final photo = await captureCropPhoto(context);
+    if (photo == null || !mounted) return;
+    setState(() {
+      _photo = photo;
+      _missing = false;
+    });
+  }
+
+  void _submit() {
+    final photo = _photo;
+    if (photo == null) {
+      setState(() => _missing = true);
+      return;
+    }
+    final note = _note.text.trim();
+    Navigator.pop(context, CoopDeliveryInput(photo, note.isEmpty ? null : note));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return ManagementModalShell(
+      title: widget.title ?? l10n.coopDeliverTitle,
+      subtitle: widget.subtitle,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            widget.body ?? l10n.coopDeliverBody,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              height: 1.4,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (_photo != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: Image.memory(
+                _photo!.bytes,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          if (_photo != null) const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _take,
+              icon: const Icon(Icons.photo_camera_rounded, size: 18),
+              label: Text(
+                _photo == null
+                    ? l10n.coopDeliverTakePhoto
+                    : l10n.coopDeliverRetake,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          if (_missing)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                l10n.coopDeliverPhotoRequired,
+                style: GoogleFonts.inter(fontSize: 12, color: cs.error),
+              ),
+            ),
+          const SizedBox(height: 14),
+          Text(
+            l10n.coopNoteLabel,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(controller: _note, maxLines: 2, maxLength: 200),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: widget.confirmLabel ?? l10n.coopDeliverConfirm,
+        onPrimary: _submit,
+      ),
+    );
+  }
+}
+
+/// The delivery photo of an offer, tappable to see it full size.
+class CoopDeliveryPhoto extends StatelessWidget {
+  final String url;
+  const CoopDeliveryPhoto({super.key, required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          child: InteractiveViewer(
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Icon(Icons.broken_image_outlined, size: 48),
+              ),
+            ),
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        child: Image.network(
+          url,
+          height: 200,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            height: 120,
+            alignment: Alignment.center,
+            color: cs.surfaceContainerHighest,
+            child: Icon(Icons.broken_image_outlined, color: cs.outline),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A single full-width action pinned to the bottom: the Farmer's "Mark as
+/// Delivered" on an approved offer, the Manager / Officer's "Confirm Receipt"
+/// on a delivered one.
+class CoopHandoverBar extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool busy;
+  final bool online;
+  final VoidCallback onPressed;
+
+  const CoopHandoverBar({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.busy,
+    required this.online,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: cs.outline.withValues(alpha: 0.15))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!online)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    l10n.coopOfflineNote,
+                    style: GoogleFonts.inter(fontSize: 12, color: cs.error),
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: online && !busy ? onPressed : null,
+                  icon: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : Icon(icon, size: 18),
+                  label: Text(
+                    label,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Farmer's email and phone number on an offer, for the Manager / Officer.
+/// (The Farmer's full name is already the heading above it.) Each line is shown
+/// only when the Farmer has given it: nothing empty, nothing twice.
+class CoopFarmerContact extends StatelessWidget {
+  final CooperativeOfferModel offer;
+  final bool compact;
+
+  const CoopFarmerContact({super.key, required this.offer, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final email = (offer.farmerEmail ?? '').trim();
+    final phone = (offer.farmerPhone ?? '').trim();
+    if (email.isEmpty && phone.isEmpty) return const SizedBox.shrink();
+
+    Widget line(IconData icon, String text) => Padding(
+      padding: EdgeInsets.only(top: compact ? 2 : 3),
+      child: Row(
+        children: [
+          Icon(icon, size: compact ? 12 : 14, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: compact ? 11.5 : 12,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (email.isNotEmpty) line(Icons.mail_outline_rounded, email),
+        if (phone.isNotEmpty) line(Icons.phone_outlined, phone),
+      ],
     );
   }
 }

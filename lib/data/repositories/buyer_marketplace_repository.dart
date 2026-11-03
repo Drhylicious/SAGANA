@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/guest_mode_service.dart';
 import '../services/market_types_service.dart';
 import '../services/offline_cache.dart';
 import '../services/server_only.dart';
@@ -84,10 +85,60 @@ class BuyerMarketplaceRepository {
   static String listingsCacheScreen({int? limit, int offset = 0}) =>
       'buyer_listings_${limit ?? 'all'}_$offset';
 
+  // ─── Guest (signed-out) reads ──────────────────────────────────────────────
+  // A guest has no session, so the tables above are unreadable to them by
+  // design. These go through the public_* functions (supabase_schema_guest_
+  // public_access.sql), which return only what a Buyer may already see, with
+  // no farmer identity. Prices come from the same public function, resolved
+  // with the same Buyer-first priority as the signed-in path.
+  Future<List<BuyerListingModel>> _fetchGuestListings({
+    int? limit,
+    int offset = 0,
+    String? listingId,
+    required String cacheKey,
+  }) async {
+    final rows = await OfflineCache.load(
+      screen: cacheKey,
+      fetch: () async {
+        final res = await _client.rpc(
+          'public_marketplace_listings',
+          params: {
+            'p_limit': limit,
+            'p_offset': offset,
+            'p_listing_id': listingId,
+          },
+        );
+        return List<Map<String, dynamic>>.from(
+          (res as List).map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+      },
+    );
+    if (rows.isEmpty) return [];
+    final priceMap = await _fetchPriceMap();
+    return rows.map((r) {
+      return BuyerListingModel.fromMap({
+        ...r,
+        'market_ref_price': priceMap[(r['crop_name'] as String).toLowerCase()],
+      });
+    }).toList();
+  }
+
   Future<List<BuyerListingModel>> fetchApprovedListings({
     int? limit,
     int offset = 0,
   }) async {
+    if (GuestModeService.active) {
+      try {
+        return await _fetchGuestListings(
+          limit: limit,
+          offset: offset,
+          cacheKey: 'guest_listings_${limit ?? 'all'}_$offset',
+        );
+      } catch (e) {
+        debugPrint('BuyerMarketplaceRepository guest listings failed: $e');
+        return [];
+      }
+    }
     try {
       final query = _client
           .from('marketplace_listings')
@@ -146,8 +197,7 @@ class BuyerMarketplaceRepository {
       try {
         final cropRows = await _client
             .from('crop_master')
-            .select('crop_name, category')
-            .eq('is_active', true);
+            .select('crop_name, category');
         for (final c in cropRows) {
           categoryMap[(c['crop_name'] as String).toLowerCase()] =
               c['category'] as String;
@@ -228,6 +278,18 @@ class BuyerMarketplaceRepository {
   // ─── Single listing, full detail (batch number + harvest date included) ───
 
   Future<BuyerListingModel?> fetchListingById(String listingId) async {
+    if (GuestModeService.active) {
+      try {
+        final list = await _fetchGuestListings(
+          listingId: listingId,
+          cacheKey: 'guest_listing_$listingId',
+        );
+        return list.isEmpty ? null : list.first;
+      } catch (e) {
+        debugPrint('BuyerMarketplaceRepository guest listing failed: $e');
+        return null;
+      }
+    }
     try {
       final rowRows = await OfflineCache.load(
         screen: 'buyer_listing_$listingId',
@@ -351,6 +413,15 @@ class BuyerMarketplaceRepository {
   // ─── Crop names currently listed (for the Prices tab cross-reference) ─────
 
   Future<Set<String>> fetchListedCropNames() async {
+    if (GuestModeService.active) {
+      try {
+        final res = await _client.rpc('public_listed_crop_names');
+        return (res as List).map((e) => (e as String).toLowerCase()).toSet();
+      } catch (e) {
+        debugPrint('BuyerMarketplaceRepository guest crop names failed: $e');
+        return {};
+      }
+    }
     try {
       final rows = await _client
           .from('marketplace_listings')

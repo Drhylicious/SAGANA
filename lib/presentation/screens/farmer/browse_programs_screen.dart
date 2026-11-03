@@ -8,6 +8,7 @@ import '../../../data/models/program_enrollment_request_model.dart';
 import '../../../data/repositories/farmer_program_repository.dart';
 import '../../../data/repositories/farmer_profile_repository.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -128,7 +129,7 @@ class _BrowseProgramsScreenState extends State<BrowseProgramsScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'programs_available',
                 isOnline: _isOnline,

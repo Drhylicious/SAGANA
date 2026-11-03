@@ -535,19 +535,33 @@ void main() {
       expect(live, contains('GRANT EXECUTE ON FUNCTION public.set_pending_contact_email(text) TO authenticated;'));
     });
 
-    test('the switch happens only inside verify, only after the right code, and only the Manager\'s sign-in changes', () {
-      expect('UPDATE auth.users'.allMatches(live).length, 1);
+    test('the switch happens only inside verify, only after the right code, for the roles that may sign in with an email', () {
+      // Two places, both inside verify_contact_email: the Manager's change and a
+      // Farmer's/Buyer's verified address becoming a sign-in.
+      expect('UPDATE auth.users'.allMatches(live).length, 2);
       final verify = fn('verify_contact_email');
-      expect(verify, contains('UPDATE auth.users'));
-      // The auth update is inside the admin-only branch.
-      final adminBranch = verify.indexOf('IF v_admin THEN');
+      expect('UPDATE auth.users'.allMatches(verify).length, 2);
+      final afterCode = verify.indexOf('IF v_hash <> r.code_hash');
+      final adminBranch = verify.indexOf('IF v_signin THEN');
+      final loginBranch = verify.indexOf('IF v_login AND v_old IS DISTINCT FROM r.email THEN');
       expect(adminBranch, isNonNegative);
-      expect(verify.indexOf('UPDATE auth.users'), greaterThan(adminBranch));
-      // It is after the code was compared.
-      expect(verify.indexOf('UPDATE auth.users'), greaterThan(verify.indexOf('IF v_hash <> r.code_hash')));
+      expect(loginBranch, isNonNegative);
+      for (final at in [adminBranch, loginBranch]) {
+        expect(at, greaterThan(afterCode));
+      }
+      // Each switch sits inside its role's branch, after the proof was recorded:
+      // the sign-in email may only be set to an address already on record as verified.
+      final firstAuth = verify.indexOf('UPDATE auth.users');
+      final secondAuth = verify.indexOf('UPDATE auth.users', firstAuth + 1);
+      expect(firstAuth, greaterThan(adminBranch));
+      expect(secondAuth, greaterThan(loginBranch));
+      expect(verify.lastIndexOf('SET contact_email', firstAuth), isNonNegative);
+      expect(verify.lastIndexOf('verified_contact_email    = r.email', firstAuth), isNonNegative);
+      expect(verify.lastIndexOf('SET verified_contact_email    = r.email', secondAuth), isNonNegative);
       // Someone else may have taken the address: re-checked at the moment of the switch.
       expect(verify, contains("'email_in_use'"));
-      expect(verify, contains("role = 'admin'"));
+      expect(verify, contains("role IN ('admin', 'officer')"));
+      expect(verify, contains("role IN ('farmer', 'buyer', 'officer')"));
     });
 
     test('the pending column can only be written by the two functions (the lock covers it)', () {

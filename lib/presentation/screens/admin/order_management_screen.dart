@@ -6,14 +6,18 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_order_repository.dart';
 import '../../../routes/app_routes.dart';
-import '../../widgets/listing_filter_modal.dart' show ListingStatusFilterChip;
+import '../../widgets/listing_filter_modal.dart'
+    show MarketplaceFilterBar, MarketplaceFilterOption;
 import '../../widgets/management_modal.dart' show adminOrderStatusLabel;
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/order_status_style.dart';
+import '../../../core/utils/order_status.dart';
 
 class OrderManagementScreen extends StatefulWidget {
   /// When set, the screen opens pre-filtered to one buyer's orders —
@@ -22,7 +26,15 @@ class OrderManagementScreen extends StatefulWidget {
   final String? buyerId;
   final String? buyerName;
 
-  const OrderManagementScreen({super.key, this.buyerId, this.buyerName});
+  /// A filter to open on (the Marketplace dashboard opens Needs Action).
+  final String? initialFilter;
+
+  const OrderManagementScreen({
+    super.key,
+    this.buyerId,
+    this.buyerName,
+    this.initialFilter,
+  });
 
   @override
   State<OrderManagementScreen> createState() => _OrderManagementScreenState();
@@ -36,13 +48,14 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
   // Review both use this same pill-chip filter style, so Order Management
   // now matches instead of being the one screen with a different filter
   // widget and different interaction model (see M-marketplace-3).
-  String? _statusFilter;
+  late String? _statusFilter = widget.initialFilter;
 
   List<AdminOrderModel> _allOrders = [];
   bool _isLoading = true;
   bool _hasLoadedOnce = false;
   bool _isOnline = ConnectivityService.instance.isOnline;
   String _searchQuery = '';
+  TableChangeWatcher? _orderWatcher;
 
   @override
   void initState() {
@@ -55,10 +68,18 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
       if (mounted) setState(() => _isOnline = v);
     });
     _load();
+    // A Buyer placing or cancelling an order shows up here without a refresh.
+    _orderWatcher = TableChangeWatcher(
+      tables: const ['orders'],
+      onChange: () {
+        if (mounted) _load();
+      },
+    )..start();
   }
 
   @override
   void dispose() {
+    _orderWatcher?.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -74,9 +95,21 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
     });
   }
 
+  // How many orders each status chip holds, from the loaded orders (the search
+  // does not change them).
+  Map<String, int> get _statusCounts {
+    final counts = <String, int>{};
+    for (final o in _allOrders) {
+      counts[o.status] = (counts[o.status] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   List<AdminOrderModel> _byStatus(String? status) {
     var list = status == null
         ? _allOrders
+        : status == kOrderNeedsActionFilter
+        ? _allOrders.where((o) => orderNeedsStaffAction(o.status))
         : _allOrders.where((o) => o.status == status);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
@@ -100,10 +133,12 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
         return l10n.buyerOrderHistoryNoCompleted;
       case 'cancelled':
         return l10n.buyerOrderHistoryNoCancelled;
-      case 'rejected':
-        return l10n.buyerOrdersEmptyRejected;
-      default:
+      case kOrderNeedsActionFilter:
+        return l10n.orderMgmtNoNeedsAction;
+      case null:
         return l10n.buyerOrderHistoryNoOrdersYet;
+      default:
+        return l10n.ordersEmptyStatus(adminOrderStatusLabel(l10n, _statusFilter!));
     }
   }
 
@@ -139,65 +174,33 @@ class _OrderManagementScreenState extends State<OrderManagementScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 34,
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              scrollDirection: Axis.horizontal,
-              children: [
-                // Same plain-pill style as Pending Approval / Offer to
-                // Cooperative now (no count badge) — the instant, no-reload
-                // switching behavior this screen already had is unchanged,
-                // only the chip's own look changed.
-                ListingStatusFilterChip(
-                  label: l10n.farmerMgmtAllFilter,
-                  active: _statusFilter == null,
-                  color: cs.primary,
-                  onTap: () => setState(() => _statusFilter = null),
-                  cs: cs,
+          MarketplaceFilterBar<String?>(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            selected: _statusFilter,
+            onSelected: (v) => setState(() => _statusFilter = v),
+            options: [
+              MarketplaceFilterOption<String?>(
+                value: null,
+                label: l10n.farmerMgmtAllFilter,
+                count: _allOrders.length,
+                color: cs.primary,
+              ),
+              MarketplaceFilterOption<String?>(
+                value: kOrderNeedsActionFilter,
+                label: l10n.orderMgmtChipNeedsAction,
+                count: kOrderNeedsActionStatuses.fold<int>(0, (n, s) => n + (_statusCounts[s] ?? 0)),
+                color: AppConstants.programPurple,
+              ),
+              for (final s in kOrderStatuses)
+                MarketplaceFilterOption<String?>(
+                  value: s,
+                  label: s == 'pending'
+                      ? l10n.orderMgmtChipPending
+                      : adminOrderStatusLabel(l10n, s),
+                  count: _statusCounts[s] ?? 0,
+                  color: orderStatusColor(s),
                 ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'pending'),
-                  active: _statusFilter == 'pending',
-                  color: AppConstants.warningAmber,
-                  onTap: () => setState(() => _statusFilter = 'pending'),
-                  cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'approved'),
-                  active: _statusFilter == 'approved',
-                  color: AppConstants.successGreen,
-                  onTap: () => setState(() => _statusFilter = 'approved'),
-                  cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'completed'),
-                  active: _statusFilter == 'completed',
-                  color: AppConstants.primaryGreen,
-                  onTap: () => setState(() => _statusFilter = 'completed'),
-                  cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'cancelled'),
-                  active: _statusFilter == 'cancelled',
-                  color: AppConstants.errorRed,
-                  onTap: () => setState(() => _statusFilter = 'cancelled'),
-                  cs: cs,
-                ),
-                const SizedBox(width: 8),
-                ListingStatusFilterChip(
-                  label: adminOrderStatusLabel(l10n, 'rejected'),
-                  active: _statusFilter == 'rejected',
-                  color: AppConstants.errorRed,
-                  onTap: () => setState(() => _statusFilter = 'rejected'),
-                  cs: cs,
-                ),
-              ],
-            ),
+            ],
           ),
           const SizedBox(height: 8),
           Expanded(
@@ -245,21 +248,7 @@ class _OrderRow extends StatelessWidget {
   final VoidCallback onTap;
   const _OrderRow({required this.order, required this.onTap});
 
-  Color get _statusColor {
-    switch (order.status) {
-      case 'approved':
-        return AppConstants.successGreen;
-      case 'pending':
-        return AppConstants.warningAmber;
-      case 'completed':
-        return AppConstants.primaryGreen;
-      case 'cancelled':
-      case 'rejected':
-        return AppConstants.errorRed;
-      default:
-        return AppConstants.outline;
-    }
-  }
+  Color get _statusColor => orderStatusColor(order.status);
 
   @override
   Widget build(BuildContext context) {

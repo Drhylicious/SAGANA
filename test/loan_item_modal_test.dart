@@ -169,4 +169,27 @@ void main() {
     expect(saved!.quantity, 3);
     expect(saved!.lineTotal, 99.99); // exactly, not 99.99000000000001
   });
+
+  ftest('an out-of-stock item is listed, marked, and cannot be added', (
+    tester,
+  ) async {
+    const empty = LoanCatalogItem(
+      loanItemId: 'l3',
+      inventoryItemId: 'inv-empty',
+      itemName: 'Pesticide',
+      category: 'Pesticide',
+      unit: 'liter',
+      quantityOnHand: 0,
+      unitPrice: 200,
+    );
+    await open(tester, catalog: const [urea, empty]);
+    await choose(tester, 'Pesticide (liter) · Out of stock');
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Out of stock'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), '1');
+    await tester.tap(find.text('Confirm'));
+    await tester.pump();
+    expect(saved, isNull);
+  });
 }

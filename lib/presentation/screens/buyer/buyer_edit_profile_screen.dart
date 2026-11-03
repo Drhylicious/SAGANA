@@ -401,6 +401,8 @@ class _BuyerEditProfileScreenState extends State<BuyerEditProfileScreen> {
                         verified: _emailVerified,
                         isOnline: _isOnline,
                         saveEmail: _saveEmailForVerification,
+                        onSignInEmailChanged: () =>
+                            announceEmailSignInEnabled(context, _savedEmail),
                         onVerified: () {
                           setState(() => _verifiedEmail = _savedEmail);
                         },

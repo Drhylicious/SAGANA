@@ -10,13 +10,21 @@ import '../../../data/repositories/expense_repository.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/app_dropdown_field.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/loan_choice_chip.dart';
+import '../../widgets/management_modal.dart';
 import '../../../core/l10n/app_localizations.dart';
 
+/// My Expenses — a simple record of what the Farmer spent.
+///
+/// An expense is text and a number (name, category, description, amount, date,
+/// "covered by subsidy"). It carries no photo or attachment: the category icon
+/// is the only picture, so the screen stays quick to fill in and to read.
 class MyExpensesScreen extends StatefulWidget {
   const MyExpensesScreen({super.key});
 
@@ -77,8 +85,7 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
   // Period total is the sum of every non-subsidy category's total for the
   // currently selected period — the same figure the Category Breakdown
   // card already shows per-category, just summed. No separate query.
-  double get _periodTotal =>
-      _breakdown.fold(0.0, (sum, b) => sum + b.total);
+  double get _periodTotal => _breakdown.fold(0.0, (sum, b) => sum + b.total);
 
   // Breakdown is already sorted descending by total (buildBreakdown()),
   // so the first entry with real spending is the top category. Purely
@@ -90,10 +97,22 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
     return null;
   }
 
-  int get _subsidyCountThisPeriod =>
-      _expenses.where((e) => e.isSubsidy).length;
+  int get _subsidyCountThisPeriod => _expenses.where((e) => e.isSubsidy).length;
 
   int get _entryCountThisPeriod => _expenses.length;
+
+  String _periodLabel(AppLocalizations l10n, ExpensePeriod p) {
+    switch (p) {
+      case ExpensePeriod.allTime:
+        return l10n.loanHistoryAllTime;
+      case ExpensePeriod.thisMonth:
+        return l10n.loanHistoryThisMonth;
+      case ExpensePeriod.thisQuarter:
+        return l10n.loanHistoryThisQuarter;
+      case ExpensePeriod.thisYear:
+        return l10n.loanHistoryThisYear;
+    }
+  }
 
   void _showAddExpense() {
     showDialog(
@@ -112,97 +131,87 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
   }
 
   void _showExpenseDetail(ExpenseModel expense) {
-    showDialog(
+    showManagementModal<void>(
       context: context,
-      builder: (_) => _ExpenseDetailDialog(expense: expense),
+      builder: (_) => _ExpenseDetailSheet(expense: expense),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: context.saganaColors.scaffoldBackground,
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    const SizedBox(height: 64),
-                    CachedDataNotice(
-            screen: 'expenses_${_period.name}',
-            isOnline: _isOnline,
-            offlineMessage: AppLocalizations.of(context).offlineExpensesSave,
-          ),
-                    Expanded(
+          Column(
+            children: [
+              const TopBarSpacer(height: 64),
+              CachedDataNotice(
+                screen: 'expenses_${_period.name}',
+                isOnline: _isOnline,
+                offlineMessage: l10n.offlineExpensesSave,
+              ),
+              Expanded(
                 child: RefreshIndicator(
                   color: AppConstants.primaryGreen,
                   onRefresh: _loadData,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
                     children: [
-                      // Summary cards
-                      _SummaryCards(
-                        periodTotal: _periodTotal,
-                        topCategory: _topCategory,
+                      _TotalCard(
+                        periodLabel: _periodLabel(l10n, _period),
+                        total: _periodTotal,
                         entryCount: _entryCountThisPeriod,
+                        topCategory: _topCategory,
                         isLoading: _isLoading,
                       ),
-                      const SizedBox(height: 16),
-
-                      // Period filter
-                      _PeriodFilter(
+                      const SizedBox(height: 14),
+                      _PeriodChips(
                         active: _period,
+                        labelOf: (p) => _periodLabel(l10n, p),
                         onChanged: _onPeriodChanged,
                       ),
-                      const SizedBox(height: 20),
-
-                      // Category breakdown
+                      const SizedBox(height: 18),
                       if (!_isLoading && _breakdown.isNotEmpty) ...[
-                        _CategoryBreakdownCard(breakdown: _breakdown),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Subsidy banner — only shown when this period
-                      // actually has subsidized entries, with a real
-                      // count rather than static, crop-specific text.
-                      if (!_isLoading && _subsidyCountThisPeriod > 0) ...[
-                        _SubsidyBanner(count: _subsidyCountThisPeriod),
-                        const SizedBox(height: 20),
-                      ],
-
-                      // Transactions
-                      Text(
-                        'Recent Transactions',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppConstants.charcoal,
+                        _CategoryBreakdownCard(
+                          breakdown: _breakdown,
+                          total: _periodTotal,
                         ),
+                        const SizedBox(height: 14),
+                      ],
+                      // Only when this period really has subsidized entries,
+                      // with the real count.
+                      if (!_isLoading && _subsidyCountThisPeriod > 0) ...[
+                        _SubsidyNote(count: _subsidyCountThisPeriod),
+                        const SizedBox(height: 14),
+                      ],
+                      _SectionHeader(
+                        title: l10n.expnListTitle,
+                        trailing: _isLoading
+                            ? null
+                            : l10n.expnEntryCount(_entryCountThisPeriod),
                       ),
-                      const SizedBox(height: 12),
-
+                      const SizedBox(height: 10),
                       if (_isLoading)
                         ...List.generate(
                           3,
                           (_) => const Padding(
                             padding: EdgeInsets.only(bottom: 10),
-                            child: SkeletonBlock(height: 72),
+                            child: SkeletonBlock(height: 76),
                           ),
                         )
                       else if (_expenses.isEmpty)
                         const _EmptyState()
                       else
-                        ..._expenses.map(
-                          (e) => Padding(
+                        for (final e in _expenses)
+                          Padding(
                             padding: const EdgeInsets.only(bottom: 10),
-                            child: GestureDetector(
+                            child: _ExpenseCard(
+                              expense: e,
                               onTap: () => _showExpenseDetail(e),
-                              child: _ExpenseRow(expense: e),
                             ),
                           ),
-                        ),
                     ],
                   ),
                 ),
@@ -214,7 +223,7 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
             left: 0,
             right: 0,
             child: FarmerTopBar(
-              title: 'My Expenses',
+              title: l10n.expnScreenTitle,
               onBack: () => Navigator.of(context).pop(),
               hideProfileAvatar: true,
               onProfileTap: () {},
@@ -222,110 +231,218 @@ class _MyExpensesScreenState extends State<MyExpensesScreen> {
               showNotificationButton: false,
             ),
           ),
-              ],
-            ),
-          ),
         ],
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 64),
-        child: FloatingActionButton(
-          onPressed: _showAddExpense,
-          backgroundColor: AppConstants.primaryGreen,
-          child: Icon(
-            Icons.add_rounded,
-            color: Theme.of(context).colorScheme.onPrimary,
-            size: 32,
-          ),
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddExpense,
+        tooltip: l10n.expnAddTooltip,
+        backgroundColor: AppConstants.primaryGreen,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add_rounded, size: 30),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Summary Cards — mirrors Admin Marketplace tab's _KpiStrip/_KpiTile pattern
-// (marketplace_dashboard_screen.dart) exactly: fixed-width tinted tiles in a
-// horizontal strip, icon badge + label + big value, consistent sizing.
-// Replaces the old, always month/all-time-scoped "This Month" / "All Time"
-// cards, which duplicated the period filter directly below them.
+// Total card — what was spent in the chosen period, at a glance.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SummaryCards extends StatelessWidget {
-  final double periodTotal;
-  final CategoryBreakdown? topCategory;
+class _TotalCard extends StatelessWidget {
+  final String periodLabel;
+  final double total;
   final int entryCount;
+  final CategoryBreakdown? topCategory;
   final bool isLoading;
 
-  const _SummaryCards({
-    required this.periodTotal,
-    required this.topCategory,
+  const _TotalCard({
+    required this.periodLabel,
+    required this.total,
     required this.entryCount,
+    required this.topCategory,
     required this.isLoading,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tiles = [
-      _KpiTile(
-        'Period Total',
-        isLoading ? '—' : '₱${NumberFormat('#,##0').format(periodTotal)}',
-        AppConstants.primaryGreen,
-        Icons.payments_rounded,
+    final l10n = AppLocalizations.of(context);
+    final top = topCategory;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: AppConstants.primaryButtonGradient,
+        borderRadius: BorderRadius.circular(AppConstants.radiusXl),
+        boxShadow: [
+          BoxShadow(
+            color: AppConstants.primaryGreen.withValues(alpha: 0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      _KpiTile(
-        'Top Category',
-        isLoading ? '—' : (topCategory?.category ?? 'None yet'),
-        topCategory != null ? categoryColor(topCategory!.category) : AppConstants.outline,
-        topCategory != null ? categoryIcon(topCategory!.category) : Icons.category_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.expnTotalSpent,
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+                ),
+                child: Text(
+                  periodLabel,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              isLoading ? '—' : '₱${NumberFormat('#,##0.00').format(total)}',
+              style: GoogleFonts.poppins(
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _HeroStat(
+                    icon: Icons.receipt_long_rounded,
+                    label: l10n.expnEntries,
+                    value: isLoading ? '—' : '$entryCount',
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 30,
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: _HeroStat(
+                    icon: top != null
+                        ? categoryIcon(top.category)
+                        : Icons.category_outlined,
+                    label: l10n.expnTopCategory,
+                    value: isLoading ? '—' : (top?.category ?? l10n.expnNoneYet),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      _KpiTile(
-        'Entries',
-        isLoading ? '—' : '$entryCount',
-        AppConstants.buyerBlue,
-        Icons.receipt_long_rounded,
-      ),
-    ];
+    );
+  }
+}
 
+class _HeroStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _HeroStat({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.9)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Period chips — the same chip as Manager > Loans.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PeriodChips extends StatelessWidget {
+  final ExpensePeriod active;
+  final String Function(ExpensePeriod) labelOf;
+  final ValueChanged<ExpensePeriod> onChanged;
+
+  const _PeriodChips({
+    required this.active,
+    required this.labelOf,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 98,
+      height: 38,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: tiles.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemCount: ExpensePeriod.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
-          final t = tiles[i];
-          return Container(
-            width: 112,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: t.color.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              border: Border.all(color: t.color.withValues(alpha: 0.18)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: t.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-                  ),
-                  child: Icon(t.icon, size: 14, color: t.color),
-                ),
-                const SizedBox(height: 6),
-                Text(t.label,
-                    style: GoogleFonts.inter(fontSize: 10, color: AppConstants.onSurfaceVariant, height: 1.2),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(t.value,
-                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800, color: AppConstants.onSurface),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ],
+          final p = ExpensePeriod.values[i];
+          return Center(
+            child: LoanChoiceChip(
+              label: labelOf(p),
+              selected: p == active,
+              showCheckmark: false,
+              selectedColor: AppConstants.primaryGreen,
+              onTap: () => onChanged(p),
             ),
           );
         },
@@ -334,76 +451,48 @@ class _SummaryCards extends StatelessWidget {
   }
 }
 
-class _KpiTile {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  const _KpiTile(this.label, this.value, this.color, this.icon);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Period Filter
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PeriodFilter extends StatelessWidget {
-  final ExpensePeriod active;
-  final ValueChanged<ExpensePeriod> onChanged;
-
-  const _PeriodFilter({required this.active, required this.onChanged});
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? trailing;
+  const _SectionHeader({required this.title, this.trailing});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: ExpensePeriod.values.map((p) {
-          final isActive = p == active;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onChanged(p),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppConstants.primaryContainer
-                      : const Color(0xFFD5ECF8),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                ),
-                child: Text(
-                  p.label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isActive
-                        ? AppConstants.onPrimaryContainer
-                        : AppConstants.onSurfaceVariant,
-                  ),
-                ),
-              ),
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
             ),
-          );
-        }).toList(),
-      ),
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing!,
+            style: GoogleFonts.inter(fontSize: 12, color: AppConstants.outline),
+          ),
+      ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Category Breakdown Card
+// Category breakdown — each category with its icon, amount and share.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CategoryBreakdownCard extends StatelessWidget {
   final List<CategoryBreakdown> breakdown;
-  const _CategoryBreakdownCard({required this.breakdown});
+  final double total;
+  const _CategoryBreakdownCard({required this.breakdown, required this.total});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final money = NumberFormat('#,##0.00');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -411,9 +500,7 @@ class _CategoryBreakdownCard extends StatelessWidget {
         color: context.saganaColors.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         border: Border.all(
-          color: Theme.of(
-            context,
-          ).colorScheme.outlineVariant.withValues(alpha: 0.45),
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
         ),
         boxShadow: [
           BoxShadow(
@@ -426,348 +513,95 @@ class _CategoryBreakdownCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Category Breakdown',
+            l10n.expnByCategory,
             style: GoogleFonts.poppins(
               fontSize: 15,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: AppConstants.charcoal,
             ),
           ),
           const SizedBox(height: 14),
-          ...breakdown.map(
-            (b) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        b.category,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppConstants.onSurfaceVariant,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            b.total > 0
-                                ? '₱${NumberFormat('#,##0').format(b.total)}'
-                                : '₱0.00',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (b.hasSubsidy && b.total == 0) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppConstants.successGreen.withValues(
-                                  alpha: 0.10,
-                                ),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                'SUBSIDY',
-                                style: GoogleFonts.inter(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppConstants.successGreen,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: b.hasSubsidy && b.total == 0
-                          ? 1.0
-                          : b.percentOfMax,
-                      minHeight: 6,
-                      backgroundColor: const Color(0xFFCFE6F2),
-                      valueColor: AlwaysStoppedAnimation(
-                        b.hasSubsidy && b.total == 0
-                            ? AppConstants.successGreen
-                            : categoryColor(b.category),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          for (var i = 0; i < breakdown.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            _BreakdownRow(
+              item: breakdown[i],
+              share: total > 0 ? breakdown[i].total / total : 0,
+              money: money,
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Subsidy Banner — now a real, period-scoped count instead of static,
-// crop-specific text (which named Palay/Peanut/MAO/SP3 regardless of what
-// the farmer actually grows, and showed no number at all).
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SubsidyBanner extends StatelessWidget {
-  final int count;
-  const _SubsidyBanner({required this.count});
+class _BreakdownRow extends StatelessWidget {
+  final CategoryBreakdown item;
+  final double share;
+  final NumberFormat money;
+  const _BreakdownRow({required this.item, required this.share, required this.money});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.primaryContainer.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: AppConstants.outline.withValues(alpha: 0.20)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_rounded, color: AppConstants.amber, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: AppConstants.onSurfaceVariant,
-                  height: 1.4,
-                ),
+    final l10n = AppLocalizations.of(context);
+    final subsidyOnly = item.hasSubsidy && item.total == 0;
+    final color = subsidyOnly ? AppConstants.successGreen : categoryColor(item.category);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _CategoryTile(category: item.category, size: 38),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  TextSpan(
-                    text: 'Subsidized Inputs: ',
-                    style: GoogleFonts.inter(
+                  Expanded(
+                    child: Text(
+                      item.category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.onSurface,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '₱${money.format(item.total)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: AppConstants.onSurface,
                     ),
                   ),
-                  TextSpan(
-                    text: '$count subsidized ${count == 1 ? 'input' : 'inputs'} '
-                        'this period — these do not affect your totals above.',
-                  ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Expense Row
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ExpenseRow extends StatelessWidget {
-  final ExpenseModel expense;
-  const _ExpenseRow({required this.expense});
-
-  @override
-  Widget build(BuildContext context) {
-    final card = Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: expense.isSubsidy
-            ? const BorderRadius.horizontal(
-                right: Radius.circular(AppConstants.radiusLg),
-              )
-            : BorderRadius.circular(AppConstants.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.40)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF455A64).withValues(alpha: 0.05),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: expense.bgColor.withValues(alpha: 0.40),
-                shape: BoxShape.circle,
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: subsidyOnly ? 1.0 : item.percentOfMax,
+                  minHeight: 6,
+                  backgroundColor: color.withValues(alpha: 0.14),
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
               ),
-              child: Icon(expense.icon, color: expense.color, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          expense.displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppConstants.onSurface,
-                          ),
-                        ),
-                      ),
-                      if (expense.isSubsidy) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppConstants.successGreen,
-                            borderRadius: BorderRadius.circular(
-                              AppConstants.radiusFull,
-                            ),
-                          ),
-                          child: Text(
-                            'SUBSIDY',
-                            style: GoogleFonts.inter(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (!expense.isSynced) ...[
-                        const SizedBox(width: 8),
-                        _SyncBadge(isSynced: expense.isSynced),
-                      ],
-                    ],
-                  ),
-                  Text(
-                    '${expense.category} · ${expense.description}',
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppConstants.onSurfaceVariant,
-                    ),
-                  ),
-                  Text(
-                    DateFormat('MMM d, yyyy').format(expense.expenseDate),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppConstants.outline,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 3),
+              Text(
+                subsidyOnly
+                    ? l10n.expnSubsidyTag
+                    : l10n.expnSharePercent((share * 100).round()),
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  fontWeight: subsidyOnly ? FontWeight.w700 : FontWeight.w500,
+                  color: subsidyOnly ? AppConstants.successGreen : AppConstants.outline,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '₱${NumberFormat('#,##0.00').format(expense.amount)}',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: expense.isSubsidy
-                    ? AppConstants.successGreen
-                    : AppConstants.onSurface,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded,
-                size: 18, color: AppConstants.outline),
-          ],
-        ),
-      ),
-    );
-
-    if (!expense.isSubsidy) return SizedBox(width: double.infinity, child: card);
-
-    // A single BoxDecoration can't mix a borderRadius with a non-uniform
-    // Border (different colors per side) — Flutter throws "A borderRadius
-    // can only be given on borders with uniform colors." at paint time.
-    // The subsidy accent is drawn as a separate colored stripe instead,
-    // with the card itself using a uniform border + right-only radius.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 4,
-            decoration: const BoxDecoration(
-              color: AppConstants.successGreen,
-              borderRadius: BorderRadius.horizontal(
-                left: Radius.circular(AppConstants.radiusLg),
-              ),
-            ),
-          ),
-          Expanded(child: card),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Expense Detail Dialog
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ExpenseDetailDialog extends StatelessWidget {
-  final ExpenseModel expense;
-  const _ExpenseDetailDialog({required this.expense});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-      ),
-      title: Text(
-        expense.displayName,
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 17),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _DetailRow(label: 'Category', value: expense.category),
-          _DetailRow(label: 'Description', value: expense.description),
-          _DetailRow(
-            label: 'Amount',
-            value: '₱${NumberFormat('#,##0.00').format(expense.amount)}',
-          ),
-          _DetailRow(
-            label: 'Date',
-            value: DateFormat('MMM d, yyyy').format(expense.expenseDate),
-          ),
-          _DetailRow(
-            label: 'Covered by Subsidy',
-            value: expense.isSubsidy ? 'Yes' : 'No',
-          ),
-          if (!expense.isSynced)
-            const _DetailRow(label: 'Sync Status', value: 'Pending'),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            'Close',
-            style: GoogleFonts.poppins(color: AppConstants.primaryGreen),
+            ],
           ),
         ),
       ],
@@ -775,37 +609,357 @@ class _ExpenseDetailDialog extends StatelessWidget {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _DetailRow({required this.label, required this.value});
+/// The category's icon on a soft tinted rounded square — the one visual every
+/// expense has (no photos).
+class _CategoryTile extends StatelessWidget {
+  final String category;
+  final double size;
+  const _CategoryTile({required this.category, this.size = 44});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: categoryBgColor(category).withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Icon(
+        categoryIcon(category),
+        color: categoryColor(category),
+        size: size * 0.5,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subsidy note — a real, period-scoped count.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SubsidyNote extends StatelessWidget {
+  final int count;
+  const _SubsidyNote({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppConstants.successGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: AppConstants.successGreen.withValues(alpha: 0.22)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
+          const Icon(Icons.volunteer_activism_rounded, size: 18, color: AppConstants.successGreen),
+          const SizedBox(width: 10),
+          Expanded(
             child: Text(
-              label,
+              AppLocalizations.of(context).expnSubsidyNote(count),
               style: GoogleFonts.inter(
                 fontSize: 12,
+                height: 1.4,
                 color: AppConstants.onSurfaceVariant,
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.onSurface,
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Expense card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ExpenseCard extends StatelessWidget {
+  final ExpenseModel expense;
+  final VoidCallback onTap;
+  const _ExpenseCard({required this.expense, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final e = expense;
+    return Material(
+      color: context.saganaColors.cardBackground,
+      borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF455A64).withValues(alpha: 0.04),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _CategoryTile(category: e.category),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      e.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppConstants.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      e.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: AppConstants.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${e.category} · ${DateFormat('MMM d, yyyy').format(e.expenseDate)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 10.5, color: AppConstants.outline),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '₱${NumberFormat('#,##0.00').format(e.amount)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: e.isSubsidy ? AppConstants.successGreen : AppConstants.onSurface,
+                    ),
+                  ),
+                  if (e.isSubsidy || !e.isSynced) const SizedBox(height: 4),
+                  if (e.isSubsidy)
+                    _Pill(
+                      label: l10n.expnSubsidyTag,
+                      color: AppConstants.successGreen,
+                    ),
+                  if (!e.isSynced)
+                    Padding(
+                      padding: EdgeInsets.only(top: e.isSubsidy ? 3 : 0),
+                      child: _Pill(
+                        label: l10n.expnPendingSync,
+                        color: AppConstants.warningAmber,
+                        icon: Icons.sync_rounded,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData? icon;
+  const _Pill({required this.label, required this.color, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Expense detail — opened by tapping an expense. Read-only, no photo.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ExpenseDetailSheet extends StatelessWidget {
+  final ExpenseModel expense;
+  const _ExpenseDetailSheet({required this.expense});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final e = expense;
+
+    final rows = <MapEntry<String, String>>[
+      MapEntry(l10n.expnDetailCategory, e.category),
+      MapEntry(l10n.expnDetailDescription, e.description),
+      MapEntry(l10n.expnDetailDate, DateFormat('MMMM d, yyyy').format(e.expenseDate)),
+      MapEntry(
+        l10n.expnDetailSubsidy,
+        e.isSubsidy ? l10n.expnSubsidyYes : l10n.expnSubsidyNo,
+      ),
+      if (!e.isSynced) MapEntry(l10n.expnDetailSync, l10n.expnWaitingToSync),
+    ];
+
+    return ManagementModalShell(
+      title: e.displayName,
+      subtitle: e.category,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: categoryBgColor(e.category).withValues(alpha: 0.30),
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            ),
+            child: Column(
+              children: [
+                _CategoryTile(category: e.category, size: 52),
+                const SizedBox(height: 10),
+                Text(
+                  '₱${NumberFormat('#,##0.00').format(e.amount)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: e.isSubsidy ? AppConstants.successGreen : cs.onSurface,
+                  ),
+                ),
+                if (e.isSubsidy)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: _Pill(label: l10n.expnSubsidyTag, color: AppConstants.successGreen),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) Divider(height: 1, color: cs.outline.withValues(alpha: 0.10)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 104,
+                    child: Text(
+                      rows[i].key,
+                      style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      rows[i].value,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+          ],
+        ],
+      ),
+      footer: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+          child: Text(l10n.close),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty state
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 36),
+      child: Column(
+        children: [
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              size: 34,
+              color: AppConstants.primaryGreen,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.expnEmptyTitle,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.charcoal,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.expnEmptyBody,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 13, color: AppConstants.onSurfaceVariant),
           ),
         ],
       ),
@@ -958,6 +1112,10 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      // A little wider on a phone: the form fields and the two action buttons
+      // need the room (the default inset leaves ~40px each side).
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
       ),
@@ -1169,22 +1327,40 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
       // A single Row action (rather than two separate `actions` entries)
       // so Cancel/Save always render side by side — AlertDialog's default
       // OverflowBar stacks its actions vertically once their combined
-      // width doesn't fit, which is what was happening here.
+      // width doesn't fit.
+      //
+      // Both buttons get an equal share, a tight horizontal padding and a
+      // one-line, shrink-to-fit label. Cancel used to get only a third of the
+      // row (flex 1 vs 2) while keeping the button's default 24px side padding,
+      // which on a narrow phone left almost no room for the text, so it wrapped
+      // one letter per line ("ca / nc / el").
       actions: [
         Row(
           children: [
             Expanded(
               child: OutlinedButton(
                 onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    AppLocalizations.of(context).cancel,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 2,
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _save,
                 style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   backgroundColor: AppConstants.primaryGreen,
                   foregroundColor: Colors.white,
                 ),
@@ -1197,7 +1373,14 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                    : const Text('Save Expense'),
+                    : const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Save Expense',
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -1207,110 +1390,3 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Empty State
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDBF1FE),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.receipt_outlined,
-              size: 36,
-              color: AppConstants.outline.withValues(alpha: 0.60),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No expenses recorded',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.charcoal,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tap the + button to add your first expense.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: AppConstants.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shimmer
-// ─────────────────────────────────────────────────────────────────────────────
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sync Badge
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Visually identical to harvest_hub_screen.dart's private _SyncBadge, so
-// "Pending"/"Synced" reads the same way across both offline-capable
-// features. Duplicated rather than shared because extracting it into
-// shared_widgets.dart would mean modifying harvest_hub_screen.dart too —
-// outside this phase's approved Profile Tab scope. Flagged below as a
-// refactoring opportunity for whenever Harvest is next touched.
-
-class _SyncBadge extends StatelessWidget {
-  final bool isSynced;
-  const _SyncBadge({required this.isSynced});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: isSynced
-            ? AppConstants.successGreen.withValues(alpha: 0.10)
-            : AppConstants.warningAmber.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isSynced ? Icons.cloud_done_rounded : Icons.sync_rounded,
-            size: 10,
-            color: isSynced
-                ? AppConstants.successGreen
-                : AppConstants.warningAmber,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            isSynced ? 'Synced' : 'Pending',
-            style: GoogleFonts.inter(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: isSynced
-                  ? AppConstants.successGreen
-                  : AppConstants.warningAmber,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

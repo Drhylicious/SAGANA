@@ -342,6 +342,8 @@ class ReportHeroCard extends StatelessWidget {
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
+              // No automatic status-bar padding: this list sits inside a bigger scroll view.
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               mainAxisSpacing: AppConstants.spacingSm,
               crossAxisSpacing: AppConstants.spacingSm,
@@ -510,9 +512,9 @@ class ReportIconStatCard extends StatelessWidget {
   final String value;
   final Widget? delta;
 
-  // When true, a value too wide for the tile shrinks to fit instead of being
-  // cut off with "…". For money, where a clipped digit is a wrong number.
-  // Defaults to false, which renders exactly what this card always did.
+  // When true (the default), a value too wide for the tile shrinks to fit
+  // instead of being cut off with "…" — a clipped digit is a wrong number, and
+  // on a narrow phone "1002 …" or "Sync…" told the reader nothing.
   final bool shrinkValueToFit;
 
   const ReportIconStatCard({
@@ -522,7 +524,7 @@ class ReportIconStatCard extends StatelessWidget {
     required this.label,
     required this.value,
     this.delta,
-    this.shrinkValueToFit = false,
+    this.shrinkValueToFit = true,
   });
 
   @override
@@ -547,11 +549,15 @@ class ReportIconStatCard extends StatelessWidget {
             child: Icon(icon, size: 16, color: accent),
           ),
           const SizedBox(height: AppConstants.spacingSm),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+          // The label also shrinks to fit rather than ending in "…".
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+            ),
           ),
           const SizedBox(height: 2),
           Row(

@@ -8,7 +8,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notification_repository.dart';
 import '../../widgets/skeleton.dart';
+import '../../../data/services/app_event_service.dart';
 import '../../widgets/notification_day_groups.dart';
+import '../../widgets/notification_ui.dart';
 import '../../widgets/sub_page_top_bar.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
@@ -35,6 +37,17 @@ class AdminNotif {
     this.routeOnTap,
     this.routeExtra,
   });
+
+  AdminNotif withRead(bool read) => AdminNotif(
+    id: id,
+    title: title,
+    body: body,
+    category: category,
+    isRead: read,
+    createdAt: createdAt,
+    routeOnTap: routeOnTap,
+    routeExtra: routeExtra,
+  );
 
   factory AdminNotif.fromNotification(NotificationModel n) {
     AdminNotifCategory cat;
@@ -126,6 +139,33 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     }
   }
 
+  Future<void> _markAllRead() async {
+    setState(() => _all = _all.map((n) => n.withRead(true)).toList());
+    await _repo.markAllAsRead();
+    AppEventService.instance.notify();
+  }
+
+  Future<void> _markAllUnread() async {
+    setState(() => _all = _all.map((n) => n.withRead(false)).toList());
+    await _repo.markAllAsUnread();
+    AppEventService.instance.notify();
+  }
+
+  /// Long-press: flips one notification between read and unread.
+  Future<void> _toggleRead(AdminNotif notif) async {
+    final nowRead = !notif.isRead;
+    setState(() {
+      final idx = _all.indexWhere((n) => n.id == notif.id);
+      if (idx != -1) _all[idx] = notif.withRead(nowRead);
+    });
+    if (nowRead) {
+      await _repo.markAsRead(notif.id);
+    } else {
+      await _repo.markAsUnread(notif.id);
+    }
+    AppEventService.instance.notify();
+  }
+
   Future<void> _onNotifDelete(AdminNotif notif) async {
     setState(() => _all.removeWhere((n) => n.id == notif.id));
     await _repo.deleteNotification(notif.id);
@@ -161,17 +201,6 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     }
   }
 
-  String _timeLabel(AppLocalizations l10n, DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return l10n.broadcastJustNow;
-    if (diff.inMinutes < 60)
-      return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
-    if (diff.inHours < 24) return l10n.buyerNotifTimeHoursAgo(diff.inHours);
-    if (diff.inDays == 1) return l10n.buyerNotifTimeYesterday;
-    return l10n.buyerNotifTimeDaysAgo(diff.inDays);
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -183,7 +212,18 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       body: Column(
         children: [
           // Top bar
-          SubPageTopBar(title: l10n.pendingNotificationsTitle, onBack: () => context.pop()),
+          SubPageTopBar(
+            title: l10n.pendingNotificationsTitle,
+            onBack: () => context.pop(),
+            trailing: _all.isEmpty
+                ? null
+                : NotificationMenuButton(
+                    hasUnread: _all.any((n) => !n.isRead),
+                    hasRead: _all.any((n) => n.isRead),
+                    onMarkAllRead: _markAllRead,
+                    onMarkAllUnread: _markAllUnread,
+                  ),
+          ),
 
           const Divider(height: 1),
 
@@ -246,6 +286,11 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                                 onDismissed: (_) => _onNotifDelete(notif),
                                 child: GestureDetector(
                                 onTap: () => _onNotifTap(notif),
+                                onLongPress: () => showNotificationReadSheet(
+                                  context,
+                                  isRead: notif.isRead,
+                                  onToggle: () => _toggleRead(notif),
+                                ),
                                 behavior: HitTestBehavior.opaque,
                                 child: Container(
                                   color: notif.isRead
@@ -324,7 +369,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                                _timeLabel(
+                                                notificationTimeLabel(
                                                   l10n,
                                                   notif.createdAt,
                                                 ),

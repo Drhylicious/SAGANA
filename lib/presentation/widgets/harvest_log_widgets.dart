@@ -117,8 +117,8 @@ class HarvestSummaryStats extends StatelessWidget {
     );
   }
 
-  String _fmtYield(double v) =>
-      v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+  // The stored 2 decimals, never rounded to one (0.45 stays 0.45).
+  String _fmtYield(double v) => formatQuantityGrouped(v);
 }
 
 class _StatCard extends StatelessWidget {

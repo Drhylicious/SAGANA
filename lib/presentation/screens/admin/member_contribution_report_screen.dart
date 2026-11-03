@@ -1,4 +1,5 @@
 import 'dart:ui';
+import '../../../core/utils/quantity_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,8 +9,10 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/models/admin_reports_model.dart';
+import '../../../data/models/contribution_model.dart';
 import '../../../data/models/export_model.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
+import '../../../data/repositories/balik_tangkilik_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../widgets/report_summary_widgets.dart';
 import '../../../core/utils/member_access.dart';
@@ -45,6 +48,7 @@ class MemberContributionReportScreen extends StatefulWidget {
 class _MemberContributionReportScreenState
     extends State<MemberContributionReportScreen> {
   final _repo = AdminReportsRepository();
+  final _balikRepo = BalikTangkilikRepository();
   final _searchController = TextEditingController();
 
   late int _year;
@@ -55,6 +59,9 @@ class _MemberContributionReportScreenState
     DateTime.now().year,
   );
   List<int> _availableYears = [DateTime.now().year];
+
+  // The Manager's saved settings for the selected year; null = none entered.
+  CoopAnnualTotal? _yearSettings;
 
   @override
   void initState() {
@@ -81,10 +88,14 @@ class _MemberContributionReportScreenState
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchMemberContributionReport(_year);
+    final results = await Future.wait([
+      _repo.fetchMemberContributionReport(_year),
+      _balikRepo.fetchYearSettings(_year),
+    ]);
     if (!mounted) return;
     setState(() {
-      _data = data;
+      _data = results[0] as MemberContributionReportData;
+      _yearSettings = results[1] as CoopAnnualTotal?;
       _isLoading = false;
     });
   }
@@ -145,6 +156,8 @@ class _MemberContributionReportScreenState
                     )
                   else ...[
                     _buildSummaryCard(context, l10n, cs, sagana),
+                    const SizedBox(height: AppConstants.spacingMd),
+                    _buildYearSettingsCard(context, l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
                     _buildMembersSection(context, l10n, cs, sagana),
                   ],
@@ -241,6 +254,116 @@ class _MemberContributionReportScreenState
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Read-only view of what the Manager saved for the year (Balik-Tangkilik
+  // Management is the only place these are edited). The figures above are
+  // live from recorded sales; these are the cooperative's own entries.
+  Widget _buildYearSettingsCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+  ) {
+    final currency = NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 0,
+    );
+    final s = _yearSettings;
+
+    Widget line(String label, String value) => Padding(
+      padding: const EdgeInsets.only(top: AppConstants.spacingSm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(width: AppConstants.spacingSm),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppConstants.spacingGutter),
+      decoration: BoxDecoration(
+        color: sagana.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ReportSectionHeader(
+                  icon: Icons.tune_rounded,
+                  title: l10n.reportsYearSettingsTitle(_year),
+                ),
+              ),
+              Text(
+                l10n.reportsYearSettingsReadOnly,
+                style: GoogleFonts.inter(fontSize: 10, color: cs.outline),
+              ),
+            ],
+          ),
+          if (s == null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppConstants.spacingSm),
+              child: Text(
+                l10n.reportsYearSettingsNotEntered,
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            )
+          else ...[
+            line(l10n.reportsYearSettingsSurplus, currency.format(s.distributableSurplus)),
+            line(
+              l10n.reportsYearSettingsInterest,
+              '${s.interestRatePercent.toStringAsFixed(2)}%',
+            ),
+            line(
+              l10n.reportsYearSettingsStatement,
+              s.afsFinalized
+                  ? l10n.reportsYearSettingsFinal
+                  : l10n.reportsYearSettingsDraft,
+            ),
+            line(
+              l10n.reportsYearSettingsProgram,
+              l10n.reportsYearSettingsProgramValue(
+                currency.format(s.totalProgramSales),
+                currency.format(s.distributableProgramSurplus),
+              ),
+            ),
+          ],
+          const SizedBox(height: AppConstants.spacingSm),
+          Text(
+            l10n.reportsYearSettingsFootnote,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
+              color: cs.outline,
             ),
           ),
         ],
@@ -417,12 +540,17 @@ class _MemberContributionReportScreenState
               // see no change to this card.
               if (row.otherCropsAmount > 0) ...[
                 const SizedBox(height: 4),
-                _cropStat(
-                  'Other Crops',
-                  row.otherCropsQtyKg,
-                  row.otherCropsAmount,
-                  AppConstants.buyerBlue,
-                  cs,
+                // _cropStat returns an Expanded, so it needs a Row parent.
+                Row(
+                  children: [
+                    _cropStat(
+                      'Other Crops',
+                      row.otherCropsQtyKg,
+                      row.otherCropsAmount,
+                      AppConstants.buyerBlue,
+                      cs,
+                    ),
+                  ],
                 ),
               ],
             ] else if (!row.hasAnyActivity)
@@ -541,7 +669,7 @@ class _MemberContributionReportScreenState
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              '$label: ${qtyKg.toStringAsFixed(0)} kg (${currency.format(amount)})',
+              '$label: ${formatKgTotal(qtyKg)} (${currency.format(amount)})',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: cs.onSurfaceVariant,

@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +19,7 @@ import '../../widgets/shared_widgets.dart';
 import '../../../core/utils/member_access.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
+import '../../widgets/workflow_history_sheet.dart';
 
 /// Loan Details — Admin (read-only).
 /// Pushed above the shell. Route: /admin/loans/details, extra: String loanId
@@ -96,6 +99,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
   }
 
   Future<void> _markAsPaid() async {
+    if (!requireManage(context, StaffModule.loans)) return;
     final l10n = AppLocalizations.of(context);
     final reason = await AppDialog.show<String>(
       context: context,
@@ -160,7 +164,28 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    return SubPageTopBar(title: _detail != null ? l10n.loanDetailsContextualTitle( _detail!.loan.referenceNo, ) : l10n.loanDetailsTitle, onBack: () => context.pop());
+    final detail = _detail;
+    return SubPageTopBar(
+      title: detail != null
+          ? l10n.loanDetailsContextualTitle(detail.loan.referenceNo)
+          : l10n.loanDetailsTitle,
+      onBack: () => context.pop(),
+      // Who issued the loan, recorded each payment and changed its status, with
+      // name and time. Staff only.
+      trailing: detail == null
+          ? null
+          : IconButton(
+              tooltip: l10n.wfHistoryAction,
+              icon: const Icon(Icons.history_rounded),
+              color: cs.primary,
+              onPressed: () => showWorkflowHistorySheet(
+                context,
+                entityType: 'loan',
+                entityId: detail.loan.id,
+                title: '${detail.loan.referenceNo} · ${detail.farmerName}',
+              ),
+            ),
+    );
   }
 
   Widget _buildBody(
@@ -851,6 +876,7 @@ class _LoanDetailsScreenState extends State<LoanDetailsScreen> {
           child: PrimaryButton(
             label: l10n.loanDashActionRecordPayment,
             onPressed: () {
+              if (!requireManage(context, StaffModule.loans)) return;
               context
                   .push(AppRoutes.recordPayment, extra: widget.loanId)
                   .then((_) => _load());

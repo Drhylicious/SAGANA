@@ -5,8 +5,11 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/farmer_crop_model.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/channel_only_badge.dart';
+import '../../widgets/crop_photo_capture.dart';
+
 import '../../../data/services/connectivity_service.dart';
 import '../../../core/l10n/app_localizations.dart';
 
@@ -31,7 +34,7 @@ class CropDetailsScreen extends StatelessWidget {
             children: [
               Column(
                 children: [
-                  const SizedBox(height: 72),
+                  TopBarSpacer(height: 72),
                   if (!isOnline)
                     OfflineStatusCard(
                       message:
@@ -211,6 +214,12 @@ class _HeaderCard extends StatelessWidget {
           const SizedBox(height: 8),
           if (crop.exclusiveChannel != null) ...[
             ChannelOnlyBadge(channel: crop.exclusiveChannel),
+            const SizedBox(height: 8),
+          ],
+          // No actual photo yet: needed to sell (not to harvest or record an
+          // Informal Sale). Taken from Crop Roster's Edit Crop (camera only).
+          if (crop.needsPhoto) ...[
+            const PhotoRequiredBadge(),
             const SizedBox(height: 8),
           ],
           if (crop.isPendingApproval)

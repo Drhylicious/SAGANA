@@ -35,6 +35,25 @@ AccountEntry _account({
 );
 
 void main() {
+  testWidgets('a card with no onTap is display-only and can show a role caption', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        AccountCard(
+          account: _account(name: 'Drhy Licious', role: 'admin'),
+          onTap: null,
+          roleLabel: 'Manager',
+        ),
+      ),
+    );
+    expect(find.text('Drhy Licious'), findsOneWidget);
+    expect(find.text('Manager'), findsOneWidget);
+    // Nothing responds to a tap.
+    final ink = tester.widget<InkWell>(find.byType(InkWell));
+    expect(ink.onTap, isNull);
+  });
+
   testWidgets('shows name, status, e-mail and phone on separate lines', (
     tester,
   ) async {

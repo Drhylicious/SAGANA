@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -15,6 +18,7 @@ import '../../../data/repositories/admin_activity_repository.dart';
 import '../../../data/repositories/admin_reports_repository.dart';
 import '../../../data/services/csv_export_service.dart';
 import '../../../data/services/pdf_export_service.dart';
+import '../../../data/services/report_download_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/report_summary_widgets.dart';
@@ -44,6 +48,7 @@ class ExportCenterScreen extends StatefulWidget {
 class _ExportCenterScreenState extends State<ExportCenterScreen> {
   final _csvService = CsvExportService();
   final _pdfService = PdfExportService();
+  final _downloadService = ReportDownloadService();
   final _reportsRepo = AdminReportsRepository();
 
   final Set<ReportModuleType> _selectedModules = {};
@@ -51,6 +56,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   late int _contributionYear;
   String _format = 'pdf';
   bool _isGenerating = false;
+  bool _isDownloading = false;
+  bool get _isBusy => _isGenerating || _isDownloading;
   List<ExportHistoryEntry> _history = [];
   List<int> _availableContributionYears = [DateTime.now().year];
   // Files made by the most recent Generate, shown in the "Export ready" card.
@@ -103,6 +110,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   }
 
   Future<void> _generate() async {
+    if (_isBusy) return;
+    if (!requireManage(context, StaffModule.reports)) return;
     final l10n = AppLocalizations.of(context);
     if (_selectedModules.isEmpty) {
       PostActionFeedback.error(context, l10n.exportSelectAtLeastOne);
@@ -130,10 +139,8 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
       );
       if (!mounted) return;
       setState(() => _lastExportPaths = paths);
-      PostActionFeedback.success(context, l10n.exportGenerated(paths.length));
-
       if (paths.isNotEmpty) {
-        await Share.shareXFiles(paths.map((p) => XFile(p)).toList());
+        await _download(paths);
       }
     } catch (e, st) {
       debugPrint('[ExportCenter] generateExports failed: $e\n$st');
@@ -144,7 +151,51 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     }
   }
 
+  Future<void> _download(List<String> paths) async {
+    if (_isDownloading || paths.isEmpty) return;
+    if (!requireManage(context, StaffModule.reports)) return;
+    final l10n = AppLocalizations.of(context);
+    final saved = <String>[];
+    setState(() => _isDownloading = true);
+    try {
+      for (final path in paths) {
+        // Access may change while generation or a previous file is in progress.
+        if (!canManageModule(StaffModule.reports)) {
+          throw PlatformException(code: 'reports_access_denied');
+        }
+        saved.add(await _downloadService.save(path));
+      }
+      if (!mounted) return;
+      PostActionFeedback.success(context, _savedMessage(l10n, saved));
+    } catch (error, stack) {
+      debugPrint('[ExportCenter] download failed: $error\n$stack');
+      if (!mounted) return;
+      final code = error is PlatformException ? error.code : 'save_failed';
+      final reason = switch (code) {
+        'permission_denied' => l10n.exportDownloadPermissionDenied,
+        'file_missing' => l10n.exportFileMissing,
+        'unsupported_platform' => l10n.exportDownloadUnsupported,
+        'reports_access_denied' => l10n.staffViewOnlyAction,
+        _ => l10n.exportDownloadError,
+      };
+      PostActionFeedback.error(
+        context,
+        saved.isEmpty ? reason : '${_savedMessage(l10n, saved)} $reason',
+      );
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  /// "Saved to Downloads: name.pdf" for one file, "3 reports saved to
+  /// Downloads." for several, so the message never runs off the screen.
+  String _savedMessage(AppLocalizations l10n, List<String> saved) =>
+      saved.length == 1
+      ? l10n.exportDownloadSaved(saved.first)
+      : l10n.exportDownloadSavedMany(saved.length);
+
   Future<void> _shareLastExport() async {
+    if (_isBusy || !requireManage(context, StaffModule.reports)) return;
     final existing = _lastExportPaths.where((p) => File(p).existsSync());
     if (existing.isEmpty) {
       PostActionFeedback.error(
@@ -157,6 +208,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
   }
 
   Future<void> _reshare(ExportHistoryEntry entry) async {
+    if (_isBusy || !requireManage(context, StaffModule.reports)) return;
     final l10n = AppLocalizations.of(context);
     final file = File(entry.filePath);
     if (!await file.exists()) {
@@ -241,6 +293,23 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     final cs = Theme.of(context).colorScheme;
     final sagana = context.saganaColors;
 
+    // Generating, downloading and sharing need Reports Manage (the Manager
+    // always has it). Rebuilding here means the buttons enable or disable the
+    // moment the Manager changes an Officer's access.
+    return StaffAccessBuilder(
+      builder: (context, access) {
+        final canManage = access.canManage(StaffModule.reports);
+        return _buildScaffold(l10n, cs, sagana, canManage);
+      },
+    );
+  }
+
+  Widget _buildScaffold(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    SaganaColors sagana,
+    bool canManage,
+  ) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
@@ -249,6 +318,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
             title: l10n.reportsExportCenter,
             onBack: () => context.pop(),
           ),
+          const ViewOnlyStrip(module: StaffModule.reports),
           Expanded(
             child: Center(
               child: ConstrainedBox(
@@ -262,7 +332,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                   ),
                   children: [
                     if (_lastExportPaths.isNotEmpty) ...[
-                      _buildReadyCard(l10n, cs),
+                      _buildReadyCard(l10n, cs, canManage),
                       const SizedBox(height: AppConstants.spacingGutter),
                     ],
                     _buildPresets(l10n, cs, sagana),
@@ -273,13 +343,13 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                     const SizedBox(height: AppConstants.spacingGutter),
                     _buildFormatCard(l10n, cs, sagana),
                     const SizedBox(height: AppConstants.spacingSectionV),
-                    _buildHistory(l10n, cs, sagana),
+                    _buildHistory(l10n, cs, sagana, canManage),
                   ],
                 ),
               ),
             ),
           ),
-          _buildBottomBar(l10n, cs, sagana),
+          _buildBottomBar(l10n, cs, sagana, canManage),
         ],
       ),
     );
@@ -344,7 +414,12 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     );
   }
 
-  Widget _buildReadyCard(AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildReadyCard(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    bool canManage,
+  ) {
+    final enabled = canManage && !_isBusy;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -355,40 +430,103 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
           color: AppConstants.successGreen.withValues(alpha: 0.30),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.check_circle_rounded,
-            color: AppConstants.successGreen,
-            size: 22,
+          Row(
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                color: AppConstants.successGreen,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.rptExportReady,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      l10n.exportGenerated(_lastExportPaths.length),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.rptExportReady,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: cs.onSurface,
+          const SizedBox(height: AppConstants.spacingMd),
+          // Two separate actions: Download saves straight to the Downloads
+          // folder; Share opens the Android share sheet and saves nothing.
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: enabled
+                      ? () => _download(_lastExportPaths)
+                      : null,
+                  icon: _isDownloading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.download_rounded, size: 18),
+                  label: Text(
+                    _isDownloading
+                        ? l10n.exportDownloading
+                        : l10n.exportDownloadButton,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppConstants.primaryGreen,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    ),
                   ),
                 ),
-                Text(
-                  l10n.exportGenerated(_lastExportPaths.length),
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppConstants.spacingSm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: enabled ? _shareLastExport : null,
+                  icon: const Icon(Icons.ios_share_rounded, size: 18),
+                  label: Text(
+                    l10n.exportShareButton,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppConstants.primaryGreen,
+                    side: BorderSide(
+                      color: enabled
+                          ? AppConstants.primaryGreen
+                          : cs.outline.withValues(alpha: 0.3),
+                    ),
+                    minimumSize: const Size.fromHeight(44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _shareLastExport,
-            icon: const Icon(Icons.ios_share_rounded, size: 16),
-            label: Text(l10n.rptExportShareAgain),
+              ),
+            ],
           ),
         ],
       ),
@@ -779,14 +917,55 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     );
   }
 
-  /// Always visible: says exactly what Generate will produce, and holds the
-  /// button. Disabled until at least one report is chosen.
+  /// Always visible: says exactly what Generate & Download will produce, and
+  /// holds the button. Disabled until at least one report is chosen, and for an
+  /// Officer who only has View Only access to Reports.
   Widget _buildBottomBar(
     AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
+    bool canManage,
   ) {
     final empty = _selectedModules.isEmpty;
+    final summary = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          empty
+              ? l10n.exportSummaryEmpty
+              : '${l10n.rptExportSelectedCount(_selectedModules.length)} · ${_format.toUpperCase()}',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: cs.onSurface,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (!empty)
+          Text(
+            _coverageText(l10n),
+            style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
+    );
+
+    Widget button(bool expand) => PrimaryButton(
+      label: _isDownloading
+          ? l10n.exportDownloading
+          : _isGenerating
+          ? l10n.rptExportGenerating
+          : l10n.exportGenerateDownloadButton,
+      icon: Icons.file_download_rounded,
+      expand: expand,
+      height: 48,
+      isLoading: _isBusy,
+      onPressed: empty || _isBusy || !canManage ? null : _generate,
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: sagana.cardBackground,
@@ -806,50 +985,29 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
                 AppConstants.spacingSafeH,
                 AppConstants.spacingMd,
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // "Generate & Download" is a long label, so on a narrow
+                  // phone the button gets its own full-width row.
+                  if (constraints.maxWidth < 440) {
+                    return Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          empty
-                              ? l10n.exportSummaryEmpty
-                              : '${l10n.rptExportSelectedCount(_selectedModules.length)} · ${_format.toUpperCase()}',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                            color: cs.onSurface,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (!empty)
-                          Text(
-                            _coverageText(l10n),
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        summary,
+                        const SizedBox(height: AppConstants.spacingSm),
+                        button(true),
                       ],
-                    ),
-                  ),
-                  const SizedBox(width: AppConstants.spacingMd),
-                  PrimaryButton(
-                    label: _isGenerating
-                        ? l10n.rptExportGenerating
-                        : l10n.exportGenerateButton,
-                    icon: Icons.file_download_rounded,
-                    expand: false,
-                    height: 48,
-                    isLoading: _isGenerating,
-                    onPressed: empty || _isGenerating ? null : _generate,
-                  ),
-                ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: summary),
+                      const SizedBox(width: AppConstants.spacingMd),
+                      button(false),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -862,6 +1020,7 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
     AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
+    bool canManage,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -878,70 +1037,106 @@ class _ExportCenterScreenState extends State<ExportCenterScreen> {
         if (_history.isEmpty)
           ReportEmptyState(message: l10n.exportNoHistoryYet)
         else
-          ..._history.map((e) => _buildHistoryRow(e, cs, sagana)),
+          ..._history.map((e) => _buildHistoryRow(e, l10n, cs, sagana, canManage)),
       ],
     );
   }
 
   Widget _buildHistoryRow(
     ExportHistoryEntry entry,
+    AppLocalizations l10n,
     ColorScheme cs,
     SaganaColors sagana,
+    bool canManage,
   ) {
     final isPdf = entry.format == 'pdf';
+    final enabled = canManage && !_isBusy;
+    final actionStyle = TextButton.styleFrom(
+      foregroundColor: AppConstants.primaryGreen,
+      minimumSize: const Size(0, 36),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingSm),
-      padding: const EdgeInsets.all(AppConstants.spacingMd),
+      padding: const EdgeInsets.fromLTRB(
+        AppConstants.spacingMd,
+        AppConstants.spacingMd,
+        AppConstants.spacingSm,
+        AppConstants.spacingSm,
+      ),
       decoration: BoxDecoration(
         color: sagana.cardBackground,
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isPdf ? Icons.picture_as_pdf_rounded : Icons.table_chart_rounded,
-            color: AppConstants.primaryGreen,
-            size: 22,
-          ),
-          const SizedBox(width: AppConstants.spacingMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.moduleLabels.join(', '),
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: cs.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              Icon(
+                isPdf
+                    ? Icons.picture_as_pdf_rounded
+                    : Icons.table_chart_rounded,
+                color: AppConstants.primaryGreen,
+                size: 22,
+              ),
+              const SizedBox(width: AppConstants.spacingMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.moduleLabels.join(', '),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${entry.format.toUpperCase()} • ${entry.periodLabel} • '
+                      '${DateFormat('MMM d, h:mm a').format(entry.generatedAt)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                Text(
-                  '${entry.format.toUpperCase()} • ${entry.periodLabel} • '
-                  '${DateFormat('MMM d, h:mm a').format(entry.generatedAt)}',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.ios_share_rounded, size: 18),
-            color: AppConstants.primaryGreen,
-            tooltip: AppLocalizations.of(context).rptExportShareAgain,
-            onPressed: () => _reshare(entry),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-            color: AppConstants.errorRed,
-            onPressed: () => _deleteHistoryEntry(entry),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: enabled ? () => _download([entry.filePath]) : null,
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: Text(l10n.exportDownloadButton),
+                style: actionStyle,
+              ),
+              TextButton.icon(
+                onPressed: enabled ? () => _reshare(entry) : null,
+                icon: const Icon(Icons.ios_share_rounded, size: 16),
+                label: Text(l10n.exportShareButton),
+                style: actionStyle,
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                color: AppConstants.errorRed,
+                tooltip: l10n.exportDeleteButton,
+                visualDensity: VisualDensity.compact,
+                onPressed: _isBusy ? null : () => _deleteHistoryEntry(entry),
+              ),
+            ],
           ),
         ],
       ),

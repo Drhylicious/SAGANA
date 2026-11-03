@@ -32,7 +32,7 @@ void main() {
   final offers = [
     offer('1', 'Peanut'), // waiting for the Cooperative
     offer('2', 'Potato', lastBy: 'cooperative'), // counteroffer received
-    offer('3', 'Palay', status: 'confirmed'),
+    offer('3', 'Palay', status: 'completed'),
     offer('4', 'Peanut', status: 'declined', farmer: 'Maria Santos'),
     offer('5', 'Ginger Root', status: 'cancelled'),
   ];
@@ -74,7 +74,7 @@ void main() {
       // "pea" matches offers 1 and 4; only offer 4 is Declined.
       expect(ids(filterCoopOffers(offers, filter: CoopOfferFilter.declined, query: 'pea')), ['4']);
       expect(ids(filterCoopOffers(offers, filter: CoopOfferFilter.awaitingCooperative, query: 'pea')), ['1']);
-      expect(filterCoopOffers(offers, filter: CoopOfferFilter.accepted, query: 'pea'), isEmpty);
+      expect(filterCoopOffers(offers, filter: CoopOfferFilter.completed, query: 'pea'), isEmpty);
     });
 
     test('each chip on its own is unchanged by an empty search', () {
@@ -118,7 +118,7 @@ void main() {
       expect(src, contains('filterCoopOffers('));
       expect(src, contains('matchFarmerName: true'));
       // Same order on both: search, then chips.
-      expect(src.indexOf('TextField('), lessThan(src.indexOf('scrollDirection: Axis.horizontal')));
+      expect(src.indexOf('TextField('), lessThan(src.indexOf('MarketplaceFilterBar<CoopOfferFilter>')));
     });
 
     test('the empty state says "no match" when offers exist but the search finds none', () {

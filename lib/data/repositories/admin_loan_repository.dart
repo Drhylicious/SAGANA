@@ -7,6 +7,7 @@ import '../services/hive_service.dart';
 import '../../core/utils/bod_schedule_utils.dart';
 import '../models/admin_loan_model.dart';
 import '../models/loan_model.dart';
+import '../models/loan_request_model.dart';
 import 'admin_activity_repository.dart';
 import 'farmer_lookup.dart';
 import '../models/admin_log_message.dart';
@@ -512,31 +513,6 @@ class AdminLoanRepository {
     }
   }
 
-  /// Officers learn only whether a farmer meets the capital minimum, and the
-  /// minimum itself. The check runs in the database (loan_capital_eligibility),
-  /// so the amount never reaches the Officer's app. If the check cannot run, the
-  /// farmer is reported eligible, as before; issue_loan() still enforces the rule.
-  Future<({bool meets, double minimum})> _officerCapitalStatus(
-    String farmerId,
-  ) async {
-    try {
-      final rows =
-          await _client.rpc(
-                'loan_capital_eligibility',
-                params: {'p_farmer_id': farmerId},
-              )
-              as List<dynamic>;
-      if (rows.isEmpty) return (meets: true, minimum: 0.0);
-      final row = rows.first as Map<String, dynamic>;
-      return (
-        meets: (row['meets_minimum'] as bool?) ?? true,
-        minimum: (row['minimum_required'] as num? ?? 0).toDouble(),
-      );
-    } catch (_) {
-      return (meets: true, minimum: 0.0);
-    }
-  }
-
   /// Current outstanding balance + overdue flag for a farmer, shown as a
   /// warning banner once selected on the Issue-Loan form. Read-only —
   /// requires connectivity; the screen skips calling this while offline.
@@ -557,48 +533,11 @@ class AdminLoanRepository {
         if (row['status'] == 'overdue') hasOverdue = true;
       }
 
-      // Capital-share loan eligibility (Issue 4d). issue_loan() enforces
-      // this hard server-side; here it powers the warning banner + the
-      // disabled Issue button.
-      if (HiveService.isOfficer) {
-        final status = await _officerCapitalStatus(farmerId);
-        return FarmerLoanStanding(
-          outstandingBalance: outstanding,
-          hasOverdueLoan: hasOverdue,
-          minimumCapitalRequired: status.minimum,
-          capitalEligibleOverride: status.meets,
-        );
-      }
-
-      double capital = 0;
-      double minimumCapital = 0;
-      try {
-        final capRow = await _client
-            .from('member_capital_shares')
-            .select('total_contribution')
-            .eq('farmer_id', farmerId)
-            .maybeSingle();
-        capital = (capRow?['total_contribution'] as num? ?? 0).toDouble();
-
-        final policyRow = await _client
-            .from('loan_policy_settings')
-            .select('minimum_capital_contribution')
-            .eq('id', 1)
-            .maybeSingle();
-        minimumCapital =
-            (policyRow?['minimum_capital_contribution'] as num? ?? 0)
-                .toDouble();
-      } catch (_) {
-        // Leave the capital fields at 0/0 — meetsCapitalEligibility stays
-        // true so the UI does not falsely block; the RPC remains the
-        // authority.
-      }
-
+      // No capital-share check: the minimum-capital requirement is no longer part
+      // of issuing a loan (see supabase_schema_farmer_loan_requests.sql).
       return FarmerLoanStanding(
         outstandingBalance: outstanding,
         hasOverdueLoan: hasOverdue,
-        capitalContribution: capital,
-        minimumCapitalRequired: minimumCapital,
       );
     } catch (_) {
       return const FarmerLoanStanding(
@@ -672,6 +611,220 @@ class AdminLoanRepository {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Archives or restores a loan catalog item. An archived item is one that is
+  /// not loan-eligible (is_loan_eligible = false): Issue New Loan's picker
+  /// lists only eligible items, so it is no longer offered for a new loan.
+  /// Only that flag changes. Existing loans that include the item, its price,
+  /// notes and the inventory item behind it are untouched.
+  Future<bool> setLoanItemArchived(String loanItemId, bool archived) async {
+    try {
+      await _client
+          .from('loan_items_master')
+          .update({'is_loan_eligible': !archived})
+          .eq('id', loanItemId);
+      AdminActivityRepository().log(
+        module: 'loans',
+        actionType: archived ? 'archived' : 'restored',
+        message: AdminLogMessage(
+          archived ? 'adminLogLoanItemArchived' : 'adminLogLoanItemRestored',
+        ),
+        referenceId: loanItemId,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ─── Loan requests (a Farmer asks; a Manager / Officer decides) ─────────────
+  //
+  // The rules live in the database (supabase_schema_farmer_loan_requests.sql):
+  // review_loan_request() issues the loan through issue_loan() when approving, so
+  // stock, the inventory log, the reference number and the Farmer's notice are the
+  // same as for a loan issued by hand. Deciding is never queued offline.
+
+  /// How many requests are waiting for a decision (the Loan dashboard's badge).
+  /// A failed read returns 0 rather than a wrong number.
+  Future<int> fetchPendingLoanRequestCount() async {
+    try {
+      return await _client
+          .from('loan_requests')
+          .count()
+          .eq('status', 'pending');
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Every request (newest first), or only those with [status], with the Farmer's
+  /// name and phone, the stock on hand for each line, who decided, and the loan
+  /// issued. Throws when the read fails, so the screen can say so instead of
+  /// showing an empty list that looks like "no requests".
+  Future<List<LoanRequestModel>> fetchLoanRequests({String? status}) async {
+    var query = _client.from('loan_requests').select('*, loan_request_items(*)');
+    if (status != null) query = query.eq('status', status);
+    final rows = await query.order('requested_at', ascending: false);
+    if (rows.isEmpty) return [];
+
+    final peopleIds = <String>{
+      for (final r in rows) r['farmer_id'] as String,
+      for (final r in rows)
+        if (r['reviewed_by'] != null) r['reviewed_by'] as String,
+    }.toList();
+    final people = <String, ({String name, String? phone})>{};
+    try {
+      final infoRows = await _client
+          .from('user_information')
+          .select('user_id, full_name, phone_number')
+          .inFilter('user_id', peopleIds);
+      for (final r in infoRows) {
+        people[r['user_id'] as String] = (
+          name: (r['full_name'] as String? ?? '').trim(),
+          phone: (r['phone_number'] as String?)?.trim(),
+        );
+      }
+    } catch (_) {}
+
+    final loanIds = [
+      for (final r in rows)
+        if (r['loan_id'] != null) r['loan_id'] as String,
+    ];
+    final loanRefs = <String, String>{};
+    if (loanIds.isNotEmpty) {
+      try {
+        final loanRows = await _client
+            .from('farmer_loans')
+            .select('id, reference_no')
+            .inFilter('id', loanIds);
+        for (final l in loanRows) {
+          loanRefs[l['id'] as String] = l['reference_no'] as String;
+        }
+      } catch (_) {}
+    }
+
+    // The stock on hand now, for the lines of requests still waiting.
+    final stockIds = <String>{
+      for (final r in rows)
+        if (r['status'] == 'pending')
+          for (final i in (r['loan_request_items'] as List? ?? const []))
+            if ((i as Map)['inventory_item_id'] != null)
+              i['inventory_item_id'] as String,
+    }.toList();
+    final stock = <String, double>{};
+    if (stockIds.isNotEmpty) {
+      try {
+        final stockRows = await _client
+            .from('cooperative_inventory')
+            .select('id, quantity_on_hand')
+            .inFilter('id', stockIds);
+        for (final s in stockRows) {
+          stock[s['id'] as String] = (s['quantity_on_hand'] as num).toDouble();
+        }
+      } catch (_) {}
+    }
+
+    return [
+      for (final r in rows)
+        _withStock(
+          LoanRequestModel.fromStaffRow(
+            r,
+            farmerName: people[r['farmer_id']]?.name,
+            farmerPhone: people[r['farmer_id']]?.phone,
+            reviewerName: people[r['reviewed_by']]?.name,
+            loanReference: loanRefs[r['loan_id']],
+          ),
+          stock,
+        ),
+    ];
+  }
+
+  LoanRequestModel _withStock(LoanRequestModel r, Map<String, double> stock) {
+    if (!r.isPending) return r;
+    return LoanRequestModel(
+      id: r.id,
+      requestNo: r.requestNo,
+      status: r.status,
+      totalValue: r.totalValue,
+      notes: r.notes,
+      requestedAt: r.requestedAt,
+      decidedAt: r.decidedAt,
+      decisionNote: r.decisionNote,
+      loanReference: r.loanReference,
+      items: [
+        for (final i in r.items) i.withStock(stock[i.inventoryItemId]),
+      ],
+      farmerId: r.farmerId,
+      farmerName: r.farmerName,
+      farmerPhone: r.farmerPhone,
+      reviewerName: r.reviewerName,
+      loanId: r.loanId,
+    );
+  }
+
+  /// Approves a request: the loan is issued from its items with the monthly
+  /// payment and first payment date given here. Throws the database's own message
+  /// when it refuses (stock ran out, the farmer is not an active member, the
+  /// request was already decided).
+  Future<IssuedLoanResult> approveLoanRequest({
+    required LoanRequestModel request,
+    required double monthlyPayment,
+    required DateTime nextPaymentDate,
+    DateTime? issuedDate,
+    String? note,
+  }) async {
+    await ServerOnly.ensureOnline();
+    String dateOnly(DateTime d) => d.toIso8601String().split('T').first;
+    final res = await _client.rpc(
+      'review_loan_request',
+      params: {
+        'p_request_id': request.id,
+        'p_decision': 'approve',
+        'p_note': note,
+        'p_monthly_payment': monthlyPayment,
+        'p_next_payment_date': dateOnly(nextPaymentDate),
+        'p_issued_date': issuedDate == null ? null : dateOnly(issuedDate),
+      },
+    );
+    final row = (res as List).first as Map;
+    AdminActivityRepository().log(
+      module: 'loans',
+      actionType: 'request_approved',
+      message: AdminLogMessage('adminLogLoanRequestApproved', {
+        'request': request.requestNo,
+        'reference': row['out_reference_no'] as String? ?? '',
+      }),
+      referenceId: request.id,
+    );
+    return IssuedLoanResult(
+      loanId: row['out_loan_id'] as String? ?? '',
+      referenceNo: row['out_reference_no'] as String? ?? '',
+    );
+  }
+
+  /// Disapproves a request. A reason is required (the Farmer is shown it).
+  Future<void> disapproveLoanRequest({
+    required LoanRequestModel request,
+    required String reason,
+  }) async {
+    await ServerOnly.ensureOnline();
+    await _client.rpc(
+      'review_loan_request',
+      params: {
+        'p_request_id': request.id,
+        'p_decision': 'disapprove',
+        'p_note': reason,
+      },
+    );
+    AdminActivityRepository().log(
+      module: 'loans',
+      actionType: 'request_disapproved',
+      message: AdminLogMessage('adminLogLoanRequestDisapproved', {
+        'request': request.requestNo,
+      }),
+      referenceId: request.id,
+    );
   }
 
   // ─── Issue a new loan ───────────────────────────────────────────────────

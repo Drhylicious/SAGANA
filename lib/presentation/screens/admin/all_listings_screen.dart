@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -6,11 +8,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/admin_listing_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../../data/services/table_change_watcher.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/listing_order.dart';
 import '../../widgets/listing_filter_modal.dart' show ListingMarketBadge, ListingMarketFilterRow;
@@ -29,6 +33,7 @@ class _AllListingsScreenState extends State<AllListingsScreen>
     with WidgetsBindingObserver {
   final _repo = AdminListingRepository();
   StreamSubscription<bool>? _connectivitySub;
+  TableChangeWatcher? _stockWatcher;
   final _searchCtrl = TextEditingController();
 
   List<AdminListingModel> _allListings = [];
@@ -57,12 +62,21 @@ class _AllListingsScreenState extends State<AllListingsScreen>
       () => setState(() => _searchQuery = _searchCtrl.text),
     );
     _loadAll();
+    // The quantity left moves the moment an order is placed, cancelled or
+    // completed, so listen for it instead of waiting for a pull-to-refresh.
+    _stockWatcher = TableChangeWatcher(
+      tables: const ['marketplace_listings', 'orders'],
+      onChange: () {
+        if (mounted) _loadAll();
+      },
+    )..start();
   }
 
   // Available / Sold Out come from the quantity left on each listing, which
   // moves whenever an order is placed, cancelled or completed (maybe on
-  // another device). Reload when the app returns to the foreground; pulling
-  // down and coming back from a listing review also reload.
+  // another device). The watcher above reloads live; this also reloads when
+  // the app returns to the foreground, and pulling down or coming back from a
+  // listing review reload too.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) _loadAll();
@@ -71,6 +85,7 @@ class _AllListingsScreenState extends State<AllListingsScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stockWatcher?.dispose();
     _connectivitySub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
@@ -87,6 +102,17 @@ class _AllListingsScreenState extends State<AllListingsScreen>
       _isLoading = false;
       _hasLoadedOnce = true;
     });
+  }
+
+  // How many listings each market chip holds, from the loaded records (the
+  // search does not change them, so a chip always shows its market's total).
+  Map<String, int> get _marketCounts {
+    final counts = <String, int>{};
+    for (final l in _allListings) {
+      final m = l.marketType;
+      if (m != null) counts[m] = (counts[m] ?? 0) + 1;
+    }
+    return counts;
   }
 
   List<AdminListingModel> get _filtered {
@@ -110,6 +136,7 @@ class _AllListingsScreenState extends State<AllListingsScreen>
   }
 
   Future<void> _quickApprove(AdminListingModel listing) async {
+    if (!requireManage(context, StaffModule.marketplace)) return;
     await _repo.approveListing(listing.id);
     _showSnack('${listing.cropName} listing approved.', isSuccess: true);
     _loadAll();
@@ -144,7 +171,7 @@ class _AllListingsScreenState extends State<AllListingsScreen>
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'listings_all_all_all_all',
                 isOnline: _isOnline,
@@ -195,6 +222,8 @@ class _AllListingsScreenState extends State<AllListingsScreen>
                             // are shown; each card's badge carries its status.
                             ListingMarketFilterRow(
                               value: _marketFilter,
+                              total: _allListings.length,
+                              counts: _marketCounts,
                               onChanged: (v) =>
                                   setState(() => _marketFilter = v),
                             ),
@@ -421,7 +450,7 @@ class _AllListingCard extends StatelessWidget {
                             ),
                             TextSpan(
                                 text:
-                                    '  •  ${formatQuantityUnit(listing.volumeKg, listing.unit)}',
+                                    '  •  ${listingQuantityLabel(AppLocalizations.of(context), status: listing.status, remainingKg: listing.remainingKg, volumeKg: listing.volumeKg, unit: listing.unit)}',
                                 style: GoogleFonts.inter(
                                   fontSize: 11,
                                   color: cs.onSurfaceVariant,

@@ -308,7 +308,10 @@ BEGIN
     RAISE EXCEPTION 'Unknown unit "%". Choose a unit from the list.', NEW.unit;
   END IF;
 
-  -- DA-AMAD Market Linking (Ginger) is measured in kg end to end.
+  -- SUPERSEDED by supabase_schema_ginger_any_unit.sql, which removes this rule (the
+  -- harvest's unit is now the source of truth for Ginger too). If this file is ever
+  -- re-run, run supabase_schema_ginger_any_unit.sql again afterwards.
+  -- DA-AMAD Market Linking (Ginger) was measured in kg end to end.
   IF v_channel IS NOT NULL AND NEW.unit <> 'kg' THEN
     RAISE EXCEPTION 'This crop is sold through its own selling channel, which is measured in kg. Choose kg.';
   END IF;

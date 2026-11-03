@@ -198,6 +198,10 @@ class DistributionItem {
   final String category;
   final String unit;
   final double quantityOnHand;
+  // Phase 2: Farmer harvest items share a crop name across Farmers, so the
+  // Farmer's name (stored in `source`) is what tells them apart.
+  final String? source;
+  final String? sourceFarmerId;
 
   const DistributionItem({
     required this.id,
@@ -205,7 +209,17 @@ class DistributionItem {
     required this.category,
     required this.unit,
     required this.quantityOnHand,
+    this.source,
+    this.sourceFarmerId,
   });
+
+  /// "Tomato — Farmer Name" for Farmer harvest stock, the plain name otherwise.
+  String get displayName {
+    final farmer = source?.trim();
+    return sourceFarmerId != null && farmer != null && farmer.isNotEmpty
+        ? '$itemName — $farmer'
+        : itemName;
+  }
 
   factory DistributionItem.fromMap(Map<String, dynamic> m) => DistributionItem(
         id: m['id'] as String,
@@ -213,6 +227,8 @@ class DistributionItem {
         category: m['category'] as String? ?? 'Agricultural Supplies',
         unit: m['unit'] as String,
         quantityOnHand: (m['quantity_on_hand'] as num).toDouble(),
+        source: m['source'] as String?,
+        sourceFarmerId: m['source_farmer_id'] as String?,
       );
 }
 

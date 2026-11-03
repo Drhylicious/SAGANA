@@ -219,7 +219,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               icon: Icons.scale_rounded,
               accent: AppConstants.buyerBlue,
               label: l10n.reportsTotalVolume,
-              value: '${_data.totalQuantityKg.toStringAsFixed(0)} kg',
+              value: formatKgTotal(_data.totalQuantityKg),
             ),
           ),
           const SizedBox(height: AppConstants.spacingSm),
@@ -603,6 +603,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             ),
             if (t.marketType != null)
               ReportDetailRow(label: l10n.rptMarketType, value: t.marketType!),
+            if ((t.cropCategory ?? '').isNotEmpty)
+              ReportDetailRow(label: l10n.txnCropCategory, value: t.cropCategory!),
             if (t.referenceNo != null && t.referenceNo!.isNotEmpty)
               ReportDetailRow(
                 label: l10n.rptReferenceNo,
@@ -615,13 +617,40 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                     ? l10n.rptStatusCompleted
                     : t.orderStatus!,
               ),
+            // The agreed / charged price per unit, and for Market Linking the
+            // buyer as saved on the sale.
+            if (t.pricePerKg != null)
+              ReportDetailRow(
+                label: t.sellingType == 'marketplace'
+                    ? l10n.txnPrice
+                    : l10n.mlkDetailAgreedPrice,
+                value: formatPricePerUnit(t.pricePerKg!, t.unit),
+              ),
+            // The Manager / Officer who confirmed the delivery or recorded the
+            // sale. Staff only.
+            if ((t.recordedBy ?? '').isNotEmpty)
+              ReportDetailRow(label: l10n.txnRecordedBy, value: t.recordedBy!),
             if (t.buyerName != null && t.buyerName!.isNotEmpty)
               ReportDetailRow(
                 label: l10n.rptSoldTo,
                 value: t.buyerName!,
+                isLast: (t.buyerContact ?? '').trim().isEmpty &&
+                    (t.buyerEmail ?? '').trim().isEmpty,
+              ),
+            if ((t.buyerContact ?? '').trim().isNotEmpty)
+              ReportDetailRow(
+                label: l10n.mlkDetailBuyerContact,
+                value: t.buyerContact!.trim(),
+                isLast: (t.buyerEmail ?? '').trim().isEmpty,
+              ),
+            if ((t.buyerEmail ?? '').trim().isNotEmpty)
+              ReportDetailRow(
+                label: l10n.mlkDetailBuyerEmail,
+                value: t.buyerEmail!.trim(),
                 isLast: true,
               ),
           ],
+
         ),
       ),
     );

@@ -146,6 +146,29 @@ extension MemberStatusActions on MemberStatus {
       this == MemberStatus.rejected ||
       this == MemberStatus.draft;
 
+  /// What the signed-in staff member is offered for a member of this status.
+  ///
+  ///  * An Officer never approves or disapproves an applicant another Officer
+  ///    created: that is the Manager's decision ([officerCreated]).
+  ///  * Permanently deleting a disapproved account is the Manager's alone.
+  /// The database enforces both; this keeps the menu honest.
+  List<MemberListAction> listActionsFor({
+    required bool isOfficer,
+    required bool officerCreated,
+  }) {
+    return listActions.where((a) {
+      switch (a) {
+        case MemberListAction.approve:
+        case MemberListAction.disapprove:
+          return !(isOfficer && officerCreated);
+        case MemberListAction.deleteApplicant:
+          return !isOfficer;
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
   /// In the order shown in the ⋯ menu.
   List<MemberListAction> get listActions {
     switch (this) {
@@ -346,11 +369,19 @@ class MemberStatusEvent {
   final String? reason;
   final DateTime createdAt;
 
+  /// The staff member who made the change (a copy of their name and role taken
+  /// at that moment), so the Manager can see who approved or disapproved an
+  /// application. Null for changes the member made themselves.
+  final String? actorName;
+  final String? actorRole; // 'admin' | 'officer'
+
   const MemberStatusEvent({
     required this.toStatus,
     required this.createdAt,
     this.fromStatus,
     this.reason,
+    this.actorName,
+    this.actorRole,
   });
 
   factory MemberStatusEvent.fromMap(Map<String, dynamic> map) {
@@ -358,6 +389,8 @@ class MemberStatusEvent {
       fromStatus: map['from_status'] as String?,
       toStatus: map['to_status'] as String? ?? 'unknown',
       reason: map['reason'] as String?,
+      actorName: map['actor_name'] as String?,
+      actorRole: map['actor_role'] as String?,
       // tryParse, not parse — a malformed/unexpected value should never
       // crash the whole status-history fetch; falling back to now() keeps
       // this row visible (if slightly mis-timestamped) instead of throwing.

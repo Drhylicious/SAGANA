@@ -14,6 +14,7 @@ import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../routes/app_routes.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/add_unit_dialog.dart';
 import '../../widgets/quantity_unit_field.dart';
 import '../../widgets/shared_widgets.dart';
@@ -45,8 +46,9 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
 
   // The units come from the same public.units list Inventory Management and
   // Price Management use, so a unit the Manager adds there appears here with no
-  // app change. The farmer must choose one (no default), except for a crop
-  // reserved for one selling channel, which is measured in kg.
+  // app change. The farmer must choose one (no default), for every crop: a crop
+  // reserved for one selling channel (Ginger) is no longer fixed to kg, because
+  // the harvest's unit is the one source for every selling channel.
   List<String> _units = [];
   String? _selectedUnit;
   final String _selectedStorageLocation = AppConstants.harvestStorageLocations.first;
@@ -127,19 +129,10 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         _selectedCrop = null;
       }
       _units = units;
-      // A crop reserved for one selling channel (Ginger: DA-AMAD Market
-      // Linking) is measured in kg end to end, so its unit is fixed.
-      _selectedUnit = _selectedCrop?.exclusiveChannel != null
-          ? kDefaultUnit
-          : null;
-      if (_selectedUnit != null && !_units.contains(_selectedUnit)) {
-        _units = [..._units, _selectedUnit!];
-      }
+      _selectedUnit = null;
       _isLoadingCrops = false;
     });
   }
-
-  bool get _unitLocked => _selectedCrop?.exclusiveChannel != null;
 
   // "+ Unit": the same dialog, validation and save Price Management and
   // Inventory Management use. The new unit joins the list at once and is
@@ -339,7 +332,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
           children: [
             Column(
               children: [
-                const SizedBox(height: 72),
+                TopBarSpacer(height: 72),
                 const Expanded(
                   child: Padding(padding: EdgeInsets.all(16), child: SkeletonList()),
                 ),
@@ -404,7 +397,7 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 72),
+              TopBarSpacer(height: 72),
               if (!_isOnline)
                 OfflineStatusCard(
                   message:
@@ -441,25 +434,12 @@ class _HarvestEntryFormScreenState extends State<HarvestEntryFormScreen> {
                           controller: _quantityController,
                           units: _units,
                           selectedUnit: _selectedUnit,
-                          unitLocked: _unitLocked,
+                          unitLocked: false,
                           onUnitChanged: (u) =>
                               setState(() => _selectedUnit = u),
                           onAddUnit: _addUnit,
                           addUnitLabel: AppLocalizations.of(context).unitAddCompact,
                         ),
-                        if (_unitLocked) ...[
-                          const SizedBox(height: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: Text(
-                              '${selectedCrop.cropName} is measured in kg for its selling channel.',
-                              style: GoogleFonts.inter(
-                                fontSize: 11.5,
-                                color: AppConstants.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
                         const SizedBox(height: 20),
 
                         // ── Market Type ───────────────────────────────────

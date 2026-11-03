@@ -42,7 +42,7 @@ class FarmerMarketRatesRepository {
       // the way a left join embed would.
       var query = _client
           .from('price_records')
-          .select('*, crop_master!inner(category, description, image_url, is_active)');
+          .select('*, crop_master!inner(category, description, image_url)');
 
       if (marketType != null) {
         query = query.eq('price_type', marketType);
@@ -72,10 +72,7 @@ class FarmerMarketRatesRepository {
       // reused here rather than reimplemented.
       final Map<String, FarmerMarketRateModel> latest = {};
       for (final row in rows) {
-        // An archived crop (retired from the catalog, e.g. Copra) no longer
-        // shows a current rate. Its records stay in the database.
-        final master = row['crop_master'];
-        if (master is Map && master['is_active'] == false) continue;
+        // (crop_master!inner already leaves out a record whose crop was removed.)
         final key = '${row['crop_id']}_${row['price_type']}';
         if (!latest.containsKey(key)) {
           latest[key] = FarmerMarketRateModel.fromMap(row);

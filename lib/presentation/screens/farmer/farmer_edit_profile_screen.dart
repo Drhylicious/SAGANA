@@ -434,6 +434,8 @@ class _FarmerEditProfileScreenState extends State<FarmerEditProfileScreen> {
                         verified: _emailVerified,
                         isOnline: _isOnline,
                         saveEmail: _saveEmailForVerification,
+                        onSignInEmailChanged: () =>
+                            announceEmailSignInEnabled(context, _savedEmail),
                         onVerified: () {
                           setState(() => _verifiedEmail = _savedEmail);
                     FarmerProfileStateService.instance.refresh();

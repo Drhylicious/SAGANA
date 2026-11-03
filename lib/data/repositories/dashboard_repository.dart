@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_cache.dart';
+import 'completed_order_dates.dart';
 import '../models/dashboard_summary_model.dart';
 import '../services/hive_service.dart';
 import '../../core/l10n/app_localizations.dart';
@@ -44,7 +45,6 @@ class DashboardRepository {
     final startOfMonth = DateTime(now.year, now.month, 1);
     final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
     final endOfLastMonth = DateTime(now.year, now.month, 0);
-    final startOfYear = DateTime(now.year, 1, 1);
 
     double monthlyYield = 0;
     double lastMonthYield = 0;
@@ -88,29 +88,11 @@ class DashboardRepository {
       );
     } catch (_) {}
 
-    // Annual yield — same harvest_records source, scoped to the whole
-    // current calendar year. This is now the single source of truth for
-    // "this year's total harvest" — the Harvest tab's own former "Total
-    // Yield" stat computed this exact figure independently; it now reads
-    // from here instead (see harvest_hub_screen.dart / HarvestRepository).
-    double annualYield = 0;
-    try {
-      final annualYieldResponse = await OfflineCache.load(
-        screen: 'dash_yield_year_${startOfYear.toIso8601String()}',
-        fetch: () => _client
-            .from('harvest_records')
-            .select('quantity_kg, unit')
-            .eq('farmer_id', _userId)
-            .gte('harvest_date', startOfYear.toIso8601String()),
-      );
-      annualYield = annualYieldResponse.fold<double>(
-        0,
-        // A kg total: only rows measured in kg are added (units are never mixed).
-        (sum, row) => isKg(row['unit'] as String?)
-            ? sum + (row['quantity_kg'] as num).toDouble()
-            : sum,
-      );
-    } catch (_) {}
+    // Annual yield — the kg total of the current calendar year, from the same
+    // per-year loader the Profile tab's Annual Yield uses (_loadYearYield), so
+    // the two can never disagree. It includes Hive-queued offline harvests, as
+    // the Harvest tab's season total does.
+    final annualYield = (await _loadYearYield(now.year))[kDefaultUnit] ?? 0;
 
     // Merge in Hive-queued offline harvests not yet synced to Supabase —
     // HarvestRepository.fetchStats() (Harvest Hub) already did this for
@@ -131,9 +113,6 @@ class DashboardRepository {
       } else if (!harvestDate.isBefore(startOfLastMonth) &&
           !harvestDate.isAfter(endOfLastMonth)) {
         lastMonthYield += qty;
-      }
-      if (!harvestDate.isBefore(startOfYear)) {
-        annualYield += qty;
       }
     }
 
@@ -156,127 +135,18 @@ class DashboardRepository {
       earningsGoal = (goalRow['monthly_earnings_goal'] as num).toDouble();
     } catch (_) {}
 
-    // Earnings — four farmer income channels: Marketplace (orders),
-    // Confirmed Cooperative Sales (member_sales_transactions), Informal
-    // Sales (informal_sales), and Market Linking
-    // (market_linking_programs, completed rounds only). Each source is
-    // queried once for the whole year, then split into this-month and
-    // this-year sums from the same rows — avoids querying every channel
-    // twice for two overlapping windows. Each source keeps its own
-    // independent try/catch so one failing can't blank out the others —
-    // matches the app-wide convention of failing toward "show less," never
-    // toward a plausible-but-wrong bigger number.
-    double marketplaceMonthly = 0, marketplaceAnnual = 0;
-    try {
-      final rows = await OfflineCache.load(
-        screen: 'dash_marketplace_${startOfYear.toIso8601String()}',
-        fetch: () => _client
-            .from('orders')
-            .select('total_price, created_at')
-            .eq('farmer_id', _userId)
-            .eq('status', 'completed')
-            .gte('created_at', startOfYear.toUtc().toIso8601String()),
-      );
-      for (final row in rows) {
-        final amount = (row['total_price'] as num).toDouble();
-        marketplaceAnnual += amount;
-        final createdAt = DateTime.parse(row['created_at'] as String);
-        if (!createdAt.isBefore(startOfMonth)) marketplaceMonthly += amount;
-      }
-    } catch (_) {}
-
-    // member_sales_transactions.sale_date is a plain DATE column (not a
-    // timestamp) — compared as calendar-date strings, same reasoning as
-    // before this change.
-    double cooperativeMonthly = 0, cooperativeAnnual = 0;
-    try {
-      String dateOnly(DateTime d) =>
-          '${d.year.toString().padLeft(4, '0')}-'
-          '${d.month.toString().padLeft(2, '0')}-'
-          '${d.day.toString().padLeft(2, '0')}';
-      final rows = await OfflineCache.load(
-        screen: 'dash_coop_sales_${startOfYear.toIso8601String()}',
-        fetch: () => _client
-            .from('member_sales_transactions')
-            .select('amount, sale_date')
-            .eq('farmer_id', _userId)
-            .gte('sale_date', dateOnly(startOfYear)),
-      );
-      for (final row in rows) {
-        final amount = (row['amount'] as num).toDouble();
-        cooperativeAnnual += amount;
-        final saleDate = DateTime.parse(row['sale_date'] as String);
-        if (!saleDate.isBefore(startOfMonth)) cooperativeMonthly += amount;
-      }
-    } catch (_) {}
-
-    // informal_sales.sale_date is a TIMESTAMPTZ (same shape as
-    // orders.created_at). amount is nullable — a NULL amount counts as 0
-    // (confirmed product decision, not an oversight).
-    double informalMonthly = 0, informalAnnual = 0;
-    try {
-      final rows = await OfflineCache.load(
-        screen: 'dash_informal_${startOfYear.toIso8601String()}',
-        fetch: () => _client
-            .from('informal_sales')
-            .select('amount, sale_date')
-            .eq('farmer_id', _userId)
-            .gte('sale_date', startOfYear.toUtc().toIso8601String()),
-      );
-      for (final row in rows) {
-        final amount = (row['amount'] as num?)?.toDouble() ?? 0;
-        informalAnnual += amount;
-        final saleDate = DateTime.parse(row['sale_date'] as String);
-        if (!saleDate.isBefore(startOfMonth)) informalMonthly += amount;
-      }
-    } catch (_) {}
-
-    // Market Linking — an admin-run institutional export program (Ginger
-    // only), settled via the completed_market_linking RPC. A completed
-    // round's confirmed_volume_kg is only guaranteed set when a batch was
-    // attached at completion; requested_volume_kg (captured at Buyer
-    // Found) and volume_kg (the farmer's originally committed amount) are
-    // the next-best proxies in that order — same "prefer the most
-    // final/authoritative figure available" reasoning the settlement RPC
-    // itself already applies via COALESCE.
-    double marketLinkingMonthly = 0, marketLinkingAnnual = 0;
-    try {
-      final rows = await OfflineCache.load(
-        screen: 'dash_market_linking_${startOfYear.toIso8601String()}',
-        fetch: () => _client
-            .from('market_linking_programs')
-            .select(
-              'confirmed_volume_kg, requested_volume_kg, volume_kg, price_per_kg, completed_at',
-            )
-            .eq('farmer_id', _userId)
-            .eq('status', 'completed')
-            .gte('completed_at', startOfYear.toUtc().toIso8601String()),
-      );
-      for (final row in rows) {
-        final pricePerKg = (row['price_per_kg'] as num?)?.toDouble();
-        if (pricePerKg == null) continue;
-        final quantityKg =
-            (row['confirmed_volume_kg'] as num?)?.toDouble() ??
-            (row['requested_volume_kg'] as num?)?.toDouble() ??
-            (row['volume_kg'] as num?)?.toDouble() ??
-            0;
-        final amount = moneyOf(quantityKg, pricePerKg);
-        marketLinkingAnnual += amount;
-        final completedAt = DateTime.parse(row['completed_at'] as String);
-        if (!completedAt.isBefore(startOfMonth)) marketLinkingMonthly += amount;
-      }
-    } catch (_) {}
-
-    final monthlyEarnings =
-        marketplaceMonthly +
-        cooperativeMonthly +
-        informalMonthly +
-        marketLinkingMonthly;
-    final annualEarnings =
-        marketplaceAnnual +
-        cooperativeAnnual +
-        informalAnnual +
-        marketLinkingAnnual;
+    // Earnings — four farmer income channels, from the same per-year loader the
+    // Profile tab's Annual Earnings uses (_loadYearEarnings), so Home's monthly
+    // figure and Profile's annual figure are built from the very same rows:
+    // Marketplace (completed orders, by the day the buyer confirmed receipt),
+    // Offer to Cooperative (member_sales_transactions), Informal Sales and
+    // DA-AMAD Market Linking (market_linking_sales). Each source keeps its own
+    // independent try/catch so one failing can't blank out the others — the
+    // app-wide convention of failing toward "show less," never toward a
+    // plausible-but-wrong bigger number.
+    final earnings = await _loadYearEarnings(now.year);
+    final monthlyEarnings = earnings.totalFrom(startOfMonth);
+    final annualEarnings = earnings.total;
 
     final unsyncedCount = HiveService.getUnsyncedCount();
     final lastSyncedAt = HiveService.getLastSyncTime(userId: _userId);
@@ -291,6 +161,203 @@ class DashboardRepository {
       unsyncedCount: unsyncedCount,
       lastSyncedAt: lastSyncedAt,
     );
+  }
+
+  // ─── Annual summary (Profile tab: Annual Yield / Annual Earnings) ────────────
+  //
+  // One calendar year at a time. Every figure is computed from the records dated
+  // INSIDE that year ([Jan 1, Jan 1 of the next year)), so:
+  //   * a new year starts at zero by itself — nothing is reset or deleted, and
+  //     every earlier year is still there to look at;
+  //   * a sale is counted once, in the year it was completed, and only if it is
+  //     a completed sale (see each channel below);
+  //   * the Home tab's monthly figures and this annual figure share these loaders.
+
+  /// OfflineCache keys of the annual queries for [year], for the cache notice.
+  static List<String> annualCacheScreens(int year) {
+    final y = DateTime(year, 1, 1).toIso8601String();
+    return [
+      'dash_yield_year_$y',
+      'dash_marketplace_$y',
+      'dash_coop_sales_$y',
+      'dash_informal_$y',
+      'dash_market_linking_$y',
+    ];
+  }
+
+  Future<AnnualFarmSummary> fetchAnnualSummary(int year) async {
+    final results = await Future.wait([
+      _loadYearYield(year),
+      _loadYearEarnings(year),
+    ]);
+    final yieldByUnit = results[0] as Map<String, double>;
+    final earnings = results[1] as _YearEarnings;
+    return AnnualFarmSummary(
+      year: year,
+      yieldByUnit: yieldByUnit,
+      marketplace: earnings.sumOf(earnings.marketplace),
+      cooperative: earnings.sumOf(earnings.cooperative),
+      informal: earnings.sumOf(earnings.informal),
+      marketLinking: earnings.sumOf(earnings.marketLinking),
+    );
+  }
+
+  static String _dateOnly(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// The harvest of [year], summed per unit (a sack is never added to a
+  /// kilogram). harvest_date is a DATE: compared as calendar dates, with an upper
+  /// bound so a record dated in a later year is never counted in this one.
+  /// Hive-queued harvests not yet synced are included, as on the Harvest tab.
+  Future<Map<String, double>> _loadYearYield(int year) async {
+    final start = DateTime(year, 1, 1);
+    final end = DateTime(year + 1, 1, 1);
+    final byUnit = <String, double>{};
+    try {
+      final rows = await OfflineCache.load(
+        screen: 'dash_yield_year_${start.toIso8601String()}',
+        fetch: () => _client
+            .from('harvest_records')
+            .select('quantity_kg, unit')
+            .eq('farmer_id', _userId)
+            .gte('harvest_date', _dateOnly(start))
+            .lt('harvest_date', _dateOnly(end)),
+      );
+      for (final row in rows) {
+        final unit = unitOrDefault(row['unit'] as String?);
+        byUnit[unit] =
+            (byUnit[unit] ?? 0) + (row['quantity_kg'] as num).toDouble();
+      }
+    } catch (_) {}
+
+    for (final entry in HiveService.getPendingHarvests()) {
+      final payload = entry.value;
+      final date = DateTime.tryParse(payload['harvest_date'] as String? ?? '');
+      if (date == null || date.isBefore(start) || !date.isBefore(end)) continue;
+      final unit = unitOrDefault(payload['unit'] as String?);
+      byUnit[unit] =
+          (byUnit[unit] ?? 0) + ((payload['quantity_kg'] as num?)?.toDouble() ?? 0);
+    }
+    return {for (final e in byUnit.entries) e.key: roundQuantity(e.value)};
+  }
+
+  /// The completed sales of [year], one list per selling channel. Each source
+  /// keeps its own try/catch so one failing cannot blank out the others, and
+  /// fails toward "show less", never toward a bigger wrong number.
+  ///
+  ///  * Marketplace — only orders with status 'completed' (the buyer confirmed
+  ///    receipt), dated by that confirmation (orders.received_at). An order with
+  ///    no received_at (completed before it existed) is dated by its creation, as
+  ///    before. An order placed on 30 Dec and received on 2 Jan counts in January.
+  ///  * Offer to Cooperative — member_sales_transactions, written once when the
+  ///    Manager / Officer confirms the delivery; sale_date is a DATE.
+  ///  * Informal Sale — informal_sales; a NULL amount counts as 0.
+  ///  * DA-AMAD Market Linking — market_linking_sales, one row per recorded sale.
+  Future<_YearEarnings> _loadYearEarnings(int year) async {
+    final start = DateTime(year, 1, 1);
+    final end = DateTime(year + 1, 1, 1);
+    final startUtc = start.toUtc().toIso8601String();
+    final endUtc = end.toUtc().toIso8601String();
+    final key = start.toIso8601String();
+    final out = _YearEarnings();
+
+    Future<void> marketplace() async {
+      try {
+        final rows = await OfflineCache.load(
+          screen: 'dash_marketplace_$key',
+          fetch: () => CompletedOrderDates.withFallback((withReceivedAt) {
+            final base = _client
+                .from('orders')
+                .select(
+                  withReceivedAt
+                      ? 'total_price, created_at, received_at'
+                      : 'total_price, created_at',
+                )
+                .eq('farmer_id', _userId)
+                .eq('status', 'completed');
+            return withReceivedAt
+                ? base.or(CompletedOrderDates.window(start, end)!)
+                : base.gte('created_at', startUtc).lt('created_at', endUtc);
+          }),
+        );
+        for (final row in rows) {
+          out.marketplace.add((
+            amount: (row['total_price'] as num).toDouble(),
+            date: CompletedOrderDates.of(row),
+          ));
+        }
+      } catch (_) {}
+    }
+
+    Future<void> cooperative() async {
+      try {
+        final rows = await OfflineCache.load(
+          screen: 'dash_coop_sales_$key',
+          fetch: () => _client
+              .from('member_sales_transactions')
+              .select('amount, sale_date')
+              .eq('farmer_id', _userId)
+              .gte('sale_date', _dateOnly(start))
+              .lt('sale_date', _dateOnly(end)),
+        );
+        for (final row in rows) {
+          out.cooperative.add((
+            amount: (row['amount'] as num).toDouble(),
+            date: DateTime.parse(row['sale_date'] as String),
+          ));
+        }
+      } catch (_) {}
+    }
+
+    Future<void> informal() async {
+      try {
+        final rows = await OfflineCache.load(
+          screen: 'dash_informal_$key',
+          fetch: () => _client
+              .from('informal_sales')
+              .select('amount, sale_date')
+              .eq('farmer_id', _userId)
+              .gte('sale_date', startUtc)
+              .lt('sale_date', endUtc),
+        );
+        for (final row in rows) {
+          out.informal.add((
+            amount: (row['amount'] as num?)?.toDouble() ?? 0,
+            date: DateTime.parse(row['sale_date'] as String).toLocal(),
+          ));
+        }
+      } catch (_) {}
+    }
+
+    Future<void> marketLinking() async {
+      try {
+        final rows = await OfflineCache.load(
+          screen: 'dash_market_linking_$key',
+          fetch: () => _client
+              .from('market_linking_sales')
+              .select('confirmed_volume_kg, price_per_kg, completed_at')
+              .eq('farmer_id', _userId)
+              .gte('completed_at', startUtc)
+              .lt('completed_at', endUtc),
+        );
+        for (final row in rows) {
+          // (The names keep the legacy "kg": the quantity and price are per
+          // the sale's own unit.)
+          final pricePerKg = (row['price_per_kg'] as num?)?.toDouble();
+          if (pricePerKg == null) continue;
+          final quantityKg = (row['confirmed_volume_kg'] as num?)?.toDouble() ?? 0;
+          out.marketLinking.add((
+            amount: moneyOf(quantityKg, pricePerKg),
+            date: DateTime.parse(row['completed_at'] as String).toLocal(),
+          ));
+        }
+      } catch (_) {}
+    }
+
+    await Future.wait([marketplace(), cooperative(), informal(), marketLinking()]);
+    return out;
   }
 
   // ─── Recent Activity ──────────────────────────────────────────────────────
@@ -875,13 +942,23 @@ class DashboardRepository {
     int limit = 15,
   }) async {
     final List<ActivityItem> items = [];
-    final rows = await _client
-        .from('market_linking_programs')
-        .select('id, volume_kg, submitted_at')
-        .eq('farmer_id', userId)
-        .not('submitted_at', 'is', null)
-        .order('submitted_at', ascending: false)
-        .limit(limit);
+    // The request's own unit when the database has the column yet.
+    Future<List<Map<String, dynamic>>> read(String columns) async =>
+        List<Map<String, dynamic>>.from(
+          await _client
+              .from('market_linking_programs')
+              .select(columns)
+              .eq('farmer_id', userId)
+              .not('submitted_at', 'is', null)
+              .order('submitted_at', ascending: false)
+              .limit(limit),
+        );
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = await read('id, volume_kg, unit, submitted_at');
+    } catch (_) {
+      rows = await read('id, volume_kg, submitted_at');
+    }
     for (final r in rows) {
       items.add(
         ActivityItem(
@@ -889,7 +966,10 @@ class DashboardRepository {
           type: ActivityType.gingerBatchSubmission,
           title: _l.activityGingerBatchSubmitted,
           subtitle: _l.activityMarketLinking,
-          statusLabel: '${r['volume_kg']} kg',
+          statusLabel: formatQuantityUnit(
+            (r['volume_kg'] as num?) ?? 0,
+            r['unit'] as String?,
+          ),
           timestamp: DateTime.parse(r['submitted_at'] as String),
         ),
       );
@@ -1207,5 +1287,34 @@ extension CropPriceFetch on DashboardRepository {
     } catch (_) {
       return null;
     }
+  }
+}
+
+/// The completed sales of one year, per selling channel (amount + the day it
+/// counts on). Private to this file; see [DashboardRepository._loadYearEarnings].
+class _YearEarnings {
+  final List<({double amount, DateTime date})> marketplace = [];
+  final List<({double amount, DateTime date})> cooperative = [];
+  final List<({double amount, DateTime date})> informal = [];
+  final List<({double amount, DateTime date})> marketLinking = [];
+
+  double sumOf(List<({double amount, DateTime date})> rows) =>
+      rows.fold<double>(0, (sum, r) => sum + r.amount);
+
+  double get total =>
+      sumOf(marketplace) +
+      sumOf(cooperative) +
+      sumOf(informal) +
+      sumOf(marketLinking);
+
+  /// The part of the year from [from] on (e.g. this month).
+  double totalFrom(DateTime from) {
+    double sum = 0;
+    for (final list in [marketplace, cooperative, informal, marketLinking]) {
+      for (final r in list) {
+        if (!r.date.isBefore(from)) sum += r.amount;
+      }
+    }
+    return sum;
   }
 }

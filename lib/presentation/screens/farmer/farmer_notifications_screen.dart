@@ -11,6 +11,7 @@ import '../../../data/services/app_event_service.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../widgets/notification_day_groups.dart';
+import '../../widgets/notification_ui.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/skeleton.dart';
 
@@ -81,6 +82,32 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     AppEventService.instance.notify();
   }
 
+  Future<void> _markAllUnread() async {
+    await _repo.markAllAsUnread();
+    setState(() {
+      _notifications = _notifications
+          .map((n) => n.copyWith(isRead: false))
+          .toList();
+    });
+    AppEventService.instance.notify();
+  }
+
+  /// Long-press: flips one notification between read and unread.
+  Future<void> _toggleRead(NotificationModel n) async {
+    final nowRead = !n.isRead;
+    if (nowRead) {
+      await _repo.markAsRead(n.id);
+    } else {
+      await _repo.markAsUnread(n.id);
+    }
+    setState(() {
+      _notifications = _notifications
+          .map((x) => x.id == n.id ? x.copyWith(isRead: nowRead) : x)
+          .toList();
+    });
+    AppEventService.instance.notify();
+  }
+
   Future<void> _markRead(String id) async {
     await _repo.markAsRead(id);
     setState(() {
@@ -121,23 +148,14 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
           SubPageTopBar(
             title: l10n.sectionNotifications,
             onBack: () => Navigator.of(context).pop(),
-            trailing: _unreadCount > 0
-                ? PopupMenuButton<String>(
-                    icon: const Icon(
-                      Icons.more_vert_rounded,
-                      color: AppConstants.primaryGreen,
-                    ),
-                    onSelected: (value) {
-                      if (value == 'read_all') _markAllRead();
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'read_all',
-                        child: Text(l10n.buyerNotifMenuMarkAllRead),
-                      ),
-                    ],
-                  )
-                : null,
+            trailing: _notifications.isEmpty
+                ? null
+                : NotificationMenuButton(
+                    hasUnread: _unreadCount > 0,
+                    hasRead: _notifications.any((n) => n.isRead),
+                    onMarkAllRead: _markAllRead,
+                    onMarkAllUnread: _markAllUnread,
+                  ),
           ),
           const Divider(height: 1),
           CachedDataNotice(
@@ -172,9 +190,15 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
                         items: _notifications,
                         timeOf: (n) => n.createdAt,
                         l10n: l10n,
-                        buildItem: (n) => _NotifCard(
+                        buildItem: (n) => NotificationCard(
                           item: n,
+                          timeLabel: notificationTimeLabel(l10n, n.createdAt),
                           onTap: () => _onNotifTap(n),
+                          onLongPress: () => showNotificationReadSheet(
+                            context,
+                            isRead: n.isRead,
+                            onToggle: () => _toggleRead(n),
+                          ),
                           onDelete: () => _delete(n.id),
                         ),
                       ),
@@ -185,202 +209,6 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
       ),
     );
   }
-}
-
-class _NotifCard extends StatelessWidget {
-  final NotificationModel item;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-
-  const _NotifCard({
-    required this.item,
-    required this.onTap,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cfg = _config(item.type);
-    final cs = Theme.of(context).colorScheme;
-    final sagana = context.saganaColors;
-    return Dismissible(
-      key: Key(item.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: AppConstants.errorRed.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        ),
-        child: const Icon(
-          Icons.delete_outline_rounded,
-          color: AppConstants.errorRed,
-        ),
-      ),
-      onDismissed: (_) => onDelete(),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: item.isRead
-                ? sagana.cardBackground.withValues(alpha: 0.85)
-                : cs.primary.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(
-              color: item.isRead
-                  ? cs.outlineVariant.withValues(alpha: 0.30)
-                  : cs.primary.withValues(alpha: 0.15),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: cs.shadow.withValues(alpha: 0.05),
-                blurRadius: 8,
-              ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: cfg.color.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(cfg.icon, color: cfg.color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.title,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: item.isRead
-                                  ? FontWeight.w500
-                                  : FontWeight.w700,
-                              color: AppConstants.onSurface,
-                            ),
-                          ),
-                        ),
-                        if (item.isUnread)
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppConstants.primaryGreen,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.body,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppConstants.onSurfaceVariant,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.timeAgo,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: cs.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  _IconConfig _config(NotificationType type) {
-    switch (type) {
-      case NotificationType.order:
-        return const _IconConfig(
-          Icons.shopping_bag_outlined,
-          AppConstants.buyerBlue,
-        );
-      case NotificationType.listing:
-        return const _IconConfig(
-          Icons.storefront_outlined,
-          AppConstants.primaryGreen,
-        );
-      case NotificationType.loan:
-        return const _IconConfig(
-          Icons.eco_outlined,
-          AppConstants.tertiaryContainer,
-        );
-      case NotificationType.price:
-        return const _IconConfig(Icons.show_chart_rounded, AppConstants.amber);
-      case NotificationType.sync:
-        return const _IconConfig(Icons.sync_rounded, AppConstants.successGreen);
-      case NotificationType.cropRequest:
-        return const _IconConfig(
-          Icons.local_florist_outlined,
-          AppConstants.primaryGreen,
-        );
-      case NotificationType.cooperativeOffer:
-        return const _IconConfig(
-          Icons.groups_outlined,
-          AppConstants.successGreen,
-        );
-      case NotificationType.program:
-        return const _IconConfig(
-          Icons.volunteer_activism_outlined,
-          AppConstants.tertiaryContainer,
-        );
-      case NotificationType.capital:
-        return const _IconConfig(
-          Icons.savings_outlined,
-          AppConstants.amber,
-        );
-      case NotificationType.memberApproved:
-        return const _IconConfig(
-          Icons.verified_outlined,
-          AppConstants.successGreen,
-        );
-      case NotificationType.memberRejected:
-        return const _IconConfig(
-          Icons.info_outline_rounded,
-          AppConstants.errorRed,
-        );
-      case NotificationType.system:
-      case NotificationType.listingSubmitted:
-      case NotificationType.loanOverdue:
-      case NotificationType.memberPending:
-      case NotificationType.memberRegistered:
-      case NotificationType.memberUpdated:
-      case NotificationType.lowStock:
-      case NotificationType.stockDepleted:
-        return const _IconConfig(
-          Icons.info_outline_rounded,
-          AppConstants.onSurfaceVariant,
-        );
-    }
-  }
-}
-
-class _IconConfig {
-  final IconData icon;
-  final Color color;
-  const _IconConfig(this.icon, this.color);
 }
 
 class _EmptyState extends StatelessWidget {

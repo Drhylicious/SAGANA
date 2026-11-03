@@ -4,6 +4,10 @@ class MemberSalesTransaction {
   final String cropName;
   final String cropType; // 'palay' | 'peanut'
   final double quantityKg;
+
+  /// The unit [quantityKg] is measured in (the sale's own unit; the field keeps
+  /// its old name). A sale from before units existed is kg.
+  final String unit;
   final double amount;
   final DateTime saleDate;
   final String? referenceNo;
@@ -14,6 +18,7 @@ class MemberSalesTransaction {
     required this.cropName,
     required this.cropType,
     required this.quantityKg,
+    this.unit = 'kg',
     required this.amount,
     required this.saleDate,
     this.referenceNo,
@@ -26,6 +31,9 @@ class MemberSalesTransaction {
       cropName: map['crop_name'] as String,
       cropType: map['crop_type'] as String? ?? 'palay',
       quantityKg: (map['quantity_kg'] as num).toDouble(),
+      unit: (map['unit'] as String?)?.trim().isNotEmpty == true
+          ? (map['unit'] as String).trim()
+          : 'kg',
       amount: (map['amount'] as num).toDouble(),
       saleDate: DateTime.parse(map['sale_date'] as String),
       referenceNo: map['reference_no'] as String?,
@@ -236,6 +244,15 @@ class CapitalContributionEvent {
   final String? note;
   final DateTime createdAt;
 
+  /// Who recorded the entry (for a reversal: who reversed it), and their name
+  /// when the staff screen could look it up. Null for system entries.
+  final String? recordedBy;
+  final String? recordedByName;
+
+  /// Set on a reversal: the entry it cancels, and the reason given.
+  final String? reversesEventId;
+  final String? reversalReason;
+
   const CapitalContributionEvent({
     required this.id,
     required this.farmerId,
@@ -243,9 +260,22 @@ class CapitalContributionEvent {
     required this.source,
     required this.createdAt,
     this.note,
+    this.recordedBy,
+    this.recordedByName,
+    this.reversesEventId,
+    this.reversalReason,
   });
 
-  factory CapitalContributionEvent.fromMap(Map<String, dynamic> map) {
+  bool get isReversal => reversesEventId != null;
+
+  /// A payout added to capital belongs to a Balik-Tangkilik decision, so it is
+  /// not reversed from the ledger. A reversal itself is never reversed.
+  bool get canBeReversed => !isReversal && source != 'patronage_capital';
+
+  factory CapitalContributionEvent.fromMap(
+    Map<String, dynamic> map, {
+    String? recordedByName,
+  }) {
     return CapitalContributionEvent(
       id: map['id'] as String,
       farmerId: map['farmer_id'] as String,
@@ -253,6 +283,10 @@ class CapitalContributionEvent {
       source: map['source'] as String? ?? 'member_payment',
       note: map['note'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
+      recordedBy: map['recorded_by'] as String?,
+      recordedByName: recordedByName,
+      reversesEventId: map['reverses_event_id'] as String?,
+      reversalReason: map['reversal_reason'] as String?,
     );
   }
 }

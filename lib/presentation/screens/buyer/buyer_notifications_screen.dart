@@ -10,21 +10,10 @@ import '../../../data/services/connectivity_service.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/notification_day_groups.dart';
+import '../../widgets/notification_ui.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sub_page_top_bar.dart';
 import '../../widgets/cached_data_notice.dart';
-
-// Buyer-local time-ago formatter — deliberately not modifying
-// NotificationModel.timeAgo since that getter is shared across
-// Admin/Farmer/Buyer notification screens. Mirrors its exact branching
-// logic, just localized, using the model's public createdAt field.
-String _buyerNotifTimeAgo(DateTime createdAt, AppLocalizations l10n) {
-  final diff = DateTime.now().difference(createdAt);
-  if (diff.inMinutes < 60) return l10n.buyerNotifTimeMinutesAgo(diff.inMinutes);
-  if (diff.inHours < 24) return l10n.buyerNotifTimeHoursAgo(diff.inHours);
-  if (diff.inDays == 1) return l10n.buyerNotifTimeYesterday;
-  return l10n.buyerNotifTimeDaysAgo(diff.inDays);
-}
 
 class BuyerNotificationsScreen extends StatefulWidget {
   const BuyerNotificationsScreen({super.key});
@@ -101,6 +90,29 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
     await _repository.markAllAsRead(queueWhenOffline: false);
   }
 
+  Future<void> _markAllUnread() async {
+    if (_offlineBlocked()) return;
+    setState(() {
+      _all = _all.map((n) => n.copyWith(isRead: false)).toList();
+    });
+    await _repository.markAllAsUnread(queueWhenOffline: false);
+  }
+
+  /// Long-press: flips one notification between read and unread.
+  Future<void> _toggleRead(NotificationModel n) async {
+    if (_offlineBlocked()) return;
+    final nowRead = !n.isRead;
+    setState(() {
+      final index = _all.indexWhere((x) => x.id == n.id);
+      if (index != -1) _all[index] = n.copyWith(isRead: nowRead);
+    });
+    if (nowRead) {
+      await _repository.markAsRead(n.id, queueWhenOffline: false);
+    } else {
+      await _repository.markAsUnread(n.id, queueWhenOffline: false);
+    }
+  }
+
   Future<void> _clearAll() async {
     if (_offlineBlocked()) return;
     final confirmed = await AppDialog.show<bool>(
@@ -126,26 +138,12 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
             title: l10n.sectionNotifications,
             onBack: () => Navigator.of(context).pop(),
             trailing: _all.isNotEmpty
-                ? PopupMenuButton<String>(
-                    icon: const Icon(
-                      Icons.more_vert_rounded,
-                      color: AppConstants.primaryGreen,
-                    ),
-                    onSelected: (value) {
-                      if (value == 'read_all') _markAllRead();
-                      if (value == 'clear_all') _clearAll();
-                    },
-                    itemBuilder: (context) => [
-                      if (hasUnread)
-                        PopupMenuItem(
-                          value: 'read_all',
-                          child: Text(l10n.buyerNotifMenuMarkAllRead),
-                        ),
-                      PopupMenuItem(
-                        value: 'clear_all',
-                        child: Text(l10n.buyerNotifMenuClearAll),
-                      ),
-                    ],
+                ? NotificationMenuButton(
+                    hasUnread: hasUnread,
+                    hasRead: _all.any((n) => n.isRead),
+                    onMarkAllRead: _markAllRead,
+                    onMarkAllUnread: _markAllUnread,
+                    onClearAll: _clearAll,
                   )
                 : null,
           ),
@@ -197,6 +195,11 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
                           child: _NotificationTile(
                             notification: n,
                             onTap: () => _onNotifTap(n),
+                            onLongPress: () => showNotificationReadSheet(
+                              context,
+                              isRead: n.isRead,
+                              onToggle: () => _toggleRead(n),
+                            ),
                           ),
                         ),
                       ),
@@ -248,7 +251,12 @@ class _BuyerNotificationsScreenState extends State<BuyerNotificationsScreen> {
 class _NotificationTile extends StatelessWidget {
   final NotificationModel notification;
   final VoidCallback onTap;
-  const _NotificationTile({required this.notification, required this.onTap});
+  final VoidCallback onLongPress;
+  const _NotificationTile({
+    required this.notification,
+    required this.onTap,
+    required this.onLongPress,
+  });
 
   IconData get _icon {
     switch (notification.type) {
@@ -285,6 +293,7 @@ class _NotificationTile extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -343,7 +352,7 @@ class _NotificationTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _buyerNotifTimeAgo(notification.createdAt, l10n),
+                    notificationTimeLabel(l10n, notification.createdAt),
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       color: AppConstants.onSurfaceVariant.withValues(

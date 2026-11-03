@@ -7,6 +7,7 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../data/models/dashboard_summary_model.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../data/services/connectivity_service.dart';
+import '../../widgets/top_bar_spacer.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/recent_activity_widgets.dart';
 import '../../widgets/shared_widgets.dart';
@@ -172,7 +173,7 @@ class _FarmerRecentActivityScreenState
                 // ── Content ──────────────────────────────────────────────
                 Column(
                   children: [
-                    const SizedBox(height: 72), // space for top bar
+                    TopBarSpacer(height: 72), // space for top bar
                     CachedDataNotice(
                       screen: DashboardRepository.activityCacheScreen(limit: _pageSize),
                       isOnline: _isOnline,

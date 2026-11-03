@@ -12,6 +12,10 @@ class InventoryBatchModel {
   final double reservedKg;
   final double soldKg;
 
+  /// Quantity the Farmer took out with Update Quantity. available + reserved +
+  /// sold + adjusted = quantityKg.
+  final double adjustedKg;
+
   /// The unit every quantity on this batch is measured in (the *Kg fields keep
   /// their old names). Chosen at harvest and never changed.
   final String unit;
@@ -25,10 +29,10 @@ class InventoryBatchModel {
   /// ordinary crop, which can use Marketplace, Offer to Cooperative and
   /// Informal Sale. Set (DA-AMAD Market Linking) for Ginger only.
   final String? exclusiveChannel;
-  /// The crop's display image — farmer's own crop photo if set, else the
-  /// crop_master catalog photo, else null. Resolved by the repository via
-  /// fetchFarmerCropImageMap(), not derived here, since it requires a
-  /// batched cross-table lookup this model has no access to on its own.
+  /// The Farmer's own camera photo of this batch's crop, or null if they have
+  /// not taken one (the Crop Master image is never used). Resolved by the
+  /// repository via fetchFarmerCropImageMap(), since it needs a batched
+  /// cross-table lookup this model has no access to on its own.
   final String? displayImageUrl;
   // From crop_master via crop_lookup.dart's fetchFarmerCropCategoryMap()
   // (Phase 11) — inventory_batches has no category column of its own.
@@ -47,6 +51,7 @@ class InventoryBatchModel {
     required this.availableKg,
     required this.reservedKg,
     required this.soldKg,
+    this.adjustedKg = 0,
     this.unit = kDefaultUnit,
     required this.status,
     this.isCoopEligible = false,
@@ -61,7 +66,36 @@ class InventoryBatchModel {
   double get stockPercent =>
       quantityKg > 0 ? (availableKg / quantityKg).clamp(0.0, 1.0) : 0.0;
 
+  /// Marketplace, Offer to Cooperative and Market Linking need this photo;
+  /// an Informal Sale does not.
+  bool get hasPhoto => displayImageUrl != null && displayImageUrl!.isNotEmpty;
+
+  /// The same batch once its crop has a photo (after the Farmer takes one).
+  InventoryBatchModel withPhoto(String url) => InventoryBatchModel(
+    id: id,
+    farmerId: farmerId,
+    harvestRecordId: harvestRecordId,
+    cropId: cropId,
+    cropName: cropName,
+    batchNumber: batchNumber,
+    quantityKg: quantityKg,
+    availableKg: availableKg,
+    reservedKg: reservedKg,
+    soldKg: soldKg,
+    adjustedKg: adjustedKg,
+    unit: unit,
+    status: status,
+    isCoopEligible: isCoopEligible,
+    cropType: cropType,
+    exclusiveChannel: exclusiveChannel,
+    displayImageUrl: url,
+    category: category,
+    createdAt: createdAt,
+    harvestDate: harvestDate,
+  );
+
   bool get isAvailable => status == 'available' || status == 'low_stock';
+
   bool get isReserved => status == 'reserved';
   bool get isSoldOut => status == 'sold_out';
   bool get isWithdrawn => status == 'withdrawn';
@@ -96,6 +130,7 @@ class InventoryBatchModel {
       availableKg: (map['available_kg'] as num).toDouble(),
       reservedKg: (map['reserved_kg'] as num).toDouble(),
       soldKg: (map['sold_kg'] as num).toDouble(),
+      adjustedKg: (map['adjusted_kg'] as num?)?.toDouble() ?? 0,
       unit: unitOrDefault(map['unit'] as String?),
       status: map['status'] as String? ?? 'available',
       isCoopEligible: map['is_coop_eligible'] as bool? ?? false,

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/server_only.dart';
 import '../models/inventory_batch_model.dart';
@@ -5,6 +6,7 @@ import '../models/cooperative_offer_model.dart';
 import 'admin_activity_repository.dart';
 import 'admin_listing_repository.dart';
 import '../models/admin_log_message.dart';
+import '../../core/utils/quantity_utils.dart';
 
 class CooperativeOfferRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -38,8 +40,12 @@ class CooperativeOfferRepository {
     });
   }
 
-  // ─── Farmer: which of this farmer's reserved batches are tied up in a
-  //     pending cooperative offer — a single set-membership query rather
+  /// The statuses in which an offer still holds the Farmer's stock: being
+  /// negotiated, approved (to be delivered) or delivered (to be received).
+  static const List<String> activeStatuses = ['pending', 'approved', 'delivered'];
+
+  // ─── Farmer: which of this farmer's reserved batches are tied up in an
+  //     active cooperative offer — a single set-membership query rather
   //     than an N+1 check per batch, used by manage_inventory_screen.dart
   //     to distinguish "offered to cooperative" from "listed on marketplace"
   //     once a batch is reserved. ─────────────────────────────────────────
@@ -51,7 +57,7 @@ class CooperativeOfferRepository {
           .from('cooperative_purchase_offers')
           .select('inventory_batch_id')
           .eq('farmer_id', userId)
-          .eq('status', 'pending');
+          .inFilter('status', activeStatuses);
       return rows.map((r) => r['inventory_batch_id'] as String).toSet();
     } catch (_) {
       return {};
@@ -91,14 +97,20 @@ class CooperativeOfferRepository {
       final farmerIds = rows.map((r) => r['farmer_id'] as String).toSet().toList();
       final infoRows = await _client
           .from('user_information')
-          .select('user_id, full_name')
+          .select('user_id, full_name, phone_number, contact_email')
           .inFilter('user_id', farmerIds);
       final nameMap = {
         for (final r in infoRows) r['user_id'] as String: r['full_name'] as String? ?? 'Farmer',
       };
+      final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
       var result = rows
-          .map((r) => CooperativeOfferModel.fromMap({...r, 'farmer_name': nameMap[r['farmer_id']] ?? 'Farmer'}))
+          .map((r) => CooperativeOfferModel.fromMap({
+                ...r,
+                'farmer_name': nameMap[r['farmer_id']] ?? 'Farmer',
+                'farmer_phone': _clean(infoMap[r['farmer_id']]?['phone_number'] as String?),
+                'farmer_email': _clean(infoMap[r['farmer_id']]?['contact_email'] as String?),
+              }))
           .toList();
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -112,6 +124,12 @@ class CooperativeOfferRepository {
     } catch (_) {
       return [];
     }
+  }
+
+  /// A contact detail, or null when it is blank (so nothing empty is ever shown).
+  static String? _clean(String? value) {
+    final v = value?.trim() ?? '';
+    return v.isEmpty ? null : v;
   }
 
   // ─── Admin: fetch one offer by id, with the extra detail-screen-only
@@ -132,15 +150,16 @@ class CooperativeOfferRepository {
       final farmerId = row['farmer_id'] as String;
 
       String farmerName = 'Farmer';
-      String? farmerPhone, farmerPhotoUrl;
+      String? farmerPhone, farmerEmail, farmerPhotoUrl;
       try {
         final farmer = await _client
             .from('user_information')
-            .select('full_name, phone_number, profile_photo_url')
+            .select('full_name, phone_number, contact_email, profile_photo_url')
             .eq('user_id', farmerId)
             .maybeSingle();
         farmerName = farmer?['full_name'] as String? ?? 'Farmer';
-        farmerPhone = farmer?['phone_number'] as String?;
+        farmerPhone = _clean(farmer?['phone_number'] as String?);
+        farmerEmail = _clean(farmer?['contact_email'] as String?);
         farmerPhotoUrl = farmer?['profile_photo_url'] as String?;
       } catch (_) {}
 
@@ -181,6 +200,7 @@ class CooperativeOfferRepository {
         ...row,
         'farmer_name': farmerName,
         'farmer_phone': farmerPhone,
+        'farmer_email': farmerEmail,
         'farmer_photo_url': farmerPhotoUrl,
         'batch_number': batchNumber,
         'harvest_date': harvestDate?.toIso8601String(),
@@ -191,14 +211,37 @@ class CooperativeOfferRepository {
     }
   }
 
-  // ─── Admin: offers waiting for the Cooperative's answer — the Dashboard
-  //     KPI count. Offers where the Cooperative has already replied and the
-  //     Farmer has to answer next are not waiting on the Cooperative.
+  // ─── Admin: offers waiting for the Cooperative — the Dashboard KPI count.
+  //     Two things wait on the Cooperative: a price the Farmer proposed last,
+  //     and a delivery whose receipt has to be confirmed. Offers where the
+  //     Cooperative has already replied and the Farmer has to answer next (or
+  //     deliver) are not waiting on the Cooperative.
 
   Future<List<CooperativeOfferModel>> fetchOffersAwaitingCooperative() async {
-    final open = await fetchOffers(statusFilter: 'pending');
-    return open.where((o) => o.awaitingCooperative).toList();
+    final all = await fetchOffers();
+    return all
+        .where((o) => o.awaitingCooperative || o.awaitingReceipt)
+        .toList();
   }
+
+  /// How many offers are waiting for the Cooperative — the same offers as
+  /// [fetchOffersAwaitingCooperative], counted by the database without
+  /// downloading each one. A failed read is an error, not a silent 0.
+  Future<int> fetchAwaitingCooperativeCount() async {
+    final results = await Future.wait([
+      _client
+          .from('cooperative_purchase_offers')
+          .count()
+          .eq('status', 'pending')
+          .eq('last_proposed_by', 'farmer'),
+      _client
+          .from('cooperative_purchase_offers')
+          .count()
+          .eq('status', 'delivered'),
+    ]);
+    return results[0] + results[1];
+  }
+
 
   // ─── Farmer: every offer this farmer has made, newest first ───────────────
 
@@ -216,18 +259,20 @@ class CooperativeOfferRepository {
     }
   }
 
-  /// The open offer on [batchId], if any — what "Offer Status" opens.
+  /// The active offer on [batchId], if any — what "Offer Status" opens. The
+  /// newest one wins when a batch has several.
   Future<String?> fetchPendingOfferIdForBatch(String batchId) async {
     try {
       final userId = _client.auth.currentUser!.id;
-      final row = await _client
+      final rows = await _client
           .from('cooperative_purchase_offers')
           .select('id')
           .eq('farmer_id', userId)
           .eq('inventory_batch_id', batchId)
-          .eq('status', 'pending')
-          .maybeSingle();
-      return row?['id'] as String?;
+          .inFilter('status', activeStatuses)
+          .order('offered_at', ascending: false)
+          .limit(1);
+      return rows.isEmpty ? null : rows.first['id'] as String?;
     } catch (_) {
       return null;
     }
@@ -266,6 +311,7 @@ class CooperativeOfferRepository {
     required int expectedRound,
     String? note,
     bool asCooperative = false,
+    String? unit,
   }) async {
     await ServerOnly.ensureOnline();
     await _client.rpc('counter_cooperative_offer', params: {
@@ -280,21 +326,24 @@ class CooperativeOfferRepository {
         actionType: 'countered',
         message: AdminLogMessage('adminLogCoopOfferCountered', {
           'price': pricePerKg.toStringAsFixed(2),
+          'unit': unitOrDefault(unit),
         }),
         referenceId: offerId,
       );
     }
   }
 
-  /// Accepts the latest price and settles the sale. Returns the created
-  /// member_sales_transactions id. [kg] and [amount] are only used for the
-  /// Manager's activity log line.
+  /// Accepts the latest price: the offer is APPROVED. Nothing is sold or
+  /// settled until the delivery is received (see [confirmReceipt]). Returns the
+  /// offer id. [kg] and [amount] are only used for the Manager's activity log
+  /// line.
   Future<String?> acceptOffer({
     required String offerId,
     required int expectedRound,
     String? note,
     bool asCooperative = false,
     double? kg,
+    String? unit,
     double? amount,
   }) async {
     await ServerOnly.ensureOnline();
@@ -308,7 +357,8 @@ class CooperativeOfferRepository {
         module: 'offers',
         actionType: 'confirmed',
         message: AdminLogMessage('adminLogCoopOfferConfirmed', {
-          'kg': (kg ?? 0).toStringAsFixed(1),
+          // The offer's own quantity and unit, exactly (never rounded to 1 decimal).
+          'kg': formatQuantityUnit(kg ?? 0, unit),
           'amount': (amount ?? 0).toStringAsFixed(2),
         }),
         referenceId: offerId,
@@ -336,6 +386,59 @@ class CooperativeOfferRepository {
       message: const AdminLogMessage('adminLogCoopOfferDeclined'),
       referenceId: offerId,
     );
+  }
+
+  /// The Farmer delivers an approved offer: the photo evidence is uploaded
+  /// (the Farmer's own folder of the crop photo bucket) and the offer moves to
+  /// 'delivered'. The database re-checks the owner, the status and that a photo
+  /// is attached. Needs a connection.
+  Future<void> deliverOffer({
+    required String offerId,
+    required Uint8List photoBytes,
+    required String photoExtension,
+    String? note,
+  }) async {
+    await ServerOnly.ensureOnline();
+    final userId = _client.auth.currentUser!.id;
+    final path =
+        '$userId/delivery_${offerId}_${DateTime.now().millisecondsSinceEpoch}.$photoExtension';
+    await _client.storage
+        .from('crop_images')
+        .uploadBinary(path, photoBytes, fileOptions: const FileOptions(upsert: true));
+    final url = _client.storage.from('crop_images').getPublicUrl(path);
+    await _client.rpc('deliver_cooperative_offer', params: {
+      'p_offer_id': offerId,
+      'p_photo_url': url,
+      'p_note': note,
+    });
+  }
+
+  /// The Manager / Officer confirms the delivery was physically received. The
+  /// database completes the offer, settles the sale, counts the kg as sold and
+  /// adds them to cooperative inventory — once. Returns the sales transaction
+  /// id. [kg] and [amount] are only used for the activity log line.
+  Future<String?> confirmReceipt({
+    required String offerId,
+    String? note,
+    double? kg,
+    String? unit,
+    double? amount,
+  }) async {
+    await ServerOnly.ensureOnline();
+    final result = await _client.rpc('confirm_cooperative_offer_receipt', params: {
+      'p_offer_id': offerId,
+      'p_note': note,
+    });
+    AdminActivityRepository().log(
+      module: 'offers',
+      actionType: 'received',
+      message: AdminLogMessage('adminLogCoopOfferReceived', {
+        'kg': formatQuantityUnit(kg ?? 0, unit),
+        'amount': (amount ?? 0).toStringAsFixed(2),
+      }),
+      referenceId: offerId,
+    );
+    return result as String?;
   }
 
   /// The Farmer ends the negotiation and the reserved kg go back to the batch.

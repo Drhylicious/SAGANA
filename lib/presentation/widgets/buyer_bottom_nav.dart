@@ -67,6 +67,8 @@ class BuyerBottomNav extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
+        // Keeps the selected pill off the screen edge.
+        minimum: const EdgeInsets.symmetric(horizontal: 8),
         child: SizedBox(
           height: 64,
           child: Row(

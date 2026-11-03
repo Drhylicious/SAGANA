@@ -266,6 +266,32 @@ class SoldOutGrey extends StatelessWidget {
   }
 }
 
+/// The quantity line of a listing card.
+///
+/// An approved or sold listing shows what is LEFT of what was listed,
+/// "15 of 20 kg left": [remainingKg] is the live balance that place_order() takes
+/// kg from the moment an order is placed. Showing the listed volume instead
+/// (as the Manager's cards and the Farmer's listing card used to) never changes
+/// after an order, so a listing with 5 of 20 kg ordered still read "20 kg". A
+/// pending, disapproved or withdrawn listing has no balance to speak of, so it
+/// shows the quantity listed.
+String listingQuantityLabel(
+  AppLocalizations l10n, {
+  required String status,
+  required double remainingKg,
+  required double volumeKg,
+  String? unit,
+}) {
+  final state = listingStateOf(status: status, remainingKg: remainingKg);
+  if (state == ListingState.available || state == ListingState.soldOut) {
+    return l10n.listingReviewKgLeft(
+      formatQuantity(remainingKg),
+      formatQuantityUnit(volumeKg, unit),
+    );
+  }
+  return formatQuantityUnit(volumeKg, unit);
+}
+
 /// A listing's state as a banner: the same badge as every listing card, with
 /// the quantity behind it. Used at the top of the Manager's Listing Review so
 /// that screen can never disagree with All Listings: both decide the state
@@ -297,9 +323,12 @@ class ListingStatusHeader extends StatelessWidget {
     final showLeft =
         state == ListingState.available || state == ListingState.soldOut;
     final detail = showLeft
-        ? l10n.listingReviewKgLeft(
-            formatQuantity(remainingKg),
-            formatQuantityUnit(volumeKg, unit),
+        ? listingQuantityLabel(
+            l10n,
+            status: status,
+            remainingKg: remainingKg,
+            volumeKg: volumeKg,
+            unit: unit,
           )
         : l10n.listingReviewKgListed(formatQuantityUnit(volumeKg, unit));
 

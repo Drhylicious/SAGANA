@@ -139,7 +139,11 @@ class AppNavigationDrawer extends StatelessWidget {
                         borderRadius: BorderRadius.only(topRight: Radius.circular(AppConstants.radiusLg)),
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        // The photo and the name / email / phone group share one
+                        // centre line: a lone name sits in the middle of the
+                        // photo, and two or three lines are centred together as
+                        // a group. No space is kept for a line that is missing.
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
                             padding: const EdgeInsets.all(2.5),
@@ -152,10 +156,13 @@ class AppNavigationDrawer extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
+                              key: const ValueKey('drawer-profile-info'),
+                              mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   displayName,
+                                  key: const ValueKey('drawer-profile-name'),
                                   style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
                                   overflow: TextOverflow.ellipsis,
                                 ),

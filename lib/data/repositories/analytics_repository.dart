@@ -5,6 +5,7 @@ import '../../core/utils/order_reference.dart';
 import '../../core/utils/quantity_utils.dart';
 import '../models/analytics_model.dart';
 import '../services/hive_service.dart';
+import 'completed_order_dates.dart';
 import 'crop_lookup.dart';
 import 'expense_repository.dart';
 
@@ -37,9 +38,9 @@ double _sumMoney(Iterable<num?> amounts) {
   return cents / 100;
 }
 
-/// Kilograms of a completed Market Linking round: the confirmed volume, else
-/// what the buyer asked for, else the enrolled volume — the same order Home's
-/// earnings and Transaction History use.
+/// Kilograms of one recorded Market Linking sale (a row of market_linking_sales):
+/// the confirmed volume. Falls back to what the buyer asked for, then the
+/// enrolled volume, only for an old-style row that has no confirmed volume.
 @visibleForTesting
 double marketLinkingQuantityOf(Map<String, dynamic> row) =>
     (row['confirmed_volume_kg'] as num?)?.toDouble() ??
@@ -47,8 +48,9 @@ double marketLinkingQuantityOf(Map<String, dynamic> row) =>
     (row['volume_kg'] as num?)?.toDouble() ??
     0;
 
-/// Pesos earned by a completed Market Linking round, to the centavo, or null
-/// when the round has no price yet (Home's earnings skip such a round too).
+/// Pesos earned by one recorded Market Linking sale, to the centavo, or null
+/// when it has no price (Home's earnings skip such a row too).
+
 @visibleForTesting
 double? marketLinkingAmountOf(Map<String, dynamic> row) {
   final price = (row['price_per_kg'] as num?)?.toDouble();
@@ -269,17 +271,21 @@ class AnalyticsRepository {
       // "from X to now"), so only the lower-bound handling differs per
       // source (a DATE column takes a day, a TIMESTAMPTZ takes an instant).
       final marketplaceRevenue = await _source(failures, 'orders', () async {
-        var ordersQuery = _client
-            .from('orders')
-            .select('total_price')
-            .eq('farmer_id', _userId)
-            .eq('status', 'completed');
-        if (start != null) {
-          ordersQuery = ordersQuery.gte('created_at', _instant(start));
-        }
+        // A completed order counts on the day the buyer confirmed receipt (see
+        // CompletedOrderDates): the same day the Farmer's history and Profile use.
         final orderRows = await OfflineCache.load(
           screen: 'analytics_orders_$key',
-          fetch: () => ordersQuery,
+          fetch: () => CompletedOrderDates.withFallback((withReceivedAt) {
+            final base = _client
+                .from('orders')
+                .select(withReceivedAt ? 'total_price, created_at, received_at' : 'total_price, created_at')
+                .eq('farmer_id', _userId)
+                .eq('status', 'completed');
+            if (start == null) return base;
+            return withReceivedAt
+                ? base.or(CompletedOrderDates.window(start, null)!)
+                : base.gte('created_at', _instant(start));
+          }),
         );
         return _sumMoney(orderRows.map((r) => r['total_price'] as num?));
       }, 0.0);
@@ -317,14 +323,12 @@ class AnalyticsRepository {
       // Market Linking (Ginger, run with DA-AMAD): income counts once the
       // round is completed, dated by completed_at — the same rule Home uses.
       final marketLinkingRevenue = await _source(failures, 'marketLinking', () async {
+        // One row per recorded sale (market_linking_sales): a request sold in
+        // parts counts each part on the day it was sold.
         var mlQuery = _client
-            .from('market_linking_programs')
-            .select(
-              'confirmed_volume_kg, requested_volume_kg, volume_kg, '
-              'price_per_kg, completed_at',
-            )
-            .eq('farmer_id', _userId)
-            .eq('status', 'completed');
+            .from('market_linking_sales')
+            .select('confirmed_volume_kg, price_per_kg, completed_at')
+            .eq('farmer_id', _userId);
         if (start != null) {
           mlQuery = mlQuery.gte('completed_at', _instant(start));
         }
@@ -560,22 +564,30 @@ class AnalyticsRepository {
     final marketLinkingList = await _safeFetch(
       'fetchRecentTransactions/marketLinking',
       () async {
-        var mlQuery = _client
-            .from('market_linking_programs')
-            .select(
-              'id, crop_name, confirmed_volume_kg, requested_volume_kg, '
-              'volume_kg, price_per_kg, completed_at',
-            )
-            .eq('farmer_id', _userId)
-            .eq('status', 'completed')
-            .not('completed_at', 'is', null);
-        if (startDate != null) {
-          mlQuery = mlQuery.gte('completed_at', _instant(startDate));
+        Future<List<Map<String, dynamic>>> read(String columns) {
+          var mlQuery = _client
+              .from('market_linking_sales')
+              .select(columns)
+              .eq('farmer_id', _userId)
+              .not('completed_at', 'is', null);
+          if (startDate != null) {
+            mlQuery = mlQuery.gte('completed_at', _instant(startDate));
+          }
+          return mlQuery.order('completed_at', ascending: false).limit(limit);
         }
+
+        const base =
+            'id, crop_name, confirmed_volume_kg, price_per_kg, completed_at';
         final rows = await OfflineCache.load(
           screen: 'analytics_recent_tx_market_linking_$key',
-          fetch: () =>
-              mlQuery.order('completed_at', ascending: false).limit(limit),
+          // The sale's own unit when the database has the column yet.
+          fetch: () async {
+            try {
+              return await read('$base, unit');
+            } catch (_) {
+              return read(base);
+            }
+          },
         );
         final list = <TransactionRecord>[];
         for (final row in rows) {
@@ -587,6 +599,7 @@ class AnalyticsRepository {
               id: id,
               cropName: row['crop_name'] as String? ?? 'Ginger',
               quantityKg: marketLinkingQuantityOf(row),
+              unit: unitOrDefault(row['unit'] as String?),
               totalAmount: amount,
               date: DateTime.parse(row['completed_at'] as String),
               reference: 'ML-${id.substring(0, 4).toUpperCase()}',
@@ -624,7 +637,7 @@ class AnalyticsRepository {
         fetch: () => _client
             .from('price_records')
             .select(
-              'crop_name, price_type, price, previous_price, recorded_at, crop_master(image_url, is_active)',
+              'crop_name, price_type, price, previous_price, recorded_at, crop_master(image_url)',
             )
             .order('recorded_at', ascending: false),
       );
@@ -642,8 +655,8 @@ class AnalyticsRepository {
         final key = '$crop|$priceType';
         if (latestByKey.containsKey(key)) continue;
         final cropMaster = row['crop_master'] as Map<String, dynamic>?;
-        // An archived crop (retired from the catalog) shows no current price.
-        if (cropMaster?['is_active'] == false) continue;
+        // A record whose crop was removed from the catalog is history only.
+        if (cropMaster == null) continue;
         latestByKey[key] = CropPriceCard(
           cropName: crop,
           priceType: priceType,
@@ -651,7 +664,7 @@ class AnalyticsRepository {
           previousPrice: row['previous_price'] != null
               ? (row['previous_price'] as num).toDouble()
               : null,
-          imageUrl: cropMaster?['image_url'] as String?,
+          imageUrl: cropMaster['image_url'] as String?,
           recordedAt: DateTime.parse(row['recorded_at'] as String),
         );
       }

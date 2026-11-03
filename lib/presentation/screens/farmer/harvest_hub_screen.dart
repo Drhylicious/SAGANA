@@ -14,8 +14,11 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/services/profile_state_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../../data/guest/guest_farmer_sample_data.dart';
+import '../../../data/services/guest_mode_service.dart';
+import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/guest_prompt.dart';
 import '../../widgets/skeleton.dart';
-import '../../widgets/app_navigation_drawer.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../widgets/cached_data_notice.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -75,7 +78,21 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
     if (mounted) setState(() {});
   }
 
+  /// Explore as Farmer: made-up figures, no repository or database call.
+  void _loadGuestData() {
+    setState(() {
+      _allHarvests = GuestFarmerSampleData.harvests;
+      _cropsById = {};
+      _inventoryStats = {...GuestFarmerSampleData.inventoryStats};
+      _seasonHarvestCount = GuestFarmerSampleData.seasonHarvestCount;
+      _cropCount = GuestFarmerSampleData.cropCount;
+      _unreadCount = 0;
+      _isLoading = false;
+    });
+  }
+
   Future<void> _loadData() async {
+    if (GuestModeService.active) return _loadGuestData();
     setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
@@ -106,36 +123,6 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.offWhite,
-      drawer: AnimatedBuilder(
-        animation: FarmerProfileStateService.instance,
-        builder: (context, _) {
-          final profile = FarmerProfileStateService.instance.profile;
-          return AppNavigationDrawer(
-            photoUrl: profile?.profilePhotoUrl,
-            displayName: profile?.fullName ?? 'Farmer',
-            contactEmail: profile?.contactEmail,
-            phoneNumber: profile?.phoneNumber,
-            onEditProfile: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.farmerEditProfile);
-            },
-            onEditFarmDetails: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.editFarmDetails);
-            },
-            onMyAddresses: () {
-              Navigator.pop(context);
-              context.pushRoute(AppRoutes.myAddresses);
-            },
-            onSignOut: () => confirmFarmerSignOut(context),
-            onAboutSagana: () => context.pushRoute(AppRoutes.aboutSagana),
-            onAboutOrganization: () =>
-                context.pushRoute(AppRoutes.aboutCooperative),
-            onPrivacyPolicy: () => context.pushRoute(AppRoutes.privacyPolicy),
-            onTermsOfUse: () => context.pushRoute(AppRoutes.termsOfUse),
-          );
-        },
-      ),
       body: Column(
         children: [
           Expanded(
@@ -149,7 +136,7 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                 // Content
                 Column(
                   children: [
-                    const SizedBox(height: 50),
+                    TopBarSpacer(height: 50),
                     CachedDataNotice(
                       screen: 'harvests',
                       otherScreens: [
@@ -170,6 +157,10 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (GuestModeService.active) ...[
+                                const GuestSampleBanner(),
+                                const SizedBox(height: 4),
+                              ],
                               const SizedBox(height: 24),
 
                               // ── Hero Bento Cards ──────────────────────────
@@ -179,14 +170,31 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                                     _inventoryStats['low_stock'] ?? 0,
                                 seasonHarvestCount: _seasonHarvestCount,
                                 cropCount: _cropCount,
-                                onRecordHarvest: () => context.pushRoute(
-                                  AppRoutes.selectCropForHarvest,
-                                ),
-                                onMyCrops: () =>
-                                    context.pushRoute(AppRoutes.cropListing),
-                                onManageInventory: () => context.pushRoute(
-                                  AppRoutes.manageInventory,
-                                ),
+                                onRecordHarvest: () => GuestModeService.active
+                                    ? context.promptFarmer(
+                                        (l) => l.guestRecordHarvestTitle,
+                                        (l) => l.guestRecordHarvestMessage,
+                                        icon: Icons.eco_outlined,
+                                      )
+                                    : context.pushRoute(
+                                        AppRoutes.selectCropForHarvest,
+                                      ),
+                                onMyCrops: () => GuestModeService.active
+                                    ? context.promptFarmer(
+                                        (l) => l.guestMyCropsTitle,
+                                        (l) => l.guestMyCropsMessage,
+                                        icon: Icons.grass_rounded,
+                                      )
+                                    : context.pushRoute(AppRoutes.cropListing),
+                                onManageInventory: () => GuestModeService.active
+                                    ? context.promptFarmer(
+                                        (l) => l.guestInventoryTitle,
+                                        (l) => l.guestInventoryMessage,
+                                        icon: Icons.inventory_2_outlined,
+                                      )
+                                    : context.pushRoute(
+                                        AppRoutes.manageInventory,
+                                      ),
                               ),
                               const SizedBox(height: 16),
 
@@ -199,8 +207,13 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                                 harvests: _allHarvests,
                                 cropsById: _cropsById,
                                 isLoading: _isLoading,
-                                onViewAll: () =>
-                                    context.pushRoute(AppRoutes.harvestHistory),
+                                onViewAll: () => GuestModeService.active
+                                    ? context.promptFarmer(
+                                        (l) => l.guestHarvestHistoryTitle,
+                                        (l) => l.guestHarvestHistoryMessage,
+                                        icon: Icons.history_rounded,
+                                      )
+                                    : context.pushRoute(AppRoutes.harvestHistory),
                               ),
                             ],
                           ),
@@ -223,8 +236,13 @@ class _HarvestHubScreenState extends State<HarvestHubScreen> {
                     unreadCount: _unreadCount,
                     hideProfileAvatar: true,
                     onProfileTap: () => context.goTab(AppRoutes.farmerProfile),
-                    onNotificationTap: () =>
-                        context.pushRoute(AppRoutes.farmerNotifications),
+                    onNotificationTap: () => GuestModeService.active
+                        ? context.promptFarmer(
+                            (l) => l.guestNotificationsTitle,
+                            (l) => l.guestNotificationsMessage,
+                            icon: Icons.notifications_none_rounded,
+                          )
+                        : context.pushRoute(AppRoutes.farmerNotifications),
                     enableMenu: true,
                   ),
                 ),

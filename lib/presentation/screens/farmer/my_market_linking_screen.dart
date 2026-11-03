@@ -6,11 +6,19 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/repositories/market_linking_repository.dart';
+import '../../../data/services/table_change_watcher.dart';
+
 import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/hive_service.dart';
 import '../../../routes/app_routes.dart';
+import '../../widgets/top_bar_spacer.dart';
+import '../../widgets/app_toast.dart';
+import '../../widgets/management_modal.dart';
 import '../../widgets/shared_widgets.dart';
+import '../../../core/utils/db_error_utils.dart';
+
 import '../../widgets/cached_data_notice.dart';
+import '../../widgets/market_linking_sale_widgets.dart';
 import '../../widgets/skeleton.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/utils/quantity_utils.dart';
@@ -22,8 +30,9 @@ import '../../../core/utils/quantity_utils.dart';
 /// applies: no Ginger crop yet, a form to enroll, a pending-review state,
 /// or a rejected state with a way to resubmit.
 ///
-/// Once approved: buyer name/contact and any inventory-batch tie are
-/// still deliberately never shown here — that's admin-side bookkeeping.
+/// Once approved: the Farmer sees their requests in two tabs (In Progress and
+/// Completed), the buyer the Manager/Officer saved for each request (read-only),
+/// and every sale recorded for them.
 class MyMarketLinkingScreen extends StatefulWidget {
   const MyMarketLinkingScreen({super.key});
 
@@ -31,8 +40,18 @@ class MyMarketLinkingScreen extends StatefulWidget {
   State<MyMarketLinkingScreen> createState() => _MyMarketLinkingScreenState();
 }
 
-class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
+class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen>
+    with SingleTickerProviderStateMixin {
   final _repo = MarketLinkingRepository();
+  late final TabController _tabs = TabController(length: 2, vsync: this);
+
+  // Hears about a change the Manager/Officer saves (a buyer, a sale, a
+  // cancellation review) and reloads quietly, so the Farmer never has to
+  // resubmit or even pull to refresh. Realtime is a convenience: pull-to-refresh
+  // and reopening the screen always work too.
+  TableChangeWatcher? _watcher;
+
+  bool get _isApproved => _enrollment?.status == DaAmadEnrollmentStatus.approved;
 
   DaAmadEnrollmentModel? _enrollment;
   bool _hasGinger = false;
@@ -57,6 +76,19 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
       if (mounted) setState(() => _isOnline = online);
     });
     _loadGate();
+    _watcher = TableChangeWatcher(
+      tables: const ['market_linking_programs', 'market_linking_sales'],
+      onChange: () {
+        if (mounted && _isApproved) _loadEntries(quiet: true);
+      },
+    )..start();
+  }
+
+  @override
+  void dispose() {
+    _watcher?.dispose();
+    _tabs.dispose();
+    super.dispose();
   }
 
   Future<void> _loadGate() async {
@@ -72,9 +104,13 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
     // hardcoded — a farmer only ever sees this once per approval event
     // (HiveService.getDaAmadApprovalSeen() is keyed by this exact
     // enrollment row's id).
+    // Shown once, when the enrollment is newly approved: not if the server says
+    // it was already acknowledged (any device, any login) nor if this device
+    // remembers it (covers a Farmer who is offline when they tap Continue).
     final showCelebration =
         enrollment != null &&
         enrollment.status == DaAmadEnrollmentStatus.approved &&
+        enrollment.acknowledgedAt == null &&
         !HiveService.getDaAmadApprovalSeen(enrollment.id, userId: _userId);
     setState(() {
       _enrollment = enrollment;
@@ -91,13 +127,16 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
   Future<void> _dismissApprovalCelebration() async {
     final enrollment = _enrollment;
     if (enrollment != null) {
+      // Remember it on this device first (works offline), then on the server so
+      // it stays acknowledged everywhere.
       await HiveService.setDaAmadApprovalSeen(enrollment.id, userId: _userId);
+      await _repo.acknowledgeEnrollment(enrollment.id);
     }
     if (mounted) setState(() => _showApprovalCelebration = false);
   }
 
-  Future<void> _loadEntries() async {
-    setState(() => _isLoadingEntries = true);
+  Future<void> _loadEntries({bool quiet = false}) async {
+    if (!quiet) setState(() => _isLoadingEntries = true);
     // fetchAll() is RLS-scoped to the caller's own rows for a farmer
     // account — no farmerId filter needed or possible from this side.
     final entries = await _repo.fetchAll();
@@ -144,7 +183,7 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 64),
+              TopBarSpacer(height: 64),
               CachedDataNotice(
                 screen: 'market_linking_all',
                 isOnline: _isOnline,
@@ -153,6 +192,10 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
               Expanded(
                 child: _isLoadingGate
                     ? const Padding(padding: EdgeInsets.all(16), child: SkeletonList())
+                    : _isApproved
+                    // Approved: the tabs hold their own scrolling lists, each
+                    // with its own pull-to-refresh.
+                    ? _buildGatedBody(cs, sagana)
                     : RefreshIndicator(
                         color: AppConstants.primaryGreen,
                         onRefresh: _loadGate,
@@ -184,6 +227,24 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
         ],
       ),
     );
+  }
+
+  // The Farmer asks to cancel an active request. Nothing is released until the
+  // Manager/Officer approves; the request shows "Cancellation Requested" meanwhile.
+  Future<void> _requestCancellation(MarketLinkingModel entry) async {
+    final l10n = AppLocalizations.of(context);
+    if (!_isOnline) {
+      AppToast.show(context, l10n.mlkCancelOffline, isError: true);
+      return;
+    }
+    final sent = await showManagementModal<bool>(
+      context: context,
+      builder: (_) => _CancellationRequestSheet(entry: entry, repo: _repo),
+    );
+    if (sent == true && mounted) {
+      AppToast.show(context, l10n.mlkCancelSent);
+      _loadEntries();
+    }
   }
 
   Widget _buildGatedBody(ColorScheme cs, SaganaColors sagana) {
@@ -236,25 +297,85 @@ class _MyMarketLinkingScreenState extends State<MyMarketLinkingScreen> {
     }
 
     // Approved.
-    if (_isLoadingEntries) {
+    if (_isLoadingEntries && _entries.isEmpty) {
       return const Padding(padding: EdgeInsets.all(16), child: SkeletonList());
     }
     if (_entries.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        children: [_ApprovedNextStepCard(cs: cs, sagana: sagana)],
+      return RefreshIndicator(
+        color: AppConstants.primaryGreen,
+        onRefresh: _loadEntries,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          children: [_ApprovedNextStepCard(cs: cs, sagana: sagana)],
+        ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      itemCount: _entries.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
-      itemBuilder: (_, i) {
-        final entry = _entries[i];
-        return _EnrollmentCard(entry: entry, cs: cs, sagana: sagana);
-      },
+
+    final l10n = AppLocalizations.of(context);
+    final inProgress = _entries.where((e) => e.isActive).toList();
+    final completed = _entries
+        .where((e) => e.status == MarketLinkingStatus.completed)
+        .toList();
+    final cancelled = _entries
+        .where((e) => e.status == MarketLinkingStatus.cancelled)
+        .toList();
+
+    Widget card(MarketLinkingModel e) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _RequestCard(
+        entry: e,
+        cs: cs,
+        sagana: sagana,
+        onRequestCancellation: () => _requestCancellation(e),
+      ),
+    );
+
+    // Summary card stays put above the tabs; swipe or tap to switch.
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+          child: _SummaryCard(entries: _entries),
+        ),
+        _RequestTabBar(
+          controller: _tabs,
+          inProgressCount: inProgress.length,
+          completedCount: completed.length,
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabs,
+            children: [
+              _RequestList(
+                onRefresh: _loadEntries,
+                emptyTitle: l10n.mlkEmptyInProgress,
+                emptyBody: l10n.mlkEmptyInProgressBody,
+                emptyIcon: Icons.hourglass_empty_rounded,
+                children: inProgress.map(card).toList(),
+              ),
+              _RequestList(
+                onRefresh: _loadEntries,
+                emptyTitle: l10n.mlkEmptyCompleted,
+                emptyBody: l10n.mlkEmptyCompletedBody,
+                emptyIcon: Icons.check_circle_outline_rounded,
+                // Completed first; a cancelled request is kept below, labelled,
+                // so nothing disappears from the history.
+                children: [
+                  ...completed.map(card),
+                  if (cancelled.isNotEmpty) ...[
+                    _SectionLabel(l10n.mlkStatusCancelled),
+                    ...cancelled.map(card),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -730,47 +851,293 @@ class _ApprovedNextStepCard extends StatelessWidget {
   }
 }
 
-class _EnrollmentCard extends StatelessWidget {
-  final MarketLinkingModel entry;
-  final ColorScheme cs;
-  final SaganaColors sagana;
-  const _EnrollmentCard({
-    required this.entry,
-    required this.cs,
-    required this.sagana,
-  });
+// ─── Request list ────────────────────────────────────────────────────────────
+// Simple on purpose: how much you have received, what is still being sold, and
+// what is finished. Each request says in plain words where it stands, how much
+// has sold, and what is left — no stages, seasons or program jargon.
 
-  static const _stages = ['Submitted', 'Buyer Found', 'Completed'];
-
-  int get _stageIndex {
-    switch (entry.status) {
-      case MarketLinkingStatus.buyerFound:
-        return 1;
-      case MarketLinkingStatus.completed:
-        return 2;
-      default:
-        return 0;
-    }
-  }
-
-  Color get _statusColor {
-    switch (entry.status) {
-      case MarketLinkingStatus.requested:
-        return AppConstants.outline;
-      case MarketLinkingStatus.submitted:
-        return AppConstants.warningAmber;
-      case MarketLinkingStatus.buyerFound:
-        return AppConstants.buyerBlue;
-      case MarketLinkingStatus.completed:
-        return AppConstants.successGreen;
-      case MarketLinkingStatus.cancelled:
-        return cs.outline;
-    }
-  }
+class _SummaryCard extends StatelessWidget {
+  final List<MarketLinkingModel> entries;
+  const _SummaryCard({required this.entries});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    // Every figure is worked out from the Farmer's real requests and sales.
+    final s = MarketLinkingSummary.of(entries);
+    final inProgress = s.inProgress;
+    final completed = s.completed;
+
+
+    Widget tile(IconData icon, String value, String label) => Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: Colors.white.withValues(alpha: 0.9)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: Colors.white.withValues(alpha: 0.88),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // A 2 x 2 grid: equal tiles, equal gaps.
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppConstants.primaryGreen, AppConstants.successGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              tile(Icons.hourglass_top_rounded, '$inProgress', l10n.mlkStatInProgress),
+              const SizedBox(width: 10),
+              tile(Icons.scale_rounded, s.soldText, l10n.mlkStatKgSold),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              tile(Icons.inventory_2_outlined, s.remainingText, l10n.mlkStatKgRemaining),
+              const SizedBox(width: 10),
+              tile(Icons.check_circle_outline_rounded, '$completed', l10n.statCompleted),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// In Progress | Completed. Tap a tab, or swipe the list left and right.
+class _RequestTabBar extends StatelessWidget {
+  final TabController controller;
+  final int inProgressCount;
+  final int completedCount;
+  const _RequestTabBar({
+    required this.controller,
+    required this.inProgressCount,
+    required this.completedCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+      ),
+      child: TabBar(
+        controller: controller,
+        dividerColor: Colors.transparent,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: AppConstants.primaryGreen,
+          borderRadius: BorderRadius.circular(AppConstants.radiusSm + 2),
+        ),
+        labelColor: Colors.white,
+        unselectedLabelColor: cs.onSurfaceVariant,
+        labelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500),
+        tabs: [
+          Tab(height: 38, text: '${l10n.mlkInProgress} · $inProgressCount'),
+          Tab(height: 38, text: '${l10n.statCompleted} · $completedCount'),
+        ],
+      ),
+    );
+  }
+}
+
+/// One tab's list: its own pull-to-refresh, and a friendly empty state.
+class _RequestList extends StatelessWidget {
+  final Future<void> Function() onRefresh;
+  final String emptyTitle;
+  final String emptyBody;
+  final IconData emptyIcon;
+  final List<Widget> children;
+  const _RequestList({
+    required this.onRefresh,
+    required this.emptyTitle,
+    required this.emptyBody,
+    required this.emptyIcon,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return RefreshIndicator(
+      color: AppConstants.primaryGreen,
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        children: children.isNotEmpty
+            ? children
+            : [
+                const SizedBox(height: 40),
+                Icon(emptyIcon, size: 44, color: cs.outline.withValues(alpha: 0.6)),
+                const SizedBox(height: 14),
+                Text(
+                  emptyTitle,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  emptyBody,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+      ),
+    );
+  }
+}
+
+/// Buyer Details on the Farmer's request: read-only, the same details the
+/// Manager/Officer saved. Until a buyer is found it says so.
+class _FarmerBuyerSection extends StatelessWidget {
+  final MarketLinkingModel entry;
+  const _FarmerBuyerSection({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    if (entry.hasBuyer) return MarketLinkingBuyerBlock(entry: entry);
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppConstants.warningAmber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: AppConstants.warningAmber.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.hourglass_top_rounded, size: 16, color: AppConstants.warningAmber),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.mlkAwaitingBuyer,
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.mlkAwaitingBuyerBody,
+                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 22, bottom: 10),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _RequestCard extends StatelessWidget {
+  final MarketLinkingModel entry;
+  final ColorScheme cs;
+  final SaganaColors sagana;
+  final VoidCallback onRequestCancellation;
+  const _RequestCard({
+    required this.entry,
+    required this.cs,
+    required this.sagana,
+    required this.onRequestCancellation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isCancelled = entry.status == MarketLinkingStatus.cancelled;
+    // The Buyer Details section says whether a buyer is known; the hint adds
+    // what happens next once one is.
+    final hint = entry.status == MarketLinkingStatus.buyerFound
+        ? l10n.mlkHintBuyerFound
+        : null;
+    final reason = (entry.notes ?? '').trim();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -782,161 +1149,263 @@ class _EnrollmentCard extends StatelessWidget {
           BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${entry.cropName} Program — DA-AMAD',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-                ),
-                child: Text(
-                  entry.status.label.toUpperCase(),
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
-                    color: _statusColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Text(
-            '${entry.seasonYear} Season',
-            style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 14),
-
-          if (!isCancelled)
-            Row(
-              children: List.generate(_stages.length * 2 - 1, (i) {
-                if (i.isOdd) {
-                  final passed = (i ~/ 2) < _stageIndex;
-                  return Expanded(
-                    child: Container(
-                      height: 2,
-                      color: passed
-                          ? _statusColor.withValues(alpha: 0.4)
-                          : cs.outline.withValues(alpha: 0.15),
-                    ),
-                  );
-                }
-                final dotIndex = i ~/ 2;
-                final reached = dotIndex <= _stageIndex;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: reached
-                            ? _statusColor
-                            : cs.outline.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _stages[dotIndex],
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: reached
-                            ? cs.onSurface
-                            : cs.onSurfaceVariant.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                );
-              }),
-            ),
-
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              if (entry.volumeKg != null) ...[
-                Icon(Icons.scale_outlined, size: 13, color: cs.outline),
-                const SizedBox(width: 4),
-                Text(
-                  '${formatQuantity(entry.volumeKg!)} kg committed',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              // Price shown only once there's a real match — never before,
-              // since there's nothing real to show pre-match. Buyer name
-              // and contact are deliberately never shown to the farmer.
-              if (entry.pricePerKg != null &&
-                  (entry.status == MarketLinkingStatus.buyerFound ||
-                      entry.status == MarketLinkingStatus.completed)) ...[
-                const SizedBox(width: 12),
-                Icon(Icons.payments_outlined, size: 13, color: cs.outline),
-                const SizedBox(width: 4),
-                Text(
-                  '₱${entry.pricePerKg!.toStringAsFixed(2)}/kg',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: cs.primary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-
-          // Buyer's requested quantity — distinct from "kg committed"
-          // above (the farmer's own volume at submission) and only
-          // meaningful once a buyer has actually been matched.
-          if (entry.requestedVolumeKg != null &&
-              (entry.status == MarketLinkingStatus.buyerFound ||
-                  entry.status == MarketLinkingStatus.completed)) ...[
-            const SizedBox(height: 8),
+      child: Opacity(
+        opacity: isCancelled ? 0.75 : 1,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                Icon(Icons.shopping_bag_outlined, size: 13, color: cs.outline),
-                const SizedBox(width: 4),
-                Text(
-                  'Buyer wants ${formatQuantity(entry.requestedVolumeKg!)} kg',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
+                // The Farmer's own photo of this crop (what the Manager sees too).
+                MarketLinkingEntryPhoto(entry: entry, size: 48, useInitials: false),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.cropName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      if (entry.batchNumber != null)
+                        Text(
+                          formatBatchNumber(entry.batchNumber),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
+                const SizedBox(width: 8),
+                Flexible(child: MarketLinkingStatusChip(entry: entry)),
               ],
             ),
-          ],
 
-          if (isCancelled) ...[
-            const SizedBox(height: 10),
-            Text(
-              entry.notes != null && entry.notes!.isNotEmpty
-                  ? 'Cancelled: ${entry.notes}'
-                  : 'This sale was cancelled.',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-                color: cs.onSurfaceVariant,
+            if (isCancelled) ...[
+              const SizedBox(height: 12),
+              Text(
+                reason.isNotEmpty
+                    ? l10n.mlkCancelledWithReason(reason)
+                    : l10n.mlkCancelledBackInStock,
+                style: GoogleFonts.inter(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
-            ),
+            ] else if (entry.volumeKg != null) ...[
+              const SizedBox(height: 16),
+              MarketLinkingSaleProgress(entry: entry),
+            ],
+
+            // Buyer Details (read-only): shown as soon as the Manager/Officer
+            // saves them and kept through Completed; until then, "Awaiting".
+            if (!isCancelled) ...[
+              const SizedBox(height: 14),
+              _FarmerBuyerSection(entry: entry),
+            ],
+
+            if (hint != null) ...[
+              const SizedBox(height: 12),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 14, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      hint,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Each sale recorded for the Farmer, with what they received.
+            if (entry.sales.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              MarketLinkingSalesList(entry: entry),
+            ],
+
+            // Cancellation: only the Farmer starts it, and the cooperative reviews it.
+            if (entry.isCancellationRequested) ...[
+              const SizedBox(height: 14),
+              _CancellationNote(
+                icon: Icons.pending_actions_rounded,
+                color: AppConstants.errorRed,
+                text: l10n.mlkCancelUnderReview(entry.cancellationReason ?? ''),
+              ),
+            ] else if (entry.wasCancellationDeclined) ...[
+              const SizedBox(height: 14),
+              _CancellationNote(
+                icon: Icons.info_outline_rounded,
+                color: AppConstants.warningAmber,
+                text: l10n.mlkCancelDeclinedNote(entry.cancellationReviewNotes ?? ''),
+              ),
+            ],
+            if (entry.canRequestCancellation) ...[
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: onRequestCancellation,
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: Text(l10n.mlkRequestCancellation),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: cs.error,
+                  side: BorderSide(color: cs.error.withValues(alpha: 0.6)),
+                  minimumSize: const Size.fromHeight(44),
+                  textStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  ),
+                ),
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CancellationNote extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  const _CancellationNote({required this.icon, required this.color, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurface),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Request Cancellation ─────────────────────────────────────────────────────
+// A reason is required. Sending it releases nothing: the Manager/Officer reviews
+// it, and the Farmer is notified when it is approved or declined.
+class _CancellationRequestSheet extends StatefulWidget {
+  final MarketLinkingModel entry;
+  final MarketLinkingRepository repo;
+  const _CancellationRequestSheet({required this.entry, required this.repo});
+
+  @override
+  State<_CancellationRequestSheet> createState() => _CancellationRequestSheetState();
+}
+
+class _CancellationRequestSheetState extends State<_CancellationRequestSheet> {
+  final _reasonCtrl = TextEditingController();
+  String? _error;
+  bool _isSending = false;
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final l10n = AppLocalizations.of(context);
+    if (_reasonCtrl.text.trim().isEmpty) {
+      setState(() => _error = l10n.mlkCancelReasonRequired);
+      return;
+    }
+    setState(() => _isSending = true);
+    try {
+      await widget.repo.requestCancellation(
+        programId: widget.entry.id,
+        reason: _reasonCtrl.text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSending = false);
+      AppToast.show(
+        context,
+        readableDatabaseMessage(e) ?? l10n.mlkCancelFailed,
+        isError: true,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return ManagementModalShell(
+      title: l10n.mlkCancelDialogTitle,
+      subtitle: widget.entry.cropName,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.mlkCancelDialogBody,
+            style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            l10n.mlkCancelReasonLabel,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _reasonCtrl,
+            maxLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() => _error = null),
+            decoration: InputDecoration(
+              hintText: l10n.mlkCancelReasonHint,
+              errorText: _error,
+            ),
+          ),
+        ],
+      ),
+      footer: ManagementModalActions(
+        primaryLabel: l10n.mlkCancelSend,
+        isDestructive: true,
+        isLoading: _isSending,
+        onPrimary: _send,
       ),
     );
   }

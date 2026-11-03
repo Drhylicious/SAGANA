@@ -1,3 +1,5 @@
+import '../../widgets/view_only_banner.dart';
+import '../../../data/services/staff_permission_service.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -184,6 +186,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   // ─── Delete program ─────────────────────────────────────────────────────
 
   void _confirmDeleteProgram(CooperativeProgram program) async {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final l10n = AppLocalizations.of(context);
     final impact = await _repo.fetchProgramDeleteImpact(program.id);
     if (!mounted) return;
@@ -232,6 +235,7 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
   }
 
   void _showProgramSheet(CooperativeProgram? existing) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: existing?.programName ?? '');
     final typeCtrl = TextEditingController(text: existing?.programType ?? '');
@@ -1433,6 +1437,8 @@ class _ProgramManagementScreenState extends State<ProgramManagementScreen> {
       return GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
+        // No automatic status-bar padding: this list sits inside a bigger scroll view.
+        padding: EdgeInsets.zero,
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: AppConstants.spacingSm,
         crossAxisSpacing: AppConstants.spacingSm,
@@ -1505,6 +1511,7 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
   }
 
   void _showAddProductSheet() {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     // Excludes items already added to this program — fetchEligibleInventoryForSaleProgram()
     // already excludes anything in the Loan Item Catalog.
     final addedIds = _products.map((p) => p.inventoryItemId).toSet();
@@ -1564,7 +1571,7 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
                     items: available.map((i) => i.id).toList(),
                     itemLabel: (id) {
                       final item = available.firstWhere((i) => i.id == id);
-                      return '${item.itemName} (${item.category})';
+                      return '${item.displayName} (${item.category})';
                     },
                     onChanged: (v) => setSheet(() => selectedItemId = v),
                     validator: (v) => v == null ? 'Select an item' : null,
@@ -1618,6 +1625,7 @@ class _ProgramProductsModalBodyState extends State<_ProgramProductsModalBody> {
   }
 
   Future<void> _remove(ProgramProduct product) async {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -1921,6 +1929,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   // ─── Distribute benefit ─────────────────────────────────────────────────
 
   void _showDistributeSheet(ProgramMember member) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     // Phase 4: limit the picker to the program's distribution category (set
     // via the "Distributes From" field on the program), so e.g. a Seeds
     // program only offers seed items rather than every active inventory
@@ -1993,7 +2002,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                     itemLabel: (id) {
                       final i = eligibleItems.firstWhere((e) => e.id == id);
                       return l10n.programMgmtItemOnHand(
-                          i.itemName,
+                          i.displayName,
                           i.quantityOnHand.toStringAsFixed(1),
                           i.unit,
                         );
@@ -2052,6 +2061,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   // ─── Record a revenue-share return ──────────────────────────────────────
 
   void _showRecordReturnSheet(ProgramMember member) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -2167,6 +2177,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   // requires (monthly payment, next payment date) before converting.
 
   void _showRecordOutcomeSheet(ProgramMember member) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     showManagementModal(
       context: context,
       builder: (ctx) {
@@ -2241,6 +2252,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
   }
 
   void _showConvertToLoanSheet(ProgramMember member) {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final monthlyCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -2484,7 +2496,7 @@ class _ProgramMembersModalBodyState extends State<_ProgramMembersModalBody> {
                                         Text(
                                           l10n.programMgmtDistributedLine(
                                             '${m.quantityGiven?.toStringAsFixed(1)}'
-                                                '${item != null ? ' ${item.unit} ${item.itemName}' : ''}',
+                                                '${item != null ? ' ${item.unit} ${item.displayName}' : ''}',
                                             _formatDate(m.distributedAt!),
                                           ),
                                           style: GoogleFonts.inter(
@@ -2676,6 +2688,7 @@ class _ProgramActivitiesTabState extends State<_ProgramActivitiesTab> {
   }
 
   void _showAddActivitySheet() {
+    if (!requireManage(context, StaffModule.dashboard)) return;
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final locationCtrl = TextEditingController();

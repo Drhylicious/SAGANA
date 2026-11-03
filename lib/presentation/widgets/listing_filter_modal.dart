@@ -40,47 +40,47 @@ class ListingMarketBadge extends StatelessWidget {
   }
 }
 
-/// Second chip row for listing screens: All markets / Public / Cooperative.
-/// [value] is null for "All markets", otherwise a crop_type value. Filtering
-/// is done by the caller on the already-loaded list.
+/// Market chip row for All Listings: All Markets / Cooperative Market /
+/// Public Market, each with how many listings it holds. [value] is null for
+/// "All Markets", otherwise a crop_type value. [counts] is listings per
+/// crop_type and [total] every listing; filtering is done by the caller on the
+/// already-loaded list.
 class ListingMarketFilterRow extends StatelessWidget {
   final String? value;
   final ValueChanged<String?> onChanged;
+  final Map<String, int> counts;
+  final int total;
 
   const ListingMarketFilterRow({
     super.key,
     required this.value,
     required this.onChanged,
+    this.counts = const {},
+    this.total = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    Widget chip(String? v, String label, Color color) => Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ListingStatusFilterChip(
-        label: label,
-        active: value == v,
-        color: color,
-        onTap: () => onChanged(v),
-        cs: cs,
-      ),
-    );
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          chip(null, l10n.marketplaceFilterAllMarkets, cs.primary),
-          for (final t in MarketTypes.instance.activeTypes)
-            chip(
-              t.code,
-              MarketTypes.instance.label(t.code),
-              MarketTypeDisplay.color(context, t.code),
-            ),
-        ],
-      ),
+    return MarketplaceFilterBar<String?>(
+      selected: value,
+      onSelected: onChanged,
+      options: [
+        MarketplaceFilterOption<String?>(
+          value: null,
+          label: l10n.marketplaceFilterAllMarkets,
+          count: total,
+          color: cs.primary,
+        ),
+        for (final t in MarketTypes.instance.activeTypes)
+          MarketplaceFilterOption<String?>(
+            value: t.code,
+            label: MarketTypes.instance.label(t.code),
+            count: counts[t.code] ?? 0,
+            color: MarketTypeDisplay.color(context, t.code),
+          ),
+      ],
     );
   }
 }
@@ -288,18 +288,21 @@ class ListingCropFilterChip extends StatelessWidget {
   }
 }
 
-/// Color-coded chip used for the applied-filter summary row on the
-/// screen itself (outside the modal). Matches pending_approvals_screen.dart's
-/// original _FilterChip exactly (no count badge). all_listings_screen.dart's
-/// own status chip has an extra count badge this shared version does not
-/// support, so that screen intentionally keeps its own local _FilterChip
-/// rather than using this one — see M-10 divergence note.
+/// The one filter chip of every Marketplace screen (All Listings, Listing
+/// Approvals, Order Management, Market Linking, Market Linking Enrollments,
+/// Offer to Cooperative). [count], when given, is printed after the label as
+/// "Label (n)". Use [MarketplaceFilterBar] to lay a row of them out, so the
+/// height, spacing and selected state are the same everywhere.
 class ListingStatusFilterChip extends StatelessWidget {
   final String label;
   final bool active;
   final Color color;
   final VoidCallback onTap;
   final ColorScheme cs;
+
+  /// How many records the chip holds, shown as "Label (n)". Null shows the
+  /// label alone.
+  final int? count;
 
   const ListingStatusFilterChip({
     super.key,
@@ -308,28 +311,107 @@ class ListingStatusFilterChip extends StatelessWidget {
     required this.color,
     required this.onTap,
     required this.cs,
+    this.count,
+  });
+
+  /// The text on the chip: "Pending (3)".
+  String get text => count == null ? label : '$label ($count)';
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: active,
+      label: text,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? color : cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppConstants.radiusFull),
+            border: Border.all(
+              color: active ? color : cs.outline.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Text(
+            text,
+            maxLines: 1,
+            softWrap: false,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              color: active ? Colors.white : cs.onSurface,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One option of a [MarketplaceFilterBar].
+class MarketplaceFilterOption<T> {
+  final T value;
+  final String label;
+  final int count;
+  final Color color;
+
+  const MarketplaceFilterOption({
+    required this.value,
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+}
+
+/// A horizontally scrolling row of filter chips with their record counts. The
+/// same row, height, spacing and selected state on every Marketplace screen.
+/// [selected] is compared with each option's value, so "All" is just an option
+/// whose value is null (or an enum's `all`). The caller computes the counts
+/// from the records it loaded, so they follow the database, not a constant.
+class MarketplaceFilterBar<T> extends StatelessWidget {
+  final List<MarketplaceFilterOption<T>> options;
+  final T selected;
+  final ValueChanged<T> onSelected;
+
+  /// Side padding, for screens whose list is not already padded.
+  final EdgeInsetsGeometry padding;
+
+  const MarketplaceFilterBar({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.padding = EdgeInsets.zero,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: active ? color : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppConstants.radiusFull),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-            color: active ? Colors.white : cs.onSurface,
-          ),
-        ),
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        padding: padding,
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final o = options[i];
+          return ListingStatusFilterChip(
+            label: o.label,
+            count: o.count,
+            active: o.value == selected,
+            color: o.color,
+            onTap: () => onSelected(o.value),
+            cs: cs,
+          );
+        },
       ),
     );
   }

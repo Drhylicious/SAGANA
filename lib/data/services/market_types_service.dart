@@ -142,6 +142,30 @@ class MarketTypes extends ChangeNotifier {
     }
   }
 
+  /// Guest Mode: loads only the Buyer-visible market types through the public
+  /// function (a signed-out visitor cannot read the table). Never throws.
+  Future<void> loadPublic() async {
+    try {
+      final rows = await OfflineCache.load(
+        screen: 'guest_market_types',
+        fetch: () async {
+          final res = await Supabase.instance.client.rpc('public_market_types');
+          return List<Map<String, dynamic>>.from(
+            (res as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+        },
+      );
+      final next = rows.map(MarketType.fromMap).toList(growable: false);
+      if (!_sameTypes(_types, next)) {
+        _types = next;
+        _version++;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('MarketTypes.loadPublic failed: $e');
+    }
+  }
+
   static bool _sameTypes(List<MarketType> a, List<MarketType> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {

@@ -7,7 +7,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/sagana_colors.dart';
 import '../../../data/repositories/account_management_repository.dart';
 import '../../widgets/account_card.dart';
-import '../../widgets/management_modal.dart';
+import '../../../data/services/staff_permission_service.dart';
+import '../../widgets/view_only_banner.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/temp_password_dialog.dart';
 import '../../widgets/skeleton.dart';
@@ -26,7 +27,8 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
     with TickerProviderStateMixin {
   final _repo = AccountManagementRepository();
   List<AccountEntry> _farmers = [];
-  List<AccountEntry> _officers = [];
+  // The Management tab: the Manager first (display-only), then the Officers.
+  List<AccountEntry> _management = [];
   List<PasswordResetRequest> _requests = [];
   bool _isLoading = true;
   late TabController _tabController;
@@ -35,6 +37,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
   void initState() {
     super.initState();
     AppTheme.applySystemOverlay(context);
+    // 'officer' opens the Management tab (the route name is unchanged).
     final initialIndex = widget.initialTab == 'officer' ? 1 : 0;
     _tabController = TabController(
       length: 3,
@@ -54,12 +57,13 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
     setState(() => _isLoading = true);
     try {
       final farmerResults = await _repo.fetchAccountsByRole('farmer');
+      final managerResults = await _repo.fetchAccountsByRole('admin');
       final officerResults = await _repo.fetchAccountsByRole('officer');
       final requests = await _repo.fetchPendingPasswordRequests();
       if (!mounted) return;
       setState(() {
         _farmers = farmerResults;
-        _officers = officerResults;
+        _management = [...managerResults, ...officerResults];
         _requests = requests;
         _isLoading = false;
       });
@@ -70,6 +74,10 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
   }
 
   Future<void> _resolveRequest(PasswordResetRequest request) async {
+    if (!canManageModule(StaffModule.members)) {
+      showViewOnlyMessage(context);
+      return;
+    }
     try {
       final tempPassword = await _repo.resetUserPassword(request.userId);
       if (!mounted) return;
@@ -94,73 +102,6 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
     }
   }
 
-  void _showAccountActions(AccountEntry account) {
-    final l10n = AppLocalizations.of(context);
-    showManagementModal(
-      context: context,
-      builder: (_) => ManagementModalShell(
-        title: account.name,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              onTap: () {
-                Navigator.pop(context);
-                _resetPassword(account);
-              },
-              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 4,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.lock_reset_rounded,
-                      color: AppConstants.primaryGreen,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      l10n.farmerMgmtActionResetPassword,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _resetPassword(AccountEntry account) async {
-    try {
-      final tempPassword = await _repo.resetUserPassword(account.userId);
-      if (!mounted) return;
-      await showTempPasswordDialog(
-        context: context,
-        name: account.name,
-        tempPassword: tempPassword,
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context).farmerMgmtResetPasswordError,
-          ),
-          backgroundColor: AppConstants.errorRed,
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -173,7 +114,9 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
       body: Column(
         children: [
           SubPageTopBar(title: l10n.manageAccountsTitle, onBack: () => context.pop()),
-          // The three sections: Farmers, Officers, Password Assistance Requests.
+          const ViewOnlyBanner(module: StaffModule.members),
+          // The three sections: Farmers, Management (Manager and Officers),
+          // Password Assistance Requests.
           Container(
             color: Theme.of(context).scaffoldBackgroundColor,
             child: TabBar(
@@ -188,7 +131,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
               unselectedLabelStyle: GoogleFonts.inter(fontSize: 13),
               tabs: [
                 Tab(text: l10n.manageAccountsFarmersTab),
-                Tab(text: l10n.manageAccountsOfficersTab),
+                Tab(text: l10n.manageAccountsManagementTab),
                 Tab(
                   text: _requests.isEmpty
                       ? l10n.manageAccountsRequestsTab
@@ -205,12 +148,13 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
                 _AccountList(
                   accounts: _farmers,
                   cs: cs,
-                  onTap: _showAccountActions,
                 ),
                 _AccountList(
-                  accounts: _officers,
+                  accounts: _management,
                   cs: cs,
-                  onTap: _showAccountActions,
+                  roleLabelFor: (a) => a.role == 'admin'
+                      ? l10n.staffRoleManager
+                      : l10n.staffRoleOfficer,
                 ),
                 _PasswordRequestsList(
                   requests: _requests,
@@ -229,12 +173,14 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen>
 class _AccountList extends StatelessWidget {
   final List<AccountEntry> accounts;
   final ColorScheme cs;
-  final void Function(AccountEntry) onTap;
+
+  /// Adds a role caption to each card when the list mixes roles.
+  final String Function(AccountEntry)? roleLabelFor;
 
   const _AccountList({
     required this.accounts,
     required this.cs,
-    required this.onTap,
+    this.roleLabelFor,
   });
 
   @override
@@ -257,7 +203,12 @@ class _AccountList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final account = accounts[index];
-        return AccountCard(account: account, onTap: () => onTap(account));
+        return AccountCard(
+          account: account,
+          // Display-only: a card opens nothing.
+          onTap: null,
+          roleLabel: roleLabelFor?.call(account),
+        );
       },
     );
   }

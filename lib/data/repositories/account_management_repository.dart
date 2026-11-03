@@ -3,6 +3,7 @@ import '../../core/utils/person_name.dart';
 import 'admin_activity_repository.dart';
 import '../models/admin_log_message.dart';
 import '../models/farmer_member_model.dart';
+import '../services/staff_permission_service.dart';
 
 /// Admin-side account management: creating Officer accounts, listing
 /// non-Farmer accounts (Officer/Buyer), and admin-assisted password
@@ -26,7 +27,7 @@ class AccountManagementRepository {
     String? suffix,
     String? email,
     String? phoneNumber,
-    String? position,
+    required Map<StaffModule, StaffAccess> access,
     DateTime? dateOfBirth,
     String? gender,
   }) async {
@@ -50,7 +51,10 @@ class AccountManagementRepository {
         'p_suffix': PersonName.cleanSuffix(suffix),
         'p_email': email,
         'p_phone_number': phoneNumber,
-        'p_position': position,
+        'p_permissions': {
+          for (final m in StaffModule.values)
+            m.key: (access[m] ?? StaffAccess.view).key,
+        },
         'p_date_of_birth': dateOfBirth == null
             ? null
             : '${dateOfBirth.year.toString().padLeft(4, '0')}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}',
@@ -62,6 +66,44 @@ class AccountManagementRepository {
         actionType: 'created',
         message: AdminLogMessage('adminLogAccountOfficerCreated', {'fullName': fullName}),
       );
+    } on PostgrestException catch (e) {
+      throw Exception(e.message);
+    }
+  }
+
+  /// An Officer's View Only / Manage level for every module.
+  Future<Map<StaffModule, StaffAccess>> fetchOfficerAccess(String userId) async {
+    try {
+      final result = await _client.rpc(
+        'get_officer_permissions',
+        params: {'p_user_id': userId},
+      );
+      return StaffPermissions.parse(result);
+    } on PostgrestException catch (e) {
+      throw Exception(e.message);
+    }
+  }
+
+  /// Saves an Officer's access. The database refuses it unless the caller is the
+  /// Manager (script 20); the change is recorded in the accountability log by the
+  /// database. No screen offers this for now (it belongs to the planned
+  /// Cooperative ID Card).
+  Future<Map<StaffModule, StaffAccess>> saveOfficerAccess(
+    String userId,
+    Map<StaffModule, StaffAccess> access,
+  ) async {
+    try {
+      final result = await _client.rpc(
+        'set_officer_permissions',
+        params: {
+          'p_user_id': userId,
+          'p_permissions': {
+            for (final m in StaffModule.values)
+              m.key: (access[m] ?? StaffAccess.view).key,
+          },
+        },
+      );
+      return StaffPermissions.parse(result);
     } on PostgrestException catch (e) {
       throw Exception(e.message);
     }
@@ -97,6 +139,10 @@ class AccountManagementRepository {
         .inFilter('user_id', userIds);
     final infoMap = {for (final r in infoRows) r['user_id'] as String: r};
 
+    // The Manager signs in with a real e-mail and has no separate contact
+    // e-mail, so it only exists on the sign-in record (script 19).
+    final managerEmails = role == 'admin' ? await _managerSignInEmails() : const <String, String>{};
+
     final entries = roles.map((r) {
       final userId = r['user_id'] as String;
       final info = infoMap[userId];
@@ -107,7 +153,7 @@ class AccountManagementRepository {
         role: role,
         status: r['status'] as String? ?? 'active',
         profilePhotoUrl: info?['profile_photo_url'] as String?,
-        email: _clean(info?['contact_email'] as String?),
+        email: _clean(info?['contact_email'] as String?) ?? managerEmails[userId],
         phone: _clean(info?['phone_number'] as String?),
         lastActiveAt: info?['last_active_at'] == null
             ? null
@@ -116,6 +162,20 @@ class AccountManagementRepository {
     }).toList();
     entries.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return entries;
+  }
+
+  /// Manager user id -> sign-in e-mail (real addresses only). Empty if the call
+  /// fails, so the list still loads and the e-mail reads "Not set".
+  Future<Map<String, String>> _managerSignInEmails() async {
+    try {
+      final rows = await _client.rpc('get_manager_sign_in_emails');
+      return {
+        for (final r in rows as List)
+          (r as Map)['account_id'] as String: r['sign_in_email'] as String,
+      };
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Returns the generated temporary password exactly once. Nothing in

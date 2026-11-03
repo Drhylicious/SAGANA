@@ -69,9 +69,12 @@ String _orderStatusLabel(String? status, AppLocalizations l10n) {
   switch (status) {
     case 'pending':   return l10n.buyerOrdersStatusPending;
     case 'approved':  return l10n.buyerOrderDetailStepApproved;
+    case 'ready_for_pickup': return l10n.orderStatusReadyForPickup;
+    case 'out_for_delivery': return l10n.orderStatusOutForDelivery;
+    case 'delivered': return l10n.orderStatusDelivered;
     case 'completed': return l10n.buyerOrderDetailStepCompleted;
-    case 'cancelled': return l10n.buyerActivityStatusCancelled;
-    case 'rejected':  return l10n.orderStatusRejected;
+    case 'cancelled':
+    case 'rejected': return l10n.buyerActivityStatusCancelled; // 'rejected' is legacy, shown as cancelled
     default:          return status ?? '';
   }
 }
@@ -80,7 +83,10 @@ String _orderStatusLabel(String? status, AppLocalizations l10n) {
 // colour holds in every language.
 RecentActivityTone _orderStatusTone(String? status) {
   switch (status) {
-    case 'approved':  return RecentActivityTone.success;
+    case 'approved':
+    case 'ready_for_pickup':
+    case 'out_for_delivery':
+    case 'delivered': return RecentActivityTone.success;
     case 'completed': return RecentActivityTone.neutral;
     case 'cancelled':
     case 'rejected':  return RecentActivityTone.alert;
